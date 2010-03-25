@@ -537,7 +537,7 @@ int Plfs::get_groups( vector<gid_t> *vec ) {
     for( int i = 0; i < val; i++ ) {
         vec->push_back( groups[i] );
     }
-    delete groups;
+    delete []groups;
     groups = NULL;
     return ( val >= 0 ? 0 : -errno );
 }

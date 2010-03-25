@@ -187,6 +187,8 @@ int Index::flush() {
     // so just dump it in one fell swoop
     size_t  len = hostIndex.size() * sizeof(HostEntry);
     if ( len == 0 ) return 0;   // could be 0 if we weren't buffering
+    // valgrind complains about writing uninitialized bytes here....
+    // but it's fine as far as I can tell.
     void *start = &(hostIndex.front());
     int ret     = Util::Writen( fd, start, len );
     hostIndex.clear();
@@ -639,6 +641,8 @@ void Index::addWrite( off_t offset, size_t length, pid_t pid,
         entry.id             = pid; 
         #ifdef INDEX_CONTAINS_TIMESTAMPS
             entry.begin_timestamp = begin_timestamp;
+            // valgrind complains about this line as well:
+            // Address 0x97373bc is 20 bytes inside a block of size 40 alloc'd
             entry.end_timestamp   = end_timestamp;
         #endif
         hostIndex.push_back( entry );

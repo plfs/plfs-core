@@ -1,7 +1,7 @@
 all:
 	make -C src all
 	make -C fuse all
-	make -C trace all
+	#make -C trace all
 
 clean:
 	make -C src clean
