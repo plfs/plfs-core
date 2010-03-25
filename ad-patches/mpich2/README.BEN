@@ -1,0 +1,19 @@
+building:
+
+tar -zxf mpich2-plfs-1.2.1p1.tar.gz
+export CFLAGS="-I/usr/projects/artab/ioteam/build/plfs_rr-dev/library/src -L/usr/projects/artab/ioteam/build/plfs_rr-dev/library/src -lplfs -lstdc++"
+mkdir -p /tmp/ben/mpich-build
+cd /tmp/ben/mpich-build
+/usr/projects/artab/ioteam/build/mpich2-rr-dev/mpich2-plfs-1.2.1p1/configure --prefix=/usr/projects/artab/ioteam/build/mpich2-rr-dev/release --enable-romio --with-file-system=ufs+nfs+plfs
+make
+make install
+
+----
+
+applying patches:
+
+tar -zxf mpich2-1.2.1p1.tar.gz
+patch -p0<plfs-prep-mpich2.patch
+patch -p0<plfs-mpich2.patch
+cd mpich2-1.2.1p1
+maint/updatefiles

@@ -1,0 +1,9 @@
+We need to write a test suite but in the meantime, 
+here is the list of functionality tests that should 
+be performed before committing.  We also should add
+some performance testing.
+
+Actually, all the functionality testing has been
+moved to tests/Tester.tcsh
+
+We still need performance testing.

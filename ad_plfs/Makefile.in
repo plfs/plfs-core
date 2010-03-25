@@ -1,0 +1,50 @@
+CC          = @CC@
+AR          = @AR@
+RANLIB      = @RANLIB@
+LIBNAME     = @LIBNAME@
+srcdir      = @srcdir@
+CC_SHL      = @CC_SHL@
+SHLIBNAME   = @SHLIBNAME@
+
+INCLUDE_DIR = -I@MPI_INCLUDE_DIR@ -I${srcdir}/../include -I../include -I../../include  -I${srcdir}/../../../../include -I../../../../include 
+CFLAGS      = @CPPFLAGS@ @CFLAGS@ $(INCLUDE_DIR)
+
+top_builddir  = @master_topbuild_dir@
+LIBTOOL       = @LIBTOOL@
+C_COMPILE_SHL = $(CC_SHL) 
+
+@VPATH@
+
+AD_PLFS_OBJECTS = ad_plfs_close.o ad_plfs_read.o \
+      ad_plfs_open.o ad_plfs_write.o \
+      ad_plfs_flush.o ad_plfs_resize.o \
+      ad_plfs_delete.o ad_plfs.o
+
+default: $(LIBNAME)
+	@if [ "@ENABLE_SHLIB@" != "none" ] ; then \
+	    $(MAKE) $(SHLIBNAME).la ;\
+	fi
+
+.SUFFIXES: $(SUFFIXES) .p .lo
+
+.c.o:
+	$(CC) $(CFLAGS) -c $<
+.c.lo:
+	$(C_COMPILE_SHL) $(CFLAGS) -c $<
+	@mv -f $*.o $*.lo
+
+$(LIBNAME): $(AD_PLFS_OBJECTS)
+	$(AR) $(LIBNAME) $(AD_PLFS_OBJECTS)
+	$(RANLIB) $(LIBNAME) 
+
+AD_PLFS_LOOBJECTS=$(AD_PLFS_OBJECTS:.o=.lo)
+$(SHLIBNAME).la: $(AD_PLFS_LOOBJECTS)
+	$(AR) $(SHLIBNAME).la $(AD_PLFS_LOOBJECTS)
+	$(RANLIB) $(SHLIBNAME) 
+
+coverage:
+	-@for file in  ${AD_PLFS_OBJECTS:.o=.c} ; do \
+		gcov -b -f $$file ; done
+
+clean:
+	@rm -f *.o

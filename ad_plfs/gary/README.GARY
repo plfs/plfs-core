@@ -1,0 +1,3 @@
+copy plfs.h from plfs lib dir
+make buildit script
+run buildit script

@@ -1,0 +1,122 @@
+2/02/2009
+Keep trying to add more functionality and to clean up the code. Somehow I
+keep doing something that really slows down performance so I'm only doing
+very small changes until I figure out what that is.  Right now the cvs
+version is failing 'make test' on a rewrite of an existing file.  Somehow
+creating a new one is working....  But on the rewrite, the diff -q fails
+because first it does a stat and shows size 0.  This is because the index
+is buffered and it hasn't been written out yet.  To fix this, getattr needs
+to look for any open writefile and augment the stat info with that. But I'm
+scared to do that bec maybe that's what's causing the slow down....
+
+12/19/2008
+Figured out that the large read close times on rrz are due to MPI_File_close 
+doing an implicit barrier and the procs being very asynchronous in their time
+to read the file.
+
+12/15/2008
+On rrz, noticing:
+1) posix failures.  can't delete and crashes at high node counts
+2) ridiculuously large read open times and even larger read close times
+
+12/03/2008
+From an email from johnbent to milo:
+
+From johnbent@lanl.gov Wed Dec 03 12:59:42 -0700 2008
+Subject: PLFS src
+From: John Bent <johnbent@lanl.gov>
+To: Milo Polte <milop@cs.cmu.edu>
+Date: Wed, 03 Dec 2008 12:59:42 -0700
+
+Take a look at Index::~Index().  Is there inefficiency in there that's
+causing the slow close time for reads?  The Index maybe should actually
+be two classes inherited from a parent: one for read indices and one for
+write indices.  Right now it is used for both and just creates internal
+data structures differently for each case.  There's nothing to do on the
+delete for the write structures but for the read structures we do need
+to close some fd's and clean up some dynamically allocated structures.
+
+We only close any open data fd's at this time.  All of the index fd's
+were opened, read, and closed during the first client open of the
+container so those are all taken care of.  And we open data fd's lazily
+so for the tests we saw before, each pid had only one open data fd so I
+don't think it's the close time that's hurting us.  Could it be the data
+structure stuff?
+
+The chunk_map is a map of DataFile pointers.  I made them pointers
+because I query them when someone does a read of a data file.  That
+structure either already has a valid fd cached or we need to open one.
+I couldn't figure out how to have the chunk_map be a map of DataFile
+objects (i.e. not pointers) and then edit them in place so that's why
+they are dynamically allocated and destroyed.  I'm just wondering if
+it's all the delete's which are slowing us down.
+
+Make sure to check out how you can define NUTIL in the Makefile.  It
+probably slows us down a little bit to not define it but it allows lots
+of extra useful timing information to be collected in the Util class and
+then returned to the user by cat'ing /mntpnt/.plfsdebug.
+
+Also, the trickiest part about this code is thinking about what can be
+static and shared by multiple PLFS threads on a single node and what
+must be unique to each and when it is necessary to use the muxes.  I've
+tried to really avoid doing any IO within a mux although this isn't
+always possible.  Also, it's hard to thinking about races between
+different threads on the same node which can occur in memory and in the
+underlying filesystem it is also hard to think about races which can
+occur between different nodes.  These races only happen due to the
+shared interaction with the underlying filesystem.
+
+There are two versions in the source.  The older verision is the one directly
+in src/ and is written in C.  The newer version is the one in src/cpp and is
+written in C++.  I took some early measurements and the C++ version is actually
+slightly faster and it doesn't leak fd's as does the older C version.  However,
+I'm keeping the C version around bec it's useful sometimes for a sanity check
+(although I haven't done that in a long time) and also because one day I might
+rip all the chmod, chgrp, setfsid, stuff from it.  Remember it works when run
+as root and can allow access from multiple users and should respect their
+permissions.  The C++ version doesn't even try to do any of that and has only
+been tested when run as a normal user and then accessed by that same user.
+
+11/26/2008
+* fixed du
+* fixed O_RDWR.  will be slow for reads but it will work (barring overlap)
+* added a plfs_map standalone program to print the index from a container
+* started adding aggregation on the writes but gave up and undid it,
+  not sure how I want to do it.  and I really want to get rid of the option
+  to bufferindex bec it's making it complicated to maintain both branches
+  problem with write aggregation is that I don't want to lseek backwards so
+  I have to store the last write and then flush when not contiguous and then
+  also flush the final one in the f_flush.  Could I mmap?  Would it grow?
+
+11/23/2008
+ok, now I do check for overlap when building the read index but I don't handle
+also, now I correctly handle reads which span multiple chunks
+
+11/20/2008
+Boy, you've made me nervous.  I'm really hoping I'm not wasting my time.
+But anyway, here's an example of code that all works:
+
+> mpirun -np 2 make strided pattern with funny size writes
+> use cp to read it out to tmp
+> use dd with different size blocks to read it out to tmp
+> diff both those versions in tmp with the version in fuse still
+> mpirun -np 4 -N 2 funny strided with read checking shifted
+
+so the reading works even with different offsets is what I'm saying.
+
+1) I still need to aggregate the index when I create it for reads, this
+just means checking for overlaps and trying to deal with that 
+appropriately
+2) also should probably drop the aggregated index in the toplevel so that 
+it can be cached
+
+3) also if a read comes in requesting data striped across multiple chunks,
+I just return up to the end of a chunk and hope the app will issue 
+another read but this isn't good enough since the man page for read says
+that read is guaranteed to return the requested size up to EOF (not end
+of chunk!) so although I believe most apps try reading until they get a
+0, this still should be fixed
+
+Other than that, it seems pretty stable although I haven't done any 
+testing at scale since SC.
+

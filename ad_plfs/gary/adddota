@@ -1,0 +1,2 @@
+ar -cru ../../../../../../../ompi/.libs/libmpi.a ad_plfs_close.o  ad_plfs_delete.o  ad_plfs_flush.o  ad_plfs.o  ad_plfs_open.o  ad_plfs_read.o  ad_plfs_resize.o  ad_plfs_write.o
+ranlib ../../../../../../../ompi/.libs/libmpi.a

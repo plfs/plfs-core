@@ -1,0 +1,164 @@
+diff -Naur mpich2-1.2.1p1.ORIG/src/mpi/romio/adio/common/ad_fstype.c mpich2-1.2.1p1/src/mpi/romio/adio/common/ad_fstype.c
+--- mpich2-1.2.1p1.ORIG/src/mpi/romio/adio/common/ad_fstype.c	2009-06-01 16:57:33.000000000 -0600
++++ mpich2-1.2.1p1/src/mpi/romio/adio/common/ad_fstype.c	2010-03-10 11:35:34.701131000 -0700
+@@ -504,9 +504,12 @@
+ 	*fstype = ADIO_NFS;
+     }
+     else if (!strncmp(filename, "panfs:", 6) || !strncmp(filename, "PANFS:", 6)) {
+-	*fstype = ADIO_PANFS;
++        *fstype = ADIO_PANFS;
+     }
+-    else if (!strncmp(filename, "hfs:", 4) || !strncmp(filename, "HFS:", 4)) {
++    else if (!strncmp(filename, "plfs:", 5) || !strncmp(filename, "PLFS:", 5)) {
++	*fstype = ADIO_PLFS;
++    }
++    if (!strncmp(filename, "hfs:", 4) || !strncmp(filename, "HFS:", 4)) {
+ 	*fstype = ADIO_HFS;
+     }
+     else if (!strncmp(filename, "xfs:", 4) || !strncmp(filename, "XFS:", 4)) {
+@@ -708,6 +711,16 @@
+ 	*ops = &ADIO_PANFS_operations;
+ #endif
+     }
++    if (file_system == ADIO_PLFS) {
++#ifndef ROMIO_PLFS
++        *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
++                                           myname, __LINE__, MPI_ERR_IO,
++                                           "**iofstypeunsupported", 0);
++        return;
++#else
++        *ops = &ADIO_PLFS_operations;
++#endif
++    }
+     if (file_system == ADIO_HFS) {
+ #ifndef ROMIO_HFS
+ 	*error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
+diff -Naur mpich2-1.2.1p1.ORIG/src/mpi/romio/adio/include/adio.h mpich2-1.2.1p1/src/mpi/romio/adio/include/adio.h
+--- mpich2-1.2.1p1.ORIG/src/mpi/romio/adio/include/adio.h	2009-08-05 16:43:28.000000000 -0600
++++ mpich2-1.2.1p1/src/mpi/romio/adio/include/adio.h	2010-03-10 11:39:08.801355000 -0700
+@@ -288,6 +288,7 @@
+ #define ADIO_LUSTRE              163   /* Lustre */
+ #define ADIO_BGL                 164   /* IBM BGL */
+ #define ADIO_BGLOCKLESS          165   /* IBM BGL (lock-free) */
++#define ADIO_PLFS                166   /* PLFS */
+ #define ADIO_ZOIDFS              167   /* ZoidFS: the I/O forwarding fs */
+ 
+ #define ADIO_SEEK_SET            SEEK_SET
+diff -Naur mpich2-1.2.1p1.ORIG/src/mpi/romio/adio/include/adioi_errmsg.h mpich2-1.2.1p1/src/mpi/romio/adio/include/adioi_errmsg.h
+--- mpich2-1.2.1p1.ORIG/src/mpi/romio/adio/include/adioi_errmsg.h	2008-11-06 14:29:57.000000000 -0700
++++ mpich2-1.2.1p1/src/mpi/romio/adio/include/adioi_errmsg.h	2010-03-10 11:37:41.292577000 -0700
+@@ -42,7 +42,7 @@
+ 
+ MPI_ERR_IO
+     MPIR_ERR_ETYPE_FRACTIONAL "Only an integral number of etypes can be accessed"
+-    MPIR_ERR_NO_FSTYPE "Can't determine the file-system type. Check the filename/path you provided and try again. Otherwise, prefix the filename with a string to indicate the type of file sytem (piofs:, pfs:, nfs:, ufs:, hfs:, xfs:, sfs:, pvfs:, panfs: ftp: gsiftp:)"
++    MPIR_ERR_NO_FSTYPE "Can't determine the file-system type. Check the filename/path you provided and try again. Otherwise, prefix the filename with a string to indicate the type of file sytem (piofs:, pfs:, nfs:, ufs:, hfs:, xfs:, sfs:, pvfs:, panfs: plfs: ftp: gsiftp:)"
+     MPIR_ERR_NO_PFS "ROMIO has not been configured to use the PFS file system"
+     MPIR_ERR_NO_PIOFS "ROMIO has not been configured to use the PIOFS file system"
+     MPIR_ERR_NO_UFS "ROMIO has not been configured to use the UFS file system"
+@@ -52,6 +52,7 @@
+     MPIR_ERR_NO_SFS "ROMIO has not been configured to use the SFS file system"
+     MPIR_ERR_NO_PVFS "ROMIO has not been configured to use the PVFS file system"
+     MPIR_ERR_NO_PANFS "ROMIO has not been configured to use the PANFS file system"
++    MPIR_ERR_NO_PLFS "ROMIO has not been configured to use the PLFS file system"
+     MPIR_ERR_MULTIPLE_SPLIT_COLL "Only one active split collective I/O operation allowed per file handle"
+     MPIR_ERR_NO_SPLIT_COLL "No previous split collective begin"
+     MPIR_ERR_ASYNC_OUTSTANDING "There are outstanding nonblocking I/O operations on this file"
+diff -Naur mpich2-1.2.1p1.ORIG/src/mpi/romio/adio/include/adioi_fs_proto.h mpich2-1.2.1p1/src/mpi/romio/adio/include/adioi_fs_proto.h
+--- mpich2-1.2.1p1.ORIG/src/mpi/romio/adio/include/adioi_fs_proto.h	2008-08-14 12:46:36.000000000 -0600
++++ mpich2-1.2.1p1/src/mpi/romio/adio/include/adioi_fs_proto.h	2010-03-10 11:36:55.659338000 -0700
+@@ -19,6 +19,11 @@
+ /* prototypes are in adio/ad_panfs/ad_panfs.h */
+ #endif
+ 
++#ifdef ROMIO_PLFS
++extern struct ADIOI_Fns_struct ADIO_PLFS_operations;
++/* prototypes are in adio/ad_plfs/ad_plfs.h */
++#endif
++
+ #ifdef ROMIO_PFS
+ extern struct ADIOI_Fns_struct ADIO_PFS_operations;
+ /* prototypes are in adio/ad_pfs/ad_pfs.h */
+diff -Naur mpich2-1.2.1p1.ORIG/src/mpi/romio/adio/include/mpio_error.h mpich2-1.2.1p1/src/mpi/romio/adio/include/mpio_error.h
+--- mpich2-1.2.1p1.ORIG/src/mpi/romio/adio/include/mpio_error.h	2008-11-06 14:29:57.000000000 -0700
++++ mpich2-1.2.1p1/src/mpi/romio/adio/include/mpio_error.h	2010-03-10 11:40:44.142595000 -0700
+@@ -52,6 +52,7 @@
+ #define MPIR_ERR_NO_HFS 15
+ #define MPIR_ERR_NO_XFS 17
+ #define MPIR_ERR_NO_SFS 19
++#define MPIR_ERR_NO_PLFS 20
+ #define MPIR_ERR_NO_PVFS 21
+ #define MPIR_ERR_NO_PANFS 22
+ #define MPIR_ERR_MULTIPLE_SPLIT_COLL 23
+diff -Naur mpich2-1.2.1p1.ORIG/src/mpi/romio/adio/include/romioconf.h.in mpich2-1.2.1p1/src/mpi/romio/adio/include/romioconf.h.in
+--- mpich2-1.2.1p1.ORIG/src/mpi/romio/adio/include/romioconf.h.in	2010-02-22 15:21:31.000000000 -0700
++++ mpich2-1.2.1p1/src/mpi/romio/adio/include/romioconf.h.in	2010-03-10 11:39:56.265482000 -0700
+@@ -300,6 +300,9 @@
+ /* Define for ROMIO with PANFS */
+ #undef ROMIO_PANFS
+ 
++/* Define for ROMIO with PLFS */
++#undef ROMIO_PLFS
++
+ /* Define for ROMIO with PFS */
+ #undef ROMIO_PFS
+ 
+diff -Naur mpich2-1.2.1p1.ORIG/src/mpi/romio/configure.in mpich2-1.2.1p1/src/mpi/romio/configure.in
+--- mpich2-1.2.1p1.ORIG/src/mpi/romio/configure.in	2009-11-02 16:31:04.000000000 -0700
++++ mpich2-1.2.1p1/src/mpi/romio/configure.in	2010-03-10 11:24:22.482457000 -0700
+@@ -100,7 +100,7 @@
+ #
+ have_aio=no
+ #
+-known_filesystems="nfs ufs pfs pvfs pvfs2 testfs xfs panfs gridftp lustre bgl bglockless zoidfs"
++known_filesystems="nfs ufs pfs pvfs pvfs2 testfs xfs panfs plfs gridftp lustre bgl bglockless zoidfs"
+ known_mpi_impls="mpich2_mpi mpich_mpi sgi_mpi hp_mpi cray_mpi lam_mpi"
+ #
+ # Defaults
+@@ -1110,6 +1110,9 @@
+ if test -n "$file_system_panfs"; then
+     AC_DEFINE(ROMIO_PANFS,1,[Define for ROMIO with PANFS])
+ fi
++if test -n "$file_system_plfs"; then
++    AC_DEFINE(ROMIO_PLFS,1,[Define for ROMIO with PLFS])
++fi
+ if test -n "$file_system_ufs"; then
+     AC_DEFINE(ROMIO_UFS,1,[Define for ROMIO with UFS])
+ fi
+@@ -2183,6 +2186,7 @@
+ 		   adio/ad_bgl/Makefile \
+ 		   adio/ad_bglockless/Makefile \
+ 		   adio/ad_panfs/Makefile \
++		   adio/ad_plfs/Makefile \
+ 		   adio/ad_xfs/Makefile \
+ 		   adio/ad_sfs/Makefile adio/ad_pfs/Makefile \
+ 		   adio/ad_testfs/Makefile adio/ad_pvfs/Makefile \
+diff -Naur mpich2-1.2.1p1.ORIG/src/mpi/romio/README mpich2-1.2.1p1/src/mpi/romio/README
+--- mpich2-1.2.1p1.ORIG/src/mpi/romio/README	2008-03-10 16:16:20.000000000 -0600
++++ mpich2-1.2.1p1/src/mpi/romio/README	2010-03-10 11:25:37.113953000 -0700
+@@ -1,5 +1,14 @@
+           ROMIO: A High-Performance, Portable MPI-IO Implementation
+ 
++                      Version 2010-03-08
++
++Major Changes in this version:
++------------------------------
++* added PLFS support
++  http://sourceforge.net/projects/plfs/
++  http://institutes.lanl.gov/plfs/
++
++
+                       Version 2008-03-09
+ 
+ Major Changes in this version:
+--- mpich2-1.2.1p1.ORIG/src/mpi/romio/Makefile.in	2009-09-17 07:56:10.000000000 -0600
++++ mpich2-1.2.1p1/src/mpi/romio/Makefile.in	2010-03-10 18:24:14.771333000 -0700
+@@ -15,7 +15,7 @@
+ MPIO_DIRS   = mpi-io
+ EXTRA_SRC_DIRS = @EXTRA_SRC_DIRS@
+ FILE_SYS_DIRS = @FILE_SYS_DIRS@
+-ALL_DIRS    = mpi-io mpi-io/fortran mpi2-other/info mpi2-other/info/fortran mpi2-other/array mpi2-other/array/fortran adio/common adio/ad_pfs adio/ad_piofs adio/ad_nfs adio/ad_ufs adio/ad_xfs adio/ad_hfs adio/ad_sfs adio/ad_testfs adio/ad_pvfs adio/ad_pvfs2 adio/ad_panfs adio/ad_gridftp adio/ad_lustre adio/ad_bgl adio/ad_bglockless test test-internal mpi-io/glue/default mpi-io/glue/mpich1 mpi-io/glue/mpich2
++ALL_DIRS    = mpi-io mpi-io/fortran mpi2-other/info mpi2-other/info/fortran mpi2-other/array mpi2-other/array/fortran adio/common adio/ad_pfs adio/ad_piofs adio/ad_nfs adio/ad_ufs adio/ad_xfs adio/ad_hfs adio/ad_sfs adio/ad_testfs adio/ad_pvfs adio/ad_pvfs2 adio/ad_plfs adio/ad_panfs adio/ad_gridftp adio/ad_lustre adio/ad_bgl adio/ad_bglockless test test-internal mpi-io/glue/default mpi-io/glue/mpich1 mpi-io/glue/mpich2
+ SHELL       = /bin/sh
+ 
+ @VPATH@

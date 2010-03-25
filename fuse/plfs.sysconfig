@@ -1,0 +1,3 @@
+PLFS_MNT='/mnt/plfs'
+PLFSOPTS='-o direct_io,allow_other -plfs_subdirs=32 -plfs_synconclose=0'
+FS_MNT='/panfs/scratch1'

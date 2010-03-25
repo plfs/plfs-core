@@ -1,0 +1,34 @@
+A couple of possible optimizations.
+
+1) We are already only doing the container creation by a single rank per node.
+
+2) We could expand the API and then only write one index by aggregating
+   the index info during collective writes
+
+3) For reads, we could put the global index into shared memory?  That's 
+   probably not a big savings anyway since the files will be cached so
+   rereading them is not a big deal and the space overhead of redundant
+   copies is also probably not a big deal.
+
+4) On the open, we are already just one rank per node create the openhost file.
+
+5) On the close, we could have just one rank create the metadata file
+   by doing reduces on everyone's total data and last offset.
+
+==============
+
+Well, I'm getting closer to making this work:
+
+make the dynamic plfs library
+untar mpich
+cp ad_plfs into romio/adio
+hack mpich to include ad_plfs
+setenv LD_FLAGS "-lplfs -L/Users/johnbent/Testing/plfs/branches/library/src"
+setenv CFLAGS -I/Users/johnbent/Testing/plfs/branches/library/src
+./configure --with-file-system=plfs+ufs -cflags=-I/Users/johnbent/Testing/plfs/branches/library/src -lib="-lplfs -L/Users/johnbent/Testing/plfs/branches/library/src -dynamiclib -single_module -undefined dynamic_lookup"
+
+This builds lib/libmpich.a and when we otool -L lib/mpich.a | grep plfs,
+we see that it's linking to it.  Then I can build a user job, but when I
+try to run it I see:
+
+./fs_test.x: ./fs_test.x: cannot execute binary file

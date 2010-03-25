@@ -1,0 +1,17 @@
+To install PLFS.
+
+First do a make in this directory.  Make sure everything builds OK.
+
+Then go into the fuse directory.
+
+set the following environment variables:
+
+PLFS_BACK   # where PLFS actually stores it's physical containers.  This path
+            # should not be used by the users. (e.g. /panfs/.plfs_store)
+
+PLFS_MNT    # where the users access PLFS (e.g. /mnt/plfs)
+
+PLFS_DEBUG  # a file to write debug info if desired
+
+then in the fuse directory, do a make mount to run it in the foreground or 
+a make smount to run it as a daemon

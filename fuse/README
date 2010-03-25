@@ -1,0 +1,20 @@
+You should be able to figure out how to run it
+by looking at 'make mount' which runs it in the
+foreground and 'make smount' which runs it as a
+daemon.  You'll need to edit the paths to the 
+front end (where apps access PLFS files) and to
+the back end (where PLFS actually stores files)
+or you can set PLFS_MNT and PLFS_BACK environment
+variables.
+
+Also, you can pass a comma-separated list of 
+back ends if you want PLFS to distribute directory
+contents across multiple directories (e.g. to
+distribute laod across metadata servers).
+
+Finally, I sometimes forget to put -o direct_io
+in the args to plfs.  This is very important
+for performance.  Read more in the Makefile.
+
+John Bent
+johnbent@lanl.gov

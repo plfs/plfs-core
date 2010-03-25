@@ -1,0 +1,5 @@
+cd ..
+cp -rap cpp plfs-`cat cpp/VERSION`
+tar czf plfs-`cat cpp/VERSION`.tgz plfs-`cat cpp/VERSION`
+rpmbuild -ts plfs-`cat cpp/VERSION`.tgz
+rpmbuild --rebuild /usr/src/redhat/SRPMS/plfs*.src.rpm

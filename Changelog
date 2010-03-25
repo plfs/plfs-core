@@ -1,0 +1,19 @@
+~~~ Version 0.1.5
+
+1) Changed the behavior of truncate to not remove droppings but just to truncate
+them.  This was needed because we discovered that if one proc already has open
+handles to droppings, another can do a truncate, and then those droppings 
+disappear when the handles are closed.  This was discovered using the qio
+tests which don't do barriers after open and closes.
+
+2) Fixed reference counting bugs in the Plfs_fd structure.  Again this was 
+discovered due to the lack of barriers in the qio tests.  When we had 
+simultaneous readers and writers in a Plfs_fd structure, some of the closes
+were screwing up the reference counting, and other thread's Plfs_fd structures
+were being removed out from under them.
+
+3) cvs co was causing problems because it was renaming open files.  I thought
+I had fixed that before but it cropped up again.  Now in the rename, when we
+are renaming an open file, we remove the old open file, we change it's 
+internal names, and we add it back again as a new open file.  There's a bunch
+of comments in plfs_fuse.cpp:f_rename about this as well.

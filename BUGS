@@ -1,0 +1,25 @@
+OPEN:
+
+CLOSED:
+
+1) doing a cvs co often fails with:
+cvs [checkout aborted]: cannot rename file CVS/Entries.Backup to CVS/Entries:
+Function not implemented This is because PLFS currently cowardly refuses to
+rename an open file.  CVS only sometimes runs into this problem; when it
+happens you can just cvs co over and over again until finally it works.
+RESOLVED:  I think I fixed this.  I put some code in rename to rename open
+files, and I wrote a test, and I tried the cvs stuff and it hasn't broke!  It
+did break again and I fixed it again.  Check the ChangeLog of 0.1.5.
+
+2) cd /users/johnbent/Testing/openmpi-1.3.3/ompi/mca/io/romio/romio/test
+   mpirun -np 1 ./large_file -fname /tmp/bar
+   mpirun -np 1 ./large_file -fname plfs:/tmp/bar
+This fails because there is a file in the place where PLFS wants to make
+a container.  RESOLVED: when this error is seen, unlink the file, and try
+again.
+
+3) bad reference counting in the Plfs_fd structure.  See the ChangeLog for 
+0.1.5
+
+4) truncate in the Container was removing other thread's open file handles.
+See the ChangeLog of 0.1.5
