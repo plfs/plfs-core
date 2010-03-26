@@ -5,7 +5,7 @@ TOP = ../../../../../../..
 LROMIO = $(TOP)/ompi/mca/io/romio/.libs/libmca_io_romio.a 
 LMPI   = $(TOP)/ompi/.libs/libmpi.a 
 
-PLFS = $(HOME)/Testing/plfs/branches/library/src
+PLFS = $(HOME)/Testing/plfs/trunk/src
 
 all: $(LMPI) 
 

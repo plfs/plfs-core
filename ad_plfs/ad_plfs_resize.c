@@ -13,7 +13,7 @@ void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code)
     int err;
     int rank;
     static char myname[] = "ADIOI_PLFS_RESIZE";
-    plfs_debug( stderr, "%s: begin\n", myname );
+    plfs_debug("%s: begin\n", myname );
 
     /* because MPI_File_set_size is a collective operation, and PLFS1 clients
      * do not cache metadata locally, one client can resize and broadcast the

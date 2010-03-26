@@ -26,7 +26,7 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
     else perm = fd->perm;
 
     amode = ad_plfs_amode( fd->access_mode ); 
-    plfs_debug( stderr, "%s %d with flags %d (%d)\n", 
+    plfs_debug("%s %d with flags %d (%d)\n", 
             myname, rank, fd->access_mode, amode );
 
     // MPI_File_open is a collective call so only create it once
@@ -50,7 +50,7 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
 					   myname, __LINE__, MPI_ERR_IO,
 					   "**io",
 					   "**io %s", strerror(-err));
-        plfs_debug( stderr, "%s: failure on create\n", myname );
+        plfs_debug("%s: failure on create\n", myname );
         return;
     }
 
@@ -63,9 +63,9 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
 					   myname, __LINE__, MPI_ERR_IO,
 					   "**io",
 					   "**io %s", strerror(-err));
-        plfs_debug( stderr, "%s: failure\n", myname );
+        plfs_debug("%s: failure\n", myname );
     } else {
-        plfs_debug( stderr, "%s: Success (%d)!\n", myname, rank );
+        plfs_debug("%s: Success (%d)!\n", myname, rank );
         fd->fs_ptr = pfd;
         *error_code = MPI_SUCCESS;
     }

@@ -29,7 +29,7 @@ void ADIOI_PLFS_ReadContig(ADIO_File fd, void *buf, int count,
     } else {
         myoff = fd->fp_ind;
     }
-    plfs_debug( stderr, "%s: offset %ld len %ld rank %d\n", 
+    plfs_debug("%s: offset %ld len %ld rank %d\n", 
             myname, (long)myoff, (long)len, rank );
 
     err = plfs_read( fd->fs_ptr, buf, len, myoff );

@@ -43,7 +43,7 @@ int plfs_close( Plfs_fd *, pid_t, int open_flags );
 */
 int plfs_create( const char *path, mode_t mode, int flags ); 
 
-void plfs_debug( FILE *, const char *format, ... );
+void plfs_debug( const char *format, ... );
 
 /* plfs_open
 */

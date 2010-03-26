@@ -25,8 +25,8 @@ using namespace std;
 #define INDEXPREFIX    DROPPINGPREFIX"index."
 #define METADIR        "meta"         // where to stash shortcut metadata
 #define OPENHOSTDIR    "openhosts"    // where to stash whether file open
-#define ACCESSFILE     "access"       // where to stash the chmods and chowns
-#define CONTAINER_SUFFIX ".plfscontainer081173" // how to identify containers
+    // where to stash the chmods and chowns, and identify containers
+#define ACCESSFILE     ".plfsaccess081173"  
 
 #include "Index.h"
 

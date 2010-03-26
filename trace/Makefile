@@ -2,7 +2,8 @@ PLFS_INSTALL_DIR = ../src
 
 TARGET   = plfs_map
 CXXFLAGS = -I$(PLFS_INSTALL_DIR)
-LDFLAGS  = -L$(PLFS_INSTALL_DIR) -lplfs -lstdc++
+LDFLAGS  = ../src/*.o 
+#LDFLAGS  = -L$(PLFS_INSTALL_DIR) -lplfs -lstdc++
 
 UNAME := $(shell uname)
 ifeq ($(UNAME), Darwin)

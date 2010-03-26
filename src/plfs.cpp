@@ -51,10 +51,10 @@ is_plfs_file( const char *path ) {
 }
 
 void 
-plfs_debug( FILE *fp, const char *format, ... ) {
+plfs_debug( const char *format, ... ) {
     va_list args;
     va_start(args, format);
-    Util::Debug(fp, format, args);
+    Util::Debug(format, args);
     va_end( args );
 }
 
@@ -177,7 +177,7 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
     }
 
     if ( new_index_created ) {
-        Util::Debug( stderr, "%s removing freshly created index for %s\n",
+        Util::Debug("%s removing freshly created index for %s\n",
                 __FUNCTION__, path );
         delete( index );
         index = NULL;
@@ -241,7 +241,7 @@ plfs_open( Plfs_fd **pfd, const char *path, int flags, pid_t pid, mode_t mode )
         }
         if ( ret == 0 ) {
             ret = addWriter( wf, pid, path, mode );
-            Util::Debug( stderr, "%s added writer: %d\n", __FUNCTION__, ret );
+            Util::Debug("%s added writer: %d\n", __FUNCTION__, ret );
             if ( ret > 0 ) ret = 0; // add writer returns # of current writers
             if ( ret == 0 && new_writefile ) ret = wf->openIndex( pid ); 
         }
@@ -300,7 +300,7 @@ plfs_write( Plfs_fd *pfd, const char *buf, size_t size, off_t offset, pid_t pid)
     int ret = 0; ssize_t written;
     WriteFile *wf = pfd->getWritefile();
 
-    Util::Debug( stderr, "Write to %s, offset %ld\n", 
+    Util::Debug("Write to %s, offset %ld\n", 
             pfd->getPath(), (long)offset );
     ret = written = wf->write( buf, size, offset, pid );
 
@@ -334,14 +334,14 @@ removeDirectoryTree( const char *path, bool truncate_only ) {
     DIR *dir;
     struct dirent *ent;
     int ret = 0;
-    Util::Debug( stderr, "%s on %s\n", __FUNCTION__, path );
+    Util::Debug("%s on %s\n", __FUNCTION__, path );
 
     dir = opendir( path );
     if ( dir == NULL ) return -errno;
 
     while( (ent = readdir( dir ) ) != NULL ) {
         if ( ! strcmp(ent->d_name, ".") || ! strcmp(ent->d_name, "..") ) {
-            //Util::Debug( stderr, "skipping %s\n", ent->d_name );
+            //Util::Debug("skipping %s\n", ent->d_name );
             continue;
         }
         if ( ! strcmp(ent->d_name, ACCESSFILE ) && truncate_only ) {
@@ -359,7 +359,7 @@ removeDirectoryTree( const char *path, bool truncate_only ) {
                 continue;
             }
         } else {
-            //Util::Debug( stderr, "unlinking %s\n", ent->d_name );
+            //Util::Debug("unlinking %s\n", ent->d_name );
             // ok, we seem to be screwing things up by deleting a handle
             // that someone else has open:
             // e.g. two writers do an open with O_TRUNC at the same time
@@ -554,7 +554,7 @@ ssize_t plfs_reference_count( Plfs_fd *pfd ) {
         ostringstream oss;
         oss << __FUNCTION__ << " not equal counts: " << ref_count
             << " != " << pfd->incrementOpens(0) << endl;
-        Util::Debug( stderr, "%s", oss.str().c_str() ); 
+        Util::Debug("%s", oss.str().c_str() ); 
         assert( 0 );
     }
     return ref_count;
@@ -606,7 +606,7 @@ plfs_close( Plfs_fd *pfd, pid_t pid, int open_flags ) {
     }
 
     ref_count = pfd->incrementOpens(-1);
-    Util::Debug( stderr, "%s %s: %d readers, %d writers, %d refs remaining\n",
+    Util::Debug("%s %s: %d readers, %d writers, %d refs remaining\n",
             __FUNCTION__, pfd->getPath(), (int)readers, (int)writers,
             (int)ref_count);
 
@@ -615,7 +615,7 @@ plfs_close( Plfs_fd *pfd, pid_t pid, int open_flags ) {
     if ( ret == 0 && ref_count == 0 ) {
         ostringstream oss;
         oss << __FUNCTION__ << " removing OpenFile " << pfd << endl;
-        Util::Debug( stderr, "%s", oss.str().c_str() ); 
+        Util::Debug("%s", oss.str().c_str() ); 
         delete pfd; 
         pfd = NULL;
     }

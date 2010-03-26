@@ -4,12 +4,12 @@ PLFS_INSTALL_DIR = ../src
 SVN_VERSION := $(shell svnversion ..)
 TAG_VERSION := $(shell cat ../VERSION)
 
-
 TARGET   = plfs
 CXXFLAGS = -I$(PLFS_INSTALL_DIR) -DPLFS_TIMES -DCOUNT_SKIPS -g -Wall \
 		   -DSVN_VERSION=$(SVN_VERSION) -DTAG_VERSION=$(TAG_VERSION)
 LDFLAGS  = -L$(PLFS_INSTALL_DIR) -lplfs 
 LOG      = /tmp/plfs.log
+LIBRARY  = $(PLFS_INSTALL_DIR)/libplfs.a
 
 # remove direct_io if you want to exec a PLFS file
 # but it makes the performance horrible because writes are split into 4K
@@ -61,10 +61,10 @@ export PKG_CONFIG_PATH
 
 all: $(TARGET) 
 
-$(TARGET): plfs_fuse.o main.o ../lib/libplfs.a
+$(TARGET): $(LIBRARY) plfs_fuse.o main.o 
 	g++ -o $(TARGET) main.o plfs_fuse.o $(LDFLAGS)
 
-../lib/libplfs.a:
+$(LIBRARY):
 	make -C ../src
 
 mount: $(TARGET) $(PLFS_MNT) $(PLFS_BACK)

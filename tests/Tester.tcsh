@@ -53,7 +53,9 @@ if ( $? != 0 ) then
 endif 
 
 # FS_TEST
-foreach target ( $PLFS_MNT/out.%s plfs:$PLFS_BACK/out.%s ) 
+# do one straight to PLFS-MNT, one through PLFS-MPI, and one through PLFS-MPI to
+# the PLFS-MNT for the layered test
+foreach target ( $PLFS_MNT/out.%s plfs:$PLFS_BACK/out.%s plfs:$PLFS_MNT/out.%s ) 
     mpirun -np $np $HOME/Testing/test_fs/src/fs_test.$MY_MPI_HOST.x \
         -type 2 -strided 1 -size 47001 -time 3 -touch 2 -check 2 \
         -target $target -deletefile

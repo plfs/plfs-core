@@ -17,3 +17,34 @@ I had fixed that before but it cropped up again.  Now in the rename, when we
 are renaming an open file, we remove the old open file, we change it's 
 internal names, and we add it back again as a new open file.  There's a bunch
 of comments in plfs_fuse.cpp:f_rename about this as well.
+
+4) Fixed a bug that was caused by layering PLFS's (e.g. running PLFS-MPI onto
+a PLFS-MNT) which was causing this problem:
+	a) the app creates file 'foo'
+	b) PLFS-MPI does mkdir 'foo' on PLFS-MNT
+	c) PLFS-MNT does mkdir 'foo' on PLFS-BACK
+	d) PLFS-MPI touches 'foo/access' on PLFS-MNT
+	e) PLFS-MNT does mkdir 'foo/access' on PLFS-BACK
+	f) PLFS-MPI tries to access directory 'foo'
+	g) PLFS-MNT thinks 'foo' is a container since it has an access entry
+	h) PLFS-MPI gets confused bec what was a directory is now a file
+Also, this revealed a bug where PLFS library thought that mmap returned NULL
+on error, but really it returns MAP_FAIL, so PLFS library didn't notice when
+mmap failed and this caused a segfault.  To fix this, the check for the access
+file checks both existence and whether it is a file.  Now when the PLFS-MPI
+does a touch of 'foo/access,' the PLFS-MNT makes a 'foo/access' directory, so 
+when PLFS-MPI looks at 'foo,' PLFS-MNT doesn't find a 'foo/access' file, so it
+treats 'foo' as a directory which is the proper behavior in this confusing
+layered case.  This also revealed the worse problem that a user can never
+create an 'access' entry in a directory because PLFS will start treating that
+directory as a container and when it doesn't have the other entries that PLFS
+expects in a container, it gets all weird.  So to fix this, we have broken
+backwards compatibility by changing the name of the access file from 'access'
+to '.plfsaccess081173'  At some point, we need to add backward compatibility
+checking.
+
+5) Fixed it so that the plfs_map in the trace/ directory is correctly built
+again.  I tried to change it so that it builds from the library only but it
+access the low-level index calls so that doesn't work.  So now it builds by
+just using all the src/*.o files instead of just trying to link with the
+library alone.

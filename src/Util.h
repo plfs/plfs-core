@@ -68,10 +68,11 @@ class Util {
         static ssize_t Write( int, const void *, size_t );
 
             // other misc stuff
-        static void Debug( FILE *, const char *format, ... );
-        static void Debug( FILE *, const char *format, va_list );
+        static void Debug( const char *format, ... );
+        static void Debug( const char *format, va_list );
         static bool exists( const char* );
-        static bool isDirectory( const char* );
+        static bool isDirectory( struct stat *buf );
+        static bool isDirectory( const char * );
         static double getTime();
         static ssize_t Writen( int, const void *, size_t );
         static string toString();
