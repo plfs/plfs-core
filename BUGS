@@ -1,6 +1,22 @@
 OPEN:
 5) We seem to be having a problem again where the unlink fails and we
-have to do silly rename.
+have to do silly rename.  I think this is related to the change in
+container identification from SUID bit to access file.  Now we create the
+access file in the temp before the rename.  When the rename fails we 
+try to unlink the directory but can't since the access file is in there.
+In the time I took to write this, I could have fixed the bug....
+
+6) There may be something weird happening when we do big N-N workloads.  
+Need to test this.
+
+7) Need to add mapping in the ad_plfs layer so that users only know about
+frontends and plfs-fuse and plfs-adio both transparently use the backend.
+we'll need an /etc/plfsrc file or something.
+
+8) Need to add a version dropping so that we can make sure we're backward
+compatible.  this will be even more important when we add the metadata
+distribution layer which has the potential to really confuse backward
+compatibility
 
 CLOSED:
 
