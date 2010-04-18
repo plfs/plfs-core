@@ -17,7 +17,7 @@ LIBRARY  = $(PLFS_INSTALL_DIR)/libplfs.a
 #DIRECT_IO        = -o direct_io
 
 # big writes should aggregate small contiguous writes
-#BIG_WRITES       = -obig_writes
+BIG_WRITES       = -obig_writes
 
 # ALLOW_OTHER is needed to run as root to allow other users to see the mount
 UID := $(shell whoami)
