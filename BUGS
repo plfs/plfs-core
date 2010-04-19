@@ -5,6 +5,9 @@ container identification from SUID bit to access file.  Now we create the
 access file in the temp before the rename.  When the rename fails we 
 try to unlink the directory but can't since the access file is in there.
 In the time I took to write this, I could have fixed the bug....
+6) We seem to sometimes fail when we try to do layered PLFS with N-N.
+7) I've seen a crash with a core backtrace that says something about ld 
+loading.
 
 6) There may be something weird happening when we do big N-N workloads.  
 Need to test this.
