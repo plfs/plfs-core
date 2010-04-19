@@ -3,6 +3,7 @@ SRCS       = $(wildcard *.cpp)
 HDRS       = $(wildcard *.h)
 OBJS       = $(addsuffix .o, $(basename $(SRCS) ) ) 
 VERSION    = $(shell /usr/bin/svnversion ..)
+TAG_VERSION := $(shell cat ../VERSION)
 
 # put -DNDEBUG in to turn off assertions, this can make a big difference
 # as many of the asserts are doing stats
@@ -13,7 +14,8 @@ VERSION    = $(shell /usr/bin/svnversion ..)
 # add -DVERBOSE to get verbose output
 DEBUG   = -DVERBOSE -DPLFS_TIMES -DNUTIL -DINDEX_CONTAINS_TIMESTAMPS \
 	      -DCOUNT_SKIPS 
-CXXFLAGS  = -g -Wall $(DEBUG) -fPIC -D_FILE_OFFSET_BITS=64 -DVERSION=$(VERSION)
+CXXFLAGS  = -g -Wall $(DEBUG) -fPIC -D_FILE_OFFSET_BITS=64 -DVERSION=$(VERSION)\
+            -DTAG_VERSION=$(TAG_VERSION)
 LDFLAGS = -lpthread
 
 UNAME		:= $(shell uname)

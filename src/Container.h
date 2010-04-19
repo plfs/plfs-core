@@ -24,6 +24,7 @@ using namespace std;
 #define DATAPREFIX     DROPPINGPREFIX"data."
 #define INDEXPREFIX    DROPPINGPREFIX"index."
 #define METADIR        "meta"         // where to stash shortcut metadata
+#define VERSIONDIR     "version"      // where to stash the version info 
 #define OPENHOSTDIR    "openhosts"    // where to stash whether file open
     // where to stash the chmods and chowns, and identify containers
 #define ACCESSFILE     ".plfsaccess081173"  
@@ -49,6 +50,7 @@ class Container {
 
         static string getHostDirPath( const char *, const char * );
         static string getMetaDirPath( string );
+        static string getVersionDir( string path );
         static string getAccessFilePath( string path );
         static string chunkPathFromIndexPath( string hostindex, pid_t pid );
 

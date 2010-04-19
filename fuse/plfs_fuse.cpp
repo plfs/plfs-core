@@ -40,10 +40,6 @@ using namespace std;
 #define DEBUGLOGSIZE  4194304
 #define DANGLE_POSSIBILITY 1
 
-// macros for turning a DEFINE into a string
-#define STR_EXPAND(tok) #tok
-#define STR(tok) STR_EXPAND(tok)
-
 
 // the reason we need this struct is because we want to know the original
 // pid at the f_release bec fuse_get_context->pid returns 0 in the f_release

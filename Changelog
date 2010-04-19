@@ -1,5 +1,16 @@
 ~~~ Version 0.1.5
 
+1) Fixed a bug where temp dirs used to attempt to create the container were
+not being deleted when some other node created the container first.  The 
+problem was that we changed from SUID to accessfile to identify a container
+and we weren't removing the accessfile in the temporary container before
+trying to unlink the temporary container.
+
+2) Added a container/version/$(TAG_VERSION) dropping so in the future we can
+make sure to be backward compatible.
+
+~~~ Version 0.1.5
+
 1) Changed the behavior of truncate to not remove droppings but just to truncate
 them.  This was needed because we discovered that if one proc already has open
 handles to droppings, another can do a truncate, and then those droppings 

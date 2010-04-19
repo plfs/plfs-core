@@ -8,6 +8,7 @@ if ( -x $pexec ) then
     set nodes = `uniq $PBS_NODEFILE | tr '\n' ','`
     echo $nodes
     $pexec -pP 32 -m $nodes --all --ssh $command |& grep -v tput
+    $pexec -pP 32 -m $nodes --all --ssh cat $PLFS_MNT/.plfsdebug | grep -a Uptime 
 else 
     echo "Using ssh"
     foreach node ( `uniq $PBS_NODEFILE` )

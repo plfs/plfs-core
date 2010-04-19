@@ -28,6 +28,10 @@ using namespace std;
 //#include <hash_map>   // shoot, hash_map not found.  more appropriate though..
 #define HASH_MAP map
 
+// macros for turning a DEFINE into a string
+#define STR_EXPAND(tok) #tok
+#define STR(tok) STR_EXPAND(tok)
+
 enum 
 DirectoryOperation {
     CHMOD, CHOWN, UTIME, RMDIR, MKDIR

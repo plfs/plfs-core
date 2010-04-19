@@ -487,7 +487,10 @@ int Container::makeTopLevel( const char *expanded_path,
     // ok, here's the real code:  mkdir tmp ; chmod tmp; rename tmp
     // get rid of the chmod; now it's mkdir tmp; create accessfile; rename tmp
     string strPath( expanded_path );
-    string tmpName( strPath + "." + hostname ); 
+    ostringstream oss;
+    oss << strPath << "." << hostname << "." << getpid();
+    string tmpName( oss.str() ); 
+    string tmpAccess( getAccessFilePath(tmpName) );
     if ( Util::Mkdir( tmpName.c_str(), dirMode(mode) ) < 0 ) {
         if ( errno != EEXIST && errno != EISDIR ) {
             Util::Debug("Mkdir %s to %s failed: %s\n",
@@ -503,7 +506,7 @@ int Container::makeTopLevel( const char *expanded_path,
             }
         }
     }
-    if ( makeMeta( getAccessFilePath(tmpName), S_IFREG, mode ) < 0 ) {
+    if ( makeMeta( tmpAccess, S_IFREG, mode ) < 0 ) {
         Util::Debug("create access file in %s failed: %s\n",
                 tmpName.c_str(), strerror(errno) );
         int saveerrno = errno;
@@ -532,8 +535,12 @@ int Container::makeTopLevel( const char *expanded_path,
                 Util::Unlink( expanded_path );
                 continue;
             }
+            if ( Util::Unlink( tmpAccess.c_str() ) < 0 ) {
+                Util::Debug("unlink of temporary %s failed : %s\n",
+                        tmpAccess.c_str(), strerror(errno) );
+            }
             if ( Util::Rmdir( tmpName.c_str() ) < 0 ) {
-                Util::Debug("rmdir of %s failed : %s\n",
+                Util::Debug("rmdir of temporary %s failed : %s\n",
                         tmpName.c_str(), strerror(errno) );
             }
             // probably what happened is some other node outraced us
@@ -561,6 +568,14 @@ int Container::makeTopLevel( const char *expanded_path,
                 return -errno;
             }
             if ( makeMeta( getOpenHostsDir(strPath), S_IFDIR, DEFAULT_MODE)< 0){
+                return -errno;
+            }
+            string versiondir = getVersionDir(strPath);
+            string versionfile( versiondir + "/" + STR(TAG_VERSION) );
+            if ( makeMeta( versiondir, S_IFDIR, DEFAULT_MODE)< 0) {
+                return -errno;
+            }
+            if ( makeMeta( versionfile, S_IFREG, mode ) < 0 ) {
                 return -errno;
             }
         }
@@ -595,6 +610,11 @@ int Container::makeMeta( string path, mode_t type, mode_t mode ) {
 string Container::getMetaDirPath( string strPath ) {
     string metadir( strPath + "/" + METADIR ); 
     return metadir;
+}
+
+string Container::getVersionDir( string path ) {
+    string versiondir( path + "/" + VERSIONDIR );
+    return versiondir;
 }
 
 string Container::getAccessFilePath( string path ) {
