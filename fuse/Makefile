@@ -4,6 +4,11 @@ PLFS_INSTALL_DIR = ../src
 SVN_VERSION := $(shell svnversion ..)
 TAG_VERSION := $(shell cat ../VERSION)
 
+# something weird needed on snow leopard
+#SNOW = -D__DARWIN_64_BIT_INO_T=0 
+# doesn't work.  does work to link with -lfuse_ino64 instead of -lfuse
+# http://www.mail-archive.com/macfuse@googlegroups.com/msg01048.html
+
 TARGET   = plfs
 CXXFLAGS = -I$(PLFS_INSTALL_DIR) -DPLFS_TIMES -DCOUNT_SKIPS -g -Wall \
 		   -DSVN_VERSION=$(SVN_VERSION) -DTAG_VERSION=$(TAG_VERSION)
@@ -14,10 +19,10 @@ LIBRARY  = $(PLFS_INSTALL_DIR)/libplfs.a
 # remove direct_io if you want to exec a PLFS file
 # but it makes the performance horrible because writes are split into 4K
 # as opposed to 128K with direct_io 
-#DIRECT_IO        = -o direct_io
+DIRECT_IO        = -o direct_io
 
 # big writes should aggregate small contiguous writes
-BIG_WRITES       = -obig_writes
+#BIG_WRITES       = -obig_writes
 
 # ALLOW_OTHER is needed to run as root to allow other users to see the mount
 UID := $(shell whoami)
