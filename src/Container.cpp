@@ -535,6 +535,7 @@ int Container::makeTopLevel( const char *expanded_path,
                 Util::Unlink( expanded_path );
                 continue;
             }
+            // if we get here, we lost the race
             if ( Util::Unlink( tmpAccess.c_str() ) < 0 ) {
                 Util::Debug("unlink of temporary %s failed : %s\n",
                         tmpAccess.c_str(), strerror(errno) );
