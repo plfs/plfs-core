@@ -12,6 +12,7 @@ URL:		https://sf4.lanl.gov/sf/projects/ioandnetworking
 BuildRoot:	%{_tmppath}/plfs-%{version}-root
 Requires:       fuse, fuse-libs
 BuildRequires:  fuse-devel, pkgconfig, subversion
+BuildRequires: 	plfs-lib 
 
 
 %description
@@ -63,21 +64,17 @@ fi
 
 %changelog
 * Wed Apr 21 2010 Ben McClelland <ben@lanl.gov>
-- version 0.5.1: see detailed Changelog in svn
-- truncate does not remove droppings
-- reference counts fixed in fd structure
-- fixed specific rename errors with open files
-- fixed layered PLFS bug
-- fixed plfs_map trace facility
+- version 0.5.1 changed from internal versioing: see detailed Changelog in svn
+- split out fuse version and library spec
 
-* Fri Aug 21 2009 Ben McClelland <ben@lanl.gov>
+* Fri Aug 21 2009 Ben McClelland <ben@lanl.gov> 0.0.1.2-2
 - "This version now supports links and it seems more stable" -John
 - added Milo's patch to count skips
 - Container extra_attempts
 
-* Thu May 14 2009 Ben McClelland <ben@lanl.gov> 0.1.2-1
+* Thu May 14 2009 Ben McClelland <ben@lanl.gov> 0.0.1.2-1
 - new verion of plfs
 - fixed version definition
 
-* Wed Feb 11 2009 Ben McClelland <ben@lanl.gov> 0.1.0-1
+* Wed Feb 11 2009 Ben McClelland <ben@lanl.gov> 0.0.1.0-1
 - Initial package version
