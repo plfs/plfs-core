@@ -24,7 +24,7 @@ small N to 1 strided write patterns to a parallel file system.
 %setup -q -n plfs-%{version}
 
 %build
-%{__perl} -pi -e 's:/usr/sbin/:%{buildroot}/usr/sbin/:g' Makefile
+%{__perl} -pi -e 's:/usr/sbin/:%{buildroot}%{_sbindir}/:g' Makefile
 %{__make}
 
 %install

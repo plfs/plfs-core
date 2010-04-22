@@ -16,6 +16,8 @@ LDFLAGS  = -L$(PLFS_INSTALL_DIR) -lplfs
 LOG      = /tmp/plfs.log
 LIBRARY  = $(PLFS_INSTALL_DIR)/libplfs.a
 
+INSTALLDIR = /usr/sbin/
+
 # remove direct_io if you want to exec a PLFS file
 # but it makes the performance horrible because writes are split into 4K
 # as opposed to 128K with direct_io 
@@ -71,6 +73,9 @@ $(TARGET): $(LIBRARY) plfs_fuse.o main.o
 
 $(LIBRARY):
 	make -C ../src
+
+install: $(TARGET)
+	/bin/cp ./$(TARGET) $(INSTALLDIR)
 
 mount: $(TARGET) $(PLFS_MNT) $(PLFS_BACK)
 	./$(TARGET) -d $(PLFS_MNT) $(PLFS_ARGS)
