@@ -27,7 +27,7 @@ using namespace std;
 #define VERSIONDIR     "version"      // where to stash the version info 
 #define OPENHOSTDIR    "openhosts"    // where to stash whether file open
     // where to stash the chmods and chowns, and identify containers
-#define ACCESSFILE     ".plfsaccess081173"  
+#define ACCESSFILE     ".plfsaccess113918400"  
 
 #include "Index.h"
 
