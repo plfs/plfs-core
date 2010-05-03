@@ -532,7 +532,11 @@ int Container::makeTopLevel( const char *expanded_path,
                 tmpName.c_str(), expanded_path, strerror(errno) );
             if ( saveerrno == ENOTDIR ) {
                 // there's a normal file where we want to make our container
-                Util::Unlink( expanded_path );
+                saveerrno = Util::Unlink( expanded_path );
+                // should be success or ENOENT if someone else already unlinked
+                if ( saveerrno != 0 && saveerrno != ENOENT ) {
+                    return -saveerrno;
+                }
                 continue;
             }
             // if we get here, we lost the race
@@ -552,11 +556,12 @@ int Container::makeTopLevel( const char *expanded_path,
             // then that probably means the same thing 
             //if ( ! isContainer( expanded_path ) ) 
             if ( saveerrno != EEXIST && saveerrno != ENOTEMPTY 
-                    && saveerrno != EISDIR && saveerrno != ENOENT ) {
+                    && saveerrno != EISDIR ) {
                 Util::Debug("rename %s to %s failed: %s\n",
                         tmpName.c_str(), expanded_path, strerror(saveerrno) );
                 return -saveerrno;
             }
+            break;
         } else {
             // we made the top level container
             // this is like the only time we know that we won the global race
@@ -579,6 +584,7 @@ int Container::makeTopLevel( const char *expanded_path,
             if ( makeMeta( versionfile, S_IFREG, mode ) < 0 ) {
                 return -errno;
             }
+            break;
         }
     }
     return 0;
