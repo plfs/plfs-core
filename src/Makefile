@@ -1,8 +1,9 @@
+include ../Makefile.defs
+
 LIBRARY    = libplfs.a
 SRCS       = $(wildcard *.cpp) 
 HDRS       = $(wildcard *.h)
 OBJS       = $(addsuffix .o, $(basename $(SRCS) ) ) 
-VERSION    = $(shell /usr/bin/svnversion ..)
 SYSTEMLIB  = /usr/lib64
 SYSTEMINC  = /usr/include/plfs
 
@@ -15,7 +16,7 @@ SYSTEMINC  = /usr/include/plfs
 # add -DVERBOSE to get verbose output
 DEBUG   = -DVERBOSE -DPLFS_TIMES -DNUTIL -DINDEX_CONTAINS_TIMESTAMPS \
 	      -DCOUNT_SKIPS 
-CXXFLAGS  = -g -Wall $(DEBUG) -fPIC -D_FILE_OFFSET_BITS=64 -DVERSION=$(VERSION)
+CXXFLAGS  = -g -Wall $(DEBUG) -fPIC -D_FILE_OFFSET_BITS=64 $(VERSION)
 LDFLAGS = -lpthread
 
 UNAME		:= $(shell uname)

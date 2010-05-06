@@ -576,13 +576,26 @@ int Container::makeTopLevel( const char *expanded_path,
             if ( makeMeta( getOpenHostsDir(strPath), S_IFDIR, DEFAULT_MODE)< 0){
                 return -errno;
             }
+
+                // make the version stuff here?  this means that it is 
+                // possible for someone to find a container without the
+                // version stuff in it.  In that case, just assume
+                // compatible?  move this up above?
             string versiondir = getVersionDir(strPath);
-            string versionfile( versiondir + "/" + STR(TAG_VERSION) );
             if ( makeMeta( versiondir, S_IFDIR, DEFAULT_MODE)< 0) {
                 return -errno;
             }
-            if ( makeMeta( versionfile, S_IFREG, mode ) < 0 ) {
-                return -errno;
+
+            map <string,string> version_files;
+            version_files["tag"]  = STR(TAG_VERSION);
+            version_files["svn"]  = STR(SVN_VERSION);
+            version_files["data"] = STR(DATA_VERSION);
+            map<string,string>::iterator itr = version_files.begin();
+            for (itr = version_files.begin(); itr!=version_files.end(); itr++){
+                string versionfile(versiondir+"/"+itr->first+"."+itr->second);
+                if ( makeMeta( versionfile, S_IFREG, mode ) < 0 ) {
+                    return -errno;
+                }
             }
             break;
         }

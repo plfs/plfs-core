@@ -1020,7 +1020,7 @@ int Plfs::writeDebug( char *buf, size_t size, off_t offset, const char *path ) {
 
     if ( isdebugfile( path, DEBUGFILE ) ) {
         ret = snprintf( tmpbuf, DEBUGFILESIZE, 
-                "Version %s (SVN %s)\n"
+                "Version %s (SVN %s) (DATA %s)\n"
                 "Hostname %s, %.2f Uptime\n"
                 "%s"
                 "%s"
@@ -1034,7 +1034,7 @@ int Plfs::writeDebug( char *buf, size_t size, off_t offset, const char *path ) {
                 "%d sequential writes to datafiles\n"
         #endif 
                 "%s",
-                STR(TAG_VERSION), STR(SVN_VERSION),
+                STR(TAG_VERSION), STR(SVN_VERSION), STR(DATA_VERSION),
                 self->myhost.c_str(), 
                 Util::getTime() - self->begin_time,
                 paramsToString(&(self->params)).c_str(),
