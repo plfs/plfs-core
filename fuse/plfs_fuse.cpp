@@ -526,7 +526,7 @@ int Plfs::f_chmod (const char *path, mode_t mode) {
 
 // fills the set of supplementary groups of the effective uid
 int Plfs::get_groups( vector<gid_t> *vec ) {
-    int ngroups = getgroups (NULL, 0);
+    int ngroups = getgroups(0, 0);
     gid_t *groups = new gid_t[ngroups];
     //(gid_t *) malloc(ngroups * sizeof (gid_t));
     int val = getgroups (ngroups, groups);

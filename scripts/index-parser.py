@@ -22,6 +22,7 @@ total_bytes = 0 # running total of all data
 last_end = None # used to record time between IO's
 compute  = 0    # running total of all time between IO's
 total_bytes = 0 # running total of all data 
+io_time = 0     # total time spent waiting on IO's
 min_time = None # earliest seen timestamp
 max_time = None # latest seen timestamp
 giga = 1024**3
@@ -37,6 +38,7 @@ while 1:
         break
     (offset, length, pid, start_time, end_time) = struct.unpack(index_fmt, next)
     if options.time_stamps:
+      io_time+=end_time-start_time
       if last_end is not None and start_time > last_end:
         compute+=start_time-last_end
       last_end=end_time
@@ -53,7 +55,9 @@ if options.summary:
   def pretty_print(key,value): print "%30s: %12.4f" % ( key, value )
 
   total_time = max_time-min_time
-  io_time    = total_time - compute
+  #io_time    = total_time - compute  # just sum it instead of figuring it out
+                                      # this way.  The problem is that this
+                                      # shows compute time for all procs
   gigs       = float(total_bytes) / giga
   pretty_print( "TOTAL Time", total_time )
   pretty_print( "TOTAL IO Time", io_time )
