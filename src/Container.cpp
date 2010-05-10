@@ -14,8 +14,8 @@ using namespace std;
 #define BLKSIZE 512
                 
 blkcnt_t Container::bytesToBlocks( size_t total_bytes ) {
-    //return (blkcnt_t)ceil((float)total_bytes/BLKSIZE);
-    return (blkcnt_t)((total_bytes + BLKSIZE - 1) & ~(BLKSIZE-1));
+    return (blkcnt_t)ceil((float)total_bytes/BLKSIZE);
+    //return (blkcnt_t)((total_bytes + BLKSIZE - 1) & ~(BLKSIZE-1));
 }
 
 int Container::Access( const char *path, int mask ) {
