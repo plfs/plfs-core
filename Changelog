@@ -1,3 +1,16 @@
+~~~ Version 0.1.6
+
+1) Gary found a bug in the old version running on cuda.lanl.gov.  I tried to 
+reproduce it but found it was no longer in 0.1.5.  The test was just doing
+a bunch of dd's with increasing offsets and then reading from another node.
+Just sure what was causing that bug.  Didn't go back and debug old versions.
+But while investigating that bug, I found another bug that was caused when
+dd would truncate a file and the index file trunctated would be truncated 
+at the first entry and then would be empty.  But I was assuming that it 
+wasn't empty so I was checking the entry before the truncate point to see
+if it needed to be partially truncated.  But when there was no entry, then
+this was tromping memory.
+
 ~~~ Version 0.1.5
 
 1) Fixed a bug where temp dirs used to attempt to create the container were

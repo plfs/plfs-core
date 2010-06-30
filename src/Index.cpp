@@ -110,8 +110,9 @@ Index::Index( string logical, int fd ) : Metadata::Metadata() {
 Index::Index( string logical ) : Metadata::Metadata() {
     init( logical );
     ostringstream os;
-    os << __FUNCTION__ << ": " << this << " created index on " <<
-        logical_path << endl;
+    os << __FUNCTION__ << ": " << this 
+       << " created index on " << logical_path << ", "
+       << chunk_map.size() << " chunks" << endl;
     Util::Debug("%s", os.str().c_str() );
 }
 
@@ -121,9 +122,11 @@ void Index::setPath( string p ) {
 
 Index::~Index() {
     ostringstream os;
-    os << __FUNCTION__ << ": " << this << " removing index on " <<
-        logical_path << endl;
+    os << __FUNCTION__ << ": " << this 
+       << " removing index on " << logical_path << ", " 
+       << chunk_map.size() << " chunks"<< endl;
     Util::Debug("%s", os.str().c_str() );
+    Util::Debug("There are %d chunks to close fds for\n", chunk_map.size());
     for( unsigned i = 0; i < chunk_map.size(); i++ ) {
         if ( chunk_map[i].fd > 0 ) {
             Util::Debug("Closing fd %d for %s\n",
@@ -208,6 +211,7 @@ void *Index::mapIndex( string hostindex, int *fd, off_t *length ) {
     // created.  
     Util::Lseek( *fd, 0, SEEK_END, length );
     if ( *length <= 0 ) {
+        Util::Debug("%s is a zero length index file\n", hostindex.c_str() );
         return NULL;
     }
 
@@ -274,18 +278,21 @@ int Index::readIndex( string hostindex ) {
         HostEntry      h_entry = h_index[i];
         string chunkpath       = Container::chunkPathFromIndexPath( 
                                                 hostindex, h_entry.id );
+        Util::Debug("Checking chunk %s\n", chunkpath.c_str());
 
             // remember the mapping of a chunkpath to a chunkid
             // and set the initial offset
         if( known_chunks.find( chunkpath ) == known_chunks.end() ) {
             ChunkFile cf;
-            cf.path = chunkpath;
+            cf.path = chunkpath; 
             cf.fd   = -1;
             chunk_map.push_back( cf );
             known_chunks[chunkpath]  = chunk_id++;
             chunk_offsets[chunkpath] = 0;
             // chunk_map is indexed by chunk_id so these need to be the same
             assert( (size_t)chunk_id == chunk_map.size() );
+            Util::Debug("Inserting chunk %s (%d)\n", cf.path.c_str(),
+                chunk_map.size());
         }
 
             // copy all info from the host entry to the global and advance
@@ -308,6 +315,8 @@ int Index::readIndex( string hostindex ) {
                 hostindex.c_str() );
         }
     }
+    Util::Debug("After %s in %p, now are %d chunks\n",
+        __FUNCTION__,this,chunk_map.size());
     return cleanupReadIndex(fd, maddr, length, 0, "DONE",hostindex.c_str());
 }
 
@@ -655,10 +664,13 @@ void Index::addWrite( off_t offset, size_t length, pid_t pid,
 
 void Index::truncate( off_t offset ) {
     map<off_t,ContainerEntry>::iterator itr, prev;
-    ContainerEntry entry;
+    bool first = false;
+    Util::Debug("Before %s in %p, now are %d chunks\n",
+        __FUNCTION__,this,chunk_map.size());
 
         // Finds the first element whose offset >= offset. 
     itr = global_index.lower_bound( offset );
+    if ( itr == global_index.begin() ) first = true;
     prev = itr; prev--;
     
         // remove everything whose offset >= offset
@@ -666,18 +678,21 @@ void Index::truncate( off_t offset ) {
 
         // check whether the previous needs to be
         // internally truncated
-    entry = prev->second;
-    if ( (off_t)(entry.logical_offset + entry.length) > offset ) {
+    if ( ! first ) {
+      if ((off_t)(prev->second.logical_offset + prev->second.length) > offset){
             // say entry is 5.5 that means that ten
             // is a valid offset, so truncate to 7
             // would mean the new length would be 3
-        entry.length = offset - entry.logical_offset + 1;
-            // it'd be nice to just edit prev in place but
-            // I'm not sure if that works so just
-            // delete prev and reinsert entry
-        global_index.erase( prev );
-        global_index[entry.logical_offset] = entry;
+        Util::Debug("Modified a global index record\n");
+        prev->second.length = offset - prev->second.logical_offset + 1;
+        if (prev->second.length==0) {
+          Util::Debug( "Just truncated index entry to 0 length\n" );
+        }
+      }
     }
+    Util::Debug("After %s in %p, now are %d chunks\n",
+        __FUNCTION__,this,chunk_map.size());
+
 }
 
 // operates on a host entry which is not sorted

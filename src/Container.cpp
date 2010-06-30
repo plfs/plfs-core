@@ -818,22 +818,26 @@ int Container::Truncate( const char *path, off_t offset ) {
 
     DIR *td = NULL, *hd = NULL; struct dirent *tent = NULL;
     while((ret = nextdropping(path,&indexfile,INDEXPREFIX, &td,&hd,&tent))== 1){
-        Index *index = new Index( path, -1 );
+        Index *index = new Index( indexfile, -1 );
+        Util::Debug("%s new idx %p %s\n", __FUNCTION__,index,indexfile.c_str());
         ret = index->readIndex( indexfile );
         if ( ret == 0 ) {
             if ( index->lastOffset() > offset ) {
+                Util::Debug("%s %p at %ld\n",__FUNCTION__,index,offset);
                 index->truncate( offset );
                 int fd = Util::Open( indexfile.c_str(), O_TRUNC );
                 if ( fd < 0 ) {
                     cerr << "Couldn't overwrite index file " << indexfile
                          << ": " << strerror( fd ) << endl;
+                    delete index;
                     return -errno;
                 }
                 ret = index->rewriteIndex( fd );
                 Util::Close( fd );
-                delete index;
-                index = NULL;
             }
+            Util::Debug("%s removing index %p\n",__FUNCTION__,index);
+            delete index;
+            index = NULL;
         } else {
             cerr << "Failed to read index file " << indexfile 
                  << ": " << strerror( -ret ) << endl;
