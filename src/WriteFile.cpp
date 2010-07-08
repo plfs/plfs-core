@@ -44,7 +44,7 @@ WriteFile::~WriteFile() {
 }
 
 int WriteFile::sync( pid_t pid ) {
-    int ret; 
+    int ret=0; 
     OpenFd *ofd = getFd( pid );
     if ( ofd == NULL ) {
         // ugh, sometimes FUSE passes in weird pids, just ignore this
