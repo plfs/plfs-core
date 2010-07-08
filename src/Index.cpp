@@ -515,6 +515,7 @@ int Index::cleanupReadIndex( int fd, void *maddr, off_t length, int ret,
 }
 
 // we found a chunk containing an offset, return necessary stuff 
+// this opens an fd to the chunk if necessary
 int Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len, 
         off_t shift, ContainerEntry *entry ) 
 {
@@ -537,6 +538,7 @@ int Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
 
 // returns the fd for the chunk and the offset within the chunk
 // and how much of the chunk to read
+// if the chunk does not currently have an fd, it is created here
 // if the lookup finds a hole, it returns -1 for the fd and 
 // chunk_len for the size of the hole beyond the logical offset
 // returns 0 or -errno

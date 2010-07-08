@@ -62,7 +62,7 @@ int WriteFile::sync( pid_t pid ) {
 
 
 // returns -errno or number of writers
-int WriteFile::addWriter( pid_t pid ) {
+int WriteFile::addWriter( pid_t pid, bool child ) {
     int ret = 0;
 
     Util::MutexLock(   &data_mux, __FUNCTION__ );
@@ -80,7 +80,7 @@ int WriteFile::addWriter( pid_t pid ) {
             ret = -errno;
         }
     }
-    int writers = -1;
+    int writers = incrementOpens(0); 
     if ( ret == 0 ) writers = incrementOpens(1);
     Util::Debug("%s (%d) on %s now has %d writers\n", 
             __FUNCTION__, pid, physical_path.c_str(), writers );
@@ -108,6 +108,11 @@ size_t WriteFile::numWriters( ) {
     return writers;
 }
 
+// ok, something is broken again.
+// it shows up when a makefile does a command like ./foo > bar
+// the bar gets 1 open, 2 writers, 1 flush, 1 release
+// and then the reference counting is screwed up
+// the problem is that a child is using the parents fd
 struct OpenFd * WriteFile::getFd( pid_t pid ) {
     map<pid_t,OpenFd*>::iterator itr;
     struct OpenFd *ofd = NULL;
@@ -120,6 +125,8 @@ struct OpenFd * WriteFile::getFd( pid_t pid ) {
         //Util::Debug("%s", oss.str().c_str() );
         ofd = itr->second;
     } else {
+        // here's the code that used to do it so a child could share
+        // a parent fd but for some reason I commented it out
         /*
            // I think this code is a mistake.  We were doing it once
            // when a child was writing to a file that the parent opened
@@ -207,8 +214,11 @@ ssize_t WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid){
         // we used to return -ENOENT here but we can get here legitimately 
         // when a parent opens a file and a child writes to it.
         // so when we get here, we need to add a child datafile
-        ret = addWriter( pid );
+        ret = addWriter( pid, true );
         if ( ret > 0 ) {
+            // however, this screws up the reference count
+            // it looks like a new writer but it's multiple writers
+            // sharing an fd ...
             ofd = getFd( pid );
         }
     }

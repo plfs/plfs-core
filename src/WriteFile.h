@@ -32,7 +32,7 @@ class WriteFile : public Metadata {
         int openIndex( pid_t );
         int closeIndex();
 
-        int addWriter( pid_t );
+        int addWriter( pid_t, bool child );
         int removeWriter( pid_t );
         size_t numWriters();
 

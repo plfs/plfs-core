@@ -6,9 +6,19 @@
 #include "Util.h"
 #include "OpenFile.h"
 
+#include <list>
 #include <stdarg.h>
 #include <limits>
 #include <assert.h>
+using namespace std;
+
+// a struct for making reads be multi-threaded
+typedef struct {  
+    int fd;
+    size_t length;
+    off_t chunk_offset; 
+    char *buf;
+} ReadTask;
 
 // a shortcut for functions that are expecting zero
 int 
@@ -26,7 +36,7 @@ int
 addWriter( WriteFile *wf, pid_t pid, const char *path, mode_t mode ) {
     int ret = -ENOENT;
     for( int attempts = 0; attempts < 2 && ret == -ENOENT; attempts++ ) {
-        ret = wf->addWriter( pid ); 
+        ret = wf->addWriter( pid, false ); 
         if ( ret == -ENOENT ) {
             // maybe the hostdir doesn't exist
             Container::makeHostDir( path, Util::hostname(), mode );
@@ -102,6 +112,8 @@ read_helper( Index *index, char *buf, size_t size, off_t offset ) {
     // need to lock this since the globalLookup does the open of the fds
     ret = index->globalLookup( &fd, &chunk_offset, &chunk_length, offset );
     if ( ret != 0 ) return ret;
+    cout << "2) Found index entry offset " << offset << " len " << chunk_length
+         << endl;
 
     ssize_t read_size = ( size < chunk_length ? size : chunk_length );
     if ( read_size > 0 ) {
@@ -125,6 +137,65 @@ read_helper( Index *index, char *buf, size_t size, off_t offset ) {
     return ret;
 }
 
+
+// a helper routine for read to allow it to be multi-threaded when a single
+// logical read spans multiple chunks
+int 
+find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
+        char *buf)
+{
+    int ret;
+    ssize_t bytes_remaining = size;
+    ssize_t bytes_traversed = 0;
+    int chunk = 0;
+    ReadTask task;
+    do {
+        // find a read task
+        ret = index->globalLookup(&(task.fd),
+                                  &(task.chunk_offset),
+                                  &(task.length),
+                                  offset+bytes_traversed);
+        // make sure it's good
+        if ( ret == 0 && task.length > 0 && task.fd >= 0 ) {
+            task.buf = &(buf[bytes_traversed]); 
+            // don't read more than was requested
+            if ( bytes_remaining < (ssize_t)task.length ) {
+                task.length = bytes_remaining;
+            }
+            bytes_remaining -= task.length;
+            bytes_traversed += task.length;
+            cout << chunk << ".1) Found index entry offset " 
+                << task.chunk_offset << " len " 
+                << task.length << " fd " << task.fd << endl;
+
+                // check to see if we can combine small sequential reads
+            if ( tasks->size() > 0 ) {
+                ReadTask lasttask = tasks->back();
+                cout << chunk++ << ".1) Last index entry offset " 
+                    << lasttask.chunk_offset << " len " 
+                    << lasttask.length << " fd " << lasttask.fd 
+                    << endl;
+
+                if ( lasttask.fd == task.fd && 
+                     lasttask.chunk_offset + lasttask.length ==
+                     task.chunk_offset ) 
+                {
+                    // merge last into this and pop last
+                    task.chunk_offset = lasttask.chunk_offset;
+                    task.length += lasttask.length;
+                    task.buf = lasttask.buf;
+                    tasks->pop_back();
+                }
+            }
+
+            // remember this task
+            tasks->push_back(task);
+        }
+        // when chunk_length is 0, that means EOF
+    } while(bytes_remaining && ret == 0 && task.length);
+    return ret;
+}
+
 // returns -errno or bytes read
 ssize_t 
 plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
@@ -132,8 +203,11 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
     Index *index = pfd->getIndex(); 
     bool new_index_created = false;  
     const char *path = pfd->getPath();
+    list<ReadTask> tasks;   // a container of read tasks in case the logical
+                            // read spans multiple chunks so we can thread them
 
-    // this can fail because this call is not in a mutex so it's possible
+    // you might think that this can fail because this call is not in a mutex 
+    // so it's possible
     // that some other thread in a close is changing ref counts right now
     // but it's OK that the reference count is off here since the only
     // way that it could be off is if someone else removes their handle,
@@ -156,24 +230,21 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
         }
     }
 
-    // now that we have an index (newly created or otherwise), go ahead and read
     if ( ret == 0 ) {
-            // if the read spans multiple chunks, we really need to loop in here
-            // to get them all read bec the man page for read says that it 
-            // guarantees to return the number of bytes requested up to EOF
-            // so any partial read by the client indicates EOF and a client
-            // may not retry
-        ssize_t bytes_remaining = size;
-        ssize_t bytes_read      = 0;
-        do {
-            ret = read_helper( index, &(buf[bytes_read]), bytes_remaining, 
-                    offset + bytes_read );
-            if ( ret > 0 ) {
-                bytes_read      += ret;
-                bytes_remaining -= ret;
+        ret = find_read_tasks(index,&tasks,size,offset,buf); 
+        if ( ret == 0 ) {
+            // for now, let's handle each task serially 
+            list<ReadTask>::const_iterator itr;
+            cout << "TASK LIST:" << endl;
+            for ( itr = tasks.begin(); itr != tasks.end(); itr++ ) {
+                cout << "\t offset " << (*itr).chunk_offset << " len "
+                     << (*itr).length << " fd " << (*itr).fd << endl;
+                ret = Util::Pread( (*itr).fd, (*itr).buf, (*itr).length, 
+                               (*itr).chunk_offset );
+                if ( ret < 0 ) break; 
             }
-        } while( bytes_remaining && ret > 0 );
-        ret = ( ret < 0 ? ret : bytes_read );
+        }
+               
     }
 
     if ( new_index_created ) {
@@ -555,7 +626,7 @@ ssize_t plfs_reference_count( Plfs_fd *pfd ) {
         oss << __FUNCTION__ << " not equal counts: " << ref_count
             << " != " << pfd->incrementOpens(0) << endl;
         Util::Debug("%s", oss.str().c_str() ); 
-        assert( 0 );
+        assert( ref_count == pfd->incrementOpens(0) );
     }
     return ref_count;
 }
