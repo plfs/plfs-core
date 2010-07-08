@@ -242,9 +242,6 @@ Plfs::Plfs () {
     wtfs                = 0;
     make_container_time = 0;
     o_rdwrs             = 0;
-    #ifdef COUNT_SKIPS
-        fward_skips = bward_skips = nonskip_writes = 0;
-    #endif
     begin_time          = Util::getTime();
 }
 
@@ -255,6 +252,12 @@ Plfs::Plfs () {
 // hash on host improves this but makes multiple containers
 // what we really want is hash on host for the create
 // and hash on path for the lookup
+//
+// ok, make a really big change here
+// don't have fuse do the mapping anymore
+// instead create a storage layer and make it so that only the storage 
+// layer knows about the physical paths and everywhere else in the code
+// operates on the logical paths.
 string Plfs::expandPath( const char *path ) {
     size_t hash_by_node  = Container::hashValue( self->myhost.c_str() )
                             % self->params.backends.size();
@@ -292,6 +295,8 @@ int Plfs::makePlfsFile( string expanded_path, mode_t mode, int flags ) {
         // doesn't fully help but it does help a little bit for multi-proc
         // on this node
         // if the container has already been created, don't create it again
+        // hmmm, not sure about this code.  What if some other node unlinks
+        // the container and then we'll assume it's created here?
     double time_start = Util::getTime();
     Util::MutexLock( &self->container_mutex, __FUNCTION__ );
     int extra_attempts = 0;
@@ -1028,11 +1033,6 @@ int Plfs::writeDebug( char *buf, size_t size, off_t offset, const char *path ) {
                 "%d WTFs\n"
                 "%d ExtraAttempts\n"
                 "%d Opens with O_RDWR\n"
-		#ifdef COUNT_SKIPS
-                "%d forward skips in datafiles\n"
-                "%d backward skips in datafiles\n"
-                "%d sequential writes to datafiles\n"
-        #endif 
                 "%s",
                 STR(TAG_VERSION), STR(SVN_VERSION), STR(DATA_VERSION),
                 self->myhost.c_str(), 
@@ -1043,11 +1043,6 @@ int Plfs::writeDebug( char *buf, size_t size, off_t offset, const char *path ) {
                 self->wtfs,
                 self->extra_attempts,
                 self->o_rdwrs,
-		#ifdef COUNT_SKIPS
-                self->fward_skips,
-                self->bward_skips,
-                self->nonskip_writes,
-		#endif
                 openFilesToString().c_str() );
     } else {
         ret = snprintf(tmpbuf, maxsize, "%s", LogMessage::Dump().c_str());

@@ -42,21 +42,21 @@ class Plfs : public fusexx::fuse<Plfs> {
         static int f_chmod (const char *path, mode_t mode);
         static int f_chown (const char *path, uid_t uid, gid_t gid );
         static int f_create (const char *, mode_t, struct fuse_file_info *);
-		static int f_fgetattr(const char *, struct stat *, 
+        static int f_fgetattr(const char *, struct stat *, 
                 struct fuse_file_info *);
         static int f_flush (const char *, struct fuse_file_info *); 
         static int f_ftruncate (const char *, off_t, struct fuse_file_info *); 
         static int f_fsync(const char *path, int, struct fuse_file_info *fi);
-		static int f_getattr (const char *, struct stat *);
+        static int f_getattr (const char *, struct stat *);
         static int f_link (const char *, const char *);
         static int f_mkdir (const char *, mode_t); 
         static int f_mknod(const char *path, mode_t mode, dev_t rdev);
-		static int f_open (const char *, struct fuse_file_info *);
+        static int f_open (const char *, struct fuse_file_info *);
         static int f_opendir( const char *, struct fuse_file_info * );
         static int f_readlink (const char *, char *, size_t);
-		static int f_readn(const char *, char *, size_t, 
+        static int f_readn(const char *, char *, size_t, 
                 off_t, struct fuse_file_info *);
-		static int f_readdir (const char *, void *, 
+        static int f_readdir (const char *, void *, 
                 fuse_fill_dir_t, off_t, struct fuse_file_info *);
         static int f_release(const char *path, struct fuse_file_info *fi);
         static int f_releasedir( const char *path, struct fuse_file_info *fi );
@@ -67,7 +67,7 @@ class Plfs : public fusexx::fuse<Plfs> {
         static int f_truncate( const char *path, off_t offset );
         static int f_unlink( const char * );
         static int f_utime (const char *path, struct utimbuf *ut);
-		static int f_write (const char *, const char *, size_t, 
+        static int f_write (const char *, const char *, size_t, 
                 off_t, struct fuse_file_info *);
 
         // not overloaded.  something I added to parse command line args
@@ -116,12 +116,6 @@ class Plfs : public fusexx::fuse<Plfs> {
         double make_container_time;    // for debugging
         double begin_time;
         int o_rdwrs;
-        #ifdef COUNT_SKIPS
-            HASH_MAP<int, int>            last_offsets;
-            int fward_skips;
-            int bward_skips;
-            int nonskip_writes;
-        #endif
         pthread_mutex_t             container_mutex;
         pthread_mutex_t             fd_mutex;
         pthread_mutex_t             group_mutex;
@@ -129,6 +123,5 @@ class Plfs : public fusexx::fuse<Plfs> {
         set< string >               createdContainers;
         HASH_MAP<string, Plfs_fd *> open_files;
         string                      myhost;
-        string                      trashdir;
         Params                      params;
 };

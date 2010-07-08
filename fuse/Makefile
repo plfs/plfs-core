@@ -18,7 +18,7 @@ INSTALLDIR = /usr/sbin/
 # remove direct_io if you want to exec a PLFS file
 # but it makes the performance horrible because writes are split into 4K
 # as opposed to 128K with direct_io 
-DIRECT_IO        = -o direct_io
+#DIRECT_IO        = -o direct_io
 
 # big writes should aggregate small contiguous writes
 #BIG_WRITES       = -obig_writes
