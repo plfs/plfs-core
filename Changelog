@@ -1,3 +1,14 @@
+~~~ Version 0.1.7
+
+1) Problems with building the PLFS SC09 paper.  Problems are in data/summary
+directory.  When make does ./get_data > data, it was failing due to a bad
+reference count because we were incrementing the writers when a child came
+in and used the parent's fd.  Then when the file was closed, it asserted since
+the reference count was still 1.  So now we don't increment the writers for
+children but now we're seeing this other strange behavior:
+jvpn-132-65:/tmp/plfs_mnt/SC09/data/summary>./get_data >! data
+cat: stdout: Result too large
+
 ~~~ Version 0.1.6
 
 1) Gary found a bug in the old version running on cuda.lanl.gov.  I tried to 
