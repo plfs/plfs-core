@@ -81,7 +81,7 @@ int WriteFile::addWriter( pid_t pid, bool child ) {
         }
     }
     int writers = incrementOpens(0); 
-    if ( ret == 0 ) writers = incrementOpens(1);
+    if ( ret == 0 && ! child ) writers = incrementOpens(1);
     Util::Debug("%s (%d) on %s now has %d writers\n", 
             __FUNCTION__, pid, physical_path.c_str(), writers );
     Util::MutexUnlock( &data_mux, __FUNCTION__ );

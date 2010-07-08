@@ -177,7 +177,7 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
                     << endl;
 
                 if ( lasttask.fd == task.fd && 
-                     lasttask.chunk_offset + lasttask.length ==
+                     lasttask.chunk_offset + (off_t)lasttask.length ==
                      task.chunk_offset ) 
                 {
                     // merge last into this and pop last
