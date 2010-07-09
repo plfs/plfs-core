@@ -200,7 +200,12 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
     }
 
     if ( ret == 0 ) {
+        index->lock(__FUNCTION__); // in case another FUSE thread in here
+        // TODO:  make the tasks do the file opens on the chunks
+        // have a routine to shove the open'd fd's back into the index
+        // and lock it while we do so
         ret = find_read_tasks(index,&tasks,size,offset,buf); 
+        index->unlock(__FUNCTION__); // in case another FUSE thread in here
         if ( ret == 0 ) {
             // for now, let's handle each task serially 
             list<ReadTask>::const_iterator itr;

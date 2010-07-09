@@ -41,6 +41,8 @@ WriteFile::~WriteFile() {
         delete index;
         index = NULL;
     }
+    pthread_mutex_destroy( &data_mux );
+    pthread_mutex_destroy( &index_mux );
 }
 
 int WriteFile::sync( pid_t pid ) {

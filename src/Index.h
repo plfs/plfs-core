@@ -88,6 +88,9 @@ class Index : public Metadata {
 
         off_t lastOffset( );
 
+        void lock( char *function );
+        void unlock(  char *function );
+
         int getFd() { return fd; }
         void resetFd( int fd ) { this->fd = fd; }
 
@@ -135,6 +138,7 @@ class Index : public Metadata {
         off_t  last_offset;
         size_t total_bytes;
         int    fd;
+        pthread_mutex_t    fd_mux;   // to allow thread safety 
 };
 
 #define MAP_ITR map<off_t,ContainerEntry>::iterator
