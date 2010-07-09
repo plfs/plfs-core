@@ -94,6 +94,7 @@ class Index : public Metadata {
         size_t totalBytes( );
 
         int globalLookup( int *fd, off_t *chunk_off, size_t *length, 
+                string &path,
                 off_t logical ); 
 
         int insertGlobal( ContainerEntry * );
@@ -107,7 +108,8 @@ class Index : public Metadata {
 
     private:
         void init( string );
-        int chunkFound( int *, off_t *, size_t *, off_t, ContainerEntry* );
+        int chunkFound( int *, off_t *, size_t *, off_t, 
+                string &,ContainerEntry* );
         int cleanupReadIndex(int, void *, off_t, int, const char*, const char*);
         void *mapIndex( string, int *, off_t * );
         int handleOverlap( ContainerEntry *g_entry,

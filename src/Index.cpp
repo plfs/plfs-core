@@ -517,7 +517,7 @@ int Index::cleanupReadIndex( int fd, void *maddr, off_t length, int ret,
 // we found a chunk containing an offset, return necessary stuff 
 // this opens an fd to the chunk if necessary
 int Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len, 
-        off_t shift, ContainerEntry *entry ) 
+        off_t shift, string &path, ContainerEntry *entry ) 
 {
     ChunkFile *cf_ptr = &(chunk_map[entry->id]); // typing shortcut
     *chunk_off  = entry->chunk_offset + shift;
@@ -533,6 +533,7 @@ int Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
     Util::Debug("Will read from chunk %s at off %ld\n",
             cf_ptr->path.c_str(), (long)*chunk_off );
     *fd = cf_ptr->fd;
+    path = cf_ptr->path;
     return 0;
 }
 
@@ -543,7 +544,7 @@ int Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
 // chunk_len for the size of the hole beyond the logical offset
 // returns 0 or -errno
 int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len, 
-        off_t logical ) 
+        string &path, off_t logical ) 
 {
     ostringstream os;
     os << __FUNCTION__ << ": " << this << " using index." << endl;
@@ -590,7 +591,7 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
         //oss << "FOUND(1): " << entry << " contains " << logical;
         //Util::Debug("%s\n", oss.str().c_str() );
         return chunkFound( fd, chunk_off, chunk_len, 
-                logical - entry.logical_offset, &entry );
+                logical - entry.logical_offset, path, &entry );
     }
 
         // case 1 or 2
@@ -601,7 +602,7 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
             //oss << "FOUND(2): "<< previous << " contains " << logical << endl;
             //Util::Debug("%s\n", oss.str().c_str() );
             return chunkFound( fd, chunk_off, chunk_len, 
-                logical - previous.logical_offset, &previous );
+                logical - previous.logical_offset, path, &previous );
         }
     }
         

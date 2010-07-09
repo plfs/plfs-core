@@ -18,6 +18,7 @@ typedef struct {
     size_t length;
     off_t chunk_offset; 
     char *buf;
+    string path;
 } ReadTask;
 
 // a shortcut for functions that are expecting zero
@@ -101,42 +102,6 @@ plfs_utime( const char *path, struct utimbuf *ut ) {
     return ret;
 }
 
-// returns bytes read or -errno
-ssize_t 
-read_helper( Index *index, char *buf, size_t size, off_t offset ) {
-    off_t  chunk_offset = 0;
-    size_t chunk_length = 0;
-    int    fd           = -1;
-    int ret;
-
-    // need to lock this since the globalLookup does the open of the fds
-    ret = index->globalLookup( &fd, &chunk_offset, &chunk_length, offset );
-    if ( ret != 0 ) return ret;
-    cout << "2) Found index entry offset " << offset << " len " << chunk_length
-         << endl;
-
-    ssize_t read_size = ( size < chunk_length ? size : chunk_length );
-    if ( read_size > 0 ) {
-        // uses pread to allow the fd's to be shared 
-        if ( fd >= 0 ) {
-            ret = Util::Pread( fd, buf, read_size, chunk_offset );
-            if ( ret < 0 ) {
-                cerr << "Couldn't read in " << fd << ":" 
-                     << strerror(errno) << endl;
-                return -errno;
-            }
-        } else {
-            // zero fill the hole
-            memset( (void*)buf, 0, read_size);
-            ret = read_size;
-        }
-    } else {
-        // when chunk_length = 0, that means we're at EOF
-        ret = 0;
-    }
-    return ret;
-}
-
 
 // a helper routine for read to allow it to be multi-threaded when a single
 // logical read spans multiple chunks
@@ -154,9 +119,11 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
         ret = index->globalLookup(&(task.fd),
                                   &(task.chunk_offset),
                                   &(task.length),
+                                  task.path,
                                   offset+bytes_traversed);
         // make sure it's good
         if ( ret == 0 && task.length > 0 && task.fd >= 0 ) {
+            ostringstream oss;
             task.buf = &(buf[bytes_traversed]); 
             // don't read more than was requested
             if ( bytes_remaining < (ssize_t)task.length ) {
@@ -164,14 +131,15 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
             }
             bytes_remaining -= task.length;
             bytes_traversed += task.length;
-            cout << chunk << ".1) Found index entry offset " 
+            oss << chunk << ".1) Found index entry offset " 
                 << task.chunk_offset << " len " 
-                << task.length << " fd " << task.fd << endl;
+                << task.length << " fd " << task.fd << " path " 
+                << task.path << endl;
 
                 // check to see if we can combine small sequential reads
             if ( tasks->size() > 0 ) {
                 ReadTask lasttask = tasks->back();
-                cout << chunk++ << ".1) Last index entry offset " 
+                oss << chunk++ << ".1) Last index entry offset " 
                     << lasttask.chunk_offset << " len " 
                     << lasttask.length << " fd " << lasttask.fd 
                     << endl;
@@ -189,6 +157,7 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
             }
 
             // remember this task
+            Util::Debug("%s", oss.str().c_str() ); 
             tasks->push_back(task);
         }
         // when chunk_length is 0, that means EOF
@@ -235,14 +204,16 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
         if ( ret == 0 ) {
             // for now, let's handle each task serially 
             list<ReadTask>::const_iterator itr;
-            cout << "TASK LIST:" << endl;
+            ostringstream oss;
+            oss << "TASK LIST:" << endl;
             for ( itr = tasks.begin(); itr != tasks.end(); itr++ ) {
-                cout << "\t offset " << (*itr).chunk_offset << " len "
+                oss << "\t offset " << (*itr).chunk_offset << " len "
                      << (*itr).length << " fd " << (*itr).fd << endl;
                 ret = Util::Pread( (*itr).fd, (*itr).buf, (*itr).length, 
                                (*itr).chunk_offset );
                 if ( ret < 0 ) break; 
             }
+            Util::Debug("%s", oss.str().c_str() ); 
         }
                
     }
