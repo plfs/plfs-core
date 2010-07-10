@@ -63,25 +63,31 @@ struct OpenFile {
     #define END_TIMES
 #endif
 
-#define RESTORE_GROUPS setgroups( orig_groups.size(),                   \
-                                (const gid_t*)&(orig_groups.front()));
-#define RESTORE_IDS    SET_IDS(save_uid,save_gid);
 
 #ifdef __FreeBSD__
     #define SET_IDS(X,Y)
     #define SAVE_IDS
+    #define RESTORE_GROUPS
+    #define RESTORE_IDS
+    #define GET_GROUPS
+    #define SET_GROUPS
 #else
     #include <sys/fsuid.h>  
+    #define GET_GROUPS get_groups(&orig_groups);
+    #define SET_GROUPS set_groups( fuse_get_context()->uid ); 
+    #define RESTORE_IDS    SET_IDS(save_uid,save_gid);
     #define SAVE_IDS uid_t s_uid = Util::Getuid(); gid_t s_gid = Util::Getgid();
     #define SET_IDS(X,Y)   Util::Setfsuid( X );    Util::Setfsgid( Y ); 
+    #define RESTORE_GROUPS setgroups( orig_groups.size(),                   \
+                                (const gid_t*)&(orig_groups.front()));
 #endif
 
 #define PLFS_ENTER vector<gid_t> orig_groups;                                 \
                    ostringstream funct_id;                                    \
                    LogMessage lm, lm2;                                        \
                    string strPath  = expandPath( path );                      \
-                   get_groups( &orig_groups );                                \
-                   set_groups( fuse_get_context()->uid );                     \
+                   GET_GROUPS;                                                \
+                   SET_GROUPS;                                                \
                    START_TIMES;                                               \
                    funct_id << setw(16) << fixed << setprecision(16)          \
                         << begin << " PLFS::" << __FUNCTION__                 \
@@ -561,6 +567,7 @@ int Plfs::get_groups( vector<gid_t> *vec ) {
 // a pain.  Prolly easier to just maintain a single timestamp for the whole
 // cache and periodically flush it.  Wonder if querying time all the time
 // will be a problem?  ugh.
+// OK.  Now it's cached and periodically purged.  still ugly....
 //
 // TODO:
 // HEY!  HEY!  When we can get fuse 2.8.XX, we can throw some of this crap

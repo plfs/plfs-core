@@ -122,7 +122,7 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
                                   task.path,
                                   offset+bytes_traversed);
         // make sure it's good
-        if ( ret == 0 && task.length > 0 && task.fd >= 0 ) {
+        if ( ret == 0 && task.length > 0 ) {
             ostringstream oss;
             task.buf = &(buf[bytes_traversed]); 
             // don't read more than was requested
@@ -165,6 +165,14 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
     return ret;
 }
 
+int
+perform_read_task( ReadTask task, Index *index ) {
+    int ret;
+    ret = Util::Pread( task.fd, task.buf, task.length, 
+        task.chunk_offset );
+    return ret;
+}
+
 // returns -errno or bytes read
 ssize_t 
 plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
@@ -200,12 +208,16 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
     }
 
     if ( ret == 0 ) {
-        index->lock(__FUNCTION__); // in case another FUSE thread in here
+        if ( ! new_index_created ) {    // if new index, no need to lock
+            index->lock(__FUNCTION__); // in case another FUSE thread in here
+        }
         // TODO:  make the tasks do the file opens on the chunks
         // have a routine to shove the open'd fd's back into the index
         // and lock it while we do so
         ret = find_read_tasks(index,&tasks,size,offset,buf); 
-        index->unlock(__FUNCTION__); // in case another FUSE thread in here
+        if ( ! new_index_created ) {    // if new index, no need to lock
+            index->unlock(__FUNCTION__); // in case another FUSE thread in here
+        }
         if ( ret == 0 ) {
             // for now, let's handle each task serially 
             list<ReadTask>::const_iterator itr;
@@ -214,8 +226,7 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
             for ( itr = tasks.begin(); itr != tasks.end(); itr++ ) {
                 oss << "\t offset " << (*itr).chunk_offset << " len "
                      << (*itr).length << " fd " << (*itr).fd << endl;
-                ret = Util::Pread( (*itr).fd, (*itr).buf, (*itr).length, 
-                               (*itr).chunk_offset );
+                ret = perform_read_task( *itr, index );
                 if ( ret < 0 ) break; 
             }
             Util::Debug("%s", oss.str().c_str() ); 

@@ -109,13 +109,13 @@ Index::Index( string logical, int fd ) : Metadata::Metadata() {
 }
 
 void
-Index::lock( char *function ) {
+Index::lock( const char *function ) {
     Util::MutexLock( &fd_mux, function );
 
 }
 
 void
-Index::unlock( char *function ) {
+Index::unlock( const char *function ) {
     Util::MutexUnlock( &fd_mux, function );
 
 }
@@ -543,6 +543,7 @@ int Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
                     cf_ptr->path.c_str(), strerror(errno) );
             return -errno;
         } 
+        //Util::Debug("Not opening chunk file %s yet\n", cf_ptr->path.c_str());
     }
     Util::Debug("Will read from chunk %s at off %ld\n",
             cf_ptr->path.c_str(), (long)*chunk_off );
@@ -580,6 +581,7 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
     if ( global_index.size() == 0 ) {
         *fd = -1;
         *chunk_len = 0;
+        path = "";
         return 0;
     }
 
@@ -631,6 +633,7 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
         off_t remaining_hole_size = entry.logical_offset - logical;
         *fd = -1;
         *chunk_len = remaining_hole_size;
+        path = "";
         return 0;
     }
 

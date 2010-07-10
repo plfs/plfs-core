@@ -88,8 +88,8 @@ class Index : public Metadata {
 
         off_t lastOffset( );
 
-        void lock( char *function );
-        void unlock(  char *function );
+        void lock( const char *function );
+        void unlock(  const char *function );
 
         int getFd() { return fd; }
         void resetFd( int fd ) { this->fd = fd; }
