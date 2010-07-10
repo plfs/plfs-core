@@ -197,6 +197,7 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
     // so that new writes are re-indexed for new reads
     // basically O_RDWR is possible but it can reduce read BW
 
+    Util::Debug( "Entering %s for %s\n", __FUNCTION__, path );
     if ( index == NULL ) {
         index = new Index( path );
         if ( index ) {
@@ -209,6 +210,7 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
 
     if ( ret == 0 ) {
         if ( ! new_index_created ) {    // if new index, no need to lock
+            Util::Debug( "Locking mutex in %s for %s\n", __FUNCTION__, path );
             index->lock(__FUNCTION__); // in case another FUSE thread in here
         }
         // TODO:  make the tasks do the file opens on the chunks
@@ -216,6 +218,7 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
         // and lock it while we do so
         ret = find_read_tasks(index,&tasks,size,offset,buf); 
         if ( ! new_index_created ) {    // if new index, no need to lock
+            Util::Debug( "Unlocking mutex in %s for %s\n", __FUNCTION__, path );
             index->unlock(__FUNCTION__); // in case another FUSE thread in here
         }
         if ( ret == 0 ) {

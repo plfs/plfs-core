@@ -97,6 +97,7 @@ void Index::init( string logical ) {
     hostIndex.clear();
     global_index.clear();
     chunk_map.clear();
+    pthread_mutex_init( &fd_mux, NULL );
 }
 
 Index::Index( string logical, int fd ) : Metadata::Metadata() {
@@ -105,7 +106,6 @@ Index::Index( string logical, int fd ) : Metadata::Metadata() {
     ostringstream os;
     os << __FUNCTION__ << ": " << this << " created index on " <<
         logical_path << endl;
-    pthread_mutex_init( &fd_mux, NULL );
 }
 
 void
@@ -126,7 +126,6 @@ Index::Index( string logical ) : Metadata::Metadata() {
     os << __FUNCTION__ << ": " << this 
        << " created index on " << logical_path << ", "
        << chunk_map.size() << " chunks" << endl;
-    pthread_mutex_destroy( &fd_mux );
     Util::Debug("%s", os.str().c_str() );
 }
 
@@ -148,6 +147,7 @@ Index::~Index() {
             Util::Close( chunk_map[i].fd );
         }
     }
+    pthread_mutex_destroy( &fd_mux );
     // I think these just go away, no need to clear them
     /*
     hostIndex.clear();
