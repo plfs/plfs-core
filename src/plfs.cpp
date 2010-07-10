@@ -122,7 +122,7 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
                                   task.path,
                                   offset+bytes_traversed);
         // make sure it's good
-        if ( ret == 0 && task.length > 0 ) {
+        if ( ret == 0 && task.length > 0 && task.fd >= 0 ) {
             ostringstream oss;
             task.buf = &(buf[bytes_traversed]); 
             // don't read more than was requested
@@ -161,7 +161,7 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
             tasks->push_back(task);
         }
         // when chunk_length is 0, that means EOF
-    } while(bytes_remaining && ret == 0 && task.length);
+    } while(bytes_remaining && ret == 0 && task.length && task.fd >= 0);
     return ret;
 }
 
@@ -229,9 +229,7 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
             for ( itr = tasks.begin(); itr != tasks.end(); itr++ ) {
                 oss << "\t offset " << (*itr).chunk_offset << " len "
                      << (*itr).length << " fd " << (*itr).fd << endl;
-                ret = Util::Pread( (*itr).fd, (*itr).buf, (*itr).length, 
-                    (*itr).chunk_offset );
-                //ret = perform_read_task( *itr, index );
+                ret = perform_read_task( *itr, index );
                 if ( ret < 0 ) break; 
             }
             Util::Debug("%s", oss.str().c_str() ); 
