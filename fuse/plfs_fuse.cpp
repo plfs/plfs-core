@@ -70,11 +70,11 @@ struct OpenFile {
     #define RESTORE_GROUPS
     #define RESTORE_IDS
     #define GET_GROUPS
-    #define SET_GROUPS
+    #define SET_GROUPS(X)
 #else
     #include <sys/fsuid.h>  
     #define GET_GROUPS get_groups(&orig_groups);
-    #define SET_GROUPS set_groups( fuse_get_context()->uid ); 
+    #define SET_GROUPS(X) set_groups(X); 
     #define RESTORE_IDS    SET_IDS(save_uid,save_gid);
     #define SAVE_IDS uid_t s_uid = Util::Getuid(); gid_t s_gid = Util::Getgid();
     #define SET_IDS(X,Y)   Util::Setfsuid( X );    Util::Setfsgid( Y ); 
@@ -87,7 +87,7 @@ struct OpenFile {
                    LogMessage lm, lm2;                                        \
                    string strPath  = expandPath( path );                      \
                    GET_GROUPS;                                                \
-                   SET_GROUPS;                                                \
+                   SET_GROUPS(fuse_get_context()->uid);                       \
                    START_TIMES;                                               \
                    funct_id << setw(16) << fixed << setprecision(16)          \
                         << begin << " PLFS::" << __FUNCTION__                 \
@@ -453,6 +453,7 @@ int Plfs::f_fgetattr(const char *path, struct stat *stbuf,
 
 int Plfs::f_getattr(const char *path, struct stat *stbuf) {
     PLFS_ENTER;
+    fprintf( stderr, "Saw %s path, resolved to %s\n", path, strPath.c_str() );
     ret = getattr_helper( path, stbuf, NULL );
     PLFS_EXIT;
 }
@@ -837,7 +838,7 @@ int Plfs::f_release( const char *path, struct fuse_file_info *fi ) {
         // the metadata dropping and we need it created by the same persona
         // who created the container
         SET_IDS(    openfile->uid, openfile->gid );
-        set_groups( openfile->uid );
+        SET_GROUPS( openfile->uid );
         Util::MutexLock( &self->fd_mutex, __FUNCTION__ );
         assert( openfile->flags == fi->flags );
         Util::Debug("%s: %s ref count: %d\n", __FUNCTION__, 
