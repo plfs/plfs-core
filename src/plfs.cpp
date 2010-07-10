@@ -139,16 +139,16 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
                 // check to see if we can combine small sequential reads
             if ( tasks->size() > 0 ) {
                 ReadTask lasttask = tasks->back();
-                oss << chunk++ << ".1) Last index entry offset " 
-                    << lasttask.chunk_offset << " len " 
-                    << lasttask.length << " fd " << lasttask.fd 
-                    << endl;
 
                 if ( lasttask.fd == task.fd && 
                      lasttask.chunk_offset + (off_t)lasttask.length ==
                      task.chunk_offset ) 
                 {
                     // merge last into this and pop last
+                    oss << chunk++ << ".1) Merge with last index entry offset " 
+                        << lasttask.chunk_offset << " len " 
+                        << lasttask.length << " fd " << lasttask.fd 
+                        << endl;
                     task.chunk_offset = lasttask.chunk_offset;
                     task.length += lasttask.length;
                     task.buf = lasttask.buf;
@@ -229,7 +229,9 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
             for ( itr = tasks.begin(); itr != tasks.end(); itr++ ) {
                 oss << "\t offset " << (*itr).chunk_offset << " len "
                      << (*itr).length << " fd " << (*itr).fd << endl;
-                ret = perform_read_task( *itr, index );
+                ret = Util::Pread( (*itr).fd, (*itr).buf, (*itr).length, 
+                    (*itr).chunk_offset );
+                //ret = perform_read_task( *itr, index );
                 if ( ret < 0 ) break; 
             }
             Util::Debug("%s", oss.str().c_str() ); 
