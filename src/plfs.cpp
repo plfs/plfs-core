@@ -137,6 +137,7 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
                 << task.path << endl;
 
                 // check to see if we can combine small sequential reads
+                // when merging is off, that breaks things even more.... ? 
             if ( tasks->size() > 0 ) {
                 ReadTask lasttask = tasks->back();
 
@@ -173,9 +174,104 @@ perform_read_task( ReadTask task, Index *index ) {
     return ret;
 }
 
+// returns bytes read or -errno
+// this is the old one
+ssize_t 
+read_helper( Index *index, char *buf, size_t size, off_t offset ) {
+    off_t  chunk_offset = 0;
+    size_t chunk_length = 0;
+    int    fd           = -1;
+    int ret;
+    string path;
+
+    // need to lock this since the globalLookup does the open of the fds
+    ret = index->globalLookup( &fd, &chunk_offset, &chunk_length, path, offset);
+    if ( ret != 0 ) return ret;
+
+    ssize_t read_size = ( size < chunk_length ? size : chunk_length );
+    if ( read_size > 0 ) {
+        // uses pread to allow the fd's to be shared 
+        if ( fd >= 0 ) {
+            ret = Util::Pread( fd, buf, read_size, chunk_offset );
+            if ( ret < 0 ) {
+                cerr << "Couldn't read in " << fd << ":" 
+                     << strerror(errno) << endl;
+                return -errno;
+            }
+        } else {
+            // zero fill the hole
+            memset( (void*)buf, 0, read_size);
+            ret = read_size;
+        }
+    } else {
+        // when chunk_length = 0, that means we're at EOF
+        ret = 0;
+    }
+    return ret;
+}
+
+ssize_t 
+plfs_read_old( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
+    int ret = 0;
+    Index *index = pfd->getIndex(); 
+    bool new_index_created = false;  
+    const char *path = pfd->getPath();
+
+    // this can fail because this call is not in a mutex so it's possible
+    // that some other thread in a close is changing ref counts right now
+    // but it's OK that the reference count is off here since the only
+    // way that it could be off is if someone else removes their handle,
+    // but no-one can remove the handle being used here except this thread
+    // which can't remove it now since it's using it now
+    //plfs_reference_count(pfd);
+
+    // possible that we opened the file as O_RDWR
+    // if so, build an index now, but destroy it after this IO
+    // so that new writes are re-indexed for new reads
+    // basically O_RDWR is possible but it can reduce read BW
+
+    if ( index == NULL ) {
+        index = new Index( path );
+        if ( index ) {
+            new_index_created = true;
+            ret = Container::populateIndex( path, index );
+        } else {
+            ret = -EIO;
+        }
+    }
+
+    // now that we have an index (newly created or otherwise), go ahead and read
+    if ( ret == 0 ) {
+            // if the read spans multiple chunks, we really need to loop in here
+            // to get them all read bec the man page for read says that it 
+            // guarantees to return the number of bytes requested up to EOF
+            // so any partial read by the client indicates EOF and a client
+            // may not retry
+        ssize_t bytes_remaining = size;
+        ssize_t bytes_read      = 0;
+        do {
+            ret = read_helper( index, &(buf[bytes_read]), bytes_remaining, 
+                    offset + bytes_read );
+            if ( ret > 0 ) {
+                bytes_read      += ret;
+                bytes_remaining -= ret;
+            }
+        } while( bytes_remaining && ret > 0 );
+        ret = ( ret < 0 ? ret : bytes_read );
+    }
+
+    if ( new_index_created ) {
+        Util::Debug("%s removing freshly created index for %s\n",
+                __FUNCTION__, path );
+        delete( index );
+        index = NULL;
+    }
+    return ret;
+}
+
 // returns -errno or bytes read
 ssize_t 
-plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
+plfs_read_new( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
 	int ret = 0;
     Index *index = pfd->getIndex(); 
     bool new_index_created = false;  
@@ -244,6 +340,14 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
         index = NULL;
     }
     return ret;
+}
+
+// returns -errno or bytes read
+ssize_t 
+plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
+    bool use_old = false;
+    if ( use_old ) return plfs_read_old(pfd,buf,size,offset);
+    else           return plfs_read_new(pfd,buf,size,offset);
 }
 
 int
