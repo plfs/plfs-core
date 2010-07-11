@@ -5,6 +5,7 @@
 #include "Container.h"
 #include "Util.h"
 #include "OpenFile.h"
+#include "ThreadPool.h"
 
 #include <list>
 #include <stdarg.h>
@@ -364,35 +365,29 @@ plfs_read_new(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
 
     if ( tasks.size() > 1 ) { // more than one task, let's make threads!
         ReaderArgs args;
-        int num_threads = min((size_t)16,tasks.size());
         args.index = index;
         args.tasks = &tasks;
         pthread_mutex_init( &(args.mux), NULL );
-        pthread_t *readers = new pthread_t[num_threads];
-        pthread_attr_t attr;
-        pthread_attr_init(&attr);
-        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-        Util::Debug( "Creating %d reader threads\n", num_threads ); 
-        for( int t = 0; t < num_threads; t++ ) {
-            ret = pthread_create(&readers[t], 
-                    &attr, reader_thread, (void *)&args); 
-        }
-        for(int t=0; t < num_threads; t++) {
-            void *status;
-            ret = pthread_join(readers[t], &status);
-            if ( ret ) {
-                Util::Debug("WTF: pthread_join failed: %s",strerror(errno));
-                error = -errno;
-            } else {
+        size_t num_threads = min((size_t)16,tasks.size());
+        ThreadPool *threadpool = new ThreadPool(num_threads,reader_thread,
+                                     (void*)&args);
+        error = threadpool->threadError();   // returns errno
+        if ( error ) error = -error;       // convert to -errno
+
+        if ( error == 0 ) {
+            vector<void*> *stati    = threadpool->getStati();
+            for( size_t t = 0; t < num_threads; t++ ) {
+                void *status = (*stati)[t];
                 ret = (ssize_t)status;
+                Util::Debug("Thread %d returned %d\n", (int)t,int(ret));
                 if ( ret < 0 ) error = ret;
                 else total += ret;
             }
+        } else {
+            Util::Debug("THREAD pool error %s\n", strerror(-error) );
         }
-        // clean up the thread stuff
-        pthread_attr_destroy(&attr);
         pthread_mutex_destroy(&(args.mux));
-        delete readers; 
+        delete threadpool;
     } else { // just a single task, no need to be threaded
         ReadTask task = tasks.front();
         ret = perform_read_task( &task, index );
