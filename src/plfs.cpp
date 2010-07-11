@@ -23,6 +23,13 @@ typedef struct {
     bool hole;
 } ReadTask;
 
+// a struct to contain the args to pass to the reader threads
+typedef struct {
+    Index *index;   // the index needed to get and stash chunk fds 
+    list<ReadTask> *tasks;   // the queue of tasks
+    pthread_mutex_t mux;    // to lock the queue
+} ReaderArgs;
+
 // a shortcut for functions that are expecting zero
 int 
 retValue( int res ) {
@@ -143,7 +150,7 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
 
                 // check to see if we can combine small sequential reads
                 // when merging is off, that breaks things even more.... ? 
-            if ( tasks->size() > 0 ) {
+            if ( ! tasks->empty() > 0 ) {
                 ReadTask lasttask = tasks->back();
 
                 if ( lasttask.fd == task.fd && 
@@ -180,35 +187,45 @@ perform_read_task( ReadTask *task, Index *index ) {
         ret = task->length;
     } else {
         if ( task->fd < 0 ) {
-            bool won_race = true;   // assume we will be first to open and stash
-            task->fd = Util::Open(task->path.c_str(), O_RDONLY);
-            if ( task->fd < 0 ) {
-                Util::Debug("WTF? Open of %s: %s\n", 
-                    task->path.c_str(), strerror(errno) );
-                return -errno;
-            }
-            // now we got the fd, let's stash it in the index so others
-            // might benefit from it later
-            // someone else might have stashed one already.  if so, 
-            // close the one we just opened and use the stashed one
+            // since the task was made, maybe someone else has stashed it
             index->lock(__FUNCTION__);
-            int existing = index->getChunkFd(task->chunk_id);
-            if ( existing >= 0 ) {
-                won_race = false;
-            } else {
-                index->setChunkFd(task->chunk_id, task->fd);   // stash it
-            }
+            task->fd = index->getChunkFd(task->chunk_id);
             index->unlock(__FUNCTION__);
-            if ( ! won_race ) {
-                Util::Close(task->fd);
-                task->fd = existing; // use one already stashed by someone else
-            }
-            Util::Debug("Opened fd %d for %s and %s stash it\n", 
+            if ( task->fd < 0 ) {   // not currently stashed, we have to open it
+                bool won_race = true;   // assume we will be first stash
+                task->fd = Util::Open(task->path.c_str(), O_RDONLY);
+                if ( task->fd < 0 ) {
+                    Util::Debug("WTF? Open of %s: %s\n", 
+                        task->path.c_str(), strerror(errno) );
+                    return -errno;
+                }
+                // now we got the fd, let's stash it in the index so others
+                // might benefit from it later
+                // someone else might have stashed one already.  if so, 
+                // close the one we just opened and use the stashed one
+                index->lock(__FUNCTION__);
+                int existing = index->getChunkFd(task->chunk_id);
+                if ( existing >= 0 ) {
+                    won_race = false;
+                } else {
+                    index->setChunkFd(task->chunk_id, task->fd);   // stash it
+                }
+                index->unlock(__FUNCTION__);
+                if ( ! won_race ) {
+                    Util::Close(task->fd);
+                    task->fd = existing; // already stashed by someone else
+                }
+                Util::Debug("Opened fd %d for %s and %s stash it\n", 
                     task->fd, task->path.c_str(), won_race ? "did" : "did not");
+            }
         }
         ret = Util::Pread( task->fd, task->buf, task->length, 
             task->chunk_offset );
     }
+    ostringstream oss;
+    oss << "\t READ TASK: offset " << task->chunk_offset << " len "
+         << task->length << " fd " << task->fd << ": ret " << ret<< endl;
+    Util::Debug("%s", oss.str().c_str() ); 
     return ret;
 }
 
@@ -289,11 +306,38 @@ plfs_read_old(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
     return ret;
 }
 
+// pop the queue, do some work, until none remains
+void *
+reader_thread( void *va ) {
+    ReaderArgs *args = (ReaderArgs*)va;
+    ReadTask task;
+    ssize_t ret = 0, total = 0;
+    bool tasks_remaining = true; 
+
+    while( true ) {
+        Util::MutexLock(&(args->mux),__FUNCTION__);
+        if ( ! args->tasks->empty() ) {
+            task = args->tasks->front();
+            args->tasks->pop_front();
+        } else {
+            tasks_remaining = false;
+        }
+        Util::MutexUnlock(&(args->mux),__FUNCTION__);
+        if ( ! tasks_remaining ) break;
+        ret = perform_read_task( &task, args->index );
+        if ( ret < 0 ) break;
+        else total += ret;
+    }
+    if ( ret >= 0 ) ret = total;
+    pthread_exit((void*) ret);
+}
+
 // returns -errno or bytes read
 ssize_t 
 plfs_read_new(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
-	ssize_t total = 0;
-    ssize_t ret = 0;
+	ssize_t total = 0;  // no bytes read so far
+    ssize_t error = 0;  // no error seen so far
+    ssize_t ret = 0;    // for holding temporary return values
     list<ReadTask> tasks;   // a container of read tasks in case the logical
                             // read spans multiple chunks so we can thread them
 
@@ -306,11 +350,6 @@ plfs_read_new(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
     // which can't remove it now since it's using it now
     //plfs_reference_count(pfd);
 
-    // possible that we opened the file as O_RDWR
-    // if so, build an index now, but destroy it after this IO
-    // so that new writes are re-indexed for new reads
-    // basically O_RDWR is possible but it can reduce read BW
-
         // TODO:  make the tasks do the file opens on the chunks
         // have a routine to shove the open'd fd's back into the index
         // and lock it while we do so
@@ -318,22 +357,48 @@ plfs_read_new(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
     ret = find_read_tasks(index,&tasks,size,offset,buf); 
     index->unlock(__FUNCTION__); // in case another FUSE thread in here
 
-    if ( ret == 0 ) {
-        // for now, let's handle each task serially 
-        list<ReadTask>::const_iterator itr;
-        ostringstream oss;
-        oss << "TASK LIST:" << endl;
-        for ( itr = tasks.begin(); itr != tasks.end(); itr++ ) {
-            oss << "\t TASK offset " << (*itr).chunk_offset << " len "
-                 << (*itr).length << " fd " << (*itr).fd << endl;
-            ret = perform_read_task( (ReadTask*)&(*itr), index );
-            if ( ret < 0 ) break; 
-            else total += ret;
+    // let's leave early if possible to make remaining code cleaner by
+    // not worrying about these conditions
+    // tasks is empty for a zero length file or an EOF 
+    if ( ret != 0 || tasks.empty() ) return ret;
+
+    if ( tasks.size() > 1 ) { // more than one task, let's make threads!
+        ReaderArgs args;
+        args.index = index;
+        args.tasks = &tasks;
+        int num_threads = min((size_t)16,tasks.size());
+        pthread_mutex_init( &(args.mux), NULL );
+        pthread_t *readers = new pthread_t[num_threads];
+        pthread_attr_t attr;
+        pthread_attr_init(&attr);
+        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+        Util::Debug( "Creating %d reader threads\n", num_threads ); 
+        for( int t = 0; t < num_threads; t++ ) {
+            ret = pthread_create(&readers[t], 
+                    &attr, reader_thread, (void *)&args); 
         }
-        Util::Debug("%s", oss.str().c_str() ); 
+        pthread_attr_destroy(&attr);
+        for(int t=0; t < num_threads; t++) {
+            void *status;
+            ret = pthread_join(readers[t], &status);
+            if ( ret ) {
+                Util::Debug("WTF: pthread_join failed: %s",strerror(errno));
+                error = -errno;
+            } else {
+                ret = (ssize_t)status;
+                if ( ret < 0 ) error = ret;
+                else total += ret;
+            }
+        }
+    } else {
+        // just a single task, no need to be threaded
+        ReadTask task = tasks.front();
+        ret = perform_read_task( &task, index );
+        if ( ret < 0 ) error = ret;
+        else total = ret;
     }
-               
-    return(ret >= 0 ? total : ret);
+
+    return( error < 0 ? error : total );
 }
 
 // returns -errno or bytes read
@@ -361,10 +426,10 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
         }
     }
 
-    bool use_old = false;
+    bool use_new = true;
     if ( ret == 0 ) {
-        if ( use_old ) ret = plfs_read_old(pfd,buf,size,offset,index);
-        else           ret = plfs_read_new(pfd,buf,size,offset,index);
+        if ( use_new ) ret = plfs_read_new(pfd,buf,size,offset,index);
+        else           ret = plfs_read_old(pfd,buf,size,offset,index);
     }
 
     Util::Debug("Read request on %s at offset %ld for %ld bytes: ret %ld\n",

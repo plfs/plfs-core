@@ -453,7 +453,6 @@ int Plfs::f_fgetattr(const char *path, struct stat *stbuf,
 
 int Plfs::f_getattr(const char *path, struct stat *stbuf) {
     PLFS_ENTER;
-    fprintf( stderr, "Saw %s path, resolved to %s\n", path, strPath.c_str() );
     ret = getattr_helper( path, stbuf, NULL );
     PLFS_EXIT;
 }

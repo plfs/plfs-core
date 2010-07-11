@@ -651,7 +651,7 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
     if ( logical < entry.logical_offset ) {
         ostringstream oss;
         oss << "FOUND(4): " << logical << " is in a hole" << endl;
-        Util::Debug("%s\n", oss.str().c_str() );
+        Util::Debug("%s", oss.str().c_str() );
         off_t remaining_hole_size = entry.logical_offset - logical;
         *fd = -1;
         *chunk_len = remaining_hole_size;
