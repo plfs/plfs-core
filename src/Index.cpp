@@ -292,7 +292,9 @@ int Index::readIndex( string hostindex ) {
         HostEntry      h_entry = h_index[i];
         string chunkpath       = Container::chunkPathFromIndexPath( 
                                                 hostindex, h_entry.id );
-        Util::Debug("Checking chunk %s\n", chunkpath.c_str());
+        
+        //  too verbose
+        //Util::Debug("Checking chunk %s\n", chunkpath.c_str());
 
             // remember the mapping of a chunkpath to a chunkid
             // and set the initial offset
@@ -553,17 +555,18 @@ int Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
 }
 
 // returns the fd for the chunk and the offset within the chunk
-// and how much of the chunk to read
+// and the size of the chunk beyond the offset 
 // if the chunk does not currently have an fd, it is created here
 // if the lookup finds a hole, it returns -1 for the fd and 
 // chunk_len for the size of the hole beyond the logical offset
 // returns 0 or -errno
 int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len, 
-        string &path, off_t logical ) 
+        string &path, bool *hole, off_t logical ) 
 {
     ostringstream os;
     os << __FUNCTION__ << ": " << this << " using index." << endl;
     Util::Debug("%s", os.str().c_str() );
+    *hole = false;
     //Util::Debug("Look up %ld in %s\n", 
     //        (long)logical, logical_path.c_str() );
     ContainerEntry entry, previous;
@@ -581,7 +584,6 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
     if ( global_index.size() == 0 ) {
         *fd = -1;
         *chunk_len = 0;
-        path = "";
         return 0;
     }
 
@@ -627,13 +629,14 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
 
         // case 4: within a hole
     if ( logical < entry.logical_offset ) {
-        //ostringstream oss;
-        //oss << "FOUND(4): " << logical << " is in a hole" << endl;
-        //Util::Debug("%s\n", oss.str().c_str() );
+        ostringstream oss;
+        oss << "FOUND(4): " << logical << " is in a hole" << endl;
+        Util::Debug("%s\n", oss.str().c_str() );
         off_t remaining_hole_size = entry.logical_offset - logical;
         *fd = -1;
         *chunk_len = remaining_hole_size;
-        path = "";
+        *chunk_off = 0;
+        *hole = true;
         return 0;
     }
 

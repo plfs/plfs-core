@@ -19,6 +19,7 @@ typedef struct {
     off_t chunk_offset; 
     char *buf;
     string path;
+    bool hole;
 } ReadTask;
 
 // a shortcut for functions that are expecting zero
@@ -120,17 +121,19 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
                                   &(task.chunk_offset),
                                   &(task.length),
                                   task.path,
+                                  &(task.hole),
                                   offset+bytes_traversed);
         // make sure it's good
-        if ( ret == 0 && task.length > 0 && task.fd >= 0 ) {
-            ostringstream oss;
+        if ( ret == 0 ) {
+            task.length = min(bytes_remaining,(ssize_t)task.length); 
             task.buf = &(buf[bytes_traversed]); 
-            // don't read more than was requested
-            if ( bytes_remaining < (ssize_t)task.length ) {
-                task.length = bytes_remaining;
-            }
-            bytes_remaining -= task.length;
+            bytes_remaining -= task.length; 
             bytes_traversed += task.length;
+        }
+
+        // then if there is anything to it, add it to the queue
+        if ( ret == 0 && task.length > 0 ) {
+            ostringstream oss;
             oss << chunk << ".1) Found index entry offset " 
                 << task.chunk_offset << " len " 
                 << task.length << " fd " << task.fd << " path " 
@@ -142,6 +145,7 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
                 ReadTask lasttask = tasks->back();
 
                 if ( lasttask.fd == task.fd && 
+                     lasttask.hole == task.hole &&
                      lasttask.chunk_offset + (off_t)lasttask.length ==
                      task.chunk_offset ) 
                 {
@@ -162,15 +166,20 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
             tasks->push_back(task);
         }
         // when chunk_length is 0, that means EOF
-    } while(bytes_remaining && ret == 0 && task.length && task.fd >= 0);
+    } while(bytes_remaining && ret == 0 && task.length);
     return ret;
 }
 
 int
 perform_read_task( ReadTask task, Index *index ) {
     int ret;
-    ret = Util::Pread( task.fd, task.buf, task.length, 
-        task.chunk_offset );
+    if ( task.hole ) {
+        memset((void*)task.buf, 0, task.length);
+        ret = task.length;
+    } else {
+        ret = Util::Pread( task.fd, task.buf, task.length, 
+            task.chunk_offset );
+    }
     return ret;
 }
 
@@ -181,16 +190,21 @@ read_helper( Index *index, char *buf, size_t size, off_t offset ) {
     off_t  chunk_offset = 0;
     size_t chunk_length = 0;
     int    fd           = -1;
+    bool hole = false;
     int ret;
     string path;
 
     // need to lock this since the globalLookup does the open of the fds
-    ret = index->globalLookup( &fd, &chunk_offset, &chunk_length, path, offset);
+    ret =index->globalLookup(&fd,&chunk_offset,&chunk_length,path,&hole,offset);
     if ( ret != 0 ) return ret;
 
-    ssize_t read_size = ( size < chunk_length ? size : chunk_length );
+    ssize_t read_size = min(size,chunk_length);
     if ( read_size > 0 ) {
         // uses pread to allow the fd's to be shared 
+        ostringstream oss;
+        oss << "\t TASK offset " << chunk_offset << " len "
+                     << chunk_length << " fd " << fd << endl;
+        Util::Debug("%s", oss.str().c_str() ); 
         if ( fd >= 0 ) {
             ret = Util::Pread( fd, buf, read_size, chunk_offset );
             if ( ret < 0 ) {
@@ -199,6 +213,7 @@ read_helper( Index *index, char *buf, size_t size, off_t offset ) {
                 return -errno;
             }
         } else {
+            assert( hole );
             // zero fill the hole
             memset( (void*)buf, 0, read_size);
             ret = read_size;
@@ -211,11 +226,8 @@ read_helper( Index *index, char *buf, size_t size, off_t offset ) {
 }
 
 ssize_t 
-plfs_read_old( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
-    int ret = 0;
-    Index *index = pfd->getIndex(); 
-    bool new_index_created = false;  
-    const char *path = pfd->getPath();
+plfs_read_old(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
+    ssize_t ret = 0;
 
     // this can fail because this call is not in a mutex so it's possible
     // that some other thread in a close is changing ref counts right now
@@ -225,57 +237,32 @@ plfs_read_old( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
     // which can't remove it now since it's using it now
     //plfs_reference_count(pfd);
 
-    // possible that we opened the file as O_RDWR
-    // if so, build an index now, but destroy it after this IO
-    // so that new writes are re-indexed for new reads
-    // basically O_RDWR is possible but it can reduce read BW
-
-    if ( index == NULL ) {
-        index = new Index( path );
-        if ( index ) {
-            new_index_created = true;
-            ret = Container::populateIndex( path, index );
-        } else {
-            ret = -EIO;
+        // if the read spans multiple chunks, we really need to loop in here
+        // to get them all read bec the man page for read says that it 
+        // guarantees to return the number of bytes requested up to EOF
+        // so any partial read by the client indicates EOF and a client
+        // may not retry
+    ssize_t bytes_remaining = size;
+    ssize_t bytes_read      = 0;
+    Util::Debug("TASK LIST:\n" );
+    do {
+        ret = read_helper( index, &(buf[bytes_read]), bytes_remaining, 
+                offset + bytes_read );
+        if ( ret > 0 ) {
+            bytes_read      += ret;
+            bytes_remaining -= ret;
         }
-    }
+    } while( bytes_remaining && ret > 0 );
+    ret = ( ret < 0 ? ret : bytes_read );
 
-    // now that we have an index (newly created or otherwise), go ahead and read
-    if ( ret == 0 ) {
-            // if the read spans multiple chunks, we really need to loop in here
-            // to get them all read bec the man page for read says that it 
-            // guarantees to return the number of bytes requested up to EOF
-            // so any partial read by the client indicates EOF and a client
-            // may not retry
-        ssize_t bytes_remaining = size;
-        ssize_t bytes_read      = 0;
-        do {
-            ret = read_helper( index, &(buf[bytes_read]), bytes_remaining, 
-                    offset + bytes_read );
-            if ( ret > 0 ) {
-                bytes_read      += ret;
-                bytes_remaining -= ret;
-            }
-        } while( bytes_remaining && ret > 0 );
-        ret = ( ret < 0 ? ret : bytes_read );
-    }
-
-    if ( new_index_created ) {
-        Util::Debug("%s removing freshly created index for %s\n",
-                __FUNCTION__, path );
-        delete( index );
-        index = NULL;
-    }
     return ret;
 }
 
 // returns -errno or bytes read
 ssize_t 
-plfs_read_new( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
-	int ret = 0;
-    Index *index = pfd->getIndex(); 
-    bool new_index_created = false;  
-    const char *path = pfd->getPath();
+plfs_read_new(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
+	ssize_t total = 0;
+    ssize_t ret = 0;
     list<ReadTask> tasks;   // a container of read tasks in case the logical
                             // read spans multiple chunks so we can thread them
 
@@ -293,61 +280,72 @@ plfs_read_new( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
     // so that new writes are re-indexed for new reads
     // basically O_RDWR is possible but it can reduce read BW
 
-    Util::Debug( "Entering %s for %s\n", __FUNCTION__, path );
-    if ( index == NULL ) {
-        index = new Index( path );
-        if ( index ) {
-            new_index_created = true;
-            ret = Container::populateIndex( path, index );
-        } else {
-            ret = -EIO;
-        }
-    }
-
-    if ( ret == 0 ) {
-        if ( ! new_index_created ) {    // if new index, no need to lock
-            Util::Debug( "Locking mutex in %s for %s\n", __FUNCTION__, path );
-            index->lock(__FUNCTION__); // in case another FUSE thread in here
-        }
         // TODO:  make the tasks do the file opens on the chunks
         // have a routine to shove the open'd fd's back into the index
         // and lock it while we do so
-        ret = find_read_tasks(index,&tasks,size,offset,buf); 
-        if ( ! new_index_created ) {    // if new index, no need to lock
-            Util::Debug( "Unlocking mutex in %s for %s\n", __FUNCTION__, path );
-            index->unlock(__FUNCTION__); // in case another FUSE thread in here
-        }
-        if ( ret == 0 ) {
-            // for now, let's handle each task serially 
-            list<ReadTask>::const_iterator itr;
-            ostringstream oss;
-            oss << "TASK LIST:" << endl;
-            for ( itr = tasks.begin(); itr != tasks.end(); itr++ ) {
-                oss << "\t offset " << (*itr).chunk_offset << " len "
-                     << (*itr).length << " fd " << (*itr).fd << endl;
-                ret = perform_read_task( *itr, index );
-                if ( ret < 0 ) break; 
-            }
-            Util::Debug("%s", oss.str().c_str() ); 
-        }
-               
-    }
+    index->lock(__FUNCTION__); // in case another FUSE thread in here
+    ret = find_read_tasks(index,&tasks,size,offset,buf); 
+    index->unlock(__FUNCTION__); // in case another FUSE thread in here
 
-    if ( new_index_created ) {
-        Util::Debug("%s removing freshly created index for %s\n",
-                __FUNCTION__, path );
-        delete( index );
-        index = NULL;
+    if ( ret == 0 ) {
+        // for now, let's handle each task serially 
+        list<ReadTask>::const_iterator itr;
+        ostringstream oss;
+        oss << "TASK LIST:" << endl;
+        for ( itr = tasks.begin(); itr != tasks.end(); itr++ ) {
+            oss << "\t TASK offset " << (*itr).chunk_offset << " len "
+                 << (*itr).length << " fd " << (*itr).fd << endl;
+            ret = perform_read_task( *itr, index );
+            if ( ret < 0 ) break; 
+            else total += ret;
+        }
+        Util::Debug("%s", oss.str().c_str() ); 
     }
-    return ret;
+               
+    return(ret >= 0 ? total : ret);
 }
 
 // returns -errno or bytes read
 ssize_t 
 plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
+    bool new_index_created = false;
+    Index *index = pfd->getIndex(); 
+    ssize_t ret = 0;
+
+    Util::Debug("Read request on %s at offset %ld for %ld bytes\n",
+            pfd->getPath(),long(offset),long(size));
+
+    // possible that we opened the file as O_RDWR
+    // if so, we don't have a persistent index
+    // build an index now, but destroy it after this IO
+    // so that new writes are re-indexed for new reads
+    // basically O_RDWR is possible but it can reduce read BW
+    if ( index == NULL ) {
+        index = new Index( pfd->getPath() );
+        if ( index ) {
+            new_index_created = true;
+            ret = Container::populateIndex( pfd->getPath(), index );
+        } else {
+            ret = -EIO;
+        }
+    }
+
     bool use_old = false;
-    if ( use_old ) return plfs_read_old(pfd,buf,size,offset);
-    else           return plfs_read_new(pfd,buf,size,offset);
+    if ( ret == 0 ) {
+        if ( use_old ) ret = plfs_read_old(pfd,buf,size,offset,index);
+        else           ret = plfs_read_new(pfd,buf,size,offset,index);
+    }
+
+    Util::Debug("Read request on %s at offset %ld for %ld bytes: ret %ld\n",
+            pfd->getPath(),long(offset),long(size),long(ret));
+
+    if ( new_index_created ) {
+        Util::Debug("%s removing freshly created index for %s\n",
+                __FUNCTION__, pfd->getPath() );
+        delete( index );
+        index = NULL;
+    }
+    return ret;
 }
 
 int

@@ -97,8 +97,7 @@ class Index : public Metadata {
         size_t totalBytes( );
 
         int globalLookup( int *fd, off_t *chunk_off, size_t *length, 
-                string &path,
-                off_t logical ); 
+                string &path, bool *hole, off_t logical ); 
 
         int insertGlobal( ContainerEntry * );
         void truncate( off_t offset );
