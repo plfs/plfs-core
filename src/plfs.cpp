@@ -364,9 +364,9 @@ plfs_read_new(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
 
     if ( tasks.size() > 1 ) { // more than one task, let's make threads!
         ReaderArgs args;
+        int num_threads = min((size_t)16,tasks.size());
         args.index = index;
         args.tasks = &tasks;
-        int num_threads = min((size_t)16,tasks.size());
         pthread_mutex_init( &(args.mux), NULL );
         pthread_t *readers = new pthread_t[num_threads];
         pthread_attr_t attr;
@@ -377,7 +377,6 @@ plfs_read_new(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
             ret = pthread_create(&readers[t], 
                     &attr, reader_thread, (void *)&args); 
         }
-        pthread_attr_destroy(&attr);
         for(int t=0; t < num_threads; t++) {
             void *status;
             ret = pthread_join(readers[t], &status);
@@ -390,8 +389,11 @@ plfs_read_new(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
                 else total += ret;
             }
         }
-    } else {
-        // just a single task, no need to be threaded
+        // clean up the thread stuff
+        pthread_attr_destroy(&attr);
+        pthread_mutex_destroy(&(args.mux));
+        delete readers; 
+    } else { // just a single task, no need to be threaded
         ReadTask task = tasks.front();
         ret = perform_read_task( &task, index );
         if ( ret < 0 ) error = ret;
