@@ -18,6 +18,7 @@ typedef struct {
     size_t length;
     off_t chunk_offset; 
     char *buf;
+    pid_t chunk_id; // in order to stash fd's back into the index
     string path;
     bool hole;
 } ReadTask;
@@ -122,6 +123,7 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
                                   &(task.length),
                                   task.path,
                                   &(task.hole),
+                                  &(task.chunk_id),
                                   offset+bytes_traversed);
         // make sure it's good
         if ( ret == 0 ) {
@@ -171,14 +173,41 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
 }
 
 int
-perform_read_task( ReadTask task, Index *index ) {
+perform_read_task( ReadTask *task, Index *index ) {
     int ret;
-    if ( task.hole ) {
-        memset((void*)task.buf, 0, task.length);
-        ret = task.length;
+    if ( task->hole ) {
+        memset((void*)task->buf, 0, task->length);
+        ret = task->length;
     } else {
-        ret = Util::Pread( task.fd, task.buf, task.length, 
-            task.chunk_offset );
+        if ( task->fd < 0 ) {
+            bool won_race = true;   // assume we will be first to open and stash
+            task->fd = Util::Open(task->path.c_str(), O_RDONLY);
+            if ( task->fd < 0 ) {
+                Util::Debug("WTF? Open of %s: %s\n", 
+                    task->path.c_str(), strerror(errno) );
+                return -errno;
+            }
+            // now we got the fd, let's stash it in the index so others
+            // might benefit from it later
+            // someone else might have stashed one already.  if so, 
+            // close the one we just opened and use the stashed one
+            index->lock(__FUNCTION__);
+            int existing = index->getChunkFd(task->chunk_id);
+            if ( existing >= 0 ) {
+                won_race = false;
+            } else {
+                index->setChunkFd(task->chunk_id, task->fd);   // stash it
+            }
+            index->unlock(__FUNCTION__);
+            if ( ! won_race ) {
+                Util::Close(task->fd);
+                task->fd = existing; // use one already stashed by someone else
+            }
+            Util::Debug("Opened fd %d for %s and %s stash it\n", 
+                    task->fd, task->path.c_str(), won_race ? "did" : "did not");
+        }
+        ret = Util::Pread( task->fd, task->buf, task->length, 
+            task->chunk_offset );
     }
     return ret;
 }
@@ -190,12 +219,14 @@ read_helper( Index *index, char *buf, size_t size, off_t offset ) {
     off_t  chunk_offset = 0;
     size_t chunk_length = 0;
     int    fd           = -1;
+    pid_t chunk_id = (pid_t)-1;
     bool hole = false;
     int ret;
     string path;
 
     // need to lock this since the globalLookup does the open of the fds
-    ret =index->globalLookup(&fd,&chunk_offset,&chunk_length,path,&hole,offset);
+    ret =index->globalLookup(&fd,&chunk_offset,&chunk_length,path,&hole,
+            &chunk_id, offset);
     if ( ret != 0 ) return ret;
 
     ssize_t read_size = min(size,chunk_length);
@@ -295,7 +326,7 @@ plfs_read_new(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
         for ( itr = tasks.begin(); itr != tasks.end(); itr++ ) {
             oss << "\t TASK offset " << (*itr).chunk_offset << " len "
                  << (*itr).length << " fd " << (*itr).fd << endl;
-            ret = perform_read_task( *itr, index );
+            ret = perform_read_task( (ReadTask*)&(*itr), index );
             if ( ret < 0 ) break; 
             else total += ret;
         }

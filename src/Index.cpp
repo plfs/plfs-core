@@ -530,22 +530,41 @@ int Index::cleanupReadIndex( int fd, void *maddr, off_t length, int ret,
     return ( ret == 0 ? 0 : -errno );
 }
 
+// returns any fd that has been stashed for a data chunk
+// if an fd has not yet been stashed, it returns the initial
+// value of -1
+int Index::getChunkFd( pid_t chunk_id ) {
+    return chunk_map[chunk_id].fd;
+}
+
+// stashes an fd for a data chunk 
+// the index no longer opens them itself so that 
+// they might be opened in parallel when a single logical read
+// spans multiple data chunks
+int Index::setChunkFd( pid_t chunk_id, int fd ) {
+    chunk_map[chunk_id].fd = fd;
+    return 0;
+}
+
 // we found a chunk containing an offset, return necessary stuff 
 // this opens an fd to the chunk if necessary
 int Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len, 
-        off_t shift, string &path, ContainerEntry *entry ) 
+        off_t shift, string &path, pid_t *chunk_id, ContainerEntry *entry ) 
 {
     ChunkFile *cf_ptr = &(chunk_map[entry->id]); // typing shortcut
     *chunk_off  = entry->chunk_offset + shift;
     *chunk_len  = entry->length       - shift;
+    *chunk_id   = entry->id;
     if( cf_ptr->fd < 0 ) {
+        /*
         cf_ptr->fd = Util::Open(cf_ptr->path.c_str(), O_RDONLY);
         if ( cf_ptr->fd < 0 ) {
             Util::Debug("WTF? Open of %s: %s\n", 
                     cf_ptr->path.c_str(), strerror(errno) );
             return -errno;
         } 
-        //Util::Debug("Not opening chunk file %s yet\n", cf_ptr->path.c_str());
+        */
+        Util::Debug("Not opening chunk file %s yet\n", cf_ptr->path.c_str());
     }
     Util::Debug("Will read from chunk %s at off %ld\n",
             cf_ptr->path.c_str(), (long)*chunk_off );
@@ -561,12 +580,13 @@ int Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
 // chunk_len for the size of the hole beyond the logical offset
 // returns 0 or -errno
 int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len, 
-        string &path, bool *hole, off_t logical ) 
+        string &path, bool *hole, pid_t *chunk_id, off_t logical ) 
 {
     ostringstream os;
     os << __FUNCTION__ << ": " << this << " using index." << endl;
     Util::Debug("%s", os.str().c_str() );
     *hole = false;
+    *chunk_id = (pid_t)-1;
     //Util::Debug("Look up %ld in %s\n", 
     //        (long)logical, logical_path.c_str() );
     ContainerEntry entry, previous;
@@ -609,7 +629,7 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
         //oss << "FOUND(1): " << entry << " contains " << logical;
         //Util::Debug("%s\n", oss.str().c_str() );
         return chunkFound( fd, chunk_off, chunk_len, 
-                logical - entry.logical_offset, path, &entry );
+                logical - entry.logical_offset, path, chunk_id, &entry );
     }
 
         // case 1 or 2
@@ -620,7 +640,7 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
             //oss << "FOUND(2): "<< previous << " contains " << logical << endl;
             //Util::Debug("%s\n", oss.str().c_str() );
             return chunkFound( fd, chunk_off, chunk_len, 
-                logical - previous.logical_offset, path, &previous );
+                logical - previous.logical_offset, path, chunk_id, &previous );
         }
     }
         
