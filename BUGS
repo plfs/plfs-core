@@ -10,6 +10,13 @@ Need to test this.  Maybe especially if it is layered.
 frontends and plfs-fuse and plfs-adio both transparently use the backend.
 we'll need an /etc/plfsrc file or something.
 
+9) jvpn-132-65:/tmp/plfs_mnt/SC09/data/summary>./get_data >! data
+cat: stdout: Result too large
+
+10) the ADIO layer on RRZ is failing on the read close due to a debug 
+message trying to print a string that isn't valid (the path of
+the file)
+
 CLOSED:
 
 1) doing a cvs co often fails with:
