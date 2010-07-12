@@ -11,6 +11,8 @@
 #include <stdarg.h>
 #include <limits>
 #include <assert.h>
+#include <queue>
+#include <vector>
 using namespace std;
 
 // a struct for making reads be multi-threaded
@@ -35,6 +37,45 @@ typedef struct {
 int 
 retValue( int res ) {
     return Util::retValue(res);
+}
+
+// read the plfs configuration file and return a map of kv pairs
+map<string,string>
+plfs_read_conf() {
+    map<string,string> confs;
+
+    vector<string> possible_files;
+    // find which file to open
+    string home_file = getenv("HOME");
+    home_file.append("/.plfsrc");
+    string etc_file = "/etc/.plfsrc";
+
+    // search the two possibilities differently if root or normal user
+    if ( getuid()==0 ) {    // is root
+        possible_files.push_back(etc_file);
+        possible_files.push_back(home_file);
+    } else {
+        possible_files.push_back(home_file);
+        possible_files.push_back(etc_file);
+    }
+
+    // try to parse each file until one works
+    // the C++ way to parse like this is istringstream (bleh)
+    for( size_t i = 0; i < possible_files.size(); i++ ) {
+        string file = possible_files[i];
+        FILE *fp = fopen(file.c_str(),"r");
+        if ( fp == NULL ) continue;
+        char line[8192];
+        char key[8192];
+        char value[8192];
+        while(fgets(line,8192,fp)) {
+            sscanf(line, "%s %s\n", key, value);
+            confs[key] = value;
+        }
+        break;
+    }
+
+    return confs;
 }
 
 int 
