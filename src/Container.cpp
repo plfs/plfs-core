@@ -3,6 +3,7 @@
 #include <time.h>
 #include <math.h>
 #include <sstream>
+#include <list>
 using namespace std;
 
 #include "Container.h"
@@ -10,6 +11,7 @@ using namespace std;
 #include "plfs.h"
 #include "plfs_private.h"
 #include "Util.h"
+#include "ThreadPool.h"
 
 #define BLKSIZE 512
                 
@@ -139,20 +141,107 @@ int Container::Modify( DirectoryOperation type,
     return ret;
 }
 
+// the particular index file for each indexer task
+typedef struct {
+    string path;
+} IndexerTask;
+
+// the shared arguments passed to all of the indexer threads
+typedef struct {
+    Index *index;
+    list <IndexerTask> *tasks;
+    pthread_mutex_t mux;
+} IndexerArgs;
+
+// the routine for each indexer thread so that we can parallelize the
+// construction of the global index
+void *
+indexer_thread( void *va ) {
+    IndexerArgs *args = (IndexerArgs*)va;
+    IndexerTask task;
+    int ret = 0;
+    bool tasks_remaining = true;
+
+    while(true) {
+        // try to get a task
+        Util::MutexLock(&(args->mux),__FUNCTION__);
+        if ( ! args->tasks->empty() ) {
+            task = args->tasks->front();
+            args->tasks->pop_front();
+        } else {
+            tasks_remaining = false;
+        }
+        Util::MutexUnlock(&(args->mux),__FUNCTION__);
+        if ( ! tasks_remaining ) break;
+
+        // handle the task
+        Index *subindex = new Index(task.path);
+        ret = subindex->readIndex(task.path);
+        if ( ret != 0 ) break;
+        args->index->lock(__FUNCTION__);
+        args->index->merge(subindex);
+        args->index->unlock(__FUNCTION__);
+        Util::Debug("THREAD MERGE %s into main index\n", task.path.c_str());
+    }
+
+    pthread_exit((void*)ret);
+}
+
 // this is the function that returns the container index
 // should first check for top-level index and if it exists, just use it
+// returns -errno or 0 (forwarding from index->readIndex)
 int Container::populateIndex( const char *path, Index *index ) {
-    int ret;
+    int ret = 0;
     string hostindex;
+    IndexerTask task;
+    list <IndexerTask> tasks;
+
+    cerr << "motherfucker" << endl;
+    Util::Debug("In %s\n", __FUNCTION__);
     
+    // create the list of tasks
     DIR *td = NULL, *hd = NULL; struct dirent *tent = NULL;
     while((ret = nextdropping(path,&hostindex,INDEXPREFIX, &td,&hd,&tent))== 1){
-        //Util::Debug("# need to build index from %s\n", 
-        // hostindex.c_str());
-        ret = index->readIndex( hostindex );
-        if ( ret != 0 ) break;
+        task.path = hostindex;
+        tasks.push_back(task);  // makes a copy and pushes it
     }
-    return ret; 
+
+
+    if ( tasks.empty() ) {
+        ret = 0;    // easy, 0 length file
+        Util::Debug("No THREADS needed to create index for empty %s\n", path );
+    } else if ( tasks.size() == 1 ) {
+        // easy just one, don't use threads and this string is already set
+        ret = index->readIndex(hostindex);
+        Util::Debug("No THREADS needed to create index for %s\n", path );
+    } else {
+        // here's where to do the threaded thing
+        Util::Debug("THREADS needed to create index for %s\n", path );
+        IndexerArgs args;
+        args.index = index;
+        args.tasks = &tasks;
+        pthread_mutex_init( &(args.mux), NULL );
+        size_t num_threads = min((size_t)16,tasks.size());
+        ThreadPool *threadpool = new ThreadPool(num_threads,indexer_thread,
+                                     (void*)&args);
+        ret = threadpool->threadError();    // returns errno
+        if ( ret ) {
+            Util::Debug("THREAD pool error %s\n", strerror(ret) );
+            ret = -ret;
+        } else {
+            vector<void*> *stati    = threadpool->getStati();
+            ssize_t rc;  // needs to be size of void*
+            for( size_t t = 0; t < num_threads; t++ ) {
+                void *status = (*stati)[t];
+                rc = (ssize_t)status;
+                if ( rc != 0 ) {
+                    ret = (int)rc;
+                    break;
+                }
+            }
+        }
+    }
+    return ret;
 }
 
 string Container::getDataPath( const char *path, const char *host, int pid ) {

@@ -156,6 +156,10 @@ Index::~Index() {
     */
 }
 
+// this function makes a copy of the index
+// and then clears the existing one
+// walks the copy and merges where possible
+// and then inserts into the existing one
 void Index::compress() {
     if ( global_index.size() <= 1 ) return;
     map<off_t,ContainerEntry> old_global = global_index;
@@ -182,6 +186,31 @@ void Index::compress() {
         insertGlobal( &pEntry );
     }
     */
+}
+
+// merge another index into this one
+// we're not looking for errors here probably we should....
+void Index::merge(Index *other) {
+        // the other has it's own chunk_map and the ContainerEntry have
+        // an index into that chunk_map
+
+        // copy over the other's chunk_map and remember how many chunks
+        // we had originally
+    size_t chunk_map_shift = chunk_map.size();
+    vector<ChunkFile>::iterator itr;
+    for(itr = other->chunk_map.begin(); itr != other->chunk_map.end(); itr++){
+        chunk_map.push_back(*itr);
+    }
+
+        // copy over the other's container entries but shift the index 
+        // so they index into the new larger chunk_map
+    map<off_t,ContainerEntry>::const_iterator ce_itr;
+    map<off_t,ContainerEntry> *og = &(other->global_index);
+    for( ce_itr = og->begin(); ce_itr != og->end(); ce_itr++ ) {
+        ContainerEntry entry = ce_itr->second;
+        entry.id += chunk_map_shift;
+        insertGlobal(&entry);
+    }
 }
 
 off_t Index::lastOffset() {

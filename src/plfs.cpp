@@ -372,9 +372,10 @@ plfs_read_new(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
         ThreadPool *threadpool = new ThreadPool(num_threads,reader_thread,
                                      (void*)&args);
         error = threadpool->threadError();   // returns errno
-        if ( error ) error = -error;       // convert to -errno
-
-        if ( error == 0 ) {
+        if ( error ) {
+            Util::Debug("THREAD pool error %s\n", strerror(error) );
+            error = -error;       // convert to -errno
+        } else {
             vector<void*> *stati    = threadpool->getStati();
             for( size_t t = 0; t < num_threads; t++ ) {
                 void *status = (*stati)[t];
@@ -383,8 +384,6 @@ plfs_read_new(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
                 if ( ret < 0 ) error = ret;
                 else total += ret;
             }
-        } else {
-            Util::Debug("THREAD pool error %s\n", strerror(-error) );
         }
         pthread_mutex_destroy(&(args.mux));
         delete threadpool;

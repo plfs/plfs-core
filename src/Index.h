@@ -104,6 +104,7 @@ class Index : public Metadata {
                 string &path, bool *hole, pid_t *chunk_id, off_t logical ); 
 
         int insertGlobal( ContainerEntry * );
+        void merge( Index *other );
         void truncate( off_t offset );
         int rewriteIndex( int fd );
         void truncateHostIndex( off_t offset );
