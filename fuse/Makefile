@@ -36,12 +36,8 @@ endif
 ifndef PLFS_MNT
     PLFS_MNT = /mnt/plfs
 endif
-ifndef PLFS_BACK
-    PLFS_BACK = /tmp/plfs.back
-endif
 
-PLFS_SHARED_ARGS = $(DIRECT_IO) $(SINGLE_THREADED) $(ALLOW_OTHER) $(BIG_WRITES)\
-				   -plfs_backend=$(PLFS_BACK) 
+PLFS_SHARED_ARGS = $(DIRECT_IO) $(SINGLE_THREADED) $(ALLOW_OTHER) $(BIG_WRITES)
 
 UNAME := $(shell uname)
 ifeq ($(UNAME), Darwin)
@@ -74,15 +70,15 @@ $(LIBRARY):
 install: $(TARGET)
 	/bin/cp ./$(TARGET) $(INSTALLDIR)
 
-mount: $(TARGET) $(PLFS_MNT) $(PLFS_BACK)
-	./$(TARGET) -d $(PLFS_MNT) $(PLFS_ARGS)
+mount: $(TARGET) $(PLFS_MNT) 
+	./$(TARGET) -f $(PLFS_MNT) $(PLFS_ARGS)
 
 smount: $(TARGET) $(PLFS_MNT) 
 	./$(TARGET) $(PLFS_MNT) $(PLFS_ARGS)
 
 lmount: $(TARGET) $(PLFS_MNT)
 	/bin/rm -f $(LOG)
-	./$(TARGET) -d $(PLFS_MNT) $(PLFS_ARGS) &> $(LOG) &
+	./$(TARGET) -f $(PLFS_MNT) $(PLFS_ARGS) &> $(LOG) &
 
 umount:
 	$(UMOUNT)
@@ -104,6 +100,4 @@ stest:
 $(PLFS_MNT):
 	/bin/mkdir -p $(PLFS_MNT)
 
-$(PLFS_BACK):
-	/bin/mkdir -p $(PLFS_BACK)
 # DO NOT DELETE
