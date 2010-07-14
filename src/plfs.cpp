@@ -53,6 +53,13 @@ expandPath(const char *logical) {
     // and finally construct the resulting path by replacing HASH($1) in
     // $6 with $5 and replace $1 with whatever it is and then append
     // '/' + $2
+
+    // also the email johnbent@lanl.gov sent ben@lanl.gov at 11:45 PM
+    // July 13, 2010 contains the pseudocode for here
+
+    // also we need to remember to put mnt_pt in the .plfsrc file
+    // since ADIO can't figure it out from the command line args like
+    // FUSE can
     string canonical_path( get_plfs_conf()->backends[0] + "/" + logical );
     return canonical_path.c_str();
 }
