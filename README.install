@@ -1,17 +1,37 @@
-To install PLFS.
+To install PLFS as a FUSE filesystem.
 
-First do a make in this directory.  Make sure everything builds OK.
+  1) First do a make in this directory.  Make sure everything builds OK.
 
-Then go into the fuse directory.
+  2) Then go into the fuse directory.
 
-set the following environment variables:
+  3) set the following environment variables:
 
-PLFS_BACK   # where PLFS actually stores it's physical containers.  This path
-            # should not be used by the users. (e.g. /panfs/.plfs_store)
+  PLFS_MNT    # where the users access PLFS (e.g. /mnt/plfs)
 
-PLFS_MNT    # where the users access PLFS (e.g. /mnt/plfs)
+  PLFS_DEBUG  # a file to write debug info if desired
 
-PLFS_DEBUG  # a file to write debug info if desired
+  4) create an /etc/plfsrc or a $HOME/.plfsrc file that must have
+    backends a[,b]
+  where backends are a list (or just a single one) of paths where plfs can 
+  store it's physical containers
+  you can also have these optionally
+    num_hostdirs 32
+    threadpool_size 16
+  obviously set 32 and 16 to be whatever you want.  num_hostdirs should be
+  around the sqrt of the number of compute nodes in the system
+ 
+  5) then in the fuse directory, do a make mount to run it in the foreground or 
+  a make smount to run it as a daemon.
 
-then in the fuse directory, do a make mount to run it in the foreground or 
-a make smount to run it as a daemon
+To install PLFS as a ROMIO ADIO layer for MPI-IO.
+
+  That's harder.  Look in the patches directory and good luck.  If you get it
+  working, you still have to pass 'plfs:' as a preface to the path you
+  provide MPI-IO because ROMIO doesn't know how to identify a PLFS filesystem
+
+To build the PLFS library and link apps against it.
+
+  Follow step 1) above.  Then look at plfs.h and figure out how to use it.
+  Basically you just change your opens to plfs_opens and etc. 
+
+Email plfs-users@lists.sourceforge.net with any questions.

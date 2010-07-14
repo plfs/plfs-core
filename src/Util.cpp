@@ -38,6 +38,9 @@ using namespace std;
 #define O_CONCURRENT_WRITE                         020000000000
 #define PPATH 1024
 
+// TODO.  Some functions in here return -errno.  Probably none of them
+// should
+
 // shoot.  I just realized.  All this close timing stuff is not thread safe.
 // maybe we should add a mutex in addBytes and addTime.
 // might slow things down but this is supposed to just be for debugging...

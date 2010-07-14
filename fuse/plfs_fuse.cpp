@@ -1,4 +1,5 @@
 #include "plfs.h"
+#include "plfs_private.h"
 #include "Util.h"
 #include "Index.h"
 #include "OpenFile.h"
@@ -155,60 +156,52 @@ int Plfs::init( int *argc, char **argv ) {
     }
     myhost = hostname; 
 
-    cerr << "Starting PLFS on " << hostname << "." << endl;
+    // we've been stashing stuff in self but we can also stash in
+    // fuse_get_context()->private_data
+
     LogMessage::init( );
 
-    params.direct_io     = 0;
+    // ask the library to read in our configuration parameters
+    // eventually we should make it so that the backends are not
+    // accessed at all in the FUSE layer.
+    pconf = get_plfs_conf();
+    if (pconf->map == "" || pconf->backends.size()==0) {
+        cerr << "No 'map' or 'backends' found in plfsrc file" << endl;
+        return -ENOKEY;  // Required key not available 
+    }
 
-    // these options are no longer used
-    params.bufferindex   = true;
-    params.subdirs       = 32;
-    params.sync_on_close = false;
-
-        // modify argc to remove -plfs args so that fuse proper doesn't see them
-    int removed_args = 0;
-
-        // parse args
-    for( int i = 0; i < *argc; i++ ) {
-        const char *value;
-        if ( (value = getPlfsArg( "plfs_backend", argv[i] )) ) {
-            string fullvalue( value );
-            split( fullvalue, ',', params.backends );
-            removed_args++;
-        } 
-        if ( (value = getPlfsArg( "plfs_bufferindex", argv[i]) ) ) {
-            params.bufferindex = atoi( value );
-            removed_args++;
-        }
-        if ( (value = getPlfsArg( "plfs_synconclose", argv[i]) ) ) {
-            params.sync_on_close = atoi( value );
-            removed_args++;
-        }
-        if ( (value = getPlfsArg( "plfs_subdirs", argv[i] )) ) {
-            params.subdirs = atoi( value );
-            removed_args++;
-        }
+        // parse args to see if direct_io is set
+        // on older fuses, direct_io allows large IO's but disables mmap
+        // in that case, disable the exec bit so users see something
+        // sensible when they try to exec a plfs file
+        // they'll chmod 0777 and look and see no exec bit and say wtf?
+        // whereas if we allow the exec bit and they try to exec it, they
+        // get a cryptic error
+    pconf->direct_io = 0;
+    bool mnt_pt_found = false;
+    for( int i = 1; i < *argc; i++ ) {  // skip program name
         if ( strstr( argv[i], "direct_io" ) ) {
-            params.direct_io = 1;
+            pconf->direct_io = 1;
+        }
+        if ( argv[i][0] != '-' ) {
+            pconf->mnt_pt = argv[i];
+            mnt_pt_found = true;
+            break;
         }
     }
-    *argc -= removed_args;
-
-        // make sure our backend store is good
-    if (!params.backends.size()) {
-        cerr << "FATAL: No valid backend directory found.  "
-             << "Pass -plfs_backend=/path/to/backend\n"; 
-        return -ENOENT;
+    if ( mnt_pt_found ) {
+        cerr << "Starting PLFS on " << hostname << ":" << pconf->mnt_pt << endl;
     }
 
+    // now check the backends
     vector<string>::iterator itr;
-    for(itr = params.backends.begin(); 
-        itr != params.backends.end(); 
+    for(itr = pconf->backends.begin(); 
+        itr != pconf->backends.end(); 
         itr++)
     {
         if ( ! isDirectory( *itr ) ) {
             cerr << "FATAL: " << *itr << " is not a valid backend directory.  "
-                 << "Pass -plfs_backend=/path/to/backend\n"; 
+                 << "Make the directory if necessary and try again.\n"; 
             return -ENOENT;
         }
    }
@@ -233,15 +226,6 @@ int Plfs::init( int *argc, char **argv ) {
     return 0;
 }
 
-const char * Plfs::getPlfsArg( const char *key, const char *arg ) {
-    if ( strstr( arg, key ) ) {
-        const char *equal = strstr( arg, "=" );
-        return ( equal == NULL ? NULL : ++equal );
-    } else {
-        return NULL;
-    }
-}
-
 // Constructor
 Plfs::Plfs () {
     extra_attempts      = 0;
@@ -251,32 +235,11 @@ Plfs::Plfs () {
     begin_time          = Util::getTime();
 }
 
-// this takes the logical path, and returns the path to this object on the
-// underlying mount point
-// hash the path and choose a backend
-// hash on path means N-N open storm
-// hash on host improves this but makes multiple containers
-// what we really want is hash on host for the create
-// and hash on path for the lookup
-//
-// ok, make a really big change here
-// don't have fuse do the mapping anymore
-// instead create a storage layer and make it so that only the storage 
-// layer knows about the physical paths and everywhere else in the code
-// operates on the logical paths.
 string Plfs::expandPath( const char *path ) {
-    size_t hash_by_node  = Container::hashValue( self->myhost.c_str() )
-                            % self->params.backends.size();
-    size_t hash_by_path  = Container::hashValue( path )
-                            % self->params.backends.size();
-    string dangle_path( self->params.backends[hash_by_node] + "/" + path );
-    string canonical_path( self->params.backends[hash_by_path] + "/" + path );
-    // stop doing the dangling stuff for now
-    /*
-   Util::Debug("%s: %s -> %s\n", 
-            __FUNCTION__, path, canonical_path.c_str() );
-    */
-    return canonical_path;
+    string full_logical( self->pconf->mnt_pt + "/" + path );
+    bool plfs_lib_is_ready = false;
+    if ( plfs_lib_is_ready ) return full_logical;
+    else return path;
 }
 
 bool Plfs::isdebugfile( const char *path ) {
@@ -437,7 +400,7 @@ int Plfs::getattr_helper( const char *path,
     // ok, we've done the getattr, if we're running in direct_io mode
     // and it's a file, let's lie and turn off the exec bit so that 
     // users will be explicitly disabled from trying to exec plfs files
-    if ( ret == 0 && self->params.direct_io && S_ISREG(stbuf->st_mode) ) {
+    if ( ret == 0 && self->pconf->direct_io && S_ISREG(stbuf->st_mode) ) {
         stbuf->st_mode &= ( ~S_IXUSR & ~S_IXGRP & ~S_IXOTH );
     }
     return ret;
@@ -465,72 +428,18 @@ int Plfs::retValue( int res ) {
 // needs to work differently for directories
 int Plfs::f_utime (const char *path, struct utimbuf *ut) {
     PLFS_ENTER;
-    if ( isDirectory( strPath ) ) {
-        dir_op d;
-        d.path = path;
-        d.op   = UTIME;
-        d.t    = ut;
-        ret = iterate_backends( &d ); 
-    } else {
-        ret = plfs_utime( strPath.c_str(), ut );
-    }
+    ret = plfs_utime( strPath.c_str(), ut );
     PLFS_EXIT;
-}
-
-// the big question here is how to handle failure
-// do we continue doing the op to successive backends if it fails once?
-// for rmdir, maybe.  for the others maybe not.
-// currently, we break on first failure
-int Plfs::iterate_backends( dir_op *d ) {
-    vector<string>::iterator itr;
-    int ret = 0;
-    for( itr = self->params.backends.begin();
-         itr!= self->params.backends.end();
-         itr ++ )
-    {
-        string full( *itr + "/" + d->path );
-        switch( d->op ) {
-            case CHMOD:
-                ret = Util::Chmod( full.c_str(), d->m );
-                break;
-            case CHOWN:
-                ret = Util::Chown( full.c_str(), d->u, d->g );
-                break;
-            case UTIME:
-                ret = Util::Utime( full.c_str(), d->t );
-                break;
-            case MKDIR:
-                ret = Util::Mkdir( full.c_str(), d->m );
-                break;
-            case RMDIR:
-                ret = Util::Rmdir( full.c_str() );
-                break;
-            default:
-                assert( 0 );
-                Util::Debug("Bad dir op in %s\n", __FUNCTION__ );
-                break;
-        }
-        if ( ( ret = retValue( ret ) ) != 0 ) break;
-    }
-    return ret;
 }
 		    
 // this needs to recurse on all data and index files
 int Plfs::f_chmod (const char *path, mode_t mode) {
     PLFS_ENTER;
-    if ( isDirectory( strPath ) ) {
-        dir_op d;
-        d.path = path;
-        d.op   = CHMOD;
-        d.m    = mode;
-        ret = iterate_backends( &d );
-    } else {
-        ret = plfs_chmod( strPath.c_str(), mode );
-        if ( ret == 0 ) {
-            Util::Debug("%s Stashing mode for %s: %d\n",
-                __FUNCTION__, strPath.c_str(), (int)mode );
-            self->known_modes[strPath] = mode;
-        }
+    ret = plfs_chmod( strPath.c_str(), mode );
+    if ( ret == 0 ) {
+        Util::Debug("%s Stashing mode for %s: %d\n",
+            __FUNCTION__, strPath.c_str(), (int)mode );
+        self->known_modes[strPath] = mode;
     }
     PLFS_EXIT;
 }
@@ -638,12 +547,7 @@ int Plfs::f_chown (const char *path, uid_t uid, gid_t gid ) {
     PLFS_ENTER;
 
     if ( isDirectory( strPath ) ) {
-        dir_op d;
-        d.path = path;
-        d.op   = CHOWN;
-        d.u    = uid;
-        d.g    = gid;
-        ret = iterate_backends( &d );
+        ret = retValue( Util::Chown( strPath.c_str(), uid, gid ) );
     } else {
         ret = retValue( plfs_chown( strPath.c_str(), uid, gid ) );  
     }
@@ -661,20 +565,13 @@ int Plfs::f_chown (const char *path, uid_t uid, gid_t gid ) {
 // that we succeed for some and fail for others
 int Plfs::f_mkdir (const char *path, mode_t mode ) {
     PLFS_ENTER;
-    dir_op d;
-    d.path = path;
-    d.op   = MKDIR;
-    d.m    = mode;
-    ret = iterate_backends( &d );
+    ret = plfs_mkdir(strPath.c_str(),mode);
     PLFS_EXIT;
 }
 
 int Plfs::f_rmdir( const char *path ) {
     PLFS_ENTER;
-    dir_op d;
-    d.path = path;
-    d.op   = RMDIR;
-    ret = iterate_backends( &d );
+    ret = plfs_rmdir(strPath.c_str()); 
     PLFS_EXIT;
 }
 
@@ -708,6 +605,9 @@ int Plfs::removeWriteFile( WriteFile *of, string strPath ) {
 // returns 0 or -errno
 int Plfs::f_opendir( const char *path, struct fuse_file_info *fi ) {
     PLFS_ENTER;
+    vector<string> *dirents = new vector<string>;
+    ret = plfs_readdir(strPath.c_str(),(void*)dirents);
+    if (ret == 0) fi->fh = (uint64_t)dirents;
     PLFS_EXIT;
 }
 
@@ -720,45 +620,59 @@ int Plfs::f_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 		off_t offset, struct fuse_file_info *fi) 
 {
     PLFS_ENTER;
-    vector<string>::iterator itr;
-    set<string> entries;
 
-    for( itr = self->params.backends.begin();
-         itr!= self->params.backends.end();
-         itr++ )
-    {
-        DIR *dp;
-        string dirpath( *itr ); dirpath += "/"; dirpath += path;
-        Util::Debug("Will opendir %s\n", dirpath.c_str() );
-        ret = Util::Opendir( dirpath.c_str(), &dp );
-        if ( ret != 0 || ! dp ) {
+    // TODO!  Replace this with plfs_readdir.... ugh
+    // f_opendir already stashed a vector of the files into fi
+    // when this is called, use the offset as the index into
+    // the vector, call filler and pass it the index of the *next*
+    // file in the vector, keep moving down the vector until filler
+    // returns non-zero.  this means it got full.  just return then.
+    // then FUSE should empty the buffer and call this again at the
+    // correct offset
+    // an example is here: 
+    // https://shiva.ms.mff.cuni.cz/svn/zzzzzfs/branches/trmac/src/...
+    // ...fuse/example/fusexmp_fh.c
+
+    vector<string> *dirents = (vector<string>*)fi->fh;
+    for( size_t i = offset; i < dirents->size(); i++ ) {
+        Util::Debug("Returned dirent %s\n",(*dirents)[i].c_str());
+        if ( 0 != filler(buf,(*dirents)[i].c_str(),NULL,i+1) ) {
             break;
         }
+    }
+    PLFS_EXIT;
+
+    /*
+    DIR *dp;
+    string dirpath = strPath;
+    Util::Debug("Will opendir %s\n", dirpath.c_str()); 
+    ret = Util::Opendir( dirpath.c_str(), &dp );
+    if ( ret == 0 && dp ) {
         (void) path;
         struct dirent *de;
         while ((de = readdir(dp)) != NULL) {
-            if( entries.find(de->d_name) != entries.end() ) continue;
-            entries.insert( de->d_name );
-            struct stat st;
-            memset(&st, 0, sizeof(st));
-            st.st_ino = de->d_ino;
-            st.st_mode = de->d_type << 12;
-            string fullPath( dirpath + "/" + de->d_name );
-            if ( ! isDirectory( fullPath.c_str() ) ) {
-                st.st_mode = Container::fileMode( st.st_mode );
-            }
-            if (filler(buf, de->d_name, &st, 0)) {
+            // we don't know if a pysical dir is a logical dir or a logical file (i.e. a container)
+            // and we don't want to stat for every entry so just say UNKNOWN and let the app request
+            // a stat if it needs
+            de->d_type = DT_UNKNOWN; 
+            if (filler(buf, de->d_name, NULL, 0)) {
                 Util::Debug("WTF?  filler failed.\n" );
+                ret = -ENOMEM;
+                // TODO.  We need to handle this better.  The buf is not that large and we'll 
+                // exhaust it for very large dirs.  Stash something in the fuse_file_info so
+                // when we fill the buffer we can resume when we're called again
                 break;
             }
         }
-        Util::Closedir( dp );
     }
+    Util::Closedir( dp );
     PLFS_EXIT;
+    */
 }
 
 int Plfs::f_releasedir( const char *path, struct fuse_file_info *fi ) {
     PLFS_ENTER;
+    delete (vector<string>*)fi->fh;
     PLFS_EXIT;
 }
 
@@ -1044,7 +958,7 @@ int Plfs::writeDebug( char *buf, size_t size, off_t offset, const char *path ) {
                 STR(TAG_VERSION), STR(SVN_VERSION), STR(DATA_VERSION),
                 self->myhost.c_str(), 
                 Util::getTime() - self->begin_time,
-                paramsToString(&(self->params)).c_str(),
+                confToString(self->pconf).c_str(),
                 Util::toString().c_str(),
                 self->make_container_time,
                 self->wtfs,
@@ -1070,12 +984,9 @@ int Plfs::writeDebug( char *buf, size_t size, off_t offset, const char *path ) {
     return validsize; 
 }
 
-string Plfs::paramsToString( Params *p ) {
+string Plfs::confToString( PlfsConf *p ) {
     ostringstream oss;
-    oss << "BufferIndex: "      << p->bufferindex << endl
-        << "ContainerSubdirs: " << p->subdirs     << endl
-        << "SyncOnClose: "      << p->sync_on_close     << endl
-        << "Direct IO: "        << p->direct_io << endl
+    oss << "Direct IO: "        << p->direct_io << endl
         << "Executable bit: "   << ! p->direct_io << endl
         << "Backends: "
         ;

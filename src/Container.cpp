@@ -126,7 +126,7 @@ int Container::Modify( DirectoryOperation type,
             if ( ret != 0 ) break;
             use_mode = dirMode( mode );
         }
-	errno = 0;
+        errno = 0;
         if ( type == UTIME ) {
             ret = Util::Utime( full_path.c_str(), utbuf );
         } else if ( type == CHOWN ) {
@@ -221,8 +221,9 @@ int Container::populateIndex( const char *path, Index *index ) {
         args.index = index;
         args.tasks = &tasks;
         pthread_mutex_init( &(args.mux), NULL );
-        size_t num_threads = min((size_t)16,tasks.size());
-        ThreadPool *threadpool = new ThreadPool(num_threads,indexer_thread,
+        size_t num_threads = min(get_plfs_conf()->threadpool_size,tasks.size());
+        ThreadPool *threadpool = 
+            new ThreadPool(get_plfs_conf()->threadpool_size,indexer_thread,
                                      (void*)&args);
         ret = threadpool->threadError();    // returns errno
         if ( ret ) {
@@ -735,7 +736,7 @@ string Container::getHostDirPath( const char* expanded_path,
         const char* hostname )
 {
     ostringstream oss;
-    size_t host_value = (hashValue( hostname ) % PLFS_SUBDIRS) + 1;
+    size_t host_value = (hashValue(hostname)%get_plfs_conf()->num_hostdirs) + 1;
     oss << expanded_path << "/" << HOSTDIRPREFIX << host_value; 
     //Util::Debug("%s : %s %s -> %s\n", 
     //        __FUNCTION__, hostname, expanded_path, oss.str().c_str() );

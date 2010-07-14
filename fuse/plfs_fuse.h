@@ -1,5 +1,6 @@
 #include "fusexx.h"
 #include "plfs.h"
+#include "plfs_private.h"
 #include "Util.h"
 #include "COPYRIGHT.h"
 
@@ -25,13 +26,12 @@ struct dir_op {
 // data here and then declare one instance of this struct at the top of
 // the .cpp
 
+/*
 typedef struct {
-    bool   bufferindex;
-    bool   sync_on_close;
     bool   direct_io;
     vector< string >             backends;
-    size_t subdirs;
 } Params;
+*/
 
 class Plfs : public fusexx::fuse<Plfs> {
 	public:
@@ -91,7 +91,7 @@ class Plfs : public fusexx::fuse<Plfs> {
         //static int getIndex( string, mode_t, Index ** );
         //static int removeIndex( string, Index * );
         static const char *getPlfsArg( const char *, const char * );
-        static string paramsToString( Params *p );
+        static string confToString( PlfsConf * );
         static string openFilesToString();
         static mode_t getMode( string expanded );
         static int getattr_helper( const char *path, struct stat *, Plfs_fd *);
@@ -123,5 +123,5 @@ class Plfs : public fusexx::fuse<Plfs> {
         set< string >               createdContainers;
         HASH_MAP<string, Plfs_fd *> open_files;
         string                      myhost;
-        Params                      params;
+        PlfsConf                    *pconf;
 };

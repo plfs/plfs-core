@@ -36,6 +36,16 @@ int plfs_chmod( const char *path, mode_t mode );
 
 int plfs_chown( const char *path, uid_t, gid_t );
 
+int plfs_mkdir( const char *path, mode_t );
+
+int plfs_rmdir( const char *path );
+
+/* plfs_readdir
+ * the void * needs to be a pointer to a vector<string> but void * is
+ * used here so it compiles with C code
+ */
+int plfs_readdir( const char *path, void * ); 
+
 int plfs_close( Plfs_fd *, pid_t, int open_flags );
 
 /* plfs_create

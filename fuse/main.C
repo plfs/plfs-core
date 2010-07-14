@@ -5,8 +5,9 @@
 
 int main (int argc, char **argv) {
 	Plfs plfs;
-    if ( plfs.init( &argc, argv ) != 0 ) {
-        cerr << "Init failed.  Perhaps bad args?\n";
+    int ret;
+    if ( (ret = plfs.init( &argc, argv )) != 0 ) {
+        cerr << "Init failed.  Perhaps bad args? (" << strerror(-ret) << ")\n";
         exit( -1 );
     }
 

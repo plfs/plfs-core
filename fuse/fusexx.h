@@ -79,7 +79,8 @@ namespace fusexx {
 		    static int f_utime (const char *, struct utimbuf *) { FUSE_RET }
 		    static int f_open (const char *, struct fuse_file_info *) { FUSE_RET }
 		    static int f_readn(const char *, char *, size_t, off_t, struct fuse_file_info *) { FUSE_RET }
-		    static int f_write (const char *, const char *, size_t, off_t,struct fuse_file_info *) { FUSE_RET }
+		    static int f_write (const char *, const char *, size_t, off_t,struct fuse_file_info *) 
+                                                                         { FUSE_RET }
 		    static int f_statfs (const char *, struct statvfs *) { FUSE_RET }
 		    static int f_flush (const char *, struct fuse_file_info *) { FUSE_RET }
 		    static int f_release (const char *, struct fuse_file_info *) { FUSE_RET }
@@ -90,7 +91,8 @@ namespace fusexx {
 		    static int f_listxattr (const char *, char *, size_t) { FUSE_RET }
 		    static int f_removexattr (const char *, const char *) { FUSE_RET }
             #endif
-		    static int f_readdir (const char *, void *, fuse_fill_dir_t, off_t, struct fuse_file_info *) { FUSE_RET }
+		    static int f_readdir (const char *, void *, fuse_fill_dir_t, off_t, struct fuse_file_info *) 
+                                                                         { FUSE_RET }
 		    static int f_opendir (const char *, struct fuse_file_info *) { FUSE_RET }
 		    static int f_releasedir (const char *, struct fuse_file_info *) { FUSE_RET }
 		    static int f_fsyncdir (const char *, int, struct fuse_file_info *) { FUSE_RET }
