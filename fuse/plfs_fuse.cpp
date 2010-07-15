@@ -164,6 +164,7 @@ int Plfs::init( int *argc, char **argv ) {
     // ask the library to read in our configuration parameters
     // eventually we should make it so that the backends are not
     // accessed at all in the FUSE layer.
+    // but we probably need to check that they work here somehow...
     pconf = get_plfs_conf();
     if (pconf->map == "" || pconf->backends.size()==0) {
         cerr << "No 'map' or 'backends' found in plfsrc file" << endl;
@@ -237,7 +238,7 @@ Plfs::Plfs () {
 
 string Plfs::expandPath( const char *path ) {
     string full_logical( self->pconf->mnt_pt + "/" + path );
-    bool plfs_lib_is_ready = false;
+    bool plfs_lib_is_ready = true;
     if ( plfs_lib_is_ready ) return full_logical;
     else return path;
 }
@@ -611,17 +612,11 @@ int Plfs::f_opendir( const char *path, struct fuse_file_info *fi ) {
     PLFS_EXIT;
 }
 
-// before we had multiple backends, we actually did the opendir in
-// opendir, stashed it, used it here, and closed it in closedir
-// but now that we have multiple backends, that isn't good enough
-// also, much harder to use filler and offset.  so ignore the offset,
-// and pass 0 as last arg to filler
 int Plfs::f_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 		off_t offset, struct fuse_file_info *fi) 
 {
     PLFS_ENTER;
 
-    // TODO!  Replace this with plfs_readdir.... ugh
     // f_opendir already stashed a vector of the files into fi
     // when this is called, use the offset as the index into
     // the vector, call filler and pass it the index of the *next*
@@ -629,45 +624,15 @@ int Plfs::f_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     // returns non-zero.  this means it got full.  just return then.
     // then FUSE should empty the buffer and call this again at the
     // correct offset
-    // an example is here: 
-    // https://shiva.ms.mff.cuni.cz/svn/zzzzzfs/branches/trmac/src/...
-    // ...fuse/example/fusexmp_fh.c
 
     vector<string> *dirents = (vector<string>*)fi->fh;
     for( size_t i = offset; i < dirents->size(); i++ ) {
-        Util::Debug("Returned dirent %s\n",(*dirents)[i].c_str());
+        //Util::Debug("Returned dirent %s\n",(*dirents)[i].c_str());
         if ( 0 != filler(buf,(*dirents)[i].c_str(),NULL,i+1) ) {
             break;
         }
     }
     PLFS_EXIT;
-
-    /*
-    DIR *dp;
-    string dirpath = strPath;
-    Util::Debug("Will opendir %s\n", dirpath.c_str()); 
-    ret = Util::Opendir( dirpath.c_str(), &dp );
-    if ( ret == 0 && dp ) {
-        (void) path;
-        struct dirent *de;
-        while ((de = readdir(dp)) != NULL) {
-            // we don't know if a pysical dir is a logical dir or a logical file (i.e. a container)
-            // and we don't want to stat for every entry so just say UNKNOWN and let the app request
-            // a stat if it needs
-            de->d_type = DT_UNKNOWN; 
-            if (filler(buf, de->d_name, NULL, 0)) {
-                Util::Debug("WTF?  filler failed.\n" );
-                ret = -ENOMEM;
-                // TODO.  We need to handle this better.  The buf is not that large and we'll 
-                // exhaust it for very large dirs.  Stash something in the fuse_file_info so
-                // when we fill the buffer we can resume when we're called again
-                break;
-            }
-        }
-    }
-    Util::Closedir( dp );
-    PLFS_EXIT;
-    */
 }
 
 int Plfs::f_releasedir( const char *path, struct fuse_file_info *fi ) {

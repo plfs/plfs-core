@@ -789,7 +789,11 @@ int Container::createHelper( const char *expanded_path, const char *hostname,
             Util::Debug("WTF: TopLevel create of %s took %.2f\n", 
                     expanded_path, end_time - begin_time );
         }
-        if ( res != 0 ) return res;
+        if ( res != 0 ) {
+            Util::Debug("Failed to make top level container %s:%s\n",
+                    expanded_path, strerror(errno));
+            return res;
+        }
     }
 
         // then the host dir
