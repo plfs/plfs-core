@@ -1,4 +1,4 @@
-~~~ Version 0.1.7
+~~~ Version 1.0pre.0 
 
 1) Problems with building the PLFS SC09 paper.  Problems are in data/summary
 directory.  When make does ./get_data > data, it was failing due to a bad
@@ -17,6 +17,10 @@ the threads as well so we parallelize both the opens and the reads
 more than one index file.  This means of course that overlapped writes are
 now non-deterministically handled in addition to being undefined as they
 were previously.
+
+4) Moved the mapping from a logical file to a physical path into the plfs
+library and out of fuse.  The mapping consults a plfsrc file in order to
+know how to distribute users across multiple backends.
 
 ~~~ Version 0.1.6
 
