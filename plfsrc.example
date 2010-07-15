@@ -1,0 +1,15 @@
+# this should be square root of total number of compute nodes
+num_hostdirs 32
+
+# this should be related to how many threads you want running on a machine
+threadpool_size 16
+
+# these must be full paths
+backends /tmp/.plfs_store1,,,,,/tmp/.plfs_store2,/tmp/.plfs_store3
+
+# this must match where FUSE is mounted and the logical paths passed to ADIO
+mount_point /var/tmp/plfs
+
+# this shows how to read the logical, find the user name, hash it, and construct
+# the physical
+map /var/tmp/plfs/$1:HASH($1)/$1

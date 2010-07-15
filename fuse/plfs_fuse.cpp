@@ -162,13 +162,10 @@ int Plfs::init( int *argc, char **argv ) {
     LogMessage::init( );
 
     // ask the library to read in our configuration parameters
-    // eventually we should make it so that the backends are not
-    // accessed at all in the FUSE layer.
-    // but we probably need to check that they work here somehow...
     pconf = get_plfs_conf();
-    if (pconf->map == "" || pconf->backends.size()==0) {
-        cerr << "No 'map' or 'backends' found in plfsrc file" << endl;
-        return -ENOKEY;  // Required key not available 
+    if (pconf->error) {
+        fprintf(stderr,"FATAL: %s", pconf->err_msg.c_str());
+        return -pconf->error;  // Required key not available 
     }
 
         // parse args to see if direct_io is set
@@ -185,7 +182,10 @@ int Plfs::init( int *argc, char **argv ) {
             pconf->direct_io = 1;
         }
         if ( argv[i][0] != '-' ) {
-            pconf->mnt_pt = argv[i];
+            if ( pconf->mnt_pt != argv[i] ) {
+                fprintf(stderr,"FATAL mount point mismatch\n");
+                return -ECONNREFUSED;  
+            }
             mnt_pt_found = true;
             break;
         }
@@ -193,19 +193,6 @@ int Plfs::init( int *argc, char **argv ) {
     if ( mnt_pt_found ) {
         cerr << "Starting PLFS on " << hostname << ":" << pconf->mnt_pt << endl;
     }
-
-    // now check the backends
-    vector<string>::iterator itr;
-    for(itr = pconf->backends.begin(); 
-        itr != pconf->backends.end(); 
-        itr++)
-    {
-        if ( ! isDirectory( *itr ) ) {
-            cerr << "FATAL: " << *itr << " is not a valid backend directory.  "
-                 << "Make the directory if necessary and try again.\n"; 
-            return -ENOENT;
-        }
-   }
 
         // create a dropping so we know when we start   
     int fd = open( "/tmp/plfs.starttime",
@@ -559,11 +546,6 @@ int Plfs::f_chown (const char *path, uid_t uid, gid_t gid ) {
     PLFS_EXIT;
 }
 
-// in order to distribute metadata load across multiple MDS, maintain a
-// parallel directory structure on all the backends.  Files just go to one
-// location but dirs need to be mirrored on all
-// probably this should be transactional but it really shouldn't happen
-// that we succeed for some and fail for others
 int Plfs::f_mkdir (const char *path, mode_t mode ) {
     PLFS_ENTER;
     ret = plfs_mkdir(strPath.c_str(),mode);
@@ -951,7 +933,9 @@ int Plfs::writeDebug( char *buf, size_t size, off_t offset, const char *path ) {
 
 string Plfs::confToString( PlfsConf *p ) {
     ostringstream oss;
-    oss << "Direct IO: "        << p->direct_io << endl
+    oss << "Mount point: "      << p->mnt_pt << endl  
+        << "Map function: "     << p->map << endl
+        << "Direct IO: "        << p->direct_io << endl
         << "Executable bit: "   << ! p->direct_io << endl
         << "Backends: "
         ;
@@ -960,6 +944,8 @@ string Plfs::confToString( PlfsConf *p ) {
         oss << *itr << ",";
     }
     oss << endl;
+    oss << "Threadpool size: " << p->threadpool_size << endl
+        << "Max hostdirs per container: " << p->num_hostdirs << endl;
     return oss.str();
 }
 

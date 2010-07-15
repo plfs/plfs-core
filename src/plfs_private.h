@@ -13,6 +13,8 @@ typedef struct {
     bool direct_io; // a flag FUSE needs.  Sorry ADIO and API for the wasted bit
     string mnt_pt;  // something else FUSE needs, somewhat more than a bit
     bool parsed;  // did we find a conf file, or just use defaults
+    int error;   // was there an error parsing the file
+    string err_msg;
 } PlfsConf;
 
 /* get_plfs_conf

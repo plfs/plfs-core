@@ -637,12 +637,15 @@ get_plfs_conf() {
     hidden->threadpool_size = 16;   // seems like a nice number
     hidden->num_hostdirs = 32;      // ideal is sqrt of num compute nodes
     hidden->map = "";               // we don't know how to make up a map
-    hidden->parsed = false;         // not yet anyway
+    hidden->error = 0;         // not yet anyway
 
     // try to parse each file until one works
     // the C++ way to parse like this is istringstream (bleh)
+    string file;
     for( size_t i = 0; i < possible_files.size(); i++ ) {
-        string file = possible_files[i];
+        string *missing = NULL;
+        string *negative = NULL;
+        file = possible_files[i];
         FILE *fp = fopen(file.c_str(),"r");
         if ( fp == NULL ) continue;
         char line[8192];
@@ -659,19 +662,65 @@ get_plfs_conf() {
         hidden->parsed = true;
         if ( (itr = confs.find("threadpool_size")) != confs.end() ) {
             hidden->threadpool_size = atoi((itr->second).c_str());
+            if ( hidden->threadpool_size <= 0 ) {
+                negative = new string("threadpool_size");
+            }
         }
         if ( (itr = confs.find("num_hostdirs")) != confs.end() ) {
             hidden->num_hostdirs = atoi((itr->second).c_str());
+            if ( hidden->num_hostdirs <= 0 ) {
+                negative = new string("num_hostdirs");
+            }
         }
         if ( (itr = confs.find("map")) != confs.end() ) {
             hidden->map = itr->second;
+        } else {
+            missing = new string("map");
         }
         if ( (itr=confs.find("backends")) != confs.end() ) {
             tokenize(itr->second,",",hidden->backends);
+        } else {
+            missing = new string("backends");
+        }
+        if ( (itr=confs.find("mount_point")) != confs.end() ) {
+            hidden->mnt_pt = itr->second;
+        } else {
+            missing = new string("mount_point");
+        }
+        if ( missing ) {
+            hidden->error = EINVAL;
+            hidden->err_msg = "Conf file " + file + " error: necessary key " +
+                *missing + " not defined.\n";
+        }
+        if ( negative ) {
+            hidden->error = EINVAL;
+            hidden->err_msg = "Conf file " + file + " error: key " +
+                *negative + " is not positive.\n";
         }
     }
 
+    // now check the backends
+    vector<string>::iterator itr;
+    for(itr = hidden->backends.begin(); 
+        itr != hidden->backends.end(); 
+        itr++)
+    {
+        if ( ! Util::isDirectory( (*itr).c_str() ) ) {
+            hidden->error = ENOTDIR;
+            hidden->err_msg = "Conf file " + file + " error: " + *itr +
+                " is not a valid backend directory.\n";
+        }
+    }
+
+    if ( hidden->error ) return hidden;
+
     pconf = hidden; // don't clear the NULL until fully populated
+
+    // now this is a little silly but this is sort of an initialization
+    // for the static plfs library stuff.  There's a bunch of initialization
+    // in expandPath that also should be done here so it will be thread
+    // safe
+    string phys = expandPath(pconf->mnt_pt);
     return pconf;
 }
 
