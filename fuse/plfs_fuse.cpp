@@ -792,8 +792,10 @@ int Plfs::f_write(const char *path, const char *buf, size_t size, off_t offset,
 }
 
 // handle this directly in fuse, no need to use plfs library
+// TODO:  This is wrong.  Needs to go through plfs.
 int Plfs::f_readlink (const char *path, char *buf, size_t bufsize) {
     PLFS_ENTER;
+    /*
     ssize_t char_count;
     memset( (void*)buf, 0, bufsize);
     char_count = readlink( strPath.c_str(), buf, bufsize );
@@ -804,36 +806,48 @@ int Plfs::f_readlink (const char *path, char *buf, size_t bufsize) {
     } else {
         ret = retValue( -1 );
     }
+    */
+    ret = -ENOSYS;
     PLFS_EXIT;
 }
 
 // handle this directly in fuse, no need to use plfs library
+// TODO:  This is wrong.  Needs to go through plfs.
 int Plfs::f_link( const char *path1, const char *path ) {
     PLFS_ENTER;
+    /*
     Util::Debug("Making hard link from %s to %s\n", path1,
                     strPath.c_str() );
     Util::Debug("How do I check for EXDEV here?\n" );
     ret = retValue( link( path1, strPath.c_str() ) );
+    */
+    ret = -ENOSYS;
     PLFS_EXIT;
 }
 
 // handle this directly in fuse, no need to use plfs library
+// TODO:  This is wrong.  Needs to go through plfs.
 int Plfs::f_symlink( const char *path1, const char *path ) {
     PLFS_ENTER;
+    /*
     Util::Debug("Making symlink from %s to %s\n", path1,
                     strPath.c_str() );
     ret = retValue( Util::Symlink( path1, strPath.c_str() ) );
+    */
+    ret = -ENOSYS;
     PLFS_EXIT;
 }
 
 // handle this directly in fuse, no need to use plfs library
+// TODO:  This is wrong.  Needs to go through plfs.
 int Plfs::f_statfs(const char *path, struct statvfs *stbuf) {
     PLFS_ENTER;
     // tempting to stick some identifying info in here that we could
     // then pull into our test results like a version or some string
     // identifying any optimizations we're trying.  but the statvfs struct
     // doesn't have anything good.  very sparse.  it does have an f_fsid flag.
-    ret = retValue( statvfs( strPath.c_str(), stbuf ) );
+    errno = 0;
+    ret = plfs_statvfs( strPath.c_str(), stbuf );
     PLFS_EXIT;
 }
 

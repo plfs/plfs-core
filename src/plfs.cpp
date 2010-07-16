@@ -239,6 +239,13 @@ plfs_chmod( const char *logical, mode_t mode ) {
 }
 
 // returns 0 or -errno
+int plfs_statvfs( const char *logical, struct statvfs *stbuf ) {
+    PLFS_ENTER;
+    int ret = retValue( Util::Statvfs(path.c_str(),stbuf) );
+    return ret;
+}
+
+// returns 0 or -errno
 int 
 plfs_readdir( const char *logical, void *vptr ) {
     PLFS_ENTER;
@@ -621,7 +628,7 @@ get_plfs_conf() {
     // find which file to open
     string home_file = getenv("HOME");
     home_file.append("/.plfsrc");
-    string etc_file = "/etc/.plfsrc";
+    string etc_file = "/etc/plfsrc";
 
     // search the two possibilities differently if root or normal user
     if ( getuid()==0 ) {    // is root
@@ -697,6 +704,7 @@ get_plfs_conf() {
             hidden->err_msg = "Conf file " + file + " error: key " +
                 *negative + " is not positive.\n";
         }
+        break;
     }
 
     // now check the backends

@@ -48,6 +48,8 @@ int plfs_readdir( const char *path, void * );
 
 int plfs_close( Plfs_fd *, pid_t, int open_flags );
 
+int plfs_statvfs( const char *path, struct statvfs *stbuf );
+
 /* plfs_create
    you don't need to call this, you can also pass O_CREAT to plfs_open
 */

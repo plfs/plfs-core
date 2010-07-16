@@ -354,6 +354,12 @@ int Util::Creat( const char *path, mode_t mode ) {
     }
     EXIT_UTIL;
 }
+// returns 0 or -errno
+int Util::Statvfs( const char *path, struct statvfs* stbuf ) {
+    ENTER_PATH;
+    ret = statvfs(path,stbuf);
+    EXIT_UTIL;
+}
 
 // returns 0 or -errno
 int Util::Opendir( const char *path, DIR **dp ) {

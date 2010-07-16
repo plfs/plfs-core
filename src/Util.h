@@ -65,6 +65,7 @@ class Util {
         static int Rmdir( const char* );
         static int Setfsgid( gid_t );
         static int Setfsuid( uid_t );
+        static int Statvfs( const char *, struct statvfs* );
         static int Symlink( const char *, const char * );
         static int Truncate( const char *, off_t length );
         static int Unlink( const char * );
