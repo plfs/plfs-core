@@ -17,7 +17,19 @@ cat: stdout: Result too large
 message trying to print a string that isn't valid (the path of
 the file)
 
-CLOSED:
+11) I created a bunch of files and then I tried to delete them and some
+failed with permission denied errors.  I went to the back end and there
+were still many directories like this (all for 300_writers....):
+300_writers.107.cuda036.localdomain
+where 300_writers was the name of the file.  So I tried to ls the directory
+but it failed.  the bits were:
+d-wxr-xr-t
+so I chmod'd it to 0777 and it looked like:
+drwxrwxrwx
+and then I could delete it...
+so maybe the silly rename didn't change the mode correctly?
+
+
 
 1) doing a cvs co often fails with:
 cvs [checkout aborted]: cannot rename file CVS/Entries.Backup to CVS/Entries:
@@ -51,4 +63,4 @@ In the time I took to write this, I could have fixed the bug....
 9) Need to add a version dropping so that we can make sure we're backward
 compatible.  this will be even more important when we add the metadata
 distribution layer which has the potential to really confuse backward
-compatibility
+compatibilits
