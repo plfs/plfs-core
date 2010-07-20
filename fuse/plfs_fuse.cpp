@@ -167,6 +167,7 @@ int Plfs::init( int *argc, char **argv ) {
         fprintf(stderr,"FATAL: %s", pconf->err_msg.c_str());
         return -pconf->error;  // Required key not available 
     }
+    plfs_init(pconf); // warm up the path resolution cache
 
         // parse args to see if direct_io is set
         // on older fuses, direct_io allows large IO's but disables mmap
@@ -182,8 +183,9 @@ int Plfs::init( int *argc, char **argv ) {
             pconf->direct_io = 1;
         }
         if ( argv[i][0] != '-' ) {
-            if ( pconf->mnt_pt != argv[i] ) {
-                fprintf(stderr,"FATAL mount point mismatch\n");
+            if ( strcmp(pconf->mnt_pt.c_str(),argv[i]) ) {
+                fprintf(stderr,"FATAL mount point mismatch: %s != %s\n",
+                    pconf->mnt_pt.c_str(), argv[i] );
                 return -ECONNREFUSED;  
             }
             mnt_pt_found = true;
@@ -193,6 +195,7 @@ int Plfs::init( int *argc, char **argv ) {
     if ( mnt_pt_found ) {
         cerr << "Starting PLFS on " << hostname << ":" << pconf->mnt_pt << endl;
     }
+
 
         // create a dropping so we know when we start   
     int fd = open( "/tmp/plfs.starttime",

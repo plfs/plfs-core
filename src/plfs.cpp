@@ -103,6 +103,11 @@ expandPath(string logical) {
         init = true;  
     }
 
+    if ( pconf->error ) {
+      Util::Debug("PlfsConf error: %s\n", pconf->err_msg.c_str());
+      return "INVALID";
+    }
+
     // set remaining to the part of logical after the mnt_pt and tokenize it
     string remaining;
     vector<string>remaining_tokens;
@@ -617,6 +622,13 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
     return ret;
 }
 
+bool
+plfs_init(PlfsConf *pconf) {
+    expandPath(pconf->mnt_pt);
+    return true;
+}
+
+
 // get a pointer to a struct holding plfs configuration values
 PlfsConf *
 get_plfs_conf() {
@@ -625,6 +637,7 @@ get_plfs_conf() {
 
     map<string,string> confs;
     vector<string> possible_files;
+    bool parsed = false;
     // find which file to open
     string home_file = getenv("HOME");
     home_file.append("/.plfsrc");
@@ -655,6 +668,7 @@ get_plfs_conf() {
         file = possible_files[i];
         FILE *fp = fopen(file.c_str(),"r");
         if ( fp == NULL ) continue;
+        parsed = true;
         char line[8192];
         char key[8192];
         char value[8192];
@@ -707,6 +721,11 @@ get_plfs_conf() {
         break;
     }
 
+    if ( ! parsed ) {
+      hidden->error = ENOENT;
+      hidden->err_msg = "No valid conf file found\n";
+    }
+
     // now check the backends
     vector<string>::iterator itr;
     for(itr = hidden->backends.begin(); 
@@ -723,12 +742,6 @@ get_plfs_conf() {
     if ( hidden->error ) return hidden;
 
     pconf = hidden; // don't clear the NULL until fully populated
-
-    // now this is a little silly but this is sort of an initialization
-    // for the static plfs library stuff.  There's a bunch of initialization
-    // in expandPath that also should be done here so it will be thread
-    // safe
-    string phys = expandPath(pconf->mnt_pt);
     return pconf;
 }
 

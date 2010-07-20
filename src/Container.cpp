@@ -159,7 +159,7 @@ void *
 indexer_thread( void *va ) {
     IndexerArgs *args = (IndexerArgs*)va;
     IndexerTask task;
-    int ret = 0;
+    size_t ret = 0;
     bool tasks_remaining = true;
 
     while(true) {
@@ -196,7 +196,6 @@ int Container::populateIndex( const char *path, Index *index ) {
     IndexerTask task;
     list <IndexerTask> tasks;
 
-    cerr << "motherfucker" << endl;
     Util::Debug("In %s\n", __FUNCTION__);
     
     // create the list of tasks

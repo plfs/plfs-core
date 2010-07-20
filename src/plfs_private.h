@@ -25,4 +25,9 @@ typedef struct {
 */
 PlfsConf* get_plfs_conf();  
 
+/* plfs_init
+    it just warms up the plfs structures used in expandPath
+*/
+bool plfs_init(PlfsConf*);
+
 #endif

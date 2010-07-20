@@ -9,6 +9,7 @@
 
 #define FUSE_RET fprintf(stderr, "Warning. Unimplemented function %s\n", \
                         __FUNCTION__ ); return 0;
+#define FUSE_SILENT_RET return 0;
 
 // C Headers
 #include <fuse.h>
@@ -96,7 +97,7 @@ namespace fusexx {
 		    static int f_opendir (const char *, struct fuse_file_info *) { FUSE_RET }
 		    static int f_releasedir (const char *, struct fuse_file_info *) { FUSE_RET }
 		    static int f_fsyncdir (const char *, int, struct fuse_file_info *) { FUSE_RET }
-		    static void *f_init (struct fuse_conn_info *conn) { FUSE_RET }
+		    static void *f_init (struct fuse_conn_info *conn) { FUSE_SILENT_RET }
 		    static void  f_destroy (void *) { }
 		    static int f_access (const char *, int) { FUSE_RET }
 		    static int f_create (const char *, mode_t, struct fuse_file_info *) { FUSE_RET }

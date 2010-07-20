@@ -20,7 +20,7 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
     fd->fs_ptr = NULL;
 
     if (err < 0 ) {
-	*error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
+      *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
 					   myname, __LINE__, MPI_ERR_IO,
 					   "**io",
 					   "**io %s", strerror(-err));
