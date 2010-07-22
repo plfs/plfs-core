@@ -209,21 +209,20 @@ int Container::populateIndex( const char *path, Index *index ) {
     if ( tasks.empty() ) {
         ret = 0;    // easy, 0 length file
         Util::Debug("No THREADS needed to create index for empty %s\n", path );
-    } else if ( tasks.size() == 1 ) {
+    } else if ( tasks.size() == 1 || get_plfs_conf()->threadpool_size <= 1 ) {
         // easy just one, don't use threads and this string is already set
         ret = index->readIndex(hostindex);
         Util::Debug("No THREADS needed to create index for %s\n", path );
     } else {
         // here's where to do the threaded thing
-        Util::Debug("THREADS needed to create index for %s\n", path );
         IndexerArgs args;
         args.index = index;
         args.tasks = &tasks;
         pthread_mutex_init( &(args.mux), NULL );
         size_t num_threads = min(get_plfs_conf()->threadpool_size,tasks.size());
         ThreadPool *threadpool = 
-            new ThreadPool(get_plfs_conf()->threadpool_size,indexer_thread,
-                                     (void*)&args);
+            new ThreadPool(num_threads,indexer_thread, (void*)&args);
+        Util::Debug("%d THREADS to create index for %s\n", num_threads, path);
         ret = threadpool->threadError();    // returns errno
         if ( ret ) {
             Util::Debug("THREAD pool error %s\n", strerror(ret) );

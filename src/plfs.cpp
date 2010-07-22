@@ -545,12 +545,13 @@ plfs_read_new(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
     // tasks is empty for a zero length file or an EOF 
     if ( ret != 0 || tasks.empty() ) return ret;
 
-    if ( tasks.size() > 1 ) { // more than one task, let's make threads!
+    if ( tasks.size() > 1 && get_plfs_conf()->threadpool_size > 1 ) { 
         ReaderArgs args;
         args.index = index;
         args.tasks = &tasks;
         pthread_mutex_init( &(args.mux), NULL );
-        size_t num_threads = min((size_t)16,tasks.size());
+        size_t num_threads = min(get_plfs_conf()->threadpool_size,tasks.size());
+        Util::Debug("%d THREADS to %ld\n", num_threads, offset);
         ThreadPool *threadpool = new ThreadPool(num_threads,reader_thread,
                                      (void*)&args);
         error = threadpool->threadError();   // returns errno

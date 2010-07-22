@@ -21,5 +21,5 @@ mount_point /var/tmp/plfs
 # this shows how to read the logical, find the user name, hash it, and construct
 # the physical
 map /var/tmp/plfs/$1:HASH($1)/$1
-''' % ( 2**random.randint(0,5) ))
+''' % ( 2**random.randint(0,6) ))
 plfsrc.close()
