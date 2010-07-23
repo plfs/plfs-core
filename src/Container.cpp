@@ -3,7 +3,7 @@
 #include <time.h>
 #include <math.h>
 #include <sstream>
-#include <list>
+#include <queue>
 using namespace std;
 
 #include "Container.h"
@@ -149,7 +149,7 @@ typedef struct {
 // the shared arguments passed to all of the indexer threads
 typedef struct {
     Index *index;
-    list <IndexerTask> *tasks;
+    queue <IndexerTask> *tasks;
     pthread_mutex_t mux;
 } IndexerArgs;
 
@@ -167,7 +167,7 @@ indexer_thread( void *va ) {
         Util::MutexLock(&(args->mux),__FUNCTION__);
         if ( ! args->tasks->empty() ) {
             task = args->tasks->front();
-            args->tasks->pop_front();
+            args->tasks->pop();
         } else {
             tasks_remaining = false;
         }
@@ -194,7 +194,7 @@ int Container::populateIndex( const char *path, Index *index ) {
     int ret = 0;
     string hostindex;
     IndexerTask task;
-    list <IndexerTask> tasks;
+    queue <IndexerTask> tasks;
 
     Util::Debug("In %s\n", __FUNCTION__);
     
@@ -202,7 +202,7 @@ int Container::populateIndex( const char *path, Index *index ) {
     DIR *td = NULL, *hd = NULL; struct dirent *tent = NULL;
     while((ret = nextdropping(path,&hostindex,INDEXPREFIX, &td,&hd,&tent))== 1){
         task.path = hostindex;
-        tasks.push_back(task);  // makes a copy and pushes it
+        tasks.push(task);  // makes a copy and pushes it
     }
 
 
@@ -210,9 +210,12 @@ int Container::populateIndex( const char *path, Index *index ) {
         ret = 0;    // easy, 0 length file
         Util::Debug("No THREADS needed to create index for empty %s\n", path );
     } else if ( tasks.size() == 1 || get_plfs_conf()->threadpool_size <= 1 ) {
-        // easy just one, don't use threads and this string is already set
-        ret = index->readIndex(hostindex);
-        Util::Debug("No THREADS needed to create index for %s\n", path );
+        while( ! tasks.empty() ) {
+            IndexerTask task = tasks.front();
+            tasks.pop();
+            ret = index->readIndex(task.path);
+            if ( ret != 0 ) break;
+        }
     } else {
         // here's where to do the threaded thing
         IndexerArgs args;

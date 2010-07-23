@@ -297,6 +297,9 @@ plfs_utime( const char *logical, struct utimbuf *ut ) {
 
 // a helper routine for read to allow it to be multi-threaded when a single
 // logical read spans multiple chunks
+// tasks needs to be a list and not a queue since sometimes it does pop_back
+// here in order to consolidate sequential reads (which can happen if the 
+// index is not buffered on the writes)
 int 
 find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
         char *buf)
@@ -570,11 +573,14 @@ plfs_read_new(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
         }
         pthread_mutex_destroy(&(args.mux));
         delete threadpool;
-    } else { // just a single task, no need to be threaded
-        ReadTask task = tasks.front();
-        ret = perform_read_task( &task, index );
-        if ( ret < 0 ) error = ret;
-        else total = ret;
+    } else {  
+        while( ! tasks.empty() ) {
+            ReadTask task = tasks.front();
+            tasks.pop_front();
+            ret = perform_read_task( &task, index );
+            if ( ret < 0 ) error = ret;
+            else total += ret;
+        }
     }
 
     return( error < 0 ? error : total );
