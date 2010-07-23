@@ -44,7 +44,7 @@ ifeq ($(UNAME), Darwin)
 	UMOUNT    = umount $(PLFS_MNT)
 	# also google for -oauto_xattr and noapplespecial and noappledouble
 	# -omodules=volicon -oiconpath=../../mac/plfs.icns
-	PLFS_ARGS = -o volname=PLFS $(PLFS_SHARED_ARGS) -plfs_bufferindex=0
+	PLFS_ARGS = -o volname=PLFS $(PLFS_SHARED_ARGS)
 	CXXFLAGS += -D__FreeBSD__=10
 else
 	PLFS_ARGS = $(PLFS_SHARED_ARGS) 
