@@ -29,6 +29,11 @@ drwxrwxrwx
 and then I could delete it...
 so maybe the silly rename didn't change the mode correctly?
 
+12) Maybe if the file is not available, the ThreadPool stuff makes it look 
+like it is?  Like do a read from a file that does not exist and see what
+happens.  Both through FUSE and ADIO.
+
+CLOSED
 
 
 1) doing a cvs co often fails with:
