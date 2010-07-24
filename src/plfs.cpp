@@ -745,16 +745,22 @@ get_plfs_conf() {
                 " is not a valid backend directory.\n";
         }
     }
- 
+
     // make sure the mount point matches the map
-    if(strncmp(hidden->map.c_str(),hidden->mnt_pt.c_str(),
-                hidden->mnt_pt.size())!=0)
-    {
-       hidden->error = EINVAL;
-       hidden->err_msg = "Conf file " + file + " error: map " +hidden->map +
-	      	" doesn't match mount " + hidden->mnt_pt + "\n"; 
-    }
- 
+    vector<string> map_tokens;
+    vector<string> mnt_tokens;
+    tokenize(hidden->map,"/",map_tokens);
+    tokenize(hidden->mnt_pt,"/",mnt_tokens);
+    for(size_t i=0 ; i < mnt_tokens.size(); i++){
+        string map_cmp = map_tokens[i];
+        string mnt_cmp = mnt_tokens[i];
+        if( strcmp(map_cmp.c_str(),mnt_cmp.c_str()) != 0 ){
+            hidden->error = EINVAL;
+            hidden->err_msg = "Conf file " + file + " error : map " +
+            hidden->map + " does not match mount " + hidden->mnt_pt + "\n";
+        } 
+    } 
+
     if ( hidden->error ) return hidden;
 
     pconf = hidden; // don't clear the NULL until fully populated
