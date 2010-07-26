@@ -1,0 +1,116 @@
+%define debug_package	%{nil}
+%define	_release	1	
+
+Name:		plfs
+Summary:	plfs - Parallel Log Structured File System
+Version:	0.1.6
+Release:	%{_release}%{?dist}
+License:	LANS LLC
+Group:		System Environment/Filesystems
+Source:		plfs-%{version}.tgz
+URL:		https://sf4.lanl.gov/sf/projects/ioandnetworking
+BuildRoot:	%{_tmppath}/plfs-%{version}-root
+Requires:       fuse, fuse-libs
+Requires:       plfs-lib
+BuildRequires:  fuse-devel, pkgconfig, subversion
+
+%description
+Parallel Log Structured File System 
+transparent filesystem middleware layer intended to speed up 
+small N to 1 strided write patterns to a parallel file system.
+
+%package	lib
+Summary:	plfs - Parallel Log Structured File System library
+Group:		System Environment/Filesystems
+
+%description lib
+Parallel Log Structured File System library
+transparent filesystem middleware layer intended to speed up 
+small N to 1 strided write patterns to a parallel file system.
+
+%prep
+%{__rm} -rf %{buildroot}
+%setup -q -n plfs-%{version}
+
+%build
+%{__perl} -pi -e 's:/usr/sbin/:%{buildroot}%{_sbindir}/:g' fuse/Makefile
+%{__perl} -pi -e 's:/usr/lib64:%{buildroot}%{_libdir}:g' src/Makefile
+%{__perl} -pi -e 's:/usr/include:%{buildroot}%{_includedir}:g' src/Makefile
+%{__make}
+
+%install
+%{__mkdir_p} %{buildroot}{%{_sbindir},%{_libdir}}
+%{__mkdir_p} %{buildroot}%{_includedir}/plfs
+%{__mkdir_p} %{buildroot}%{_initrddir}
+%{__mkdir_p} %{buildroot}/etc/sysconfig
+%{__install} -m 0755 fuse/plfs %{buildroot}/%{_sbindir}/plfs
+%{__install} -m 0755 fuse/plfs.init %{buildroot}%{_initrddir}/plfs
+%{__install} -m 0644 fuse/plfs.sysconfig %{buildroot}/etc/sysconfig/plfs
+
+make -C src install
+
+cp -a src/COPYRIGHT.h .
+
+%clean
+if [ %{buildroot} != "/" ]; then
+   %{__rm} -rf %{buildroot}
+fi
+
+%post
+if [ "$1" = "1" ]; then
+   if [ -x /sbin/chkconfig ] ; then
+       /sbin/chkconfig --add plfs
+   fi
+fi
+
+%preun
+if [ "$1" = "0" ]; then
+    /sbin/service plfs stop
+    if [ -x /sbin/chkconfig ] ; then
+        /sbin/chkconfig --del plfs
+    fi
+fi
+
+%files
+%defattr(-,root,root,0755)
+%{_sbindir}/plfs
+%config %{_initrddir}/plfs
+%config(noreplace) /etc/sysconfig/plfs
+
+%files lib
+%defattr(-,root,root,0755)
+%{_libdir}/libplfs.a
+%defattr(-,root,root,0644)
+%{_includedir}/plfs/COPYRIGHT.h
+%{_includedir}/plfs/Container.h
+%{_includedir}/plfs/Index.h
+%{_includedir}/plfs/LogMessage.h
+%{_includedir}/plfs/Metadata.h
+%{_includedir}/plfs/OpenFile.h
+%{_includedir}/plfs/Util.h
+%{_includedir}/plfs/WriteFile.h
+%{_includedir}/plfs/plfs.h
+%{_includedir}/plfs/plfs_private.h
+%{_includedir}/plfs/ThreadPool.h
+%doc COPYRIGHT.h
+
+%changelog
+* Mon Jul 26 2010 Ben McClelland <ben@lanl.gov>
+- combined lib and fuse spec
+- version 0.1.6 currently in trunk
+
+* Wed Apr 21 2010 Ben McClelland <ben@lanl.gov>
+- version 0.5.1 changed from internal versioing: see detailed Changelog in svn
+- split out fuse version and library spec
+
+* Fri Aug 21 2009 Ben McClelland <ben@lanl.gov> 0.0.1.2-2
+- "This version now supports links and it seems more stable" -John
+- added Milo's patch to count skips
+- Container extra_attempts
+
+* Thu May 14 2009 Ben McClelland <ben@lanl.gov> 0.0.1.2-1
+- new verion of plfs
+- fixed version definition
+
+* Wed Feb 11 2009 Ben McClelland <ben@lanl.gov> 0.0.1.0-1
+- Initial package version
