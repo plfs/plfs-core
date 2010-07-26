@@ -8,7 +8,7 @@ Release:	%{_release}%{?dist}
 License:	LANS LLC
 Group:		System Environment/Filesystems
 Source:		plfs-%{version}.tgz
-URL:		https://sf4.lanl.gov/sf/projects/ioandnetworking
+URL:		http://institutes.lanl.gov/plfs
 BuildRoot:	%{_tmppath}/plfs-%{version}-root
 Requires:       fuse, fuse-libs
 Requires:       plfs-lib
