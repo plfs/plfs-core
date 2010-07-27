@@ -75,7 +75,7 @@ plfs_CXXFLAGS = \
 @PLFS_FUSE_CXXFLAGS@
 
 plfs_LDFLAGS = \
--L$(top_srcdir)/src \
+-L../src \
 @PLFS_FUSE_LDFLAGS@ @PLFS_FUSE_LIBS@ \
 -lplfs
 endif
