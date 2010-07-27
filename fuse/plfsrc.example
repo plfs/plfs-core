@@ -11,5 +11,5 @@ backends /tmp/.plfs_store1,,,,,/tmp/.plfs_store2,/tmp/.plfs_store3
 mount_point /var/tmp/plfs
 
 # this shows how to read the logical, find the user name, hash it, and construct
-# the physical
+# the physical, the beginning of it must match the mount point
 map /var/tmp/plfs/$1:HASH($1)/$1
