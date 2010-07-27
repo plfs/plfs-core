@@ -33,6 +33,10 @@
 #include "plfs_fuse.h"
 #include "fusexx.h"
 
+#ifdef HAVE_SYS_FSUID_H
+    #include <sys/fsuid.h>
+#endif
+
 using namespace std;
 
 #define DEBUGFILE ".plfsdebug"
@@ -65,7 +69,7 @@ struct OpenFile {
 #endif
 
 
-#ifdef __FreeBSD__
+#ifdef __APPLE__
     #define SET_IDS(X,Y)
     #define SAVE_IDS
     #define RESTORE_GROUPS
@@ -73,7 +77,6 @@ struct OpenFile {
     #define GET_GROUPS
     #define SET_GROUPS(X)
 #else
-    #include <sys/fsuid.h>  
     #define GET_GROUPS get_groups(&orig_groups);
     #define SET_GROUPS(X) set_groups(X); 
     #define RESTORE_IDS    SET_IDS(save_uid,save_gid);

@@ -1,0 +1,206 @@
+# Copyright (c) 2009-2010, Los Alamos National Security, LLC. All rights
+# reserved.
+#
+# This software was produced under U.S. Government contract DE-AC52-06NA25396
+# for Los Alamos National Laboratory (LANL), which is operated by Los Alamos
+# National Security, LLC for the U.S. Department of Energy. The U.S. Government
+# has rights to use, reproduce, and distribute this software.  NEITHER THE
+# GOVERNMENT NOR LOS ALAMOS NATIONAL SECURITY, LLC MAKES ANY WARRANTY, EXPRESS
+# OR IMPLIED, OR ASSUMES ANY LIABILITY FOR THE USE OF THIS SOFTWARE.  If
+# software is modified to produce derivative works, such modified software
+# should be clearly marked, so as not to confuse it with the version available
+# from LANL.
+#
+# Additionally, redistribution and use in source and binary forms, with or
+# without modification, are permitted provided that the following conditions are
+# met:
+#
+# •    Redistributions of source code must retain the above copyright notice,
+# this list of conditions and the following disclaimer.
+#
+# •   Redistributions in binary form must reproduce the above copyright notice,
+# this list of conditions and the following disclaimer in the documentation
+# and/or other materials provided with the distribution.
+#
+# •   Neither the name of Los Alamos National Security, LLC, Los Alamos National
+# Laboratory, LANL, the U.S. Government, nor the names of its contributors may
+# be used to endorse or promote products derived from this software without
+# specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY LOS ALAMOS NATIONAL SECURITY, LLC AND
+# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+# PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL LOS ALAMOS NATIONAL
+# SECURITY, LLC OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+# PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+# BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+# IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
+################################################################################
+# autoconf
+################################################################################
+
+define([PLFS_VERSION],
+       [esyscmd([cat ./VERSION])])
+
+define([PLFS_VERSION_LAYOUT],
+       [esyscmd([cat ./VERSION.LAYOUT])])
+
+AC_INIT([PLFS],
+        [m4_normalize(esyscmd([echo PLFS_VERSION]))],
+        [plfs-devel@lists.sourceforge.net])
+
+AC_COPYRIGHT([
+[Copyright 2009-2010 Los Alamos National Security, LLC. All Rights Reserved.]
+])
+
+AC_PATH_PROG([SVNVERSION], [svnversion])
+AC_PATH_PROG([PKGCONFIG], [pkg-config])
+
+AS_IF([test -z "$SVNVERSION"],
+      define([PLFS_SVN_VERSION], [esyscmd([echo unknown])]),
+      define([PLFS_SVN_VERSION], [esyscmd([svnversion .])]))
+
+# populate config.h with some defs that PLFS relies on
+AC_DEFINE([SVN_VERSION], [PLFS_SVN_VERSION], [PLFS SVN version])
+AC_DEFINE([TAG_VERSION], [PLFS_VERSION], [PLFS tag version])
+AC_DEFINE([DATA_VERSION], [PLFS_VERSION_LAYOUT], [PLFS container version])
+
+AC_CONFIG_AUX_DIR([config])
+AC_CONFIG_MACRO_DIR([config])
+AC_CONFIG_SRCDIR([src])
+
+AM_INIT_AUTOMAKE([foreign])
+
+# check if am_silent_rules rule are supported
+# if so, build using am_silent_rules
+m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
+
+AM_CONFIG_HEADER([config.h])
+
+AH_TOP([
+/*
+Copyright (c) 2009-2010, Los Alamos National Security, LLC All rights reserved.
+
+This software was produced under U.S. Government contract DE-AC52-06NA25396 for
+Los Alamos National Laboratory (LANL), which is operated by Los Alamos National
+Security, LLC for the U.S. Department of Energy. The U.S. Government has rights
+to use, reproduce, and distribute this software.  NEITHER THE GOVERNMENT NOR LOS
+ALAMOS NATIONAL SECURITY, LLC MAKES ANY WARRANTY, EXPRESS OR IMPLIED, OR ASSUMES
+ANY LIABILITY FOR THE USE OF THIS SOFTWARE.  If software is modified to produce
+derivative works, such modified software should be clearly marked, so as not to
+confuse it with the version available from LANL.
+
+Additionally, redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+•   Redistributions of source code must retain the above copyright notice, this
+list of conditions and the following disclaimer.
+
+•   Redistributions in binary form must reproduce the above copyright notice,
+this list of conditions and the following disclaimer in the documentation and/or
+other materials provided with the distribution.
+
+•   Neither the name of Los Alamos National Security, LLC, Los Alamos National
+Laboratory, LANL, the U.S. Government, nor the names of its contributors may be
+used to endorse or promote products derived from this software without specific
+prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY LOS ALAMOS NATIONAL SECURITY, LLC AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL LOS ALAMOS NATIONAL SECURITY, LLC OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY,
+OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
+OF SUCH DAMAGE.
+*/
+])
+
+AC_PROG_CC
+AC_PROG_CPP
+AC_PROG_CXX
+AC_PROG_CXXCPP
+AM_PROG_CC_C_O
+
+AC_PROG_LIBTOOL
+
+# now check for all the other stuff PLFS needs
+# check for some headers XXX more are needed...
+
+AC_CHECK_HEADERS([\
+sys/types.h \
+sys/statvfs.h \
+fcntl.h \
+sys/fsuid.h])
+
+AX_PTHREAD
+AC_PLFS_DEUBG_FLAG_CHECK
+# first see what needs to be built - XXX ugly (update later)
+AC_PKG_PLFS_COMPONENTS
+AS_IF([test "x$plfs_build_fuse" = "x1"], [AC_PKG_PLFS_FUSE])
+# check for mpi.h first because romio depends on it.  see: config/plfs_romio.m4
+AS_IF([test "x$plfs_build_adio" = "x1"],
+      [AC_PKG_PLFS_MPI
+       AC_PKG_PLFS_ROMIO])
+
+AC_OUTPUT([
+Makefile
+src/Makefile
+fuse/Makefile
+ad_plfs/Makefile
+trace/Makefile
+scripts/Makefile
+tests/Makefile
+])
+
+AC_OUTPUT
+
+# display config summary
+cat << EOF
+
+Configuration Summary:
+**********************
+CC: $CC
+CPP: $CPP
+CFLAGS: $CFLAGS
+CXX: $CXX
+CXXFLAGS: $CXXFLAGS
+CXXCPP: $CXXCPP
+LDFLAGS: $LDFLAGS
+LIBS: $LIBS
+
+FUSE Flags:
+***********
+CFLAGS: $PLFS_FUSE_CFLAGS
+CXXFLAGS: $PLFS_FUSE_CXXFLAGS
+LDFLAGS: $PLFS_FUSE_LDFLAGS
+LIBS: $PLFS_FUSE_LIBS
+
+MPI Flags:
+**********
+CFLAGS: $PLFS_MPI_CFLAGS
+CXXFLAGS: $PLFS_MPI_CXXFLAGS
+LDFLAGS: $PLFS_MPI_LDFLAGS
+LIBS: $PLFS_MPI_LIBS
+
+ROMIO Flags:
+************
+CFLAGS: $PLFS_ROMIO_CFLAGS
+CXXFLAGS: $PLFS_ROMIO_CXXFLAGS
+
+Install Prefix:
+***************
+$prefix
+
+PLFS Summary:
+*************
+Container Version: PLFS_VERSION_LAYOUT
+
+EOF

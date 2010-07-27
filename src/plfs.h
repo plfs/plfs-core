@@ -7,6 +7,9 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <utime.h>
+#ifdef HAVE_SYS_STATVFS_H
+    #include <sys/statvfs.h>
+#endif
 
 #ifdef __cplusplus 
     extern "C" 

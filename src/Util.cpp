@@ -4,7 +4,6 @@
 #include <string>
 #include <fstream>
 #include <iostream>
-#include <fcntl.h>
 #include <sys/dir.h>
 #include <dirent.h>
 #include <unistd.h>
@@ -26,12 +25,12 @@
 #include <stdarg.h>
 using namespace std;
 
-#ifndef __FreeBSD__
-    #include <sys/fsuid.h>
-#endif
-
 #include "Util.h"
 #include "LogMessage.h"
+
+#ifdef HAVE_SYS_FSUID_H
+    #include <sys/fsuid.h>
+#endif
 
 #define SLOW_UTIL   2
 
@@ -526,7 +525,7 @@ string Util::openFlagsToString( int flags ) {
     if ( flags & O_NOFOLLOW ) {
         fstr += "N";
     }
-    #ifndef __FreeBSD__
+    #ifndef __APPLE__
         if ( flags & O_LARGEFILE ) {
             fstr += "l";
         }
@@ -536,7 +535,7 @@ string Util::openFlagsToString( int flags ) {
         if ( flags & O_NOATIME ) {
             fstr += "A";
         }
-    #else 
+    #else
         if ( flags & O_SHLOCK ) {
             fstr += "S";
         }
@@ -586,7 +585,7 @@ string Util::expandPath( string path, string hostname ) {
         
 uid_t Util::Getuid() {
     ENTER_UTIL;
-    #ifndef __FreeBSD__
+    #ifndef __APPLE__
     ret = getuid();
     #endif
     EXIT_UTIL;
@@ -594,7 +593,7 @@ uid_t Util::Getuid() {
         
 gid_t Util::Getgid() {
     ENTER_UTIL;
-    #ifndef __FreeBSD__
+    #ifndef __APPLE__
     ret = getgid();
     #endif
     EXIT_UTIL;
@@ -602,7 +601,7 @@ gid_t Util::Getgid() {
         
 int Util::Setfsgid( gid_t g ) {
     ENTER_UTIL;
-    #ifndef __FreeBSD__
+    #ifndef __APPLE__
     errno = 0;
     ret = setfsgid( g );
     Util::Debug("Set gid %d: %s\n", g, strerror(errno) ); 
@@ -612,7 +611,7 @@ int Util::Setfsgid( gid_t g ) {
         
 int Util::Setfsuid( uid_t u ) {
     ENTER_UTIL;
-    #ifndef __FreeBSD__
+    #ifndef __APPLE__
     errno = 0;
     ret = setfsuid( u );
     Util::Debug("Set uid %d: %s\n", u, strerror(errno) ); 

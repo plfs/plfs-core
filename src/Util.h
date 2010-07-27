@@ -1,6 +1,10 @@
 #ifndef _UTIL_H_
 #define _UTIL_H_
 
+#ifdef HAVE_CONFIG_H
+    #include "config.h"
+#endif
+
 #include "COPYRIGHT.h"
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -9,8 +13,9 @@
 #include <string>
 #include <fstream>
 #include <iostream>
-#include <fcntl.h>
-#include <sys/types.h>
+#ifdef HAVE_FCNTL_H
+    #include <fcntl.h>
+#endif
 #include <sys/dir.h>
 #include <dirent.h>
 #include <sys/syscall.h>

@@ -5,7 +5,9 @@
 #include <string>
 #include <fstream>
 #include <iostream>
+#ifdef HAVE_FCNTL_H 
 #include <fcntl.h>
+#endif
 #include <sys/types.h>
 #include <sys/dir.h>
 #include <dirent.h>

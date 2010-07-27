@@ -86,7 +86,7 @@ namespace fusexx {
 		    static int f_flush (const char *, struct fuse_file_info *) { FUSE_RET }
 		    static int f_release (const char *, struct fuse_file_info *) { FUSE_RET }
 		    static int f_fsync (const char *, int, struct fuse_file_info *) { FUSE_RET }
-            #ifndef __FreeBSD__
+            #ifndef __APPLE__
 		    static int f_setxattr (const char *, const char *, const char *, size_t, int) { FUSE_RET }
 		    static int f_getxattr (const char *, const char *, char *, size_t) { FUSE_RET }
 		    static int f_listxattr (const char *, char *, size_t) { FUSE_RET }
@@ -126,7 +126,7 @@ namespace fusexx {
 			    operations.flush = T::f_flush;
 			    operations.release = T::f_release;
 			    operations.fsync = T::f_fsync;
-                #ifndef __FreeBSD__
+                #ifndef __APPLE__ 
 			    operations.setxattr = T::f_setxattr;
 			    operations.getxattr = T::f_getxattr;
 			    operations.listxattr = T::f_listxattr;
