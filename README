@@ -1,0 +1,45 @@
+################################################################################
+            PLFS: A Checkpoint Filesystem for Parallel Applications
+################################################################################
+
+***************************************************************************
+User Installation (Default Configuration Values. See configure --help)
+***************************************************************************
+svn co https://plfs.svn.sourceforge.net/svnroot/plfs plfs
+cd plfs/versions/<VERSION>
+./configure
+make all install
+
+***************************************************************************
+Developer Installation (Default Configuration Values. See configure --help)
+***************************************************************************
+svn co https://plfs.svn.sourceforge.net/svnroot/plfs plfs
+
+######################################################################
+NOTE: For distributions, please use the following (before autogen.sh):
+######################################################################
+m4       1.4.14
+autoconf 2.65
+automake 1.11.1
+libtool  2.2.6b
+
+*********************
+Download Source From:
+*********************
+ftp://ftp.gnu.org/gnu/m4/
+ftp://ftp.gnu.org/gnu/autoconf/
+ftp://ftp.gnu.org/gnu/automake/
+ftp://ftp.gnu.org/gnu/libtool/
+
+*****************************
+Build In The Following Order:
+*****************************
+m4
+autoconf
+automake
+libtool
+
+cd plfs/trunk
+./autogen.sh
+./configure
+make all install
