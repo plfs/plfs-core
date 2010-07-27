@@ -52,8 +52,10 @@ plfs_map_SOURCES = \
 $(sources)
 
 plfs_map_CXXFLAGS = \
--I$(top_srcdir)/src
+-I$(top_srcdir)/src \
+@PTHREAD_CFLAGS@
 
 plfs_map_LDFLAGS = \
--L$(top_srcdir)/src -lplfs
+-L$(top_srcdir)/src -lplfs \
+@PTHREAD_LIBS@
 
