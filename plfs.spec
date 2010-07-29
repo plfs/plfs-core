@@ -3,7 +3,7 @@
 
 Name:		plfs
 Summary:	plfs - Parallel Log Structured File System
-Version:	0.1.6
+Version:	1.0.0
 Release:	%{_release}%{?dist}
 License:	LANS LLC
 Group:		System Environment/Filesystems
@@ -33,9 +33,7 @@ small N to 1 strided write patterns to a parallel file system.
 %setup -q -n plfs-%{version}
 
 %build
-%{__perl} -pi -e 's:/usr/sbin/:%{buildroot}%{_sbindir}/:g' fuse/Makefile
-%{__perl} -pi -e 's:/usr/lib64:%{buildroot}%{_libdir}:g' src/Makefile
-%{__perl} -pi -e 's:/usr/include:%{buildroot}%{_includedir}:g' src/Makefile
+./cofigure --prefix=%{buildroot}
 %{__make}
 
 %install
@@ -43,11 +41,13 @@ small N to 1 strided write patterns to a parallel file system.
 %{__mkdir_p} %{buildroot}%{_includedir}/plfs
 %{__mkdir_p} %{buildroot}%{_initrddir}
 %{__mkdir_p} %{buildroot}/etc/sysconfig
-%{__install} -m 0755 fuse/plfs %{buildroot}/%{_sbindir}/plfs
+%{__mkdir_p} %{buildroot}/etc/plfs
+#%{__install} -m 0755 fuse/plfs %{buildroot}/%{_sbindir}/plfs
 %{__install} -m 0755 fuse/plfs.init %{buildroot}%{_initrddir}/plfs
 %{__install} -m 0644 fuse/plfs.sysconfig %{buildroot}/etc/sysconfig/plfs
+%{__install} -m 0644 fuse/plfsrc.example %{buildroot}/etc/plfs/plfsrc
 
-make -C src install
+%{__make} install
 
 cp -a src/COPYRIGHT.h .
 
@@ -76,25 +76,31 @@ fi
 %{_sbindir}/plfs
 %config %{_initrddir}/plfs
 %config(noreplace) /etc/sysconfig/plfs
+%config(noreplace) /etc/plfsrc
 
 %files lib
 %defattr(-,root,root,0755)
 %{_libdir}/libplfs.a
+%{_libdir}/libplfs.la
+%{_libdir}/libplfs.so
+%{_libdir}/libplfs.so.0
+%{_libdir}/libplfs.so.0.0.0.0
 %defattr(-,root,root,0644)
 %{_includedir}/plfs/COPYRIGHT.h
-%{_includedir}/plfs/Container.h
-%{_includedir}/plfs/Index.h
-%{_includedir}/plfs/LogMessage.h
-%{_includedir}/plfs/Metadata.h
-%{_includedir}/plfs/OpenFile.h
 %{_includedir}/plfs/Util.h
-%{_includedir}/plfs/WriteFile.h
 %{_includedir}/plfs/plfs.h
-%{_includedir}/plfs/plfs_private.h
-%{_includedir}/plfs/ThreadPool.h
+/etc/plfs/VERSION
+/etc/plfs/VERSION.LAYOUT
 %doc COPYRIGHT.h
 
 %changelog
+* Thu Jul 29 2010 Ben McClelland <ben@lanl.gov>
+- switched to configure
+- clean up some unnecessary .h files
+- plfsrc is the new mapping/config file to try to hide backend from users more
+- shared objects available
+- VERSION and VERSION.LAYOUT added for compatibility checks
+
 * Mon Jul 26 2010 Ben McClelland <ben@lanl.gov>
 - combined lib and fuse spec
 - version 0.1.6 currently in trunk
