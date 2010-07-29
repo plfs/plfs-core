@@ -49,9 +49,11 @@ libplfs.la
 include_HEADERS = \
 plfs.h
 
-headers = \
+dist_pkginclude_HEADERS = \
 COPYRIGHT.h \
-Util.h \
+Util.h
+
+headers = \
 Container.h \
 Index.h \
 LogMessage.h \
@@ -60,7 +62,8 @@ OpenFile.h \
 plfs_private.h \
 ThreadPool.h \
 WriteFile.h \
-$(include_HEADERS)
+$(include_HEADERS) \
+$(dist_pkginclude_HEADERS)
 
 sources = \
 Util.cpp \
