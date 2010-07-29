@@ -33,7 +33,7 @@ small N to 1 strided write patterns to a parallel file system.
 %setup -q -n plfs-%{version}
 
 %build
-./configure --prefix=%{buildroot}
+./configure --prefix=%{_prefix} --libdir=%{_libdir} --bindir=%{_sbindir} --includedir=%{_includedir} --sysconfdir=/etc
 %{__make}
 
 %install
@@ -47,7 +47,7 @@ small N to 1 strided write patterns to a parallel file system.
 %{__install} -m 0644 fuse/plfs.sysconfig %{buildroot}/etc/sysconfig/plfs
 %{__install} -m 0644 fuse/plfsrc.example %{buildroot}/etc/plfs/plfsrc
 
-%{__make} install
+%{__make} install DESTDIR=$RPM_BUILD_ROOT
 
 cp -a src/COPYRIGHT.h .
 
@@ -76,7 +76,7 @@ fi
 %{_sbindir}/plfs
 %config %{_initrddir}/plfs
 %config(noreplace) /etc/sysconfig/plfs
-%config(noreplace) /etc/plfsrc
+%config(noreplace) /etc/plfs/plfsrc
 
 %files lib
 %defattr(-,root,root,0755)
@@ -84,11 +84,11 @@ fi
 %{_libdir}/libplfs.la
 %{_libdir}/libplfs.so
 %{_libdir}/libplfs.so.0
-%{_libdir}/libplfs.so.0.0.0.0
+%{_libdir}/libplfs.so.0.0.0
 %defattr(-,root,root,0644)
 %{_includedir}/plfs/COPYRIGHT.h
 %{_includedir}/plfs/Util.h
-%{_includedir}/plfs/plfs.h
+%{_includedir}/plfs.h
 /etc/plfs/VERSION
 /etc/plfs/VERSION.LAYOUT
 %doc COPYRIGHT.h
