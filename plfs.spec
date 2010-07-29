@@ -45,7 +45,7 @@ small N to 1 strided write patterns to a parallel file system.
 #%{__install} -m 0755 fuse/plfs %{buildroot}/%{_sbindir}/plfs
 %{__install} -m 0755 fuse/plfs.init %{buildroot}%{_initrddir}/plfs
 %{__install} -m 0644 fuse/plfs.sysconfig %{buildroot}/etc/sysconfig/plfs
-%{__install} -m 0644 fuse/plfsrc.example %{buildroot}/etc/plfs/plfsrc
+%{__install} -m 0644 fuse/plfsrc.example %{buildroot}/etc/plfsrc
 
 %{__make} install DESTDIR=$RPM_BUILD_ROOT
 
