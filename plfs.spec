@@ -33,7 +33,7 @@ small N to 1 strided write patterns to a parallel file system.
 %setup -q -n plfs-%{version}
 
 %build
-./cofigure --prefix=%{buildroot}
+./configure --prefix=%{buildroot}
 %{__make}
 
 %install
