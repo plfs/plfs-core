@@ -76,7 +76,7 @@ fi
 %{_sbindir}/plfs
 %config %{_initrddir}/plfs
 %config(noreplace) /etc/sysconfig/plfs
-%config(noreplace) /etc/plfs/plfsrc
+%config(noreplace) /etc/plfsrc
 
 %files lib
 %defattr(-,root,root,0755)
@@ -89,8 +89,8 @@ fi
 %{_includedir}/plfs/COPYRIGHT.h
 %{_includedir}/plfs/Util.h
 %{_includedir}/plfs.h
-/etc/plfs/VERSION
-/etc/plfs/VERSION.LAYOUT
+%config /etc/plfs/VERSION
+%config /etc/plfs/VERSION.LAYOUT
 %doc COPYRIGHT.h
 
 %changelog
