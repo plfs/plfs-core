@@ -1,6 +1,93 @@
 #!/usr/bin/env bash
 
-echo thinking ...
+# bypass version checks :-(
+force=0
+
+m4_req_version="1.4.14"
+ac_req_version="2.65"
+am_req_version="1.11.1"
+lt_req_version="2.2.6b"
+
+req_versions=($m4_req_version $ac_req_version $am_req_version $lt_req_version)
+tools=(m4 autoconf automake libtool)
+
+autogen_usage()
+{
+    echo "usage: autogen.sh [-f | --force]"
+}
+
+echo_tool_reqs()
+{
+cat << EOF
+
+autogen prerequisites
+*********************
+m4: $m4_req_version
+autoconf: $ac_req_version
+automake: $am_req_version
+libtool: $lt_req_version
+
+EOF
+}
+
+check_tool_version()
+{
+    v_output=`$1 --version`
+    if [[ $? != 0 ]]
+    then
+        echo "!!! could not determine $1's version !!!"
+        echo_tool_reqs
+        exit 1
+    fi
+    version_str=`echo -e "$v_output" | grep $1`
+    version_str=`echo -e "$version_str" | \
+    grep -oe '[0-9]\+[.][0-9]\+[.]\?[0-9]*[A-Za-z]\?'`
+    if [[ $2 != $version_str ]]
+    then
+        echo "$1 version requirement not met"
+        echo_tool_reqs
+        exit 1
+    fi
+}
+
+while [[ $# -gt 0 ]]
+do
+    case "$1" in
+        -h)
+            autogen_usage
+            exit;;
+       --help)
+            autogen_usage
+            exit;;
+       -f)
+            force=1
+            shift;;
+       --force)
+            force=1
+            shift;;
+       *)
+            autogen_usage
+            exit;;
+    esac
+    shift
+done
+
+echo "thinking ..."
+
+if [[ $force == 1 ]]
+then
+    # you are on your own :-)
+    echo "##############################################"
+    echo "WARNING ***BYPASSING VERSION CHECKS*** WARNING"
+    echo "##############################################"
+else
+    for i in ${!tools[*]}
+    do
+        check_tool_version ${tools[$i]} ${req_versions[$i]}
+    done
+fi
+
+# if we are here, all is good. let the real work begin...
 autoreconf --force --install -I config
 
 # Copyright (c) 2009-2010, Los Alamos National Security, LLC. All rights
