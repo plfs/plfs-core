@@ -54,6 +54,7 @@ class Util {
         static int Fsync( int );
         static uid_t Getuid();
         static gid_t Getgid();
+        static int Link(const char*,const char*);
         static int Lseek( int fildes, off_t offset, int whence, off_t *result );
         static int Lstat( const char*, struct stat * );
         static int Mkdir( const char*, mode_t );
@@ -66,6 +67,7 @@ class Util {
         static int Opendir( const char *dirname, DIR ** );
         static ssize_t Pread( int, void *, size_t, off_t );
         static ssize_t Pwrite(int, const void *buf, size_t count, off_t offset);
+        static ssize_t Readlink(const char*, char *buf, size_t bufsize);
         static int Rename( const char*, const char * );
         static int Rmdir( const char* );
         static int Setfsgid( gid_t );

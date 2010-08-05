@@ -17,7 +17,9 @@
 using namespace std;
 
 #define PLFS_ENTER string path = expandPath(logical); \
-    Util::Debug("EXPAND in %s: %s->%s\n",__FUNCTION__,logical,path.c_str());
+    Util::Debug("EXPAND in %s: %s->%s\n",__FUNCTION__,logical,path.c_str()); \
+    int ret = 0;
+#define PLFS_EXIT(X) return(X);
 
 // a struct for making reads be multi-threaded
 typedef struct {  
@@ -174,6 +176,11 @@ retValue( int res ) {
     return Util::retValue(res);
 }
 
+double
+plfs_wtime() {
+    return Util::getTime();
+}
+
 int 
 plfs_create( const char *logical, mode_t mode, int flags ) {
     PLFS_ENTER;
@@ -191,7 +198,7 @@ addWriter( WriteFile *wf, pid_t pid, const char *path, mode_t mode ) {
             Container::makeHostDir( path, Util::hostname(), mode );
         }
     }
-    return ret;
+    PLFS_EXIT(ret);
 }
 int
 isWriter( int flags ) {
@@ -202,7 +209,12 @@ isWriter( int flags ) {
 int 
 plfs_chown( const char *logical, uid_t u, gid_t g ) {
     PLFS_ENTER;
-    return Container::Chown( path.c_str(), u, g );
+    if ( is_plfs_file(logical) ) {
+        ret = Container::Chown( path.c_str(), u, g );
+    } else {
+        ret = retValue(Util::Chown(path.c_str(),u,g)); 
+    }
+    PLFS_EXIT(ret);
 }
 
 int
@@ -222,32 +234,42 @@ plfs_debug( const char *format, ... ) {
 int
 plfs_access( const char *logical, int mask ) {
     PLFS_ENTER;
-    int ret = -1;
-    if ( Container::isContainer( path.c_str() ) ) {
+    if ( is_plfs_file(logical) ) {
         ret = retValue( Container::Access( path.c_str(), mask ) );
     } else {
         ret = retValue( Util::Access( path.c_str(), mask ) );
     }
-    return ret;
+    PLFS_EXIT(ret);
 }
 
 int 
 plfs_chmod( const char *logical, mode_t mode ) {
     PLFS_ENTER;
-    int ret = -1;
-    if ( Container::isContainer( path.c_str() ) ) {
+    if ( is_plfs_file(logical) ) {
         ret = retValue( Container::Chmod( path.c_str(), mode ) );
     } else {
         ret = retValue( Util::Chmod( path.c_str(), mode ) );
     }
-    return ret;
+    PLFS_EXIT(ret);
 }
 
 // returns 0 or -errno
 int plfs_statvfs( const char *logical, struct statvfs *stbuf ) {
     PLFS_ENTER;
-    int ret = retValue( Util::Statvfs(path.c_str(),stbuf) );
-    return ret;
+    ret = retValue( Util::Statvfs(path.c_str(),stbuf) );
+    PLFS_EXIT(ret);
+}
+
+void
+plfs_stat_add(const char *func, double elapsed, int ret) {
+    Util::addTime(func,elapsed,ret);
+}
+
+void
+plfs_stats( void *vptr ) {
+    string *stats = (string *)vptr;
+    string ustats = Util::toString();
+    (*stats) = ustats;
 }
 
 // returns 0 or -errno
@@ -256,7 +278,7 @@ plfs_readdir( const char *logical, void *vptr ) {
     PLFS_ENTER;
     vector<string> *dents = (vector<string> *)vptr;
     DIR *dp;
-    int ret = Util::Opendir( path.c_str(), &dp );
+    ret = Util::Opendir( path.c_str(), &dp );
     if ( ret == 0 && dp ) {
         (void) path;
         struct dirent *de;
@@ -267,31 +289,30 @@ plfs_readdir( const char *logical, void *vptr ) {
         ret = -errno;
     }
     Util::Closedir( dp );
-    return ret;
+    PLFS_EXIT(ret);
 }
 
 int
 plfs_mkdir( const char *logical, mode_t mode ) {
     PLFS_ENTER;
-    return retValue(Util::Mkdir(path.c_str(),mode));
+    ret = retValue(Util::Mkdir(path.c_str(),mode));
 }
 
 int
 plfs_rmdir( const char *logical ) {
     PLFS_ENTER;
-    return retValue(Util::Rmdir(path.c_str()));
+    ret = retValue(Util::Rmdir(path.c_str()));
 }
 
 int
 plfs_utime( const char *logical, struct utimbuf *ut ) {
     PLFS_ENTER;
-    int ret = -1;
-    if ( Container::isContainer( path.c_str() ) ) {
+    if ( is_plfs_file(logical) ) {
         ret = Container::Utime( path.c_str(), ut );
     } else {
         ret = retValue( Util::Utime( path.c_str(), ut ) );
     }
-    return ret;
+    PLFS_EXIT(ret);
 }
 
 
@@ -362,7 +383,7 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
         }
         // when chunk_length is 0, that means EOF
     } while(bytes_remaining && ret == 0 && task.length);
-    return ret;
+    PLFS_EXIT(ret);
 }
 
 int
@@ -412,7 +433,7 @@ perform_read_task( ReadTask *task, Index *index ) {
     oss << "\t READ TASK: offset " << task->chunk_offset << " len "
          << task->length << " fd " << task->fd << ": ret " << ret<< endl;
     Util::Debug("%s", oss.str().c_str() ); 
-    return ret;
+    PLFS_EXIT(ret);
 }
 
 // returns bytes read or -errno
@@ -430,7 +451,7 @@ read_helper( Index *index, char *buf, size_t size, off_t offset ) {
     // need to lock this since the globalLookup does the open of the fds
     ret =index->globalLookup(&fd,&chunk_offset,&chunk_length,path,&hole,
             &chunk_id, offset);
-    if ( ret != 0 ) return ret;
+    if ( ret != 0 ) PLFS_EXIT(ret);
 
     ssize_t read_size = min(size,chunk_length);
     if ( read_size > 0 ) {
@@ -456,7 +477,7 @@ read_helper( Index *index, char *buf, size_t size, off_t offset ) {
         // when chunk_length = 0, that means we're at EOF
         ret = 0;
     }
-    return ret;
+    PLFS_EXIT(ret);
 }
 
 ssize_t 
@@ -489,7 +510,7 @@ plfs_read_old(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
     } while( bytes_remaining && ret > 0 );
     ret = ( ret < 0 ? ret : bytes_read );
 
-    return ret;
+    PLFS_EXIT(ret);
 }
 
 // pop the queue, do some work, until none remains
@@ -546,7 +567,7 @@ plfs_read_new(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
     // let's leave early if possible to make remaining code cleaner by
     // not worrying about these conditions
     // tasks is empty for a zero length file or an EOF 
-    if ( ret != 0 || tasks.empty() ) return ret;
+    if ( ret != 0 || tasks.empty() ) PLFS_EXIT(ret);
 
     if ( tasks.size() > 1 && get_plfs_conf()->threadpool_size > 1 ) { 
         ReaderArgs args;
@@ -626,7 +647,7 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
         delete( index );
         index = NULL;
     }
-    return ret;
+    PLFS_EXIT(ret);
 }
 
 bool
@@ -767,17 +788,6 @@ get_plfs_conf() {
     return pconf;
 }
 
-int
-plfs_rename( Plfs_fd *pfd, const char *logical, const char *to ) {
-    PLFS_ENTER;
-    string topath = expandPath(to);
-    int ret = retValue( Util::Rename( path.c_str(), topath.c_str() ) );
-    if ( ret == 0 && pfd ) {
-        pfd->setPath( to );
-    }
-    return ret;
-}
-
 // pass in a NULL Plfs_fd to have one created for you
 // pass in a valid one to add more writers to it
 // one problem is that we fail if we're asked to overwrite a normal file
@@ -786,7 +796,6 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
     PLFS_ENTER;
     WriteFile *wf      = NULL;
     Index     *index   = NULL;
-    int ret            = 0;
     bool new_writefile = false;
     bool new_index     = false;
     bool new_pfd       = false;
@@ -866,7 +875,47 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
     }
     if ( ret == 0 ) (*pfd)->incrementOpens(1);
     plfs_reference_count(*pfd);
-    return ret;
+    PLFS_EXIT(ret);
+}
+
+
+int
+plfs_symlink(const char *logical, const char *to) {
+    PLFS_ENTER;
+    string toPath = expandPath(to);
+    ret = retValue(Util::Symlink(path.c_str(),toPath.c_str()));
+    PLFS_EXIT(ret);
+}
+
+int
+plfs_readlink(const char *logical, char *buf, size_t bufsize) {
+    PLFS_ENTER;
+    memset((void*)buf, 0, bufsize);
+    ret = retValue(Util::Readlink(path.c_str(),buf,bufsize));
+    PLFS_EXIT(ret);
+}
+
+int
+plfs_link(const char *logical, const char *to) {
+    PLFS_ENTER;
+    string toPath = expandPath(to);
+    ret = retValue(Util::Link(path.c_str(),toPath.c_str()));
+    PLFS_EXIT(ret);
+}
+
+int
+plfs_rename( const char *logical, const char *to ) {
+    PLFS_ENTER;
+    string topath = expandPath( to );
+
+    if ( is_plfs_file(logical) ) {
+        // we can't just call rename bec it won't trash a dir in the toPath
+        // so in case the toPath is a container, do this
+        // this might fail with ENOENT but that's fine
+        plfs_unlink(logical);
+    }
+    ret = retValue( Util::Rename(path.c_str(), topath.c_str()));
+    PLFS_EXIT(ret);
 }
 
 ssize_t 
@@ -888,7 +937,7 @@ plfs_write( Plfs_fd *pfd, const char *buf, size_t size, off_t offset, pid_t pid)
             pfd->getPath(), (long)offset );
     ret = written = wf->write( buf, size, offset, pid );
 
-    return ( ret >= 0 ? written : ret );
+    PLFS_EXIT( ret >= 0 ? written : ret );
 }
 
 int 
@@ -974,7 +1023,7 @@ removeDirectoryTree( const char *path, bool truncate_only ) {
     // here we have deleted all children.  Now delete the directory itself
     // if truncate is called, this means it's a container.  so we only
     // delete the internal stuff but not the directory structure
-    if ( ret != 0 ) return ret;
+    if ( ret != 0 ) PLFS_EXIT(ret);
     if ( truncate_only ) {
         return 0;
     } else {
@@ -990,7 +1039,7 @@ removeDirectoryTree( const char *path, bool truncate_only ) {
             Util::Rename( path, trash_path.str().c_str() ); 
             ret = 0;
         }
-        return retValue( ret );
+        ret = retValue( ret );
     }
 }
             
@@ -1015,8 +1064,7 @@ plfs_getattr( Plfs_fd *of, const char *logical, struct stat *stbuf ) {
         path = of->getPath();   // restore the stashed physical path
     }
     Util::Debug("%s on %s\n", __FUNCTION__, path.c_str());
-    int ret = 0;
-    if ( ! Container::isContainer( path.c_str() ) ) {
+    if ( ! is_plfs_file(logical) ) {
         ret = retValue( Util::Lstat( path.c_str(), stbuf ) );
     } else {
         ret = Container::getattr( path.c_str(), stbuf );
@@ -1053,7 +1101,24 @@ plfs_getattr( Plfs_fd *of, const char *logical, struct stat *stbuf ) {
     //     << (of == NULL ? "closed" : "open") 
     //     << ") size is " << stbuf->st_size << endl;
 
-    return ret;
+    PLFS_EXIT(ret);
+}
+
+int
+plfs_mode(const char *logical, mode_t *mode) {
+    PLFS_ENTER;
+    *mode = Container::getmode(path.c_str());
+    PLFS_EXIT(0);
+}
+
+int
+plfs_mutex_unlock(pthread_mutex_t *mux, const char *func){
+    return Util::MutexUnlock(mux,func);
+}
+
+int
+plfs_mutex_lock(pthread_mutex_t *mux, const char *func){
+    return Util::MutexLock(mux,func);
 }
 
 // this is called when truncate has been used to extend a file
@@ -1075,19 +1140,19 @@ extendFile( Plfs_fd *of, string strPath, off_t offset ) {
         delete wf;
         wf = NULL;
     }
-    return ret;
+    PLFS_EXIT(ret);
 }
 
 // the Plfs_fd can be NULL
 int 
 plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
     PLFS_ENTER;
-    if ( ! Container::isContainer( path.c_str() ) ) {
+    if ( ! is_plfs_file(logical) ) {
         // this is weird, we expect only to operate on containers
-        return retValue( Util::Truncate(path.c_str(),offset) );
+        ret = retValue( Util::Truncate(path.c_str(),offset) );
+        PLFS_EXIT(ret);
     }
 
-    int ret = 0;
     if ( offset == 0 ) {
             // this is easy, just remove all droppings
         ret = removeDirectoryTree( path.c_str(), true );
@@ -1121,20 +1186,19 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
         }
     }
 
-    return ret;
+    PLFS_EXIT(ret);
 }
 
 int 
 plfs_unlink( const char *logical ) {
     PLFS_ENTER;
-    int ret = 0;
-    if ( Container::isContainer( path.c_str() ) ) {
+    if ( is_plfs_file(logical) ) {
         ret = removeDirectoryTree( path.c_str(), false );  
         Util::Debug("Removed dir %s\n",path.c_str());
     } else {
         ret = retValue( Util::Unlink( path.c_str() ) );   
     }
-    return ret; 
+    PLFS_EXIT(ret); 
 }
 
 int
@@ -1231,4 +1295,24 @@ plfs_close( Plfs_fd *pfd, pid_t pid, int open_flags ) {
     }
 
     return ( ret < 0 ? ret : ref_count );
+}
+
+uid_t 
+plfs_getuid() {
+    return Util::Getuid();
+}
+
+gid_t 
+plfs_getgid(){
+    return Util::Getgid();
+}
+
+int 
+plfs_setfsuid(uid_t u){
+    return Util::Setfsuid(u);
+}
+
+int 
+plfs_setfsgid(gid_t g){
+    return Util::Setfsgid(g);
 }

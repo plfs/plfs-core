@@ -30,4 +30,13 @@ PlfsConf* get_plfs_conf();
 */
 bool plfs_init(PlfsConf*);
 
+
+int plfs_mutex_lock( pthread_mutex_t *mux, const char *whence );
+int plfs_mutex_unlock( pthread_mutex_t *mux, const char *whence );
+
+uid_t plfs_getuid();
+gid_t plfs_getgid();
+int plfs_setfsuid(uid_t);
+int plfs_setfsgid(gid_t);
+
 #endif

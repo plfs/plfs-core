@@ -35,7 +35,6 @@ using namespace std;
 #define SLOW_UTIL   2
 
 #define O_CONCURRENT_WRITE                         020000000000
-#define PPATH 1024
 
 // TODO.  Some functions in here return -errno.  Probably none of them
 // should
@@ -324,6 +323,18 @@ int Util::Lstat( const char *path, struct stat *st ) {
 int Util::Rename( const char *path, const char *to ) {
     ENTER_PATH;
     ret = rename( path, to );
+    EXIT_UTIL;
+}
+        
+ssize_t Util::Readlink(const char*link, char *buf, size_t bufsize) {
+    ENTER_IO;
+    ret = readlink(link,buf,bufsize);
+    EXIT_UTIL;
+}
+
+int Util::Link( const char *path, const char *to ) {
+    ENTER_PATH;
+    ret = link( path, to );
     EXIT_UTIL;
 }
 

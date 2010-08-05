@@ -8,8 +8,6 @@
 #include "Metadata.h"
 using namespace std;
 
-#define PPATH 1024
-
 class Plfs_fd : public Metadata {
     public:
         Plfs_fd( WriteFile *, Index *, pid_t, mode_t, const char * );

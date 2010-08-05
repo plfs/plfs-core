@@ -1,10 +1,6 @@
 #include "plfs.h"
 #include "plfs_private.h"
-#include "Util.h"
-#include "Index.h"
 #include "OpenFile.h"
-#include "WriteFile.h"
-#include "Container.h"
 #include "LogMessage.h"
 #include "COPYRIGHT.h"
 
@@ -43,8 +39,6 @@ using namespace std;
 #define DEBUGLOG  ".plfslog"
 #define DEBUGFILESIZE 4096
 #define DEBUGLOGSIZE  4194304
-#define DANGLE_POSSIBILITY 1
-
 
 // the reason we need this struct is because we want to know the original
 // pid at the f_release bec fuse_get_context->pid returns 0 in the f_release
@@ -60,9 +54,9 @@ struct OpenFile {
 };
 
 #ifdef PLFS_TIMES
-    #define START_TIMES double begin, end; begin = Util::getTime();
-    #define END_TIMES   end = Util::getTime(); \
-                        Util::addTime( __FUNCTION__, end-begin, (ret<0) );
+    #define START_TIMES double begin, end; begin = plfs_wtime();
+    #define END_TIMES   end = plfs_wtime(); \
+                        plfs_stat_add( __FUNCTION__, end-begin, (ret<0) );
 #else
     #define START_TIMES
     #define END_TIMES
@@ -80,8 +74,8 @@ struct OpenFile {
     #define GET_GROUPS get_groups(&orig_groups);
     #define SET_GROUPS(X) set_groups(X); 
     #define RESTORE_IDS    SET_IDS(save_uid,save_gid);
-    #define SAVE_IDS uid_t s_uid = Util::Getuid(); gid_t s_gid = Util::Getgid();
-    #define SET_IDS(X,Y)   Util::Setfsuid( X );    Util::Setfsgid( Y ); 
+    #define SAVE_IDS uid_t s_uid = plfs_getuid(); gid_t s_gid = plfs_getgid();
+    #define SET_IDS(X,Y)   plfs_setfsuid( X );    plfs_setfsgid( Y ); 
     #define RESTORE_GROUPS setgroups( orig_groups.size(),                   \
                                 (const gid_t*)&(orig_groups.front()));
 #endif
@@ -120,7 +114,7 @@ struct OpenFile {
                            ostringstream oss;                                \
                            oss << __FUNCTION__ << " got OpenFile for " <<    \
                                strPath.c_str() << " (" << of << ")" << endl; \
-                           Util::Debug("%s", oss.str().c_str() );   \
+                           plfs_debug("%s", oss.str().c_str() );   \
                        }
 
 std::vector<std::string> &
@@ -133,28 +127,14 @@ split(const std::string &s, const char delim, std::vector<std::string> &elems) {
     return elems;
 }
 
-// a utility for discovering whether something is a directory
-// we need to know this since file ops are handled by PLFS
-// but directory ops need to be handled here since we have
-// the multiple backend feature
-// we can't just stat the thing ourselves bec it could be a PLFS container
-// which looks like a directory to us
-bool Plfs::isDirectory( string path ) {
-    if ( is_plfs_file( path.c_str() ) ) {
-        return false;
-    } else {
-        return Util::isDirectory( path.c_str() );
-    }
-}
-
 // set this up to parse command line args
 // move code from constructor in here
 // and stop using /etc config file
 int Plfs::init( int *argc, char **argv ) {
         // figure out our hostname now in order to make containers
-    char hostname[PPATH];
+    char hostname[_POSIX_PATH_MAX];
     if (gethostname(hostname, sizeof(hostname)) < 0) {
-        Util::Debug("plfsfuse gethostname failed");
+        plfs_debug("plfsfuse gethostname failed");
         return -errno;
     }
     myhost = hostname; 
@@ -201,10 +181,11 @@ int Plfs::init( int *argc, char **argv ) {
 
 
         // create a dropping so we know when we start   
+    mode_t mode = (S_IRUSR|S_IWUSR|S_IXUSR|S_IXGRP|S_IXOTH); 
     int fd = open( "/tmp/plfs.starttime",
-            O_WRONLY | O_APPEND | O_CREAT, DEFAULT_MODE );
+            O_WRONLY | O_APPEND | O_CREAT, mode );
     char buffer[1024];
-    snprintf( buffer, 1024, "PLFS started at %.2f\n", Util::getTime() );
+    snprintf( buffer, 1024, "PLFS started at %.2f\n", plfs_wtime() );
     write( fd, buffer, strlen(buffer) );
     close( fd );
 
@@ -226,7 +207,7 @@ Plfs::Plfs () {
     wtfs                = 0;
     make_container_time = 0;
     o_rdwrs             = 0;
-    begin_time          = Util::getTime();
+    begin_time          = plfs_wtime();
 }
 
 string Plfs::expandPath( const char *path ) {
@@ -250,7 +231,7 @@ bool Plfs::isdebugfile( const char *path, const char *file ) {
 
 int Plfs::makePlfsFile( string expanded_path, mode_t mode, int flags ) {
     int res = 0;
-    Util::Debug("Need to create container for %s (%s %d)\n", 
+    plfs_debug("Need to create container for %s (%s %d)\n", 
             expanded_path.c_str(), 
             self->myhost.c_str(), fuse_get_context()->pid );
 
@@ -260,8 +241,8 @@ int Plfs::makePlfsFile( string expanded_path, mode_t mode, int flags ) {
         // if the container has already been created, don't create it again
         // hmmm, not sure about this code.  What if some other node unlinks
         // the container and then we'll assume it's created here?
-    double time_start = Util::getTime();
-    Util::MutexLock( &self->container_mutex, __FUNCTION__ );
+    double time_start = plfs_wtime();
+    plfs_mutex_lock( &self->container_mutex, __FUNCTION__ );
     int extra_attempts = 0;
     if (self->createdContainers.find(expanded_path)
             ==self->createdContainers.end()) 
@@ -270,17 +251,17 @@ int Plfs::makePlfsFile( string expanded_path, mode_t mode, int flags ) {
         self->extra_attempts += extra_attempts;
         if ( res == 0 ) {
             self->createdContainers.insert( expanded_path );
-            Util::Debug("%s Stashing mode for %s: %d\n",
+            plfs_debug("%s Stashing mode for %s: %d\n",
                 __FUNCTION__, expanded_path.c_str(), (int)mode );
             self->known_modes[expanded_path] = mode;
         }
     }
-    Util::MutexUnlock( &self->container_mutex, __FUNCTION__ );
+    plfs_mutex_unlock( &self->container_mutex, __FUNCTION__ );
 
-    double time_end = Util::getTime();
+    double time_end = plfs_wtime();
     self->make_container_time += (time_end - time_start);
     if ( time_end - time_start > 2 ) {
-        Util::Debug("WTF: %s of %s took %.2f secs\n", __FUNCTION__,
+        plfs_debug("WTF: %s of %s took %.2f secs\n", __FUNCTION__,
                 expanded_path.c_str(), time_end - time_start );
         self->wtfs++;
     }
@@ -414,11 +395,6 @@ int Plfs::f_getattr(const char *path, struct stat *stbuf) {
     PLFS_EXIT;
 }
 
-// a shortcut for functions that are expecting zero
-int Plfs::retValue( int res ) {
-    return Util::retValue( res );
-}
-
 // needs to work differently for directories
 int Plfs::f_utime (const char *path, struct utimbuf *ut) {
     PLFS_ENTER;
@@ -431,7 +407,7 @@ int Plfs::f_chmod (const char *path, mode_t mode) {
     PLFS_ENTER;
     ret = plfs_chmod( strPath.c_str(), mode );
     if ( ret == 0 ) {
-        Util::Debug("%s Stashing mode for %s: %d\n",
+        plfs_debug("%s Stashing mode for %s: %d\n",
             __FUNCTION__, strPath.c_str(), (int)mode );
         self->known_modes[strPath] = mode;
     }
@@ -481,7 +457,7 @@ int Plfs::set_groups( uid_t uid ) {
     struct passwd *pwd;
     vector<gid_t> groups;
     vector<gid_t> *groups_ptr;
-    static double age = Util::getTime();
+    static double age = plfs_wtime();
         // unfortunately, I think this whole thing needs to be in a mutex
         // it used to be the case that we only had the mutex around the
         // code to read the groups and the lookup was unprotected
@@ -489,12 +465,12 @@ int Plfs::set_groups( uid_t uid ) {
         // I'm not sure the data-structure is thread-safe
         // what if we get an itr, and then someone else frees the structure,
         // and then we try to dereference the itr?
-    Util::MutexLock( &self->group_mutex, __FUNCTION__ );
+    plfs_mutex_lock( &self->group_mutex, __FUNCTION__ );
 
     // purge the cache every 30 seconds
-    if ( Util::getTime() - age > 30 ) {
+    if ( plfs_wtime() - age > 30 ) {
         self->memberships.clear();
-        age = Util::getTime();
+        age = plfs_wtime();
     }
 
     // do the lookup
@@ -503,7 +479,7 @@ int Plfs::set_groups( uid_t uid ) {
 
     // if not found, find it and cache it
     if ( itr == self->memberships.end() ) {
-        Util::Debug("Need to find groups for %d\n", (int)uid );
+        plfs_debug("Need to find groups for %d\n", (int)uid );
         pwd      = getpwuid( uid );
         username = pwd->pw_name;
 
@@ -529,26 +505,14 @@ int Plfs::set_groups( uid_t uid ) {
     }
 
     // now unlock the mutex, set the groups, and return 
-    Util::MutexUnlock( &self->group_mutex, __FUNCTION__ );
+    plfs_mutex_unlock( &self->group_mutex, __FUNCTION__ );
     setgroups( groups_ptr->size(), (const gid_t*)&(groups_ptr->front()) ); 
     return 0;
 }
 		    
-// this is the only function where we have to do something before we
-// call PLFS_ENTER, we have to store the orig_groups of root, and we have
-// to set the supplementary groups of the caller
 int Plfs::f_chown (const char *path, uid_t uid, gid_t gid ) { 
     PLFS_ENTER;
-
-    if ( isDirectory( strPath ) ) {
-        ret = retValue( Util::Chown( strPath.c_str(), uid, gid ) );
-    } else {
-        ret = retValue( plfs_chown( strPath.c_str(), uid, gid ) );  
-    }
-
-    // restore the original groups when we leave
-    //setgroups( orig_groups.size(), (const gid_t*)&(orig_groups.front()));
-
+    ret = plfs_chown(strPath.c_str(),uid,gid);
     PLFS_EXIT;
 }
 
@@ -615,7 +579,7 @@ int Plfs::f_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
     vector<string> *dirents = (vector<string>*)fi->fh;
     for( size_t i = offset; i < dirents->size(); i++ ) {
-        //Util::Debug("Returned dirent %s\n",(*dirents)[i].c_str());
+        //plfs_debug("Returned dirent %s\n",(*dirents)[i].c_str());
         if ( 0 != filler(buf,(*dirents)[i].c_str(),NULL,i+1) ) {
             break;
         }
@@ -652,7 +616,7 @@ int Plfs::f_open(const char *path, struct fuse_file_info *fi) {
     // so to protect against this, move the mutex to the
     // back side of the plfs_open but that limits open
     // parallelism
-    Util::MutexLock( &self->fd_mutex, __FUNCTION__ );
+    plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
     pfd = findOpenFile( strPath );
     if ( ! pfd ) newly_created = true;
 
@@ -673,9 +637,9 @@ int Plfs::f_open(const char *path, struct fuse_file_info *fi) {
             addOpenFile( strPath, of->pid, pfd );
         }
     }
-    //Util::Debug("%s: %s ref count: %d\n", __FUNCTION__, 
+    //plfs_debug("%s: %s ref count: %d\n", __FUNCTION__, 
     //        strPath.c_str(), plfs_reference_count(pfd));
-    Util::MutexUnlock( &self->fd_mutex, __FUNCTION__ );
+    plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
 
     // we can safely add more writers to an already open file
     // bec FUSE checks f_access before allowing an f_open
@@ -705,22 +669,22 @@ int Plfs::f_release( const char *path, struct fuse_file_info *fi ) {
         // who created the container
         SET_IDS(    openfile->uid, openfile->gid );
         SET_GROUPS( openfile->uid );
-        Util::MutexLock( &self->fd_mutex, __FUNCTION__ );
+        plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
         assert( openfile->flags == fi->flags );
-        Util::Debug("%s: %s ref count: %d\n", __FUNCTION__, 
+        plfs_debug("%s: %s ref count: %d\n", __FUNCTION__, 
             strPath.c_str(), plfs_reference_count(of));
         int remaining = plfs_close( of, openfile->pid, fi->flags );
         fi->fh = (uint64_t)NULL;
         if ( remaining == 0 ) {
             removeOpenFile( strPath, openfile->pid, of );
         } else {
-            Util::Debug(
+            plfs_debug(
                 "%s not yet removing open file for %s, pid %u, %d remaining\n",
                 __FUNCTION__, strPath.c_str(), openfile->pid, remaining );
         }
         delete openfile;
         openfile = NULL;
-        Util::MutexUnlock( &self->fd_mutex, __FUNCTION__ );
+        plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
     }
     PLFS_EXIT;
 }
@@ -729,7 +693,7 @@ int Plfs::addOpenFile( string expanded, pid_t pid, Plfs_fd *pfd ) {
     ostringstream oss;
     oss << __FUNCTION__ << " adding OpenFile for " <<
         expanded << " (" << pfd << ") pid " << pid << endl;
-    Util::Debug("%s", oss.str().c_str() ); 
+    plfs_debug("%s", oss.str().c_str() ); 
     self->open_files[expanded] = pfd;
     return 0;
 }
@@ -741,7 +705,7 @@ int Plfs::addOpenFile( string expanded, pid_t pid, Plfs_fd *pfd ) {
 int Plfs::removeOpenFile( string expanded, pid_t pid, Plfs_fd *pfd ) {
     ostringstream oss;
     int erased = 0;
-    Util::Debug("%s", oss.str().c_str() ); 
+    plfs_debug("%s", oss.str().c_str() ); 
     erased = self->open_files.erase( expanded );
     oss << __FUNCTION__ << " removed " << erased << " OpenFile for " <<
                 expanded << " (" << pfd << ") pid " << pid << endl;
@@ -755,36 +719,36 @@ Plfs_fd *Plfs::findOpenFile( string expanded ) {
     HASH_MAP<string, Plfs_fd *>::iterator itr;
     itr = self->open_files.find( expanded );
     if ( itr == self->open_files.end() ) {
-        Util::Debug("No OpenFile found for %s\n", expanded.c_str() );
+        plfs_debug("No OpenFile found for %s\n", expanded.c_str() );
         pfd = NULL;
     } else {
         ostringstream oss;
         pfd = itr->second;
         oss << __FUNCTION__ << " OpenFile " << pfd << " found for " <<
             expanded.c_str() << endl;
-        Util::Debug("%s", oss.str().c_str() ); 
+        plfs_debug("%s", oss.str().c_str() ); 
     }
     return pfd;
 }
 
 // look up a mode to pass to plfs_open.  We need to stash it bec FUSE doesn't 
 // pass mode on open instead it passes it on mknod
+// we assume this is only called on a container.  might be weird otherwise.
 mode_t Plfs::getMode( string expanded ) {
     mode_t mode;
     char *whence;
     HASH_MAP<string, mode_t>::iterator itr =
             self->known_modes.find( expanded );
     if ( itr == self->known_modes.end() ) {
-            // Container::getmode returns DEFAULT_MODE if not found
-        Util::Debug("Pulling mode from Container\n" );
-        mode = Container::getmode( expanded.c_str() );
+        plfs_debug("Pulling mode from Container\n" );
+        plfs_mode(expanded.c_str(),&mode);
         self->known_modes[expanded] = mode;
         whence = (char*)"container";
     } else {
         mode = itr->second; 
         whence = (char*)"stashed value";
     }
-    Util::Debug("%s pulled mode %d from %s\n", 
+    plfs_debug("%s pulled mode %d from %s\n", 
             __FUNCTION__, mode, whence);
     return mode;
 }
@@ -797,55 +761,28 @@ int Plfs::f_write(const char *path, const char *buf, size_t size, off_t offset,
     PLFS_EXIT;
 }
 
-// handle this directly in fuse, no need to use plfs library
-// TODO:  This is wrong.  Needs to go through plfs.
+// not sure if this should return 0 on success like most FUSE ops 
+// or the number of chars placed in buffer like the system call readlink does
 int Plfs::f_readlink (const char *path, char *buf, size_t bufsize) {
     PLFS_ENTER;
-    /*
-    ssize_t char_count;
-    memset( (void*)buf, 0, bufsize);
-    char_count = readlink( strPath.c_str(), buf, bufsize );
-    if ( char_count != -1 ) {
-        ret = 0;
-        Util::Debug("Readlink at %s: %d\n", 
-            strPath.c_str(), char_count );
-    } else {
-        ret = retValue( -1 );
-    }
-    */
-    ret = -ENOSYS;
+    ret = plfs_readlink(strPath.c_str(),buf,bufsize); 
     PLFS_EXIT;
 }
 
-// handle this directly in fuse, no need to use plfs library
-// TODO:  This is wrong.  Needs to go through plfs.
-int Plfs::f_link( const char *path1, const char *path ) {
+int Plfs::f_link( const char *path, const char *to ) {
     PLFS_ENTER;
-    /*
-    Util::Debug("Making hard link from %s to %s\n", path1,
-                    strPath.c_str() );
-    Util::Debug("How do I check for EXDEV here?\n" );
-    ret = retValue( link( path1, strPath.c_str() ) );
-    */
-    ret = -ENOSYS;
+    string toPath = expandPath(to);
+    ret = plfs_link(strPath.c_str(),toPath.c_str());
     PLFS_EXIT;
 }
 
-// handle this directly in fuse, no need to use plfs library
-// TODO:  This is wrong.  Needs to go through plfs.
-int Plfs::f_symlink( const char *path1, const char *path ) {
+int Plfs::f_symlink( const char *path, const char *to ) {
     PLFS_ENTER;
-    /*
-    Util::Debug("Making symlink from %s to %s\n", path1,
-                    strPath.c_str() );
-    ret = retValue( Util::Symlink( path1, strPath.c_str() ) );
-    */
-    ret = -ENOSYS;
+    string toPath = expandPath(to);
+    ret = plfs_symlink(strPath.c_str(),toPath.c_str());
     PLFS_EXIT;
 }
 
-// handle this directly in fuse, no need to use plfs library
-// TODO:  This is wrong.  Needs to go through plfs.
 int Plfs::f_statfs(const char *path, struct statvfs *stbuf) {
     PLFS_ENTER;
     // tempting to stick some identifying info in here that we could
@@ -868,7 +805,7 @@ int Plfs::f_readn(const char *path, char *buf, size_t size, off_t offset,
     PLFS_ENTER; GET_OPEN_FILE;
     ostringstream os;
     os << __FUNCTION__ << " reading from " << of << endl;
-    Util::Debug("%s", os.str().c_str() );
+    plfs_debug("%s", os.str().c_str() );
     ret = plfs_read( of, buf, size, offset );
     PLFS_EXIT;
 }
@@ -876,7 +813,7 @@ int Plfs::f_readn(const char *path, char *buf, size_t size, off_t offset,
 string Plfs::openFilesToString() {
     ostringstream oss;
     size_t readers, writers;
-    Util::MutexLock( &self->fd_mutex, __FUNCTION__ );
+    plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
     int quant = self->open_files.size();
     oss << quant << " OpenFiles" << ( quant ? ": " : "" ) << endl;
     HASH_MAP<string, Plfs_fd *>::iterator itr;
@@ -886,7 +823,7 @@ string Plfs::openFilesToString() {
         oss << readers << " readers, "
             << writers << " writers. " << endl;
     }
-    Util::MutexUnlock( &self->fd_mutex, __FUNCTION__ );
+    plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
     return oss.str();
 }
 
@@ -912,6 +849,8 @@ int Plfs::writeDebug( char *buf, size_t size, off_t offset, const char *path ) {
     memset( tmpbuf, 0, maxsize );
 
     if ( isdebugfile( path, DEBUGFILE ) ) {
+        string stats;
+        plfs_stats( &stats );
         ret = snprintf( tmpbuf, DEBUGFILESIZE, 
                 "Version %s (SVN %s) (DATA %s)\n"
                 "Hostname %s, %.2f Uptime\n"
@@ -924,9 +863,9 @@ int Plfs::writeDebug( char *buf, size_t size, off_t offset, const char *path ) {
                 "%s",
                 STR(TAG_VERSION), STR(SVN_VERSION), STR(DATA_VERSION),
                 self->myhost.c_str(), 
-                Util::getTime() - self->begin_time,
+                plfs_wtime() - self->begin_time,
                 confToString(self->pconf).c_str(),
-                Util::toString().c_str(),
+                stats.c_str(),
                 self->make_container_time,
                 self->wtfs,
                 self->extra_attempts,
@@ -986,22 +925,29 @@ int Plfs::f_flush( const char *path, struct fuse_file_info *fi ) {
 }
 
 // returns 0 or -errno
+// there's complexity bec we saw bugs here before when we were doing
+// a cvs co into a plfs mount.  I think the problem was doing a rename
+// on an open file so that what the complexity is
+// but the basic flow is easy, the comments just explain the bug we saw before
+// the basic flow is:
+// lock the mutex 
+// call plfs_rename in the library
+// update the open files 
+// unlock the mutex
+// update other cached stuff such as created files and known modes
+// not actually sure we should maintain those caches though....
 int Plfs::f_rename( const char *path, const char *to ) {
     PLFS_ENTER;
-    string toPath   = expandPath( to );
-
-    if ( is_plfs_file( toPath.c_str() ) ) {
-        // we can't just call rename bec it won't trash a dir in the toPath
-        // so in case the toPath is a container, do this
-        // this might fail with ENOENT but that's fine
-        plfs_unlink( toPath.c_str() );
-    }
+    string toPath = expandPath(to);
 
         // when I do a cvs co plfs, it dies here
         // it creates a CVS/Entries.Backup file, then opens it, then
         // renames it to CVS/Entries, and then 
         // we need to figure out how to do rename on an open file....
-    Util::MutexLock( &self->fd_mutex, __FUNCTION__ );
+
+    // make the rename happen in the mutex so that no-one can start opening
+    // this thing until it's done
+    plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
         // ok, we remove the openfile at the old path
         // this means that when the release tries to remove it, it won't find it
         // but that's ok because not finding it doesn't bother the release.
@@ -1015,29 +961,27 @@ int Plfs::f_rename( const char *path, const char *to ) {
         // a new path and hopefully if it opens any new droppings it will do
         // so using the new path
     Plfs_fd *pfd = findOpenFile( strPath );
-    if ( pfd ) {
+    ret = plfs_rename(path,to);
+    if ( ret == 0 && pfd ) {
         pid_t pid = fuse_get_context()->pid;
         removeOpenFile( strPath, pid, pfd );
         addOpenFile( toPath, pid, pfd );
         pfd->setPath( toPath ); 
-        Util::Debug("Rename open file %s -> %s (hope this works\n", 
+        plfs_debug("Rename open file %s -> %s (hope this works\n", 
                 path, to );
-        //ret = -ENOSYS;
     }
-    // make the rename happen in the mutex so that no-one can start opening
-    // this thing until it's done
-    ret = plfs_rename( pfd, strPath.c_str(), toPath.c_str() );
-    Util::MutexUnlock( &self->fd_mutex, __FUNCTION__ );
+    plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
 
+    // update some of the caches that we maintain
     if ( ret == 0 ) {
-        Util::MutexLock( &self->container_mutex, __FUNCTION__ );
+        plfs_mutex_lock( &self->container_mutex, __FUNCTION__ );
         if (self->createdContainers.find(strPath)
                 !=self->createdContainers.end()) 
         {
             self->createdContainers.erase( strPath );
             self->createdContainers.insert( toPath );
         }
-        Util::MutexUnlock( &self->container_mutex, __FUNCTION__ );
+        plfs_mutex_unlock( &self->container_mutex, __FUNCTION__ );
         if ( self->known_modes.find(strPath) != self->known_modes.end() ) {
             self->known_modes[toPath] = self->known_modes[strPath];
             self->known_modes.erase(strPath);
