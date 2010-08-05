@@ -50,12 +50,12 @@ plfs.spec \
 BUGS \
 Changelog \
 easyconf.sh \
-plfsrc.example \
 README.install \
 README.testing \
 ad-patches
 
 SUBDIRS = \
+config \
 src \
 fuse \
 ad_plfs \

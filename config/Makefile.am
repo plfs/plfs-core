@@ -13,14 +13,14 @@
 #
 # Additionally, redistribution and use in source and binary forms, with or
 # without modification, are permitted provided that the following conditions are
-# met:
+# met: 
 #
 # •    Redistributions of source code must retain the above copyright notice,
 # this list of conditions and the following disclaimer.
 #
 # •   Redistributions in binary form must reproduce the above copyright notice,
 # this list of conditions and the following disclaimer in the documentation
-# and/or other materials provided with the distribution.
+# and/or other materials provided with the distribution.  
 #
 # •   Neither the name of Los Alamos National Security, LLC, Los Alamos National
 # Laboratory, LANL, the U.S. Government, nor the names of its contributors may
@@ -40,43 +40,4 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 EXTRA_DIST = \
-plfs.sysconfig \
-plfsrc.example \
-plfs.init
-
-################################################################################
-# plfs
-################################################################################
-
-plfs_def_PLFS_MNT = /mnt/plfs
-
-sources = \
-plfs_fuse.cpp \
-main.C
-
-headers = \
-fusexx.h \
-plfs_fuse.h
-
-bin_PROGRAMS =
-
-if PLFS_BUILD_FUSE
-bin_PROGRAMS += plfs
-
-plfs_SOURCES = \
-$(headers) \
-$(sources)
-
-# -D_FILE_OFFSET_BITS=64 needed by fuse
-plfs_CXXFLAGS = \
--DPLFS_TIMES \
--DCOUNT_SKIPS \
--D_FILE_OFFSET_BITS=64 \
--I$(top_srcdir)/src \
-@PLFS_FUSE_CXXFLAGS@
-
-plfs_LDFLAGS = \
--L../src \
-@PLFS_FUSE_LDFLAGS@ @PLFS_FUSE_LIBS@ \
--lplfs
-endif
+plfs_get_svnversion.sh
