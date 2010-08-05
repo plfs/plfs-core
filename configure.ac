@@ -57,17 +57,14 @@ AC_COPYRIGHT([
 [Copyright 2009-2010 Los Alamos National Security, LLC. All Rights Reserved.]
 ])
 
-AC_PATH_PROG([SVNVERSION], [svnversion])
 AC_PATH_PROG([PKGCONFIG], [pkg-config])
 
-AS_IF([test -z "$SVNVERSION"],
-      define([PLFS_SVN_VERSION], [esyscmd([echo unknown])]),
-      define([PLFS_SVN_VERSION], [esyscmd([svnversion .])]))
-
 # populate config.h with some defs that PLFS relies on
-AC_DEFINE([SVN_VERSION], [PLFS_SVN_VERSION], [PLFS SVN version])
 AC_DEFINE([TAG_VERSION], [PLFS_VERSION], [PLFS tag version])
 AC_DEFINE([DATA_VERSION], [PLFS_VERSION_LAYOUT], [PLFS container version])
+AC_DEFINE([SVN_VERSION],
+    [m4_normalize(esyscmd([config/plfs_get_svnversion.sh]))],
+    [PLFS SVN version])
 
 AC_CONFIG_AUX_DIR([config])
 AC_CONFIG_MACRO_DIR([config])
