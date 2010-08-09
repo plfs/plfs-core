@@ -1,12 +1,19 @@
 #!/bin/bash
 
 cmd=svnversion
+unknown_str=UNKNOWN
 
 if [[ "`type -P $cmd`" != "" ]]
 then
-    $cmd . 
+    $cmd . > /dev/null 2>&1
+    if [[ $? != 1 ]]
+    then
+        $cmd .
+    else
+        echo $unknown_str
+    fi
 else
-    echo "UNKNOWN"
+    echo $unknown_str
 fi
 
 # Copyright (c) 2009-2010, Los Alamos National Security, LLC. All rights
