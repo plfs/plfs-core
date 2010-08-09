@@ -4,7 +4,7 @@ cmd=svnversion
 
 if [[ "`type -P $cmd`" != "" ]]
 then
-    $cmd
+    $cmd . 
 else
     echo "UNKNOWN"
 fi
