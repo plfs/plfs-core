@@ -16,6 +16,7 @@
 #include <stdlib.h>
 using namespace std;
 
+
 #define PLFS_ENTER string path = expandPath(logical); \
     Util::Debug("EXPAND in %s: %s->%s\n",__FUNCTION__,logical,path.c_str()); \
     int ret = 0;
@@ -141,9 +142,9 @@ expandPath(string logical) {
     // so now go through resolve_tokens and build up the physical path
     string resolved;
     for(size_t j = 0; j < resolve_tokens.size(); j++) {
-        resolved += '/';
         string tok = resolve_tokens[j];
         if ( tok.c_str()[0] == '$' ) {
+            resolved += '/';
             // if it's a var, replace it with the var we discovered
             resolved += expected_map[tok];  // assumes valid plfsrc map
         } else if ( strncmp(tok.c_str(),"HASH",4)==0 ) {
@@ -159,10 +160,11 @@ expandPath(string logical) {
             total %= pconf->backends.size();
             resolved += pconf->backends[total];
         } else {
+            resolved += '/';
             resolved += tok;
         }
     }
-
+    
     // now throw on all of the remaining that weren't expected
     for(size_t k = expected_tokens.size(); k < remaining_tokens.size(); k++){
         resolved += "/" + remaining_tokens[k];
@@ -296,12 +298,14 @@ int
 plfs_mkdir( const char *logical, mode_t mode ) {
     PLFS_ENTER;
     ret = retValue(Util::Mkdir(path.c_str(),mode));
+    PLFS_EXIT(ret);
 }
 
 int
 plfs_rmdir( const char *logical ) {
     PLFS_ENTER;
     ret = retValue(Util::Rmdir(path.c_str()));
+    PLFS_EXIT(ret);
 }
 
 int
@@ -766,8 +770,7 @@ get_plfs_conf() {
                 " is not a valid backend directory.\n";
         }
     }
-
-    // make sure the mount point matches the map
+    
     vector<string> map_tokens;
     vector<string> mnt_tokens;
     tokenize(hidden->map,"/",map_tokens);
@@ -781,7 +784,7 @@ get_plfs_conf() {
             hidden->map + " does not match mount " + hidden->mnt_pt + "\n";
         } 
     } 
-
+    
     if ( hidden->error ) return hidden;
 
     pconf = hidden; // don't clear the NULL until fully populated
@@ -1040,6 +1043,7 @@ removeDirectoryTree( const char *path, bool truncate_only ) {
             ret = 0;
         }
         ret = retValue( ret );
+        return ret;
     }
 }
             

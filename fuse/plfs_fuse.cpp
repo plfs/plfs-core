@@ -211,7 +211,7 @@ Plfs::Plfs () {
 }
 
 string Plfs::expandPath( const char *path ) {
-    string full_logical( self->pconf->mnt_pt + "/" + path );
+    string full_logical( self->pconf->mnt_pt + path );
     bool plfs_lib_is_ready = true;
     if ( plfs_lib_is_ready ) return full_logical;
     else return path;
@@ -420,6 +420,7 @@ int Plfs::get_groups( vector<gid_t> *vec ) {
     gid_t *groups = new gid_t[ngroups];
     //(gid_t *) malloc(ngroups * sizeof (gid_t));
     int val = getgroups (ngroups, groups);
+    //int val = fuse_getgroups(ngroups, groups);
     for( int i = 0; i < val; i++ ) {
         vec->push_back( groups[i] );
     }
@@ -483,7 +484,7 @@ int Plfs::set_groups( uid_t uid ) {
         pwd      = getpwuid( uid );
         username = pwd->pw_name;
 
-            // read the groups to discover the memberships of the caller
+         // read the groups to discover the memberships of the caller
         struct group *grp;
         char         **members;
 
@@ -579,7 +580,7 @@ int Plfs::f_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
     vector<string> *dirents = (vector<string>*)fi->fh;
     for( size_t i = offset; i < dirents->size(); i++ ) {
-        //plfs_debug("Returned dirent %s\n",(*dirents)[i].c_str());
+        plfs_debug("Returned dirent %s\n",(*dirents)[i].c_str());
         if ( 0 != filler(buf,(*dirents)[i].c_str(),NULL,i+1) ) {
             break;
         }
