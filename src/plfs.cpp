@@ -810,8 +810,7 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
     // this breaks things when tar is trying to create new files
     // with --r--r--r bec we create it w/ that access and then 
     // we can't write to it
-    //ret = checkAccess( strPath, fi ); 
-
+    //ret = checkAccess(logical,flags); 
     if ( flags & O_CREAT ) {
         ret = plfs_create( logical, mode, flags ); 
     }
@@ -876,8 +875,10 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
         if ( wf && new_writefile) (*pfd)->setWritefile( wf ); 
         if ( index && new_index ) (*pfd)->setIndex( index  ); 
     }
-    if ( ret == 0 ) (*pfd)->incrementOpens(1);
-    plfs_reference_count(*pfd);
+    if ( ret == 0 ) {
+        (*pfd)->incrementOpens(1);
+        plfs_reference_count(*pfd);
+    }
     PLFS_EXIT(ret);
 }
 

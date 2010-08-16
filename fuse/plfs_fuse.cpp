@@ -480,27 +480,28 @@ int Plfs::set_groups( uid_t uid ) {
 
     // if not found, find it and cache it
     if ( itr == self->memberships.end() ) {
-        plfs_debug("Need to find groups for %d\n", (int)uid );
         pwd      = getpwuid( uid );
-        username = pwd->pw_name;
+        if( pwd ) {
+            plfs_debug("Need to find groups for %d\n", (int)uid );
+            username = pwd->pw_name;
 
-         // read the groups to discover the memberships of the caller
-        struct group *grp;
-        char         **members;
-
-        setgrent();
-        while( (grp = getgrent()) != NULL ) {
-            members = grp->gr_mem;
-            while (*members) {
-                if ( strcmp( *(members), username ) == 0 ) {
-                    groups.push_back( grp->gr_gid );
+            // read the groups to discover the memberships of the caller
+            struct group *grp;
+            char         **members;
+            setgrent();
+            while( (grp = getgrent()) != NULL ) {
+                members = grp->gr_mem;
+                while (*members) {
+                    if ( strcmp( *(members), username ) == 0 ) {
+                        groups.push_back( grp->gr_gid );
+                    }
+                    members++;
                 }
-                members++;
             }
+            endgrent();
+            self->memberships[uid] = groups;
+            groups_ptr = &groups;
         }
-        endgrent();
-        self->memberships[uid] = groups;
-        groups_ptr = &groups;
     } else {
         groups_ptr = &(itr->second);
     }
@@ -510,7 +511,7 @@ int Plfs::set_groups( uid_t uid ) {
     setgroups( groups_ptr->size(), (const gid_t*)&(groups_ptr->front()) ); 
     return 0;
 }
-		    
+
 int Plfs::f_chown (const char *path, uid_t uid, gid_t gid ) { 
     PLFS_ENTER;
     ret = plfs_chown(strPath.c_str(),uid,gid);
