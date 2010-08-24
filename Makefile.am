@@ -52,6 +52,7 @@ Changelog \
 easyconf.sh \
 README.install \
 README.testing \
+plfsrc.example \
 ad-patches
 
 SUBDIRS = \
