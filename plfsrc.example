@@ -12,4 +12,6 @@ mount_point /tmp/plfs
 
 # this shows how to read the logical and construct
 # the physical, the beginning of it must match the mount point
-map /tmp/plfs/$1:HASH($1)/$1
+# the end of it should match the backend
+# see plfsrc.example.lanl for a more complicated plfsrc file
+map /tmp/plfs/:/tmp/.plfs_store
