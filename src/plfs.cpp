@@ -923,6 +923,7 @@ plfs_rename( const char *logical, const char *to ) {
         // this might fail with ENOENT but that's fine
         plfs_unlink(to);
     }
+    Util::Debug("Trying to rename %s to %s\n", path.c_str(), topath.c_str());
     ret = retValue( Util::Rename(path.c_str(), topath.c_str()));
     PLFS_EXIT(ret);
 }
