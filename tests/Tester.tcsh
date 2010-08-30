@@ -27,38 +27,44 @@ endif
 /bin/rm $PLFS_MNT/passwd
 
 # CVS
-pushd .
-cd $PLFS_MNT
-cvs co plfs
-if ( $? != 0 ) then
-    echo failure
-    exit 1
-endif 
-make -C plfs/src/cpp clean all
-if ( $? != 0 ) then
-    echo failure
-    exit 1
-endif 
-./plfs/src/cpp/plfs >& usage.out 
-grep -q 'No valid backend' usage.out
-if ( $? != 0 ) then
-    echo failure
-    exit 1
-endif 
-/bin/rm usage.out
-/bin/rm -r plfs
-if ( $? != 0 ) then
-    echo failure
-    exit 1
-endif 
+set have_cvs = 0
+if ( $have_cvs == 1 ) then
+  pushd .
+  cd $PLFS_MNT
+  cvs co plfs
+  if ( $? != 0 ) then
+      echo failure
+      exit 1
+  endif 
+  make -C plfs/src/cpp clean all
+  if ( $? != 0 ) then
+      echo failure
+      exit 1
+  endif 
+  ./plfs/src/cpp/plfs >& usage.out 
+  grep -q 'No valid backend' usage.out
+  if ( $? != 0 ) then
+      echo failure
+      exit 1
+  endif 
+  /bin/rm usage.out
+  /bin/rm -r plfs
+  if ( $? != 0 ) then
+      echo failure
+      exit 1
+  endif 
+else 
+  echo "Not running cvs test bec no cvs on this machine"
+endif
 
 # FS_TEST
-# do one straight to PLFS-MNT, one through PLFS-MPI, and one through PLFS-MPI to
-# the PLFS-MNT for the layered test
-foreach target ( $PLFS_MNT/out.%s plfs:$PLFS_BACK/out.%s plfs:$PLFS_MNT/out.%s ) 
-    mpirun -np $np $HOME/Testing/test_fs/src/fs_test.$MY_MPI_HOST.x \
+# do one straight to PLFS-MNT, one through PLFS-MPI 
+foreach target ( $PLFS_MNT/out.%s plfs:$PLFS_MNT/out.%s ) 
+    set c = "mpirun -np $np $HOME/Testing/test_fs/src/fs_test.$MY_MPI_HOST.x \
         -type 2 -strided 1 -size 47001 -time 3 -touch 2 -check 2 \
-        -target $target -deletefile
+        -target $target -deletefile"
+    echo $c
+    $c
     if ( $? != 0 ) then
         echo failure
         exit 1

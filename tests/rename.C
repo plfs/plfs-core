@@ -22,20 +22,24 @@ Usage( char *prog, int line ) {
 int
 main( int argc, char **argv ) {
     char *prog = strdup( argv[0] );
-    char buf[100];
-    memset( buf, 0, 100 );
+    char buf[4096];
+    memset( buf, 0, 4096 );
 
     int arg = 0;
     char *target  = NULL;
     char *newtarg = NULL;
+    char *cattarg = NULL;
     int c;
-    while( ( c = getopt( argc, argv, "n:t:" )) != EOF ) {
+    while( ( c = getopt( argc, argv, "n:t:c:" )) != EOF ) {
         switch( c ) {
             case 't':
             target = strdup( optarg );
             break;
             case 'n':
             newtarg = strdup( optarg );
+            break;
+            case 'c':
+            cattarg = strdup( optarg );
             break;
         default:
             Usage( prog, __LINE__ );
@@ -54,6 +58,22 @@ main( int argc, char **argv ) {
         exit( 1 );
     }
     fprintf( fp, "Hello world!\n" );
+
+    // try to read from the cat target
+    if ( cattarg ) {
+        FILE *cat = fopen( cattarg, "r" );
+        if ( ! cat ) {
+            perror( "fopen" );
+            exit( 1 );
+        }
+        if ( fread( buf, 4096, 1, cat ) < 0 ) {
+            perror( "fread" );
+            exit( 1 );
+        }
+        printf( "Read %s from %s\n", buf, cattarg );
+        fclose(cat);
+        memset( buf, 0, 4096 );
+    }
 
     if ( newtarg ) {
         if ( 0 != rename( target, newtarg ) ) {
@@ -80,7 +100,7 @@ main( int argc, char **argv ) {
     printf( "Read %s from %s\n", buf, ( newtarg ? newtarg : target ) );
 
     if ( strcmp( buf, "Hello world!\nGoodbye world!\n" ) != 0 ) {
-        printf( "data integrity error" );
+        printf( "data integrity error (%s)\n", buf );
         exit( 1 );
     }
 
