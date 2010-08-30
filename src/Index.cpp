@@ -595,8 +595,8 @@ int Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
         */
         Util::Debug("Not opening chunk file %s yet\n", cf_ptr->path.c_str());
     }
-    Util::Debug("Will read from chunk %s at off %ld\n",
-            cf_ptr->path.c_str(), (long)*chunk_off );
+    Util::Debug("Will read from chunk %s at off %ld (shift %ld)\n",
+            cf_ptr->path.c_str(), (long)*chunk_off, (long)shift );
     *fd = cf_ptr->fd;
     path = cf_ptr->path;
     return 0;

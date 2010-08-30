@@ -243,6 +243,11 @@ int Container::populateIndex( const char *path, Index *index ) {
             }
         }
     }
+    /*
+    if ( ret == 0 ) {
+        cerr << "Done " << __FUNCTION__ << " DUMP Index: " << (*index) << endl;
+    }
+    */
     return ret;
 }
 

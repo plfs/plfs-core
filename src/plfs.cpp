@@ -27,6 +27,7 @@ typedef struct {
     int fd;
     size_t length;
     off_t chunk_offset; 
+    off_t logical_offset;
     char *buf;
     pid_t chunk_id; // in order to stash fd's back into the index
     string path;
@@ -347,6 +348,7 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
         if ( ret == 0 ) {
             task.length = min(bytes_remaining,(ssize_t)task.length); 
             task.buf = &(buf[bytes_traversed]); 
+            task.logical_offset = offset;
             bytes_remaining -= task.length; 
             bytes_traversed += task.length;
         }
@@ -361,13 +363,16 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
 
                 // check to see if we can combine small sequential reads
                 // when merging is off, that breaks things even more.... ? 
+                // there seems to be a merging bug now too
             if ( ! tasks->empty() > 0 ) {
                 ReadTask lasttask = tasks->back();
 
                 if ( lasttask.fd == task.fd && 
                      lasttask.hole == task.hole &&
                      lasttask.chunk_offset + (off_t)lasttask.length ==
-                     task.chunk_offset ) 
+                     task.chunk_offset &&
+                     lasttask.logical_offset + (off_t)lasttask.length ==
+                     task.logical_offset ) 
                 {
                     // merge last into this and pop last
                     oss << chunk++ << ".1) Merge with last index entry offset " 
