@@ -912,11 +912,11 @@ plfs_rename( const char *logical, const char *to ) {
     PLFS_ENTER;
     string topath = expandPath( to );
 
-    if ( is_plfs_file(logical) ) {
+    if ( is_plfs_file(to) ) {
         // we can't just call rename bec it won't trash a dir in the toPath
         // so in case the toPath is a container, do this
         // this might fail with ENOENT but that's fine
-        plfs_unlink(logical);
+        plfs_unlink(to);
     }
     ret = retValue( Util::Rename(path.c_str(), topath.c_str()));
     PLFS_EXIT(ret);
