@@ -123,7 +123,7 @@ int Container::cleanupChmod( const char *path, mode_t mode , int top ,
     struct dirent *dent         = NULL;
     DIR *dir                    = NULL; 
     int ret                     = 0;
-    struct stat *creator_info   = (struct stat*)malloc(sizeof(struct stat));
+    struct stat creator_info;   
     
     if ( top == 1 ) {
         string creator_path ( path );
@@ -131,8 +131,8 @@ int Container::cleanupChmod( const char *path, mode_t mode , int top ,
         // Stat the creator file for the uid and gid 
         ret = Util::Stat( creator_path.c_str() , &creator_info );
         if (ret == 0 ) {
-            uid = creator_info->st_uid;
-            gid = creator_info->st_gid;
+            uid = creator_info.st_uid;
+            gid = creator_info.st_gid;
         }
         else return ret;
     }

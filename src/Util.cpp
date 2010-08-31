@@ -648,7 +648,7 @@ char *Util::hostname() {
     return hname;
 }
 
-int Util::Stat( const char *path, struct stat ** file_info)
+int Util::Stat( const char *path, struct stat * file_info)
 {
-    return stat( path , *file_info );
+    return stat( path , file_info );
 }  
