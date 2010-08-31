@@ -48,7 +48,7 @@ class Container {
 
         static int addMeta( off_t, size_t, const char *, const char * );
         static string fetchMeta( string, off_t *, size_t *, struct timespec * );
-        static int addOpenrecord( const char *, const char *, pid_t, mode_t mode );
+        static int addOpenrecord( const char *, const char *, pid_t );
         static int removeOpenrecord( const char *, const char *, pid_t );
 
         static string getHostDirPath( const char *, const char * );

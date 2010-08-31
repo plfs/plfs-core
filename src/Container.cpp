@@ -24,6 +24,8 @@ int Container::Access( const char *path, int mask ) {
     // there used to be some concern here that the accessfile might not
     // exist yet but the way containers are made ensures that an accessfile
     // will exist if the container exists
+    // doing just Access is insufficient when plfs daemon run as root
+    // root can access everything.  so, we must also try the open
    
     int mode;
     int ret;
@@ -127,7 +129,8 @@ int Container::cleanupChmod( const char *path, mode_t mode , int top ,
     
     if ( top == 1 ) {
         string creator_path ( path );
-        creator_path += "/creator";
+        creator_path += "/";
+        creator_path += CREATORFILE;
         // Stat the creator file for the uid and gid 
         ret = Util::Stat( creator_path.c_str() , &creator_info );
         if (ret == 0 ) {
@@ -145,10 +148,10 @@ int Container::cleanupChmod( const char *path, mode_t mode , int top ,
     while( ret == 0 && (dent = readdir( dir )) != NULL ) {
         string full_path( path ); full_path += "/"; full_path += dent->d_name;
         if (!strcmp(dent->d_name,".")||!strcmp(dent->d_name,"..")
-                ||!strcmp(dent->d_name,"creator") 
-                ||!strncmp(dent->d_name,".plfs", 5)) continue;
-        if (!strncmp( dent->d_name , "hostdir" , 7 ) ||
-                !strncmp( dent->d_name , "dropping" ,8 )) {
+                ||!strcmp(dent->d_name, CREATORFILE ) 
+                ||!strcmp(dent->d_name, ACCESSFILE )) continue;
+        if (!strncmp( dent->d_name , HOSTDIRPREFIX, 8) ||
+                !strncmp( dent->d_name , DROPPINGPREFIX , 8 )) {
             if ( Util::isDirectory( full_path.c_str() ) ) {
                 ret = cleanupChmod( full_path.c_str() , mode , 0 , uid , gid );
                 if ( ret != 0 ) break;
@@ -477,13 +480,11 @@ string Container::getOpenrecord( const char *path, const char *host, pid_t pid){
 
 // if this fails because the openhostsdir doesn't exist, then make it
 // and try again
-int Container::addOpenrecord( const char *path, const char *host, 
-        pid_t pid, mode_t mode ) {
-        
+int Container::addOpenrecord( const char *path, const char *host, pid_t pid) {
     string openrecord = getOpenrecord( path, host, pid );
     int ret = Util::Creat( openrecord.c_str(), DEFAULT_MODE );
     if ( ret != 0 && ( errno == ENOENT || errno == ENOTDIR ) ) {
-        makeSubdir( getOpenHostsDir(path), mode );
+        makeSubdir( getOpenHostsDir(path), DEFAULT_MODE );
         ret = Util::Creat( openrecord.c_str(), DEFAULT_MODE );
     }
     if ( ret != 0 ) {
@@ -689,7 +690,6 @@ int Container::makeTopLevel( const char *expanded_path,
     oss << strPath << "." << hostname << "." << getpid();
     string tmpName( oss.str() ); 
     string tmpAccess( getAccessFilePath(tmpName) );
-    string tmpCreator( getCreatorFilePath(tmpName));
     if ( Util::Mkdir( tmpName.c_str(), dirMode(mode) ) < 0 ) {
         if ( errno != EEXIST && errno != EISDIR ) {
             Util::Debug("Mkdir %s to %s failed: %s\n",
@@ -705,10 +705,9 @@ int Container::makeTopLevel( const char *expanded_path,
             }
         }
     }
-    // Think of changing me to provide more information to the Debug function
-    if ( makeAccess( tmpAccess, mode ) < 0 || makeCreator( tmpCreator ) < 0 ) {
-        Util::Debug("create access file or makeCreator in %s failed: %s\n",
-                tmpName.c_str(), strerror(errno) );
+    if ( makeAccess( tmpAccess, mode ) < 0 ) {
+        Util::Debug("create access file in %s failed: %s\n", 
+                        tmpName.c_str(), strerror(errno) );
         int saveerrno = errno;
         if ( Util::Rmdir( tmpName.c_str() ) != 0 ) {
             Util::Debug("rmdir of %s failed : %s\n",
@@ -716,8 +715,6 @@ int Container::makeTopLevel( const char *expanded_path,
         }
         return -saveerrno;
     }
-
-    
     // ok, this rename sometimes takes a long time
     // what if we check first to see if the dir already exists
     // and if it does don't bother with the rename
@@ -797,6 +794,11 @@ int Container::makeTopLevel( const char *expanded_path,
                 if ( makeDropping( versionfile ) < 0 ) {
                     return -errno;
                 }
+            }
+            if ( makeCreator( getCreatorFilePath(strPath) ) < 0 ) {
+                Util::Debug("create access file %s failed\n", 
+                                strPath.c_str() );
+                return -errno;
             }
             break;
         }

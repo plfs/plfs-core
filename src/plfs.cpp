@@ -218,15 +218,18 @@ addWriter( WriteFile *wf, pid_t pid, const char *path, mode_t mode ) {
     }
     PLFS_EXIT(ret);
 }
+
 int
 isWriter( int flags ) {
     return (flags & O_WRONLY || flags & O_RDWR);
 }
+
 int isReader( int flags ) {
-    if ( flags == 0 )
-        return 1;
+    // Read only is a 0 flag so we need to return 1 if flags is 0
+    if ( flags == 0 ) return 1;
     else return (flags & O_RDONLY || flags & O_RDWR );
 }
+
 // this requires that the supplementary groups for the user are set
 int 
 plfs_chown( const char *logical, uid_t u, gid_t g ) {
@@ -818,6 +821,8 @@ get_plfs_conf() {
 // pass in a NULL Plfs_fd to have one created for you
 // pass in a valid one to add more writers to it
 // one problem is that we fail if we're asked to overwrite a normal file
+// in RDWR mode, we increment reference count twice.  make sure to decrement
+// twice on the close
 int
 plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
     PLFS_ENTER;
@@ -894,22 +899,20 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
         // only create the open record for files opened for writing
         if ( wf ) {
             ret = Container::addOpenrecord(path.c_str(), 
-                Util::hostname(), pid, mode);
+                Util::hostname(), pid );
         }
         //cerr << __FUNCTION__ << " added open record for " << path << endl;
     } else if ( ret == 0 ) {
         if ( wf && new_writefile) (*pfd)->setWritefile( wf ); 
         if ( index && new_index ) (*pfd)->setIndex( index  ); 
     }
-    if (ret == 0 && isWriter(flags))
-    {
-        (*pfd)->incrementOpens(1);
-    }
-    if(ret == 0 && isReader(flags))
-    {
-        (*pfd)->incrementOpens(1);
-    }
-    if ( ret == 0 ) {
+    if (ret == 0) {
+        if (isWriter(flags)) {
+            (*pfd)->incrementOpens(1);
+        }
+        if(isReader(flags)) {
+            (*pfd)->incrementOpens(1);
+        }
         plfs_reference_count(*pfd);
     }
     PLFS_EXIT(ret);

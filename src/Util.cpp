@@ -260,8 +260,6 @@ int Util::Unlink( const char *path ) {
 
 
 int Util::Access( const char *path, int mode ) {
-    // access system call uses the process uid so this call 
-    // needs to rely on another method to check access 
     ENTER_PATH;
     ret = access( path, mode );
     EXIT_UTIL;

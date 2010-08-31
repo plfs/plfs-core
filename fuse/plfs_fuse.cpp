@@ -724,7 +724,6 @@ int Plfs::addOpenFile( string expanded, pid_t pid, Plfs_fd *pfd) {
     oss << __FUNCTION__ << " adding OpenFile for " <<
         expanded << " (" << pfd << ") pid " << pid << endl;
     plfs_debug("%s", oss.str().c_str() ); 
-    expanded.append(".");
     self->open_files[expanded] = pfd;
     return 0;
 }
