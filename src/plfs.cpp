@@ -173,6 +173,20 @@ expandPath(string logical) {
     return resolved;
 }
 
+// For chmod we need to guarantee that the creator owns all of 
+// the droppings in the hostdirs and that their mode is set
+// accordingly
+int 
+plfs_chmod_cleanup(const char *logical,mode_t mode ) {   
+    PLFS_ENTER;
+    if ( is_plfs_file( logical )) {
+        ret = Container::cleanupChmod( path.c_str() , mode , 1 , 0 , 0);
+    }
+    else ret = 0;
+    
+    PLFS_EXIT( ret );
+}
+
 // a shortcut for functions that are expecting zero
 int 
 retValue( int res ) {
@@ -189,6 +203,7 @@ plfs_create( const char *logical, mode_t mode, int flags ) {
     PLFS_ENTER;
     int attempt = 0;
     return Container::create(path.c_str(),Util::hostname(),mode,flags,&attempt);
+
 }
 
 int
@@ -207,12 +222,16 @@ int
 isWriter( int flags ) {
     return (flags & O_WRONLY || flags & O_RDWR);
 }
-
+int isReader( int flags ) {
+    if ( flags == 0 )
+        return 1;
+    else return (flags & O_RDONLY || flags & O_RDWR );
+}
 // this requires that the supplementary groups for the user are set
 int 
 plfs_chown( const char *logical, uid_t u, gid_t g ) {
     PLFS_ENTER;
-    if ( is_plfs_file(logical) ) {
+    if ( is_plfs_file( logical ) ) {
         ret = Container::Chown( path.c_str(), u, g );
     } else {
         ret = retValue(Util::Chown(path.c_str(),u,g)); 
@@ -237,7 +256,7 @@ plfs_debug( const char *format, ... ) {
 int
 plfs_access( const char *logical, int mask ) {
     PLFS_ENTER;
-    if ( is_plfs_file(logical) ) {
+    if ( is_plfs_file( logical ) ) {
         ret = retValue( Container::Access( path.c_str(), mask ) );
     } else {
         ret = retValue( Util::Access( path.c_str(), mask ) );
@@ -248,7 +267,7 @@ plfs_access( const char *logical, int mask ) {
 int 
 plfs_chmod( const char *logical, mode_t mode ) {
     PLFS_ENTER;
-    if ( is_plfs_file(logical) ) {
+    if ( is_plfs_file( logical ) ) {
         ret = retValue( Container::Chmod( path.c_str(), mode ) );
     } else {
         ret = retValue( Util::Chmod( path.c_str(), mode ) );
@@ -312,7 +331,7 @@ plfs_rmdir( const char *logical ) {
 int
 plfs_utime( const char *logical, struct utimbuf *ut ) {
     PLFS_ENTER;
-    if ( is_plfs_file(logical) ) {
+    if ( is_plfs_file( logical ) ) {
         ret = Container::Utime( path.c_str(), ut );
     } else {
         ret = retValue( Util::Utime( path.c_str(), ut ) );
@@ -815,7 +834,7 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
     // this breaks things when tar is trying to create new files
     // with --r--r--r bec we create it w/ that access and then 
     // we can't write to it
-    //ret = checkAccess(logical,flags); 
+    //ret = Container::Access(path.c_str(),flags);
     if ( flags & O_CREAT ) {
         ret = plfs_create( logical, mode, flags ); 
     }
@@ -849,7 +868,8 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
             delete wf;
             wf = NULL;
         }
-    } else if ( ret == 0 ) {
+    }
+    if ( ret == 0 && isReader(flags)) {
         if ( *pfd ) {
             index = (*pfd)->getIndex();
         }
@@ -873,15 +893,23 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
         // we create one open record for all the pids using a file
         // only create the open record for files opened for writing
         if ( wf ) {
-            ret = Container::addOpenrecord(path.c_str(), Util::hostname(), pid);
+            ret = Container::addOpenrecord(path.c_str(), 
+                Util::hostname(), pid, mode);
         }
         //cerr << __FUNCTION__ << " added open record for " << path << endl;
     } else if ( ret == 0 ) {
         if ( wf && new_writefile) (*pfd)->setWritefile( wf ); 
         if ( index && new_index ) (*pfd)->setIndex( index  ); 
     }
-    if ( ret == 0 ) {
+    if (ret == 0 && isWriter(flags))
+    {
         (*pfd)->incrementOpens(1);
+    }
+    if(ret == 0 && isReader(flags))
+    {
+        (*pfd)->incrementOpens(1);
+    }
+    if ( ret == 0 ) {
         plfs_reference_count(*pfd);
     }
     PLFS_EXIT(ret);
@@ -917,11 +945,11 @@ plfs_rename( const char *logical, const char *to ) {
     PLFS_ENTER;
     string topath = expandPath( to );
 
-    if ( is_plfs_file(to) ) {
+    if ( is_plfs_file( to ) ) {
         // we can't just call rename bec it won't trash a dir in the toPath
         // so in case the toPath is a container, do this
         // this might fail with ENOENT but that's fine
-        plfs_unlink(to);
+        plfs_unlink( to );
     }
     Util::Debug("Trying to rename %s to %s\n", path.c_str(), topath.c_str());
     ret = retValue( Util::Rename(path.c_str(), topath.c_str()));
@@ -1075,8 +1103,13 @@ plfs_getattr( Plfs_fd *of, const char *logical, struct stat *stbuf ) {
         path = of->getPath();   // restore the stashed physical path
     }
     Util::Debug("%s on %s\n", __FUNCTION__, path.c_str());
-    if ( ! is_plfs_file(logical) ) {
-        ret = retValue( Util::Lstat( path.c_str(), stbuf ) );
+    if ( ! is_plfs_file( logical ) ) {
+       /* if ( errno == EACCES ) {
+            ret = -errno;
+        } else {
+            ret = retValue( Util::Lstat( path.c_str(), stbuf ) );
+        }*/
+        ret = retValue( Util::Lstat( path.c_str(), stbuf ) );        
     } else {
         ret = Container::getattr( path.c_str(), stbuf );
         if ( ret == 0 ) {
@@ -1158,7 +1191,7 @@ extendFile( Plfs_fd *of, string strPath, off_t offset ) {
 int 
 plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
     PLFS_ENTER;
-    if ( ! is_plfs_file(logical) ) {
+    if ( ! is_plfs_file( logical ) ) {
         // this is weird, we expect only to operate on containers
         ret = retValue( Util::Truncate(path.c_str(),offset) );
         PLFS_EXIT(ret);
@@ -1203,7 +1236,7 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
 int 
 plfs_unlink( const char *logical ) {
     PLFS_ENTER;
-    if ( is_plfs_file(logical) ) {
+    if ( is_plfs_file( logical ) ) {
         ret = removeDirectoryTree( path.c_str(), false );  
         Util::Debug("Removed dir %s\n",path.c_str());
     } else {
@@ -1280,7 +1313,9 @@ plfs_close( Plfs_fd *pfd, pid_t pid, int open_flags ) {
         } else if ( writers > 0 ) {
             ret = 0;
         }
-    } else {
+        ref_count = pfd->incrementOpens(-1);
+      // Clean up reads moved fd reference count updates
+    } else if (isReader(open_flags)){
         assert( index );
         readers = index->incrementOpens(-1);
         if ( readers == 0 ) {
@@ -1288,15 +1323,21 @@ plfs_close( Plfs_fd *pfd, pid_t pid, int open_flags ) {
             index = NULL;
             pfd->setIndex(NULL);
         }
+        ref_count = pfd->incrementOpens(-1);
     }
 
-    ref_count = pfd->incrementOpens(-1);
+    
     Util::Debug("%s %s: %d readers, %d writers, %d refs remaining\n",
             __FUNCTION__, pfd->getPath(), (int)readers, (int)writers,
             (int)ref_count);
 
     // make sure the reference counting is correct 
     plfs_reference_count(pfd);    
+    //if(index && readers == 0 ) {
+    //        delete index;
+    //        index = NULL;
+    //        pfd->setIndex(NULL);
+    //}
     if ( ret == 0 && ref_count == 0 ) {
         ostringstream oss;
         oss << __FUNCTION__ << " removing OpenFile " << pfd << endl;
@@ -1304,7 +1345,6 @@ plfs_close( Plfs_fd *pfd, pid_t pid, int open_flags ) {
         delete pfd; 
         pfd = NULL;
     }
-
     return ( ret < 0 ? ret : ref_count );
 }
 

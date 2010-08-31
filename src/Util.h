@@ -1,10 +1,6 @@
 #ifndef _UTIL_H_
 #define _UTIL_H_
 
-#ifdef HAVE_CONFIG_H
-    #include "config.h"
-#endif
-
 #include "COPYRIGHT.h"
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -13,9 +9,7 @@
 #include <string>
 #include <fstream>
 #include <iostream>
-#ifdef HAVE_FCNTL_H
-    #include <fcntl.h>
-#endif
+#include <fcntl.h>
 #include <sys/dir.h>
 #include <dirent.h>
 #include <sys/syscall.h>
@@ -28,6 +22,8 @@
 #include <iostream>
 #include <sstream>
 #include <map>
+#include <sys/fsuid.h>
+
 using namespace std;
 
 //#include <hash_map>   // shoot, hash_map not found.  more appropriate though..
@@ -72,6 +68,7 @@ class Util {
         static int Rmdir( const char* );
         static int Setfsgid( gid_t );
         static int Setfsuid( uid_t );
+        static int Stat( const char *path, struct stat ** file_info);
         static int Statvfs( const char *, struct statvfs* );
         static int Symlink( const char *, const char * );
         static int Truncate( const char *, off_t length );

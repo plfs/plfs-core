@@ -95,7 +95,8 @@ struct OpenFile {
                    lm.flush();                                                \
                    SAVE_IDS;                                                  \
                    SET_IDS(fuse_get_context()->uid,fuse_get_context()->gid);  \
-                   int ret = 0;
+                   int ret = 0;                                               
+                   
 
 #define PLFS_EXIT  SET_IDS(s_uid,s_gid);                                \
                    RESTORE_GROUPS;                                      \
@@ -116,6 +117,7 @@ struct OpenFile {
                                strPath.c_str() << " (" << of << ")" << endl; \
                            plfs_debug("%s", oss.str().c_str() );   \
                        }
+
 
 std::vector<std::string> &
 split(const std::string &s, const char delim, std::vector<std::string> &elems) {
@@ -310,7 +312,7 @@ int Plfs::f_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
     PLFS_ENTER;
     //ret = f_mknod( strPath.c_str(), mode, 0 );
     ret = -ENOSYS;
-    PLFS_EXIT;
+    PLFS_EXIT    ;
 }
 
 // returns 0 or -errno
@@ -386,13 +388,13 @@ int Plfs::f_fgetattr(const char *path, struct stat *stbuf,
 {
     PLFS_ENTER; GET_OPEN_FILE;
     ret = getattr_helper( path, stbuf, of );
-    PLFS_EXIT;
+    PLFS_EXIT    ;
 }
 
 int Plfs::f_getattr(const char *path, struct stat *stbuf) {
     PLFS_ENTER;
     ret = getattr_helper( path, stbuf, NULL );
-    PLFS_EXIT;
+    PLFS_EXIT    ;
 }
 
 // needs to work differently for directories
@@ -405,13 +407,30 @@ int Plfs::f_utime (const char *path, struct utimbuf *ut) {
 // this needs to recurse on all data and index files
 int Plfs::f_chmod (const char *path, mode_t mode) {
     PLFS_ENTER;
+    Plfs_fd *pfd = NULL;
+
+    plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
     ret = plfs_chmod( strPath.c_str(), mode );
     if ( ret == 0 ) {
         plfs_debug("%s Stashing mode for %s: %d\n",
             __FUNCTION__, strPath.c_str(), (int)mode );
         self->known_modes[strPath] = mode;
     }
-    PLFS_EXIT;
+  
+    SET_IDS(s_uid,s_gid);
+    RESTORE_GROUPS;
+    END_TIMES;
+    
+    if(ret == 0) {
+        ret = plfs_chmod_cleanup( path , mode );
+    }
+    if( ret == 0) {
+        funct_id << (ret >= 0 ? "success" : strerror(-ret) ) 
+            << " " << end-begin << "s";
+        lm2 << funct_id.str() << endl; lm2.flush();
+    }
+    plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
+    return ret;
 }
 
 // fills the set of supplementary groups of the effective uid
@@ -619,7 +638,8 @@ int Plfs::f_open(const char *path, struct fuse_file_info *fi) {
     // back side of the plfs_open but that limits open
     // parallelism
     plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
-    pfd = findOpenFile( strPath );
+    string pathHash = pathToHash ( strPath , fuse_get_context()->uid, fi->flags );
+    pfd = findOpenFile( pathHash );
     if ( ! pfd ) newly_created = true;
 
     // every proc that opens a file creates a unique OpenFile but they share
@@ -636,7 +656,7 @@ int Plfs::f_open(const char *path, struct fuse_file_info *fi) {
         of->flags = fi->flags;
         fi->fh = (uint64_t)of;
         if ( newly_created ) {
-            addOpenFile( strPath, of->pid, pfd );
+            addOpenFile( pathHash, of->pid, pfd );
         }
     }
     //plfs_debug("%s: %s ref count: %d\n", __FUNCTION__, 
@@ -678,7 +698,14 @@ int Plfs::f_release( const char *path, struct fuse_file_info *fi ) {
         int remaining = plfs_close( of, openfile->pid, fi->flags );
         fi->fh = (uint64_t)NULL;
         if ( remaining == 0 ) {
-            removeOpenFile( strPath, openfile->pid, of );
+            list< struct hash_element > results;
+            findAllOpenFiles ( strPath , results);
+            while( results.size()!= 0 ) {
+                struct hash_element current;
+                current = results.front();
+                results.pop_front();
+                removeOpenFile( current.path , openfile->pid, of );
+            }
         } else {
             plfs_debug(
                 "%s not yet removing open file for %s, pid %u, %d remaining\n",
@@ -691,11 +718,13 @@ int Plfs::f_release( const char *path, struct fuse_file_info *fi ) {
     PLFS_EXIT;
 }
 
-int Plfs::addOpenFile( string expanded, pid_t pid, Plfs_fd *pfd ) {
+int Plfs::addOpenFile( string expanded, pid_t pid, Plfs_fd *pfd) {
+
     ostringstream oss;
     oss << __FUNCTION__ << " adding OpenFile for " <<
         expanded << " (" << pfd << ") pid " << pid << endl;
     plfs_debug("%s", oss.str().c_str() ); 
+    expanded.append(".");
     self->open_files[expanded] = pfd;
     return 0;
 }
@@ -962,15 +991,34 @@ int Plfs::f_rename( const char *path, const char *to ) {
         // Therefore, we also need to teach it that it has
         // a new path and hopefully if it opens any new droppings it will do
         // so using the new path
-    Plfs_fd *pfd = findOpenFile( strPath );
-    ret = plfs_rename(path,to);
-    if ( ret == 0 && pfd ) {
-        pid_t pid = fuse_get_context()->pid;
-        removeOpenFile( strPath, pid, pfd );
-        addOpenFile( toPath, pid, pfd );
-        pfd->setPath( toPath ); 
-        plfs_debug("Rename open file %s -> %s (hope this works\n", 
-                path, to );
+        
+        // Updated this code to search for all open files because the open
+        // files are now cached based on a uid and flags
+    list< struct hash_element > results;
+    
+    ret = plfs_rename(path,toPath.c_str());
+    findAllOpenFiles ( strPath, results );
+    while( results.size() != 0 )
+    {
+        
+        struct hash_element current;
+        current = results.front();
+        results.pop_front();
+        Plfs_fd *pfd;
+        pfd = current.fd;
+        uid_t *uid;
+        string pathHash = getRenameHash ( to , current.path , strPath); 
+        int   *flags;
+        if ( ret == 0 && pfd ) {
+            pid_t pid = fuse_get_context()->pid;
+            // Extract the uid and flags from the string
+            removeOpenFile( current.path, pid, pfd );
+            addOpenFile( pathHash, pid, pfd );
+            pfd->setPath( toPath ); 
+            plfs_debug("Rename open file %s -> %s (hope this works\n", 
+            path, to );
+    
+        }
     }
     plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
 
@@ -991,4 +1039,53 @@ int Plfs::f_rename( const char *path, const char *to ) {
     }
 
     PLFS_EXIT;
+}
+
+string Plfs::pathToHash ( string expanded , uid_t uid , int flags ) {
+    stringstream converter;
+    converter << "." << uid << "." << flags;
+    expanded.append( converter.str() );
+    return expanded; 
+} 
+// Pass a pointer to a list so you don't have to copy it 
+/*list<struct hash_element >  Plfs::findAllOpenFiles(string expanded) {
+    HASH_MAP<string, Plfs_fd *>::iterator searcher;
+    list< struct hash_element > results;
+    
+    struct hash_element current;
+    for( searcher = self->open_files.begin() ; searcher != self->open_files.end() ; searcher++)
+    {
+        if ( !strncmp( expanded.c_str() , searcher->first.c_str() ,
+                        expanded.size() ) ) {
+            current.path = searcher->first;
+            current.fd = searcher->second;
+            results.push_back(current);
+        }   
+    }
+    return results;
+}
+*/
+void 
+Plfs::findAllOpenFiles( string expanded, list<struct hash_element > &results) {
+  HASH_MAP<string, Plfs_fd *>::iterator searcher;  
+  struct hash_element current;
+  for( searcher = self->open_files.begin() ; 
+        searcher != self->open_files.end() ; searcher++) {
+        if ( !strncmp( expanded.c_str() , searcher->first.c_str() ,
+                        expanded.size() ) ) {
+            current.path = searcher->first;
+            current.fd = searcher->second;
+            results.push_back(current);
+        }   
+    }
+}
+// Convert to string using the current filename hash 
+string Plfs:: getRenameHash ( string to, string current , string base) {
+    string uid_mode;
+    string pathHash;
+    
+    uid_mode = current.substr( base.size() , current.size() );
+    pathHash.append( to );
+    pathHash.append( uid_mode );
+    return pathHash;     
 }

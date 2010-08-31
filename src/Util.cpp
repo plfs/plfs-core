@@ -14,6 +14,7 @@
 #include <sys/mount.h>
 #include <sys/types.h>
 #include <sys/statvfs.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <utime.h>
 #include <time.h>
@@ -257,7 +258,10 @@ int Util::Unlink( const char *path ) {
     EXIT_UTIL;
 }
 
+
 int Util::Access( const char *path, int mode ) {
+    // access system call uses the process uid so this call 
+    // needs to rely on another method to check access 
     ENTER_PATH;
     ret = access( path, mode );
     EXIT_UTIL;
@@ -362,6 +366,7 @@ int Util::Creat( const char *path, mode_t mode ) {
     if ( ret > 0 ) {
         ret = close( ret );
     }
+    else ret = -errno;
     EXIT_UTIL;
 }
 // returns 0 or -errno
@@ -642,3 +647,8 @@ char *Util::hostname() {
     }
     return hname;
 }
+
+int Util::Stat( const char *path, struct stat ** file_info)
+{
+    return stat( path , *file_info );
+}  

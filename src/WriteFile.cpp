@@ -72,7 +72,7 @@ int WriteFile::addWriter( pid_t pid, bool child ) {
     if ( ofd ) {
         ofd->writers++;
     } else {
-        int fd = openDataFile( physical_path, hostname, pid, mode ); 
+        int fd = openDataFile( physical_path, hostname, pid, DROPPING_MODE); 
         if ( fd >= 0 ) {
             ofd = new struct OpenFd;
             ofd->writers = 1;
@@ -249,7 +249,7 @@ ssize_t WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid){
 // returns 0 or -errno
 int WriteFile::openIndex( pid_t pid ) {
     int ret = 0;
-    int fd = openIndexFile( physical_path, hostname, pid, mode );
+    int fd = openIndexFile( physical_path, hostname, pid, DROPPING_MODE );
     if ( fd < 0 ) {
         ret = -errno;
     } else {

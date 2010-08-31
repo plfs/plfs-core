@@ -10,6 +10,7 @@ class T;
 #include <string>
 #include <map>
 #include <vector>
+#include <list>
 using namespace std;
 
 struct dir_op {
@@ -20,6 +21,11 @@ struct dir_op {
     uid_t                u;
     gid_t                g;
     mode_t               m;
+};
+
+struct hash_element {
+    string path;
+    Plfs_fd *fd;
 };
 
 // and I don't like globals at the top of the .cpp.  So add all shared
@@ -72,8 +78,10 @@ class Plfs : public fusexx::fuse<Plfs> {
 
         // not overloaded.  something I added to parse command line args
         int init( int *argc, char **argv );
+        
 
 	private:
+	static string pathToHash ( string expanded , uid_t uid , int flags ); 
         static int iterate_backends( dir_op *d );
         static string expandPath( const char * );
         static int makePlfsFile( string, mode_t, int );
@@ -82,12 +90,12 @@ class Plfs : public fusexx::fuse<Plfs> {
         static bool isdebugfile( const char*, const char * );
         static bool isdebugfile( const char* );
         static int writeDebug( char *buf, size_t, off_t, const char* );
-        static int addOpenFile( string, pid_t, Plfs_fd * );
+        static int addOpenFile( string, pid_t, Plfs_fd *);
         static int removeOpenFile( string, pid_t, Plfs_fd * );
         static Plfs_fd *findOpenFile( string ); 
-        //static int removeWriteFile( WriteFile *, string );
-        //static int getIndex( string, mode_t, Index ** );
-        //static int removeIndex( string, Index * );
+        static string getRenameHash( string, string , string );
+        static void findAllOpenFiles( string expanded, 
+                            list<struct hash_element > &results);
         static const char *getPlfsArg( const char *, const char * );
         static string confToString( PlfsConf * );
         static string openFilesToString();
@@ -95,7 +103,6 @@ class Plfs : public fusexx::fuse<Plfs> {
         static int getattr_helper( const char *path, struct stat *, Plfs_fd *);
         static int get_groups( vector<gid_t> * );
         static int set_groups( uid_t );
-
             // is a set the best here?  doesn't need to be sorted.
             // just needs to be associative.  This needs to be static
             // so multiple procs on a node won't try to create the same

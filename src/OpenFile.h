@@ -22,6 +22,8 @@ class Plfs_fd : public Metadata {
         time_t     getCtime() { return ctime; }
         void       setIndex( Index *i )          { this->index     = i;  }
         void       setWritefile( WriteFile *wf ) { this->writefile = wf; }
+        void       setCached(bool value) { this->cached = value; }
+        bool       getCached() { return this->cached; };
     private:
         WriteFile *writefile;
         Index     *index;
@@ -29,6 +31,7 @@ class Plfs_fd : public Metadata {
         mode_t    mode;
         string    path;
         time_t    ctime;
+        bool      cached;
 };
 
 #endif

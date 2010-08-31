@@ -20,7 +20,7 @@
 using namespace std;
 
 #define DEFAULT_MODE (S_IRUSR|S_IWUSR|S_IXUSR|S_IXGRP|S_IXOTH)
-
+#define DROPPING_MODE (S_IRWXU|S_IRWXG|S_IRWXO) 
 #define HOSTDIRPREFIX  "hostdir."
 #define DROPPINGPREFIX "dropping."
 #define DATAPREFIX     DROPPINGPREFIX"data."
@@ -30,6 +30,7 @@ using namespace std;
 #define OPENHOSTDIR    "openhosts"    // where to stash whether file open
     // where to stash the chmods and chowns, and identify containers
 #define ACCESSFILE     ".plfsaccess113918400"  
+#define CREATORFILE    "creator"
 
 #include "Index.h"
 
@@ -39,7 +40,7 @@ class Container {
         static int create( const char *, const char *, 
                 mode_t mode, int flags, int *extra_attempts );
 
-        static bool isContainer( const char *physical_path );
+        static bool isContainer( const char *physical_path); 
 
         static string getIndexPath( const char *, const char * );
         static string getIndexPath( const char *, const char *, int pid );
@@ -47,19 +48,20 @@ class Container {
 
         static int addMeta( off_t, size_t, const char *, const char * );
         static string fetchMeta( string, off_t *, size_t *, struct timespec * );
-        static int addOpenrecord( const char *, const char *, pid_t );
+        static int addOpenrecord( const char *, const char *, pid_t, mode_t mode );
         static int removeOpenrecord( const char *, const char *, pid_t );
 
         static string getHostDirPath( const char *, const char * );
         static string getMetaDirPath( string );
         static string getVersionDir( string path );
         static string getAccessFilePath( string path );
+        static string getCreatorFilePath( string path );
         static string chunkPathFromIndexPath( string hostindex, pid_t pid );
 
         static mode_t fileMode( mode_t );
         static mode_t dirMode(  mode_t );
         static mode_t containerMode(  mode_t );
-        static int makeHostDir( const char *path, const char *host, mode_t );
+        static int makeHostDir( const char *path, const char *host, mode_t mode );
 
         static int getattr( const char *, struct stat * );
 
@@ -76,6 +78,14 @@ class Container {
         static blkcnt_t bytesToBlocks( size_t total_bytes );
         static int nextdropping( string, string *, const char *,
                 DIR **, DIR **, struct dirent ** );
+        static int makeSubdir(string path, mode_t mode);
+        static int makeDropping(string path);
+        static int makeAccess(string path,mode_t mode);
+        static int makeDroppingReal(string path, mode_t mode); 
+        static int makeCreator(string path);
+        static int cleanupChmod( const char *path, 
+            mode_t mode , int top, uid_t uid , gid_t gid );
+       
 
     private:
             // static stuff

@@ -24,8 +24,26 @@ int Container::Access( const char *path, int mask ) {
     // there used to be some concern here that the accessfile might not
     // exist yet but the way containers are made ensures that an accessfile
     // will exist if the container exists
+   
+    int mode;
+    int ret;
     string accessfile = getAccessFilePath(path);
-    return Util::Access( accessfile.c_str(), mask );
+        // Needed for open with a create flag
+    Util::Debug("%s Checking existence of %s\n", __FUNCTION__, accessfile.c_str());
+    ret = Util::Access( accessfile.c_str(), F_OK );
+    if(ret<0) {
+        Util::Debug("Access failed with value :%d\n",errno);
+        return 0;
+    }
+    Util::Debug("The file exists attempting open\n");
+    ret = Util::Open(accessfile.c_str(),mask);
+    Util::Debug("Open returns %d\n",ret);
+    if(ret >= 0 )
+    {
+        Util::Close(ret);
+        return 0;
+    }
+    return -errno;
 }
 
 size_t Container::hashValue( const char *str ) {
@@ -66,7 +84,7 @@ bool Container::isContainer( const char *physical_path ) {
     struct stat buf;
     string accessfile = getAccessFilePath(physical_path); 
     int ret = Util::Lstat( accessfile.c_str(), &buf );
-    return ( ret==0 ? !Util::isDirectory(&buf) : false );
+    return ( ret == 0 ? !Util::isDirectory(&buf) : false );
 }
 
 int Container::freeIndex( Index **index ) {
@@ -99,6 +117,60 @@ int Container::Chown( const char *path, uid_t uid, gid_t gid ) {
     Util::Debug("Chowning to %d:%d\n", uid, gid );
     return Container::Modify( CHOWN, path, uid, gid, NULL, 0 );  
 }
+int Container::cleanupChmod( const char *path, mode_t mode , int top , 
+    uid_t uid, gid_t gid  ) {
+
+    struct dirent *dent         = NULL;
+    DIR *dir                    = NULL; 
+    int ret                     = 0;
+    struct stat *creator_info   = (struct stat*)malloc(sizeof(struct stat));
+    
+    if ( top == 1 ) {
+        string creator_path ( path );
+        creator_path += "/creator";
+        // Stat the creator file for the uid and gid 
+        ret = Util::Stat( creator_path.c_str() , &creator_info );
+        if (ret == 0 ) {
+            uid = creator_info->st_uid;
+            gid = creator_info->st_gid;
+        }
+        else return ret;
+    }
+    // Open the hostdir and then look for droppings 
+    Util::Opendir( path , &dir );
+    if ( dir == NULL ) { 
+        Util::Debug("%s wtf\n", __FUNCTION__ );
+        return 0; 
+    }
+    while( ret == 0 && (dent = readdir( dir )) != NULL ) {
+        string full_path( path ); full_path += "/"; full_path += dent->d_name;
+        if (!strcmp(dent->d_name,".")||!strcmp(dent->d_name,"..")
+                ||!strcmp(dent->d_name,"creator") 
+                ||!strncmp(dent->d_name,".plfs", 5)) continue;
+        if (!strncmp( dent->d_name , "hostdir" , 7 ) ||
+                !strncmp( dent->d_name , "dropping" ,8 )) {
+            if ( Util::isDirectory( full_path.c_str() ) ) {
+                ret = cleanupChmod( full_path.c_str() , mode , 0 , uid , gid );
+                if ( ret != 0 ) break;
+            }
+            if ( top == 0 ) {         
+                ret = Util::Chown( full_path.c_str() , uid , gid );
+                if( ret == 0 ) {
+                    ret = Util::Chmod( full_path.c_str() , mode ); 
+                }
+            } 
+        }
+        if(top == 1 )
+        {
+            ret = Util::Chmod( full_path.c_str() , 
+                mode | S_IXUSR | S_IXGRP | S_IXOTH);
+        }
+    }
+    Util::Closedir( dir );
+    ret = Util::Chmod( path , mode | S_IXUSR | S_IXGRP | S_IXOTH );
+    //ret = Util::Chmod( path , mode );
+    return ret;
+}
 
 int Container::Modify( DirectoryOperation type, 
         const char *path,
@@ -107,7 +179,7 @@ int Container::Modify( DirectoryOperation type,
         const struct utimbuf *utbuf,
         mode_t mode )
 {
-    Util::Debug("%s on %s\n", __FUNCTION__, path );
+   /* Util::Debug("%s on %s\n", __FUNCTION__, path );
     struct dirent *dent = NULL;
     DIR *dir            = NULL; 
     int ret             = 0;
@@ -138,6 +210,30 @@ int Container::Modify( DirectoryOperation type,
 		full_path.c_str(), strerror(errno) );
     }
     Util::Closedir( dir );
+    return ret;
+    */
+    int ret             = 0;
+    string accessfile = getAccessFilePath(path);
+    if ( type == UTIME ) {
+        ret = Util::Utime( accessfile.c_str(), utbuf );
+        if (ret == 0 )
+        {
+            ret = Util::Utime( path , utbuf ); 
+        }
+    }else if ( type == CHOWN ) {
+        ret = Util::Chown( accessfile.c_str(), uid, gid );
+        if (ret == 0 )
+        {
+            ret = Util::Chown( path , uid, gid ); 
+        }
+    }else if ( type == CHMOD ) {
+        ret = Util::Chmod( accessfile.c_str(), mode );
+        if (ret == 0 )
+        {
+            ret = Util::Chmod( path , dirMode( mode )); 
+        }
+    }
+    
     return ret;
 }
 
@@ -204,8 +300,12 @@ int Container::populateIndex( const char *path, Index *index ) {
         task.path = hostindex;
         tasks.push(task);  // makes a copy and pushes it
     }
-
-
+    // -ERRNO Needs to be returned
+    if(ret < 0)
+    {
+        return ret;
+    }
+    
     if ( tasks.empty() ) {
         ret = 0;    // easy, 0 length file
         Util::Debug("No THREADS needed to create index for empty %s\n", path );
@@ -377,11 +477,13 @@ string Container::getOpenrecord( const char *path, const char *host, pid_t pid){
 
 // if this fails because the openhostsdir doesn't exist, then make it
 // and try again
-int Container::addOpenrecord( const char *path, const char *host, pid_t pid ) {
+int Container::addOpenrecord( const char *path, const char *host, 
+        pid_t pid, mode_t mode ) {
+        
     string openrecord = getOpenrecord( path, host, pid );
     int ret = Util::Creat( openrecord.c_str(), DEFAULT_MODE );
     if ( ret != 0 && ( errno == ENOENT || errno == ENOTDIR ) ) {
-        makeMeta(getOpenHostsDir(path), S_IFDIR, DEFAULT_MODE);
+        makeSubdir( getOpenHostsDir(path), mode );
         ret = Util::Creat( openrecord.c_str(), DEFAULT_MODE );
     }
     if ( ret != 0 ) {
@@ -587,13 +689,14 @@ int Container::makeTopLevel( const char *expanded_path,
     oss << strPath << "." << hostname << "." << getpid();
     string tmpName( oss.str() ); 
     string tmpAccess( getAccessFilePath(tmpName) );
+    string tmpCreator( getCreatorFilePath(tmpName));
     if ( Util::Mkdir( tmpName.c_str(), dirMode(mode) ) < 0 ) {
         if ( errno != EEXIST && errno != EISDIR ) {
             Util::Debug("Mkdir %s to %s failed: %s\n",
                 tmpName.c_str(), expanded_path, strerror(errno) );
             return -errno;
         } else if ( errno == EEXIST ) {
-            if ( ! Container::isContainer(tmpName.c_str() ) ) {
+            if ( ! Container::isContainer(tmpName.c_str()) ) {
                 Util::Debug("Mkdir %s to %s failed: %s\n",
                     tmpName.c_str(), expanded_path, strerror(errno) );
             } else {
@@ -602,8 +705,9 @@ int Container::makeTopLevel( const char *expanded_path,
             }
         }
     }
-    if ( makeMeta( tmpAccess, S_IFREG, mode ) < 0 ) {
-        Util::Debug("create access file in %s failed: %s\n",
+    // Think of changing me to provide more information to the Debug function
+    if ( makeAccess( tmpAccess, mode ) < 0 || makeCreator( tmpCreator ) < 0 ) {
+        Util::Debug("create access file or makeCreator in %s failed: %s\n",
                 tmpName.c_str(), strerror(errno) );
         int saveerrno = errno;
         if ( Util::Rmdir( tmpName.c_str() ) != 0 ) {
@@ -612,6 +716,7 @@ int Container::makeTopLevel( const char *expanded_path,
         }
         return -saveerrno;
     }
+
     
     // ok, this rename sometimes takes a long time
     // what if we check first to see if the dir already exists
@@ -666,10 +771,10 @@ int Container::makeTopLevel( const char *expanded_path,
             // don't make an extra unnecessary dir, but this does create
             // a race if someone wants to use the meta dir and it doesn't
             // exist, so we need to make sure we never assume the metadir
-            if ( makeMeta(getMetaDirPath(strPath), S_IFDIR, DEFAULT_MODE ) < 0){
+            if ( makeSubdir(getMetaDirPath(strPath), mode ) < 0){
                 return -errno;
             }
-            if ( makeMeta( getOpenHostsDir(strPath), S_IFDIR, DEFAULT_MODE)< 0){
+            if ( makeSubdir( getOpenHostsDir(strPath), mode )< 0){
                 return -errno;
             }
 
@@ -678,7 +783,7 @@ int Container::makeTopLevel( const char *expanded_path,
                 // version stuff in it.  In that case, just assume
                 // compatible?  move this up above?
             string versiondir = getVersionDir(strPath);
-            if ( makeMeta( versiondir, S_IFDIR, DEFAULT_MODE)< 0) {
+            if ( makeSubdir( versiondir, mode ) ) {
                 return -errno;
             }
 
@@ -689,7 +794,7 @@ int Container::makeTopLevel( const char *expanded_path,
             map<string,string>::iterator itr = version_files.begin();
             for (itr = version_files.begin(); itr!=version_files.end(); itr++){
                 string versionfile(versiondir+"/"+itr->first+"."+itr->second);
-                if ( makeMeta( versionfile, S_IFREG, mode ) < 0 ) {
+                if ( makeDropping( versionfile ) < 0 ) {
                     return -errno;
                 }
             }
@@ -699,12 +804,31 @@ int Container::makeTopLevel( const char *expanded_path,
     return 0;
 }
 
+int Container::makeCreator(string path)
+{
+    return makeDroppingReal( path , S_IRWXU );
+}
+int Container::makeAccess(string path, mode_t mode) {
+    return makeDroppingReal( path, mode );
+}
+int Container::makeDroppingReal(string path, mode_t mode) {
+    return Util::Creat( path.c_str(), mode );
+}
+int Container::makeDropping(string path) {
+    return makeDroppingReal( path, DROPPING_MODE );
+}
 // returns 0 or -errno
 int Container::makeHostDir( const char *path, const char *host, mode_t mode ) {
-    int ret = makeMeta( getHostDirPath(path,host), S_IFDIR, dirMode(mode) );
+    int ret = makeSubdir( getHostDirPath(path,host), mode );
     return ( ret == 0 ? ret : -errno );
 }
 
+int Container::makeSubdir( string path, mode_t mode ) {
+    int ret;
+    mode = mode | S_IXUSR | S_IXGRP | S_IXOTH;
+    ret = Util::Mkdir( path.c_str(), mode );
+    return ( ret == 0 || errno == EEXIST ) ? 0 : -1;
+}
 // this just creates a dir/file but it ignores an EEXIST error
 int Container::makeMeta( string path, mode_t type, mode_t mode ) {
     int ret;
@@ -736,6 +860,11 @@ string Container::getVersionDir( string path ) {
 string Container::getAccessFilePath( string path ) {
     string accessfile( path + "/" + ACCESSFILE );
     return accessfile;
+}
+
+string Container::getCreatorFilePath( string path ) {
+    string creatorfile( path + "/" + CREATORFILE );
+    return creatorfile;
 }
 
 string Container::getHostDirPath( const char* expanded_path, 

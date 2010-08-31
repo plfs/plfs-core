@@ -33,6 +33,7 @@
    whether the caller takes care of that.  I believe each function should
    specify itself.
 */
+int plfs_chmod_cleanup(const char *path,mode_t mode );
 
 int is_plfs_file( const char *path );
 
@@ -88,6 +89,7 @@ int plfs_rename( const char *from, const char *to );
 
 int plfs_rmdir( const char *path );
 
+
 /*
    a funtion to get stats back from plfs operations
    the void * needs to be a pointer to a string but void * is used here
@@ -114,6 +116,7 @@ int plfs_utime( const char *path, struct utimbuf *ut );
 double plfs_wtime();
 
 ssize_t plfs_write( Plfs_fd *, const char *, size_t, off_t, pid_t );
+
 
 #ifdef __cplusplus 
     }
