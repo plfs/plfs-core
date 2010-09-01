@@ -814,7 +814,8 @@ int Container::makeHostDir( const char *path, const char *host, mode_t mode ) {
 
 int Container::makeSubdir( string path, mode_t mode ) {
     int ret;
-    mode = mode | S_IXUSR | S_IXGRP | S_IXOTH;
+    //mode = mode | S_IXUSR | S_IXGRP | S_IXOTH;
+    mode = DROPPING_MODE;
     ret = Util::Mkdir( path.c_str(), mode );
     return ( ret == 0 || errno == EEXIST ) ? 0 : -1;
 }

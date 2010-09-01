@@ -558,12 +558,10 @@ int Plfs::f_rmdir( const char *path ) {
 // fine to leave it undefined.  users shouldn't do stupid stuff like this anyway
 int Plfs::f_unlink( const char *path ) {
     PLFS_ENTER;
-    plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
     ret = plfs_unlink( strPath.c_str() );
     if ( ret == 0 ) {
         self->createdContainers.erase( strPath );
     }
-    plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
     PLFS_EXIT;
 }
 
@@ -706,6 +704,8 @@ int Plfs::f_release( const char *path, struct fuse_file_info *fi ) {
                 struct hash_element current;
                 current = results.front();
                 results.pop_front();
+                plfs_debug("%s: Removing Open File: %s remaining: %d\n", 
+                __FUNCTION__, current.path.c_str(), remaining);
                 removeOpenFile( current.path , openfile->pid, of );
             }
         } else {

@@ -223,13 +223,18 @@ int
 isWriter( int flags ) {
     return (flags & O_WRONLY || flags & O_RDWR);
 }
-
+// Was running into reference count problems so I had to change this code
+// The RDONLY flag is has the lsb set as 0 had to do some bit shifting
+// to figure out if the RDONLY flag was set
 int isReader( int flags ) {
-    // Read only is a 0 flag so we need to return 1 if flags is 0
-    if ( flags == 0 ) return 1;
-    else return (flags & O_RDONLY || flags & O_RDWR );
+    int ret = 0;
+    if ( flags & O_RDWR ) ret = 1;
+    else {
+        unsigned int flag_test =  flags << (sizeof(int)*8)-2 ;
+        if ( flag_test == 0 ) ret = 1;
+    }
+    return ret;
 }
-
 // this requires that the supplementary groups for the user are set
 int 
 plfs_chown( const char *logical, uid_t u, gid_t g ) {
@@ -1318,7 +1323,8 @@ plfs_close( Plfs_fd *pfd, pid_t pid, int open_flags ) {
         }
         ref_count = pfd->incrementOpens(-1);
       // Clean up reads moved fd reference count updates
-    } else if (isReader(open_flags)){
+    }   
+    if (isReader(open_flags)){
         assert( index );
         readers = index->incrementOpens(-1);
         if ( readers == 0 ) {
@@ -1326,7 +1332,7 @@ plfs_close( Plfs_fd *pfd, pid_t pid, int open_flags ) {
             index = NULL;
             pfd->setIndex(NULL);
         }
-        ref_count = pfd->incrementOpens(-1);
+        ref_count += pfd->incrementOpens(-1);
     }
 
     
