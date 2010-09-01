@@ -107,7 +107,7 @@ int Container::ignoreNoEnt( int ret ) {
 }
 
 int Container::Chmod( const char *path, mode_t mode ) {
-    return Container::Modify( CHMOD, path, 0, 0, NULL, mode );  
+    return Container::chmodModify( path, mode );  
 }
 
 // just do the droppings and the access file
@@ -175,6 +175,14 @@ int Container::cleanupChmod( const char *path, mode_t mode , int top ,
     return ret;
 }
 
+int Container::chmodModify (const char *path, mode_t mode) {
+    int ret; 
+    string accessfile = getAccessFilePath(path);
+    ret = Util::Chmod( accessfile.c_str(), mode );
+    if (ret == 0 ) ret = Util::Chmod( path , dirMode( mode )); 
+    return ret;
+}
+
 int Container::Modify( DirectoryOperation type, 
         const char *path,
         uid_t uid, 
@@ -182,7 +190,7 @@ int Container::Modify( DirectoryOperation type,
         const struct utimbuf *utbuf,
         mode_t mode )
 {
-   /* Util::Debug("%s on %s\n", __FUNCTION__, path );
+    Util::Debug("%s on %s\n", __FUNCTION__, path );
     struct dirent *dent = NULL;
     DIR *dir            = NULL; 
     int ret             = 0;
@@ -206,40 +214,19 @@ int Container::Modify( DirectoryOperation type,
             ret = Util::Utime( full_path.c_str(), utbuf );
         } else if ( type == CHOWN ) {
             ret = Util::Chown( full_path.c_str(), uid, gid );
-        } else if ( type == CHMOD ) {
-            ret = Util::Chmod( full_path.c_str(), use_mode );
-        }
+        } 
         Util::Debug("Modified dropping %s: %s\n", 
 		full_path.c_str(), strerror(errno) );
     }
+    if ( type == UTIME ) {
+        ret = Util::Utime( path , utbuf );
+    } else if ( type == CHOWN ) {
+        ret = Util::Chown( path, uid, gid );
+    } 
+    
     Util::Closedir( dir );
     return ret;
-    */
-    int ret             = 0;
-    string accessfile = getAccessFilePath(path);
-    if ( type == UTIME ) {
-        ret = Util::Utime( accessfile.c_str(), utbuf );
-        if (ret == 0 )
-        {
-            ret = Util::Utime( path , utbuf ); 
-        }
-    }else if ( type == CHOWN ) {
-        ret = Util::Chown( accessfile.c_str(), uid, gid );
-        if (ret == 0 )
-        {
-            ret = Util::Chown( path , uid, gid ); 
-        }
-    }else if ( type == CHMOD ) {
-        ret = Util::Chmod( accessfile.c_str(), mode );
-        if (ret == 0 )
-        {
-            ret = Util::Chmod( path , dirMode( mode )); 
-        }
-    }
-    
-    return ret;
 }
-
 // the particular index file for each indexer task
 typedef struct {
     string path;

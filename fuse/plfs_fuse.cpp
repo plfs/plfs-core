@@ -558,10 +558,12 @@ int Plfs::f_rmdir( const char *path ) {
 // fine to leave it undefined.  users shouldn't do stupid stuff like this anyway
 int Plfs::f_unlink( const char *path ) {
     PLFS_ENTER;
+    plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
     ret = plfs_unlink( strPath.c_str() );
     if ( ret == 0 ) {
         self->createdContainers.erase( strPath );
     }
+    plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
     PLFS_EXIT;
 }
 

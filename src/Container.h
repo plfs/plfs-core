@@ -91,6 +91,7 @@ class Container {
             // static stuff
         static int Modify( DirectoryOperation, 
                 const char *, uid_t, gid_t, const struct utimbuf*, mode_t );
+        static int chmodModify (const char *path, mode_t mode);
         static int createHelper( const char *, const char *, 
                 mode_t mode, int flags, int *extra_attempts );
         static int makeTopLevel( const char *, const char *, mode_t );
