@@ -33,7 +33,9 @@
    whether the caller takes care of that.  I believe each function should
    specify itself.
 */
-int plfs_chmod_cleanup(const char *path,mode_t mode );
+int plfs_chmod_cleanup(const char *logical,mode_t mode );
+
+int plfs_chown_cleanup (const char *logical,uid_t uid,gid_t gid );
 
 int is_plfs_file( const char *path );
 

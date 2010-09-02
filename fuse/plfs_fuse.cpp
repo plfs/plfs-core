@@ -212,10 +212,8 @@ Plfs::Plfs () {
     begin_time          = plfs_wtime();
 }
 
-// this just takes a path as passed to FUSE and returns the full logical
-// path.  The problem is that sometimes what is passed is relative to the
-// root and sometimes it is already absolute
 string Plfs::expandPath( const char *path ) {
+
     string full_logical;
     static int mnt_len = strlen(self->pconf->mnt_pt.c_str());
     if ( ! strncmp(path,self->pconf->mnt_pt.c_str(),mnt_len) ) {
@@ -231,6 +229,7 @@ string Plfs::expandPath( const char *path ) {
     }
     plfs_debug("%s %s->%s\n", __FUNCTION__, path, full_logical.c_str());
     return full_logical;
+    
 }
 
 bool Plfs::isdebugfile( const char *path ) {
@@ -421,6 +420,7 @@ int Plfs::f_utime (const char *path, struct utimbuf *ut) {
 // this needs to recurse on all data and index files
 int Plfs::f_chmod (const char *path, mode_t mode) {
     PLFS_ENTER;
+    Plfs_fd *pfd = NULL;
 
     plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
     ret = plfs_chmod( strPath.c_str(), mode );
@@ -547,7 +547,15 @@ int Plfs::set_groups( uid_t uid ) {
 int Plfs::f_chown (const char *path, uid_t uid, gid_t gid ) { 
     PLFS_ENTER;
     ret = plfs_chown(strPath.c_str(),uid,gid);
-    PLFS_EXIT;
+    SET_IDS(s_uid,s_gid);
+    RESTORE_GROUPS;
+    END_TIMES; 
+    
+    if ( ret == 0)
+    {
+        ret = plfs_chown_cleanup ( path, uid, gid );
+    }
+    return ret;
 }
 
 int Plfs::f_mkdir (const char *path, mode_t mode ) {
@@ -825,11 +833,6 @@ int Plfs::f_symlink( const char *path, const char *to ) {
     PLFS_ENTER;
     string toPath = expandPath(to);
     ret = plfs_symlink(strPath.c_str(),toPath.c_str());
-    plfs_debug("%s %s->%s: %d\n",
-            __FUNCTION__,strPath.c_str(),toPath.c_str(),ret);
-    if ( ret == 0 ) errno = 0;  // something weird here.
-                                // we're returning 0 but the app is seeing
-                                // EIO....
     PLFS_EXIT;
 }
 
@@ -997,6 +1000,7 @@ int Plfs::f_rename( const char *path, const char *to ) {
 
     // make the rename happen in the mutex so that no-one can start opening
     // this thing until it's done
+    plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
         // ok, we remove the openfile at the old path
         // this means that when the release tries to remove it, it won't find it
         // but that's ok because not finding it doesn't bother the release.
@@ -1014,7 +1018,6 @@ int Plfs::f_rename( const char *path, const char *to ) {
         // files are now cached based on a uid and flags
     list< struct hash_element > results;
     
-    plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
     ret = plfs_rename(path,toPath.c_str());
     findAllOpenFiles ( strPath, results );
     while( results.size() != 0 )
@@ -1025,7 +1028,9 @@ int Plfs::f_rename( const char *path, const char *to ) {
         results.pop_front();
         Plfs_fd *pfd;
         pfd = current.fd;
+        uid_t *uid;
         string pathHash = getRenameHash ( to , current.path , strPath); 
+        int   *flags;
         if ( ret == 0 && pfd ) {
             pid_t pid = fuse_get_context()->pid;
             // Extract the uid and flags from the string

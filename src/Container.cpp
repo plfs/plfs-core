@@ -121,6 +121,8 @@ int Container::Chmod( const char *path, mode_t mode ) {
     return Container::chmodModify( path, mode );  
 }
 
+
+
 // just do the droppings and the access file
 int Container::Utime( const char *path, const struct utimbuf *buf ) {
     return Container::Modify( UTIME, path, 0, 0, buf, 0 );  
@@ -128,7 +130,7 @@ int Container::Utime( const char *path, const struct utimbuf *buf ) {
 
 int Container::Chown( const char *path, uid_t uid, gid_t gid ) {
     Util::Debug("Chowning to %d:%d\n", uid, gid );
-    return Container::Modify( CHOWN, path, uid, gid, NULL, 0 );  
+    return Container::chownModify( path, uid, gid );  
 }
 int Container::cleanupChmod( const char *path, mode_t mode , int top , 
     uid_t uid, gid_t gid  ) {
@@ -186,11 +188,46 @@ int Container::cleanupChmod( const char *path, mode_t mode , int top ,
     return ret;
 }
 
+int Container::cleanupChown( const char *path, uid_t uid, gid_t gid) {
+    struct dirent *dent         = NULL;
+    DIR *dir                    = NULL; 
+    int ret                     = 0;
+     
+    Util::Opendir( path , &dir );
+    if ( dir == NULL ) { 
+        Util::Debug("%s wtf\n", __FUNCTION__ );
+        return 0; 
+    }
+    while( ret == 0 && (dent = readdir( dir )) != NULL ) {
+        string full_path( path ); full_path += "/"; full_path += dent->d_name;
+        if (!strcmp(dent->d_name,".")||!strcmp(dent->d_name,"..")) continue;
+
+        if ( Util::isDirectory( full_path.c_str() ) ) {
+                ret = cleanupChown( full_path.c_str() , uid , gid );
+                if ( ret != 0 ) break;
+            }
+            
+        ret = Util::Chown( full_path.c_str() , uid, gid);
+    }
+    Util::Closedir( dir );
+    if (ret == 0) ret = Util::Chown( path , uid, gid );
+    return ret;
+}
+
+
 int Container::chmodModify (const char *path, mode_t mode) {
     int ret; 
     string accessfile = getAccessFilePath(path);
     ret = Util::Chmod( accessfile.c_str(), mode );
     if (ret == 0 ) ret = Util::Chmod( path , dirMode( mode )); 
+    return ret;
+}
+
+int Container::chownModify(const char* path, uid_t uid, gid_t gid ) {
+    int ret; 
+    string accessfile = getAccessFilePath(path);
+    ret = Util::Chown( accessfile.c_str(), uid, gid );
+    if (ret == 0 ) ret = Util::Chown( path , uid, gid); 
     return ret;
 }
 

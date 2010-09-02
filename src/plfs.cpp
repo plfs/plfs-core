@@ -187,6 +187,16 @@ plfs_chmod_cleanup(const char *logical,mode_t mode ) {
     PLFS_EXIT( ret );
 }
 
+int plfs_chown_cleanup (const char *logical,uid_t uid,gid_t gid ) {
+    PLFS_ENTER;
+    if ( is_plfs_file( logical )) {
+        ret = Container::cleanupChown( path.c_str() , uid, gid);
+    }
+    else ret = 0;
+    
+    PLFS_EXIT( ret );
+}
+
 // a shortcut for functions that are expecting zero
 int 
 retValue( int res ) {
