@@ -53,6 +53,7 @@ easyconf.sh \
 README.install \
 README.testing \
 plfsrc.example \
+plfsrc.example.lanl \
 ad-patches
 
 SUBDIRS = \
