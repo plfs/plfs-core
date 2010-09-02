@@ -80,6 +80,7 @@ $(headers) \
 $(sources)
 
 libplfs_la_CXXFLAGS = \
+-D_FILE_OFFSET_BITS=64 \
 @PTHREAD_CFLAGS@ \
 @PLFS_DEBUG_CXXFLAGS@
 
