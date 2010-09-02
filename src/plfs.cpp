@@ -18,7 +18,7 @@ using namespace std;
 
 
 #define PLFS_ENTER string path = expandPath(logical); \
-    Util::Debug("EXPAND in %s: %s->%s\n",__FUNCTION__,logical,path.c_str()); \
+    plfs_debug("EXPAND in %s: %s->%s\n",__FUNCTION__,logical,path.c_str()); \
     int ret = 0;
 #define PLFS_EXIT(X) return(X);
 
@@ -108,7 +108,7 @@ expandPath(string logical) {
     }
 
     if ( pconf->error ) {
-      Util::Debug("PlfsConf error: %s\n", pconf->err_msg.c_str());
+      plfs_debug("PlfsConf error: %s\n", pconf->err_msg.c_str());
       return "INVALID";
     }
 
@@ -202,8 +202,8 @@ int
 plfs_create( const char *logical, mode_t mode, int flags ) {
     PLFS_ENTER;
     int attempt = 0;
+    ret = 0; // suppress compiler warning
     return Container::create(path.c_str(),Util::hostname(),mode,flags,&attempt);
-
 }
 
 int
@@ -230,7 +230,7 @@ int isReader( int flags ) {
     int ret = 0;
     if ( flags & O_RDWR ) ret = 1;
     else {
-        unsigned int flag_test =  flags << (sizeof(int)*8)-2 ;
+        unsigned int flag_test = (flags << ((sizeof(int)*8)-2));
         if ( flag_test == 0 ) ret = 1;
     }
     return ret;
@@ -250,6 +250,7 @@ plfs_chown( const char *logical, uid_t u, gid_t g ) {
 int
 is_plfs_file( const char *logical ) {
     PLFS_ENTER;
+    ret = 0; // suppress compiler warning
     return Container::isContainer( path.c_str() );
 }
 
@@ -414,7 +415,7 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
             }
 
             // remember this task
-            Util::Debug("%s", oss.str().c_str() ); 
+            plfs_debug("%s", oss.str().c_str() ); 
             tasks->push_back(task);
         }
         // when chunk_length is 0, that means EOF
@@ -438,7 +439,7 @@ perform_read_task( ReadTask *task, Index *index ) {
                 bool won_race = true;   // assume we will be first stash
                 task->fd = Util::Open(task->path.c_str(), O_RDONLY);
                 if ( task->fd < 0 ) {
-                    Util::Debug("WTF? Open of %s: %s\n", 
+                    plfs_debug("WTF? Open of %s: %s\n", 
                         task->path.c_str(), strerror(errno) );
                     return -errno;
                 }
@@ -458,7 +459,7 @@ perform_read_task( ReadTask *task, Index *index ) {
                     Util::Close(task->fd);
                     task->fd = existing; // already stashed by someone else
                 }
-                Util::Debug("Opened fd %d for %s and %s stash it\n", 
+                plfs_debug("Opened fd %d for %s and %s stash it\n", 
                     task->fd, task->path.c_str(), won_race ? "did" : "did not");
             }
         }
@@ -468,7 +469,7 @@ perform_read_task( ReadTask *task, Index *index ) {
     ostringstream oss;
     oss << "\t READ TASK: offset " << task->chunk_offset << " len "
          << task->length << " fd " << task->fd << ": ret " << ret<< endl;
-    Util::Debug("%s", oss.str().c_str() ); 
+    plfs_debug("%s", oss.str().c_str() ); 
     PLFS_EXIT(ret);
 }
 
@@ -495,7 +496,7 @@ read_helper( Index *index, char *buf, size_t size, off_t offset ) {
         ostringstream oss;
         oss << "\t TASK offset " << chunk_offset << " len "
                      << chunk_length << " fd " << fd << endl;
-        Util::Debug("%s", oss.str().c_str() ); 
+        plfs_debug("%s", oss.str().c_str() ); 
         if ( fd >= 0 ) {
             ret = Util::Pread( fd, buf, read_size, chunk_offset );
             if ( ret < 0 ) {
@@ -535,7 +536,7 @@ plfs_read_old(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
         // may not retry
     ssize_t bytes_remaining = size;
     ssize_t bytes_read      = 0;
-    Util::Debug("TASK LIST:\n" );
+    plfs_debug("TASK LIST:\n" );
     do {
         ret = read_helper( index, &(buf[bytes_read]), bytes_remaining, 
                 offset + bytes_read );
@@ -611,19 +612,19 @@ plfs_read_new(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
         args.tasks = &tasks;
         pthread_mutex_init( &(args.mux), NULL );
         size_t num_threads = min(get_plfs_conf()->threadpool_size,tasks.size());
-        Util::Debug("%d THREADS to %ld\n", num_threads, offset);
+        plfs_debug("%d THREADS to %ld\n", num_threads, offset);
         ThreadPool *threadpool = new ThreadPool(num_threads,reader_thread,
                                      (void*)&args);
         error = threadpool->threadError();   // returns errno
         if ( error ) {
-            Util::Debug("THREAD pool error %s\n", strerror(error) );
+            plfs_debug("THREAD pool error %s\n", strerror(error) );
             error = -error;       // convert to -errno
         } else {
             vector<void*> *stati    = threadpool->getStati();
             for( size_t t = 0; t < num_threads; t++ ) {
                 void *status = (*stati)[t];
                 ret = (ssize_t)status;
-                Util::Debug("Thread %d returned %d\n", (int)t,int(ret));
+                plfs_debug("Thread %d returned %d\n", (int)t,int(ret));
                 if ( ret < 0 ) error = ret;
                 else total += ret;
             }
@@ -650,7 +651,7 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
     Index *index = pfd->getIndex(); 
     ssize_t ret = 0;
 
-    Util::Debug("Read request on %s at offset %ld for %ld bytes\n",
+    plfs_debug("Read request on %s at offset %ld for %ld bytes\n",
             pfd->getPath(),long(offset),long(size));
 
     // possible that we opened the file as O_RDWR
@@ -674,11 +675,11 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
         else           ret = plfs_read_old(pfd,buf,size,offset,index);
     }
 
-    Util::Debug("Read request on %s at offset %ld for %ld bytes: ret %ld\n",
+    plfs_debug("Read request on %s at offset %ld for %ld bytes: ret %ld\n",
             pfd->getPath(),long(offset),long(size),long(ret));
 
     if ( new_index_created ) {
-        Util::Debug("%s removing freshly created index for %s\n",
+        plfs_debug("%s removing freshly created index for %s\n",
                 __FUNCTION__, pfd->getPath() );
         delete( index );
         index = NULL;
@@ -741,7 +742,7 @@ get_plfs_conf() {
             sscanf(line, "%s %s\n", key, value);
             confs[key] = value;
             // it shows up at start time so turn off
-            //Util::Debug("plfsrc has %s -> %s\n", key, value); 
+            //plfs_debug("plfsrc has %s -> %s\n", key, value); 
         }
         map<string,string>::iterator itr;
         hidden->parsed = true;
@@ -870,7 +871,7 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
         }
         if ( ret == 0 ) {
             ret = addWriter( wf, pid, path.c_str(), mode );
-            Util::Debug("%s added writer: %d\n", __FUNCTION__, ret );
+            plfs_debug("%s added writer: %d\n", __FUNCTION__, ret );
             if ( ret > 0 ) ret = 0; // add writer returns # of current writers
             if ( ret == 0 && new_writefile ) ret = wf->openIndex( pid ); 
         }
@@ -926,9 +927,20 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
 
 int
 plfs_symlink(const char *logical, const char *to) {
+    // the link should contain the path to the file
+    // we should create a symlink on the backend that has 
+    // a link to the logical file.  this is weird and might
+    // get ugly but let's try and see what happens.
+    //
+    // really we should probably make the link point to the backend
+    // and then un-resolve it on the readlink...
+    // ok, let's try that then.  no, let's try the first way
     PLFS_ENTER;
     string toPath = expandPath(to);
-    ret = retValue(Util::Symlink(path.c_str(),toPath.c_str()));
+    //ret = retValue(Util::Symlink(path.c_str(),toPath.c_str()));
+    ret = retValue(Util::Symlink(logical,toPath.c_str()));
+    plfs_debug("%s: %s to %s: %d\n", __FUNCTION__, 
+            path.c_str(), toPath.c_str(),ret);
     PLFS_EXIT(ret);
 }
 
@@ -936,6 +948,7 @@ int
 plfs_readlink(const char *logical, char *buf, size_t bufsize) {
     PLFS_ENTER;
     memset((void*)buf, 0, bufsize);
+    plfs_debug("%s: trying to read link %s\n", __FUNCTION__, path.c_str());
     ret = retValue(Util::Readlink(path.c_str(),buf,bufsize));
     PLFS_EXIT(ret);
 }
@@ -959,7 +972,7 @@ plfs_rename( const char *logical, const char *to ) {
         // this might fail with ENOENT but that's fine
         plfs_unlink( to );
     }
-    Util::Debug("Trying to rename %s to %s\n", path.c_str(), topath.c_str());
+    plfs_debug("Trying to rename %s to %s\n", path.c_str(), topath.c_str());
     ret = retValue( Util::Rename(path.c_str(), topath.c_str()));
     PLFS_EXIT(ret);
 }
@@ -979,7 +992,7 @@ plfs_write( Plfs_fd *pfd, const char *buf, size_t size, off_t offset, pid_t pid)
     int ret = 0; ssize_t written;
     WriteFile *wf = pfd->getWritefile();
 
-    Util::Debug("Write to %s, offset %ld\n", 
+    plfs_debug("Write to %s, offset %ld\n", 
             pfd->getPath(), (long)offset );
     ret = written = wf->write( buf, size, offset, pid );
 
@@ -1013,16 +1026,16 @@ removeDirectoryTree( const char *path, bool truncate_only ) {
     DIR *dir;
     struct dirent *ent;
     int ret = 0;
-    Util::Debug("%s on %s\n", __FUNCTION__, path );
+    plfs_debug("%s on %s\n", __FUNCTION__, path );
 
     ret = Util::Opendir( path, &dir );
     if ( dir == NULL ) return -errno;
 
-    Util::Debug("opendir %s\n", path);
+    plfs_debug("opendir %s\n", path);
     while( (ent = readdir( dir ) ) != NULL ) {
-        Util::Debug("readdir %s\n", path);
+        plfs_debug("readdir %s\n", path);
         if ( ! strcmp(ent->d_name, ".") || ! strcmp(ent->d_name, "..") ) {
-            //Util::Debug("skipping %s\n", ent->d_name );
+            //plfs_debug("skipping %s\n", ent->d_name );
             continue;
         }
         if ( ! strcmp(ent->d_name, ACCESSFILE ) && truncate_only ) {
@@ -1034,7 +1047,7 @@ removeDirectoryTree( const char *path, bool truncate_only ) {
         string child( path );
         child += "/";
         child += ent->d_name;
-        Util::Debug("made child %s from path %s\n",child.c_str(),path);
+        plfs_debug("made child %s from path %s\n",child.c_str(),path);
         if ( Util::isDirectory( child.c_str() ) ) {
             if ( removeDirectoryTree( child.c_str(), truncate_only ) != 0 ) {
                 ret = -errno;
@@ -1051,7 +1064,7 @@ removeDirectoryTree( const char *path, bool truncate_only ) {
             int remove_ret = 0;
             if ( truncate_only ) remove_ret = Util::Truncate(child.c_str(), 0);
             else                 remove_ret = Util::Unlink  (child.c_str());
-            Util::Debug("removed/truncated %s: %s\n", 
+            plfs_debug("removed/truncated %s: %s\n", 
                     child.c_str(), strerror(errno) );
             
             // ENOENT would be OK, could mean that an openhosts dropping
@@ -1104,13 +1117,13 @@ plfs_getattr( Plfs_fd *of, const char *logical, struct stat *stbuf ) {
         logical = of->getPath();    // this is the physical path
         backwards = true;
     }
-    Util::Debug("%s on logical %s\n", __FUNCTION__, logical);
+    plfs_debug("%s on logical %s\n", __FUNCTION__, logical);
     PLFS_ENTER; // this assumes it's operating on a logical path
-    Util::Debug("%s on %s\n", __FUNCTION__, path.c_str());
+    plfs_debug("%s on %s\n", __FUNCTION__, path.c_str());
     if ( backwards ) {
         path = of->getPath();   // restore the stashed physical path
     }
-    Util::Debug("%s on %s\n", __FUNCTION__, path.c_str());
+    plfs_debug("%s on %s\n", __FUNCTION__, path.c_str());
     if ( ! is_plfs_file( logical ) ) {
        /* if ( errno == EACCES ) {
             ret = -errno;
@@ -1145,7 +1158,7 @@ plfs_getattr( Plfs_fd *of, const char *logical, struct stat *stbuf ) {
         }
     }
     if ( ret != 0 ) {
-        Util::Debug("logical %s,stashed %s,physical %s: %s\n",
+        plfs_debug("logical %s,stashed %s,physical %s: %s\n",
             logical,of?of->getPath():"NULL",path.c_str(),
             strerror(errno));
     }
@@ -1160,7 +1173,7 @@ int
 plfs_mode(const char *logical, mode_t *mode) {
     PLFS_ENTER;
     *mode = Container::getmode(path.c_str());
-    PLFS_EXIT(0);
+    PLFS_EXIT(ret);
 }
 
 int
@@ -1246,7 +1259,7 @@ plfs_unlink( const char *logical ) {
     PLFS_ENTER;
     if ( is_plfs_file( logical ) ) {
         ret = removeDirectoryTree( path.c_str(), false );  
-        Util::Debug("Removed dir %s\n",path.c_str());
+        plfs_debug("Removed dir %s\n",path.c_str());
     } else {
         ret = retValue( Util::Unlink( path.c_str() ) );   
     }
@@ -1280,7 +1293,7 @@ ssize_t plfs_reference_count( Plfs_fd *pfd ) {
         ostringstream oss;
         oss << __FUNCTION__ << " not equal counts: " << ref_count
             << " != " << pfd->incrementOpens(0) << endl;
-        Util::Debug("%s", oss.str().c_str() ); 
+        plfs_debug("%s", oss.str().c_str() ); 
         assert( ref_count == pfd->incrementOpens(0) );
     }
     return ref_count;
@@ -1336,7 +1349,7 @@ plfs_close( Plfs_fd *pfd, pid_t pid, int open_flags ) {
     }
 
     
-    Util::Debug("%s %s: %d readers, %d writers, %d refs remaining\n",
+    plfs_debug("%s %s: %d readers, %d writers, %d refs remaining\n",
             __FUNCTION__, pfd->getPath(), (int)readers, (int)writers,
             (int)ref_count);
 
@@ -1350,7 +1363,7 @@ plfs_close( Plfs_fd *pfd, pid_t pid, int open_flags ) {
     if ( ret == 0 && ref_count == 0 ) {
         ostringstream oss;
         oss << __FUNCTION__ << " removing OpenFile " << pfd << endl;
-        Util::Debug("%s", oss.str().c_str() ); 
+        plfs_debug("%s", oss.str().c_str() ); 
         delete pfd; 
         pfd = NULL;
     }

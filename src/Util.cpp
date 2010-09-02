@@ -112,9 +112,6 @@ Util::Debug( const char *format, ... ) {
     Util::Debug( format, args);
     va_end( args );
 }
-#else
-void Util::Debug( const char *format, ... ) { return; }
-#endif
 
 void
 Util::Debug( const char *format, va_list args ) {
@@ -131,6 +128,10 @@ Util::Debug( const char *format, va_list args ) {
         fflush(debugfile);
     }
 }
+#else
+void Util::Debug( const char *format, ... ) { return; }
+void Util::Debug( const char *format, va_list args ) { return; }
+#endif
 
 // initialize static variables
 HASH_MAP<string, double> utimers;
@@ -420,7 +421,7 @@ bool Util::exists( const char *path ) {
     ENTER_PATH;
     bool exists = false;
     struct stat buf;
-    if ( stat( path, &buf ) == 0 ) {
+    if ( Util::Stat( path, &buf ) == 0 ) {
         exists = true;
     }
     ret = exists;
@@ -428,14 +429,14 @@ bool Util::exists( const char *path ) {
 }
 
 bool Util::isDirectory( struct stat *buf ) {
-    return S_ISDIR(buf->st_mode);
+    return (S_ISDIR(buf->st_mode) && !S_ISLNK(buf->st_mode));
 }
 
 bool Util::isDirectory( const char *path ) {
     ENTER_PATH;
     bool exists = false;
     struct stat buf;
-    if ( stat( path, &buf ) == 0 ) {
+    if ( Util::Lstat( path, &buf ) == 0 ) {
         exists = isDirectory( &buf );
     }
     ret = exists;

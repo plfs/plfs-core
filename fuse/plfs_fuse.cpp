@@ -221,7 +221,13 @@ string Plfs::expandPath( const char *path ) {
     if ( ! strncmp(path,self->pconf->mnt_pt.c_str(),mnt_len) ) {
         full_logical = path; // already absolute
     } else {
-        full_logical = self->pconf->mnt_pt + path; // make absolute
+        // another weird thing is that sometimes the path is not prefaced with a
+        // slash.  in that case, add one btwn it and the mount point
+        if ( path[0] == '/' ) {
+            full_logical = self->pconf->mnt_pt + path; // make absolute
+        } else {
+            full_logical = self->pconf->mnt_pt + '/' + path; // make absolute
+        }
     }
     plfs_debug("%s %s->%s\n", __FUNCTION__, path, full_logical.c_str());
     return full_logical;

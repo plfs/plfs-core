@@ -27,7 +27,6 @@ int Container::Access( const char *path, int mask ) {
     // doing just Access is insufficient when plfs daemon run as root
     // root can access everything.  so, we must also try the open
    
-    int mode;
     int ret;
     string accessfile = getAccessFilePath(path);
         // Needed for open with a create flag
@@ -82,11 +81,23 @@ size_t Container::hashValue( const char *str ) {
 // in a directory or PLFS will think it's a container.  We need to make
 // sure the access name is sufficiently strange.  Also we need to make 
 // sure the access file is a file and not a directory
+//
+// OK.  Also, the access file will exist if it's a symlink.  so maybe
+// we need to stat the top level as well and then only stat the accessfile
+// if the top level is a directory.  That's annoying.  We really don't want
+// to do two stats in this call.
 bool Container::isContainer( const char *physical_path ) {
-    struct stat buf;
-    string accessfile = getAccessFilePath(physical_path); 
-    int ret = Util::Lstat( accessfile.c_str(), &buf );
-    return ( ret == 0 ? !Util::isDirectory(&buf) : false );
+    plfs_debug("%s checking %s\n", __FUNCTION__, physical_path);
+    if ( Util::isDirectory(physical_path) ) {
+        plfs_debug("%s %s is a directory\n", __FUNCTION__, physical_path);
+        struct stat buf;
+        string accessfile = getAccessFilePath(physical_path); 
+        int ret = Util::Lstat( accessfile.c_str(), &buf );
+        return ( ret == 0 ? true : false );    
+    } else {
+        // either a file or a symlink
+        return false;
+    }
 }
 
 int Container::freeIndex( Index **index ) {
