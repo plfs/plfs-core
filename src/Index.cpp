@@ -59,10 +59,8 @@ bool ContainerEntry::mergable( const ContainerEntry &other ) {
 
 ostream& operator <<(ostream &os,const ContainerEntry &entry) {
     double begin_timestamp = 0, end_timestamp = 0;
-    #ifdef INDEX_CONTAINS_TIMESTAMPS
-        begin_timestamp = entry.begin_timestamp;
-        end_timestamp  = entry.end_timestamp;
-    #endif
+    begin_timestamp = entry.begin_timestamp;
+    end_timestamp  = entry.end_timestamp;
     os  << setw(5) 
         << entry.id             << " w " 
         << setw(16)
@@ -346,10 +344,8 @@ int Index::readIndex( string hostindex ) {
         c_entry.length            = h_entry.length;
         c_entry.id                = known_chunks[chunkpath];
         c_entry.chunk_offset      = chunk_offsets[chunkpath];
-        #ifdef INDEX_CONTAINS_TIMESTAMPS
-            c_entry.begin_timestamp = h_entry.begin_timestamp;
-            c_entry.end_timestamp   = h_entry.end_timestamp;
-        #endif
+        c_entry.begin_timestamp = h_entry.begin_timestamp;
+        c_entry.end_timestamp   = h_entry.end_timestamp;
         chunk_offsets[chunkpath] += h_entry.length;
         last_offset = max( (off_t)(c_entry.logical_offset+c_entry.length),
                             last_offset );
@@ -704,12 +700,10 @@ void Index::addWrite( off_t offset, size_t length, pid_t pid,
     Metadata::addWrite( offset, length );
     int quant = hostIndex.size();
     bool abutable = true;
-    #ifdef INDEX_CONTAINS_TIMESTAMPS
         // we use this mode to be able to create trace vizualizations
         // so we don't want to merge anything bec that will reduce the
         // fidelity of the trace vizualization
-        abutable = false;
-    #endif
+    abutable = false;
 
         // incoming abuts with last
     if ( quant && abutable
@@ -724,12 +718,10 @@ void Index::addWrite( off_t offset, size_t length, pid_t pid,
         entry.logical_offset = offset;
         entry.length         = length; 
         entry.id             = pid; 
-        #ifdef INDEX_CONTAINS_TIMESTAMPS
-            entry.begin_timestamp = begin_timestamp;
-            // valgrind complains about this line as well:
-            // Address 0x97373bc is 20 bytes inside a block of size 40 alloc'd
-            entry.end_timestamp   = end_timestamp;
-        #endif
+        entry.begin_timestamp = begin_timestamp;
+        // valgrind complains about this line as well:
+        // Address 0x97373bc is 20 bytes inside a block of size 40 alloc'd
+        entry.end_timestamp   = end_timestamp;
         hostIndex.push_back( entry );
     }
 }
@@ -794,10 +786,8 @@ int Index::rewriteIndex( int fd ) {
     map<off_t,ContainerEntry>::iterator itr;
     for( itr = global_index.begin(); itr != global_index.end(); itr++ ) {
         double begin_timestamp = 0, end_timestamp = 0;
-        #ifdef INDEX_CONTAINS_TIMESTAMPS 
-            begin_timestamp = itr->second.begin_timestamp;
-            end_timestamp   = itr->second.end_timestamp;
-        #endif
+        begin_timestamp = itr->second.begin_timestamp;
+        end_timestamp   = itr->second.end_timestamp;
         addWrite( itr->second.logical_offset,itr->second.length, 
                 itr->second.id, begin_timestamp, end_timestamp );
     }

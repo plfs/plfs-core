@@ -34,10 +34,8 @@ class HostEntry {
         off_t  logical_offset;
         size_t length;
         pid_t  id;
-        #ifdef INDEX_CONTAINS_TIMESTAMPS
-            double begin_timestamp;
-            double end_timestamp;
-        #endif
+        double begin_timestamp;
+        double end_timestamp;
 
     friend class Index;
 };
