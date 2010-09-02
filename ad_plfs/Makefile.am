@@ -66,6 +66,7 @@ $(headers) \
 $(sources)
 
 libadplfs_la_CFLAGS = \
+-D_FILE_OFFSET_BITS=64 \
 -I$(top_srcdir)/src \
 @PLFS_MPI_CFLAGS@ \
 @PLFS_ROMIO_CFLAGS@
