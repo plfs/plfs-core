@@ -28,7 +28,6 @@
 #include <iostream>
 #include <sstream>
 #include <map>
-#include <sys/fsuid.h>
 
 using namespace std;
 

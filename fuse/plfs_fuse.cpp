@@ -816,9 +816,11 @@ int Plfs::f_write(const char *path, const char *buf, size_t size, off_t offset,
 
 // not sure if this should return 0 on success like most FUSE ops 
 // or the number of chars placed in buffer like the system call readlink does
+// I think it should return 0 for success
 int Plfs::f_readlink (const char *path, char *buf, size_t bufsize) {
     PLFS_ENTER;
     ret = plfs_readlink(strPath.c_str(),buf,bufsize); 
+    if ( ret > 0 ) ret = 0;
     PLFS_EXIT;
 }
 

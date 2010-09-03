@@ -954,20 +954,32 @@ plfs_symlink(const char *logical, const char *to) {
     PLFS_EXIT(ret);
 }
 
+// do this one basically the same as plfs_symlink
+// this one probably can't work actually since you can't hard link a directory
+// and plfs containers are physical directories
+int
+plfs_link(const char *logical, const char *to) {
+    PLFS_ENTER;
+    plfs_debug( "Can't make a hard link to a container.\n" );
+    PLFS_EXIT(-ENOSYS);
+    /*
+    string toPath = expandPath(to);
+    ret = retValue(Util::Link(logical,toPath.c_str()));
+    plfs_debug("%s: %s to %s: %d\n", __FUNCTION__, 
+            path.c_str(), toPath.c_str(),ret);
+    PLFS_EXIT(ret);
+    */
+}
+
+// returns -1 for error, otherwise number of bytes read
+// therefore can't use retValue here
 int
 plfs_readlink(const char *logical, char *buf, size_t bufsize) {
     PLFS_ENTER;
     memset((void*)buf, 0, bufsize);
-    plfs_debug("%s: trying to read link %s\n", __FUNCTION__, path.c_str());
-    ret = retValue(Util::Readlink(path.c_str(),buf,bufsize));
-    PLFS_EXIT(ret);
-}
-
-int
-plfs_link(const char *logical, const char *to) {
-    PLFS_ENTER;
-    string toPath = expandPath(to);
-    ret = retValue(Util::Link(path.c_str(),toPath.c_str()));
+    ret = Util::Readlink(path.c_str(),buf,bufsize);
+    if ( ret < 0 ) ret = -errno;
+    plfs_debug("%s: readlink %s: %d\n", __FUNCTION__, path.c_str(),ret);
     PLFS_EXIT(ret);
 }
 
