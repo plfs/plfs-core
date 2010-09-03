@@ -88,6 +88,29 @@ size_t Container::hashValue( const char *str ) {
 // to do two stats in this call.
 bool Container::isContainer( const char *physical_path ) {
     plfs_debug("%s checking %s\n", __FUNCTION__, physical_path);
+
+    // actually, I think we can do this the old one but then on 
+    // a stat of a symlink, check then.  better to check in getattr
+    // then here in isContainer
+    //
+    // actually this won't work because in order to resolve the path
+    // to the access file, the underlying physical filesystem finds
+    // a symlink that points to the logical file and then that would
+    // recurse on the stack as it tried to resolve.
+    /*
+    string accessfile = getAccessFilePath(physical_path); 
+    struct stat buf;
+    int ret = Util::Stat( accessfile.c_str(), &buf );
+    plfs_debug("%s checked %s: %d\n", __FUNCTION__, accessfile.c_str(),ret);
+    return(ret==0 ? true:false);
+    */
+    // I think if we really wanted to reduce this to one stat and have the
+    // symlinks work, we could have the symlink point to the back-end instead
+    // of to the frontend and then we should be able to just check the access
+    // file which would make symlinks look like containers but then we'd have
+    // to correctly identify symlinks in getattr, this also means that we'd
+    // have to make the backwards mapping in f_readlink to get from a 
+    // physical back-end pointer to a front-end one
     if ( Util::isDirectory(physical_path) ) {
         plfs_debug("%s %s is a directory\n", __FUNCTION__, physical_path);
         struct stat buf;
@@ -132,6 +155,7 @@ int Container::Chown( const char *path, uid_t uid, gid_t gid ) {
     Util::Debug("Chowning to %d:%d\n", uid, gid );
     return Container::chownModify( path, uid, gid );  
 }
+
 int Container::cleanupChmod( const char *path, mode_t mode , int top , 
     uid_t uid, gid_t gid  ) {
 
@@ -163,8 +187,8 @@ int Container::cleanupChmod( const char *path, mode_t mode , int top ,
         if (!strcmp(dent->d_name,".")||!strcmp(dent->d_name,"..")
                 ||!strcmp(dent->d_name, CREATORFILE ) 
                 ||!strcmp(dent->d_name, ACCESSFILE )) continue;
-        if (!strncmp( dent->d_name , HOSTDIRPREFIX, 8) ||
-                !strncmp( dent->d_name , DROPPINGPREFIX , 8 )) {
+        if (!strncmp( dent->d_name , HOSTDIRPREFIX, strlen(HOSTDIRPREFIX)) ||
+                !strncmp( dent->d_name , DROPPINGPREFIX , strlen(DROPPINGPREFIX) )) {
             if ( Util::isDirectory( full_path.c_str() ) ) {
                 ret = cleanupChmod( full_path.c_str() , mode , 0 , uid , gid );
                 if ( ret != 0 ) break;
@@ -176,8 +200,7 @@ int Container::cleanupChmod( const char *path, mode_t mode , int top ,
                 }
             } 
         }
-        if(top == 1 )
-        {
+        if(top == 1 ) {
             ret = Util::Chmod( full_path.c_str() , 
                 mode | S_IXUSR | S_IXGRP | S_IXOTH);
         }
@@ -546,7 +569,6 @@ mode_t Container::getmode( const char *path ) {
     }
 }
 
-// assumes the stbuf struct is already populated w/ stat of top level container 
 int Container::getattr( const char *path, struct stat *stbuf ) {
         // Need to walk the whole structure
         // and build up the stat.
@@ -573,8 +595,9 @@ int Container::getattr( const char *path, struct stat *stbuf ) {
         // but get the permissions and stuff from the access file
     string accessfile = getAccessFilePath( path );
     if ( Util::Lstat( accessfile.c_str(), stbuf ) < 0 ) {
-        Util::Debug("lstat of %s failed: %s\n",
-                accessfile.c_str(), strerror( errno ) );
+        Util::Debug("%s lstat of %s failed: %s\n",
+                __FUNCTION__, accessfile.c_str(), strerror( errno ) );
+        return -errno;
     }
     stbuf->st_size    = 0;  
     stbuf->st_blocks  = 0;

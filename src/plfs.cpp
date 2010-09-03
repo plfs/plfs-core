@@ -1152,6 +1152,9 @@ plfs_getattr( Plfs_fd *of, const char *logical, struct stat *stbuf ) {
         } else {
             ret = retValue( Util::Lstat( path.c_str(), stbuf ) );
         }*/
+        // this is how a symlink is stat'd since it doesn't look like
+        // a plfs file
+        plfs_debug("%s on non plfs file %s\n", __FUNCTION__, path.c_str());
         ret = retValue( Util::Lstat( path.c_str(), stbuf ) );        
     } else {
         ret = Container::getattr( path.c_str(), stbuf );
