@@ -1,0 +1,14 @@
+The primary goal of PLFS is to support very high bandwidth parallel IO for
+HPC large scale parallel applications especially for N-1 write workloads.
+
+A secondary goal is to be as POSIX compliant as possible without sacrificing
+the primary goal.  There are several known cases where PLFS is intentionally
+not POSIX compliant in order to satisfy the primary goal:
+
+1) overlapped writes that occur from different open() calls are not defined.
+in fact, different readers at different times might even get different values.
+if the same open() happens to do overwrites, this is handled correctly
+
+2) no hard links.  This is because hard links are not possible on directories
+and logical files in PLFS are "containers" and containers are built from
+physical directories.

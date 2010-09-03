@@ -33,6 +33,19 @@ so maybe the silly rename didn't change the mode correctly?
 like it is?  Like do a read from a file that does not exist and see what
 happens.  Both through FUSE and ADIO.
 
+13) also, something weird which might be a FUSE bug.
+
+cd /mnt/plfs
+mkdir top
+cd top
+mkdir dir1
+mkdir dir2
+cd dir1
+file ../dir2
+# this is passed correctly from our fuse layer as /top/dir2
+ln -s ../dir2 symlink
+# this is passed incorrectly from our fuse layer as ../dir2
+
 CLOSED
 
 
