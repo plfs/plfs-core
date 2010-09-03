@@ -221,11 +221,18 @@ string Plfs::expandPath( const char *path ) {
     } else {
         // another weird thing is that sometimes the path is not prefaced with a
         // slash.  in that case, add one btwn it and the mount point
+        // actually, this happens on a symlink and this means that the symlink
+        // should be to a relative path, so don't screw with it
+        // actually, we will change it but for the symlink call we won't pass
+        // the expanded path
+        /*
         if ( path[0] == '/' ) {
             full_logical = self->pconf->mnt_pt + path; // make absolute
         } else {
             full_logical = self->pconf->mnt_pt + '/' + path; // make absolute
         }
+        */
+        full_logical = self->pconf->mnt_pt + path; // make absolute
     }
     plfs_debug("%s %s->%s\n", __FUNCTION__, path, full_logical.c_str());
     return full_logical;
@@ -834,7 +841,11 @@ int Plfs::f_link( const char *path, const char *to ) {
 int Plfs::f_symlink( const char *path, const char *to ) {
     PLFS_ENTER;
     string toPath = expandPath(to);
-    ret = plfs_symlink(strPath.c_str(),toPath.c_str());
+    // do we use the absolute expanded path or is it a relative one?
+    const char *src;
+    if ( path[0] == '/' ) src = strPath.c_str();
+    else src = path;
+    ret = plfs_symlink(src,toPath.c_str());
     PLFS_EXIT;
 }
 
