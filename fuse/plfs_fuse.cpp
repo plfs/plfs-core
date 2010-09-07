@@ -37,7 +37,7 @@ using namespace std;
 
 #define DEBUGFILE ".plfsdebug"
 #define DEBUGLOG  ".plfslog"
-#define DEBUGFILESIZE 4096
+#define DEBUGFILESIZE 16384
 #define DEBUGLOGSIZE  4194304
 
 // the reason we need this struct is because we want to know the original
