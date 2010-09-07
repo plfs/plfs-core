@@ -201,12 +201,11 @@ int Container::cleanupChmod( const char *path, mode_t mode , int top ,
             } 
         }
         if(top == 1 ) {
-            ret = Util::Chmod( full_path.c_str() , 
-                mode | S_IXUSR | S_IXGRP | S_IXOTH);
+            ret = Util::Chmod( full_path.c_str() , dirMode( mode  ) );
         }
     }
     Util::Closedir( dir );
-    ret = Util::Chmod( path , mode | S_IXUSR | S_IXGRP | S_IXOTH );
+    ret = Util::Chmod( path , dirMode( mode ) );
     //ret = Util::Chmod( path , mode );
     return ret;
 }
