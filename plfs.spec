@@ -45,7 +45,7 @@ small N to 1 strided write patterns to a parallel file system.
 #%{__install} -m 0755 fuse/plfs %{buildroot}/%{_sbindir}/plfs
 %{__install} -m 0755 fuse/plfs.init %{buildroot}%{_initrddir}/plfs
 %{__install} -m 0644 fuse/plfs.sysconfig %{buildroot}/etc/sysconfig/plfs
-%{__install} -m 0644 fuse/plfsrc.example %{buildroot}/etc/plfsrc
+%{__install} -m 0644 plfsrc.example %{buildroot}/etc/plfsrc
 
 %{__make} install DESTDIR=$RPM_BUILD_ROOT
 
@@ -61,6 +61,7 @@ if [ "$1" = "1" ]; then
    if [ -x /sbin/chkconfig ] ; then
        /sbin/chkconfig --add plfs
    fi
+   mkdir -p /tmp/plfs /tmp/.plfs_store
 fi
 
 %preun
@@ -69,6 +70,7 @@ if [ "$1" = "0" ]; then
     if [ -x /sbin/chkconfig ] ; then
         /sbin/chkconfig --del plfs
     fi
+   rmdir  /tmp/plfs /tmp/.plfs_store
 fi
 
 %files
