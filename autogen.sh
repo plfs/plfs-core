@@ -39,12 +39,12 @@ check_tool_version()
         echo_tool_reqs
         exit 1
     fi
-    version_str=`echo -e "$v_output" | grep $1`
+    version_str=`echo -e "$v_output" | grep -i $1`
     version_str=`echo -e "$version_str" | \
     grep -oe '[0-9]\+[.][0-9]\+[.]\?[0-9]*[A-Za-z]\?'`
     if [[ $2 != $version_str ]]
     then
-        echo "$1 version requirement not met"
+        echo "$1 version requirement not met - detected $1 $version_str"
         echo_tool_reqs
         exit 1
     fi
