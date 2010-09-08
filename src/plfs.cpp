@@ -1297,20 +1297,42 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
     PLFS_EXIT(ret);
 }
 
+// a helper function to make unlink be atomic
+// returns a funny looking string that is hopefully unique and then
+// tries to remove that
+string
+getAtomicUnlinkPath(string path) {
+    string atomicpath = path + ".plfs_atomic_unlink.";
+    stringstream timestamp;
+    timestamp << Util::getTime();
+    vector<string> tokens;
+    tokenize(path,"/",tokens);
+    atomicpath = "";
+    for(size_t i=0 ; i < tokens.size(); i++){
+        atomicpath += "/";
+        if ( i == tokens.size() - 1 ) atomicpath += ".";    // hide it
+        atomicpath += tokens[i];
+    }
+    atomicpath += ".plfs_atomic_unlink.";
+    atomicpath.append(timestamp.str());
+    return atomicpath;
+}
+
 int 
 plfs_unlink( const char *logical ) {
     PLFS_ENTER;
     if ( is_plfs_file( logical ) ) {
         // make this more atomic
-        string atomicpath = path + ".plfs_atomic_unlink.";
-        stringstream qDoubleToString;
-        qDoubleToString << Util::getTime();
-        atomicpath.append(qDoubleToString.str());
+        string atomicpath = getAtomicUnlinkPath(path);
         ret = retValue( Util::Rename(path.c_str(), atomicpath.c_str()));
         if ( ret == 0 ) {
+            plfs_debug("Converted %s to %s for atomic unlink\n",
+                    path.c_str(), atomicpath.c_str());
             ret = removeDirectoryTree( atomicpath.c_str(), false );  
+        } else {    // something weird with atomicpath, just try path
+            ret = removeDirectoryTree( path.c_str(), false );  
         }
-        plfs_debug("Removed dir %s\n",path.c_str());
+        plfs_debug("Removed plfs container %s: %d\n",path.c_str(),ret);
     } else {
         ret = retValue( Util::Unlink( path.c_str() ) );   
     }
