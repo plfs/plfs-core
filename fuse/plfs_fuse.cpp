@@ -411,13 +411,13 @@ int Plfs::f_fgetattr(const char *path, struct stat *stbuf,
 {
     PLFS_ENTER; GET_OPEN_FILE;
     ret = getattr_helper( path, stbuf, of );
-    PLFS_EXIT    ;
+    PLFS_EXIT;
 }
 
 int Plfs::f_getattr(const char *path, struct stat *stbuf) {
     PLFS_ENTER;
     ret = getattr_helper( path, stbuf, NULL );
-    PLFS_EXIT    ;
+    PLFS_EXIT;
 }
 
 // needs to work differently for directories
@@ -692,6 +692,11 @@ int Plfs::f_open(const char *path, struct fuse_file_info *fi) {
     }
     //plfs_debug("%s: %s ref count: %d\n", __FUNCTION__, 
     //        strPath.c_str(), plfs_reference_count(pfd));
+
+    if ( ret == 0 ) {
+        plfs_debug("%s %s has %d references\n", __FUNCTION__, path,
+                pfd->incrementOpens(0));
+    }
     plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
 
     // we can safely add more writers to an already open file
@@ -893,7 +898,7 @@ string Plfs::openFilesToString() {
     HASH_MAP<string, Plfs_fd *>::iterator itr;
     for(itr = self->open_files.begin(); itr != self->open_files.end(); itr++){
         plfs_query( itr->second, &writers, &readers );
-        oss << itr->first << " ";
+        oss << itr->second->getPath() << ", ";
         oss << readers << " readers, "
             << writers << " writers. " << endl;
     }
@@ -961,6 +966,7 @@ int Plfs::writeDebug( char *buf, size_t size, off_t offset, const char *path ) {
     memcpy( buf, (const void*)&(tmpbuf[offset]), validsize );
     delete tmpbuf;
     tmpbuf = NULL;
+    plfs_debug("Returning the buffer for debugfile %s\n", path);
     return validsize; 
 }
 

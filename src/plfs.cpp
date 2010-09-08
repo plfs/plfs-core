@@ -1418,7 +1418,7 @@ plfs_close( Plfs_fd *pfd, pid_t pid, int open_flags ) {
             index = NULL;
             pfd->setIndex(NULL);
         }
-        ref_count += pfd->incrementOpens(-1);
+        ref_count = pfd->incrementOpens(-1);
     }
 
     
