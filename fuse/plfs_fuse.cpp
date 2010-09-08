@@ -375,6 +375,9 @@ int Plfs::getattr_helper( const char *path,
             stbuf->st_size = ( isdebugfile( path, DEBUGFILE ) ?
                                 DEBUGFILESIZE :
                                 DEBUGLOGSIZE );
+            struct timeval  tv;
+            gettimeofday(&tv, NULL);
+            stbuf->st_mtime = tv.tv_sec; 
             ret = 0; 
         } else {
             // let's remove this from our created containers
@@ -666,7 +669,7 @@ int Plfs::f_open(const char *path, struct fuse_file_info *fi) {
     // back side of the plfs_open but that limits open
     // parallelism
     plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
-    string pathHash = pathToHash ( strPath , fuse_get_context()->uid, fi->flags );
+    string pathHash = pathToHash(strPath , fuse_get_context()->uid, fi->flags);
     pfd = findOpenFile( pathHash );
     if ( ! pfd ) newly_created = true;
 
@@ -726,16 +729,20 @@ int Plfs::f_release( const char *path, struct fuse_file_info *fi ) {
         int remaining = plfs_close( of, openfile->pid, fi->flags );
         fi->fh = (uint64_t)NULL;
         if ( remaining == 0 ) {
+            string pathHash = pathToHash(strPath,openfile->uid,openfile->flags);
+            plfs_debug("%s: Removing Open File: %s remaining: %d\n", 
+                __FUNCTION__, pathHash.c_str(), remaining);
+            removeOpenFile(pathHash,openfile->pid,of);
+            /*
+            // we don't need to iterate through all open files here, do we?
             list< struct hash_element > results;
             findAllOpenFiles ( strPath , results);
             while( results.size()!= 0 ) {
                 struct hash_element current;
                 current = results.front();
                 results.pop_front();
-                plfs_debug("%s: Removing Open File: %s remaining: %d\n", 
-                __FUNCTION__, current.path.c_str(), remaining);
-                removeOpenFile( current.path , openfile->pid, of );
             }
+            */
         } else {
             plfs_debug(
                 "%s not yet removing open file for %s, pid %u, %d remaining\n",
@@ -769,6 +776,7 @@ int Plfs::removeOpenFile( string expanded, pid_t pid, Plfs_fd *pfd ) {
     erased = self->open_files.erase( expanded );
     oss << __FUNCTION__ << " removed " << erased << " OpenFile for " <<
                 expanded << " (" << pfd << ") pid " << pid << endl;
+    plfs_debug("%s",oss.str().c_str());
     return erased;
 }
 
@@ -1082,6 +1090,7 @@ string Plfs::pathToHash ( string expanded , uid_t uid , int flags ) {
     expanded.append( converter.str() );
     return expanded; 
 } 
+
 // Pass a pointer to a list so you don't have to copy it 
 /*list<struct hash_element >  Plfs::findAllOpenFiles(string expanded) {
     HASH_MAP<string, Plfs_fd *>::iterator searcher;
