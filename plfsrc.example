@@ -9,9 +9,3 @@ backends /tmp/.plfs_store
 
 # this must match where FUSE is mounted and the logical paths passed to ADIO
 mount_point /tmp/plfs
-
-# this shows how to read the logical and construct
-# the physical, the beginning of it must match the mount point
-# the end of it should match the backend
-# see plfsrc.example.lanl for a more complicated plfsrc file
-map /tmp/plfs/:/tmp/.plfs_store

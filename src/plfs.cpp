@@ -732,7 +732,7 @@ get_plfs_conf() {
     hidden->threadpool_size = 16;   // seems like a nice number
     hidden->num_hostdirs = 32;      // ideal is sqrt of num compute nodes
     hidden->map = "";               // we don't know how to make up a map
-    hidden->error = 0;         // not yet anyway
+    hidden->error = 0;              // no errors yet :) 
 
     // try to parse each file until one works
     // the C++ way to parse like this is istringstream (bleh)
@@ -771,7 +771,8 @@ get_plfs_conf() {
         if ( (itr = confs.find("map")) != confs.end() ) {
             hidden->map = itr->second;
         } else {
-            missing = new string("map");
+            // missing = new string("map");
+            // don't set missing here, we will try to automatically produce it
         }
         if ( (itr=confs.find("backends")) != confs.end() ) {
             tokenize(itr->second,",",hidden->backends);
@@ -813,20 +814,37 @@ get_plfs_conf() {
                 " is not a valid backend directory.\n";
         }
     }
-    
-    vector<string> map_tokens;
-    vector<string> mnt_tokens;
-    tokenize(hidden->map,"/",map_tokens);
-    tokenize(hidden->mnt_pt,"/",mnt_tokens);
-    for(size_t i=0 ; i < mnt_tokens.size(); i++){
-        string map_cmp = map_tokens[i];
-        string mnt_cmp = mnt_tokens[i];
-        if( strcmp(map_cmp.c_str(),mnt_cmp.c_str()) != 0 ){
+
+    // if there is no map specified, make one automatically using the 
+    // mount_point and the backends (if there is a single backend)
+    if ( hidden->error == 0 && hidden->map.length() == 0 ) {
+        if ( hidden->backends.size() == 1 ) {
+            hidden->map = hidden->mnt_pt + "/:" + hidden->backends[0];
+        } else {
             hidden->error = EINVAL;
-            hidden->err_msg = "Conf file " + file + " error : map " +
-            hidden->map + " does not match mount " + hidden->mnt_pt + "\n";
+            hidden->err_msg = "Conf file " + file + " error: map not specified "
+                + "and can't be derived due to multiple backends.\n";
+        }
+    }
+    
+    // check whether the mount point matches the map
+    if ( hidden->error == 0 ) {
+        vector<string> map_tokens;
+        vector<string> map_tokens2;
+        vector<string> mnt_tokens;
+        tokenize(hidden->map,":",map_tokens2); // first get the part before ':'
+        tokenize(map_tokens2[0], "/",map_tokens); // then get btwn the /
+        tokenize(hidden->mnt_pt,"/",mnt_tokens);
+        for(size_t i=0 ; i < mnt_tokens.size(); i++){
+            string map_cmp = map_tokens[i];
+            string mnt_cmp = mnt_tokens[i];
+            if( strcmp(map_cmp.c_str(),mnt_cmp.c_str()) != 0 ){
+                hidden->error = EINVAL;
+                hidden->err_msg = "Conf file " + file + " error : map " +
+                hidden->map + " does not match mount " + hidden->mnt_pt + "\n";
+            } 
         } 
-    } 
+    }
     
     if ( hidden->error ) return hidden;
 
