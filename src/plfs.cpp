@@ -1301,7 +1301,15 @@ int
 plfs_unlink( const char *logical ) {
     PLFS_ENTER;
     if ( is_plfs_file( logical ) ) {
-        ret = removeDirectoryTree( path.c_str(), false );  
+        // make this more atomic
+        string atomicpath = path + ".plfs_atomic_unlink.";
+        stringstream qDoubleToString;
+        qDoubleToString << Util::getTime();
+        atomicpath.append(qDoubleToString.str());
+        ret = retValue( Util::Rename(path.c_str(), atomicpath.c_str()));
+        if ( ret == 0 ) {
+            ret = removeDirectoryTree( atomicpath.c_str(), false );  
+        }
         plfs_debug("Removed dir %s\n",path.c_str());
     } else {
         ret = retValue( Util::Unlink( path.c_str() ) );   
