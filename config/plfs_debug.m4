@@ -48,7 +48,7 @@ AC_DEFUN([AC_PLFS_DEUBG_FLAG_CHECK],
     plfs_debug_cflags_save="$CFLAGS"
     plfs_debug_cxxflags_save="$CXXFLAGS"
 
-    plfs_all_debug_flags="-DVERBOSE -DPLFS_TIMES -DNUTIL -DINDEX_CONTAINS_TIMESTAMPS"
+    plfs_all_debug_flags="-DPLFS_DEBUG_ON -DFUSE_COLLECT_TIMES -DUTIL_COLLECT_TIMES -DINDEX_CONTAINS_TIMESTAMPS"
 
     plfs_add_all_debug_flags=0
     plfs_add_plfs_debug_flags=0
