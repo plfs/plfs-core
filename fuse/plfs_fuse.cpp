@@ -53,13 +53,27 @@ struct OpenFile {
     int      flags;
 };
 
-#ifdef PLFS_TIMES
+#ifdef FUSE_COLLECT_TIMES
     #define START_TIMES double begin, end; begin = plfs_wtime();
     #define END_TIMES   end = plfs_wtime(); \
                         plfs_stat_add( __FUNCTION__, end-begin, (ret<0) );
+    #define START_MESSAGE \
+	   funct_id << setw(16) << fixed << setprecision(16)          \
+		<< begin << " PLFS::" << __FUNCTION__                 \
+		<< " on " << path << " pid "                          \
+		<< fuse_get_context()->pid << " ";                    
+    #define END_MESSAGE \
+	   funct_id << (ret >= 0 ? "success" : strerror(-ret) ) \
+		    << " " << end-begin << "s"; 
 #else
     #define START_TIMES
     #define END_TIMES
+    #define START_MESSAGE \
+	   funct_id << setw(16) << fixed << setprecision(16)          \
+		<< " PLFS::" << __FUNCTION__                          \
+		<< " on " << path << " pid "                          \
+		<< fuse_get_context()->pid << " ";                   
+    #define END_MESSAGE funct_id << (ret >= 0 ? "success" : strerror(-ret) ) 
 #endif
 
 
@@ -87,12 +101,9 @@ struct OpenFile {
                    GET_GROUPS;                                                \
                    SET_GROUPS(fuse_get_context()->uid);                       \
                    START_TIMES;                                               \
-                   funct_id << setw(16) << fixed << setprecision(16)          \
-                        << begin << " PLFS::" << __FUNCTION__                 \
-                        << " on " << path << " pid "                          \
-                        << fuse_get_context()->pid << " ";                    \
-                   lm << funct_id.str() << endl;                              \
-                   lm.flush();                                                \
+		   START_MESSAGE;                                             \
+		   lm << funct_id.str() << endl;                              \
+		   lm.flush();                                                \
                    SAVE_IDS;                                                  \
                    SET_IDS(fuse_get_context()->uid,fuse_get_context()->gid);  \
                    int ret = 0;                                               
@@ -101,8 +112,7 @@ struct OpenFile {
 #define PLFS_EXIT  SET_IDS(s_uid,s_gid);                                \
                    RESTORE_GROUPS;                                      \
                    END_TIMES;                                           \
-                   funct_id << (ret >= 0 ? "success" : strerror(-ret) ) \
-                            << " " << end-begin << "s";                 \
+		   END_MESSAGE;					        \
                    lm2 << funct_id.str() << endl; lm2.flush();          \
                    return ret;
 
@@ -447,13 +457,8 @@ int Plfs::f_chmod (const char *path, mode_t mode) {
     if(ret == 0) {
         ret = plfs_chmod_cleanup( path , mode );
     }
-    if( ret == 0) {
-        funct_id << (ret >= 0 ? "success" : strerror(-ret) ) 
-            << " " << end-begin << "s";
-        lm2 << funct_id.str() << endl; lm2.flush();
-    }
     plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
-    return ret;
+    PLFS_EXIT; 
 }
 
 // fills the set of supplementary groups of the effective uid

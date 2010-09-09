@@ -44,7 +44,7 @@ using namespace std;
 // maybe we should add a mutex in addBytes and addTime.
 // might slow things down but this is supposed to just be for debugging...
 
-#ifdef NUTIL
+#ifndef UTIL_COLLECT_TIMES
     off_t total_ops = 0;
     #define ENTER_UTIL int ret = 0; total_ops++;
     #define ENTER_IO   ssize_t ret = 0;
@@ -104,7 +104,7 @@ using namespace std;
                         EXIT_SHARED;
 #endif
 
-#ifdef VERBOSE
+#ifdef PLFS_DEBUG_ON
 void
 Util::Debug( const char *format, ... ) {
     va_list args;
