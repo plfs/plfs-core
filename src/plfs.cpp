@@ -209,11 +209,11 @@ plfs_wtime() {
 }
 
 int 
-plfs_create( const char *logical, mode_t mode, int flags ) {
+plfs_create( const char *logical, mode_t mode, int flags, pid_t pid ) {
     PLFS_ENTER;
     int attempt = 0;
     ret = 0; // suppress compiler warning
-    return Container::create(path.c_str(),Util::hostname(),mode,flags,&attempt);
+    return Container::create(path.c_str(),Util::hostname(),mode,flags,&attempt,pid);
 }
 
 int
@@ -874,15 +874,15 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
     // with --r--r--r bec we create it w/ that access and then 
     // we can't write to it
     //ret = Container::Access(path.c_str(),flags);
-    if ( flags & O_CREAT ) {
-        ret = plfs_create( logical, mode, flags ); 
+    if ( ret == 0 && flags & O_CREAT ) {
+        ret = plfs_create( logical, mode, flags, pid ); 
     }
 
-    if ( flags & O_TRUNC ) {
+    if ( ret == 0 && flags & O_TRUNC ) {
         ret = plfs_trunc( NULL, logical, 0 );
     }
 
-    if ( *pfd) plfs_reference_count(*pfd);
+    if ( ret == 0 && *pfd) plfs_reference_count(*pfd);
 
     // this next chunk of code works similarly for writes and reads
     // for writes, create a writefile if needed, otherwise add a new writer
@@ -897,12 +897,10 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
             wf = new WriteFile( path, Util::hostname(), mode ); 
             new_writefile = true;
         }
-        if ( ret == 0 ) {
-            ret = addWriter( wf, pid, path.c_str(), mode );
-            plfs_debug("%s added writer: %d\n", __FUNCTION__, ret );
-            if ( ret > 0 ) ret = 0; // add writer returns # of current writers
-            if ( ret == 0 && new_writefile ) ret = wf->openIndex( pid ); 
-        }
+        ret = addWriter( wf, pid, path.c_str(), mode );
+        plfs_debug("%s added writer: %d\n", __FUNCTION__, ret );
+        if ( ret > 0 ) ret = 0; // add writer returns # of current writers
+        if ( ret == 0 && new_writefile ) ret = wf->openIndex( pid ); 
         if ( ret != 0 && wf ) {
             delete wf;
             wf = NULL;

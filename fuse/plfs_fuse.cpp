@@ -279,7 +279,8 @@ int Plfs::makePlfsFile( string expanded_path, mode_t mode, int flags ) {
     if (self->createdContainers.find(expanded_path)
             ==self->createdContainers.end()) 
     {
-        res = plfs_create( expanded_path.c_str(), mode, flags );
+        res = plfs_create( expanded_path.c_str(), mode, flags, 
+                fuse_get_context()->pid );
         self->extra_attempts += extra_attempts;
         if ( res == 0 ) {
             self->createdContainers.insert( expanded_path );

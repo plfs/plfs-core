@@ -50,7 +50,7 @@ int plfs_close( Plfs_fd *, pid_t, int open_flags );
 /* plfs_create
    you don't need to call this, you can also pass O_CREAT to plfs_open
 */
-int plfs_create( const char *path, mode_t mode, int flags ); 
+int plfs_create( const char *path, mode_t mode, int flags, pid_t pid ); 
 
 void plfs_debug( const char *format, ... );
 

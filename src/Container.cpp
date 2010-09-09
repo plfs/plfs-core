@@ -722,7 +722,7 @@ int Container::getattr( const char *path, struct stat *stbuf ) {
 // the existence of the access file
 // returns -errno or 0
 int Container::makeTopLevel( const char *expanded_path,  
-        const char *hostname, mode_t mode )
+        const char *hostname, mode_t mode, pid_t pid )
 {
     /*
         // ok, instead of mkdir tmp ; chmod tmp ; rename tmp top
@@ -744,7 +744,7 @@ int Container::makeTopLevel( const char *expanded_path,
     // get rid of the chmod; now it's mkdir tmp; create accessfile; rename tmp
     string strPath( expanded_path );
     ostringstream oss;
-    oss << strPath << "." << hostname << "." << getpid();
+    oss << strPath << "." << hostname << "." << pid;
     string tmpName( oss.str() ); 
     string tmpAccess( getAccessFilePath(tmpName) );
     if ( Util::Mkdir( tmpName.c_str(), dirMode(mode) ) < 0 ) {
@@ -887,7 +887,7 @@ int Container::makeSubdir( string path, mode_t mode ) {
     //mode = mode | S_IXUSR | S_IXGRP | S_IXOTH;
     mode = DROPPING_MODE;
     ret = Util::Mkdir( path.c_str(), mode );
-    return ( ret == 0 || errno == EEXIST ) ? 0 : -1;
+    return ( ret == 0 || errno == EEXIST || errno == EISDIR ) ? 0 : -1;
 }
 // this just creates a dir/file but it ignores an EEXIST error
 int Container::makeMeta( string path, mode_t type, mode_t mode ) {
@@ -964,7 +964,7 @@ mode_t Container::containerMode( mode_t mode ) {
 }
 
 int Container::createHelper( const char *expanded_path, const char *hostname, 
-        mode_t mode, int flags, int *extra_attempts ) 
+        mode_t mode, int flags, int *extra_attempts, pid_t pid ) 
 {
     // TODO we're in a mutex here so only one thread will
     // make the dir, and the others will stat it
@@ -978,7 +978,7 @@ int Container::createHelper( const char *expanded_path, const char *hostname,
     if ( ! isContainer( expanded_path ) ) {
         Util::Debug("Making top level container %s\n", expanded_path );
         begin_time = time(NULL);
-        res = makeTopLevel( expanded_path, hostname, mode );
+        res = makeTopLevel( expanded_path, hostname, mode, pid );
         end_time = time(NULL);
         if ( end_time - begin_time > 2 ) {
             Util::Debug("WTF: TopLevel create of %s took %.2f\n", 
@@ -1001,11 +1001,12 @@ int Container::createHelper( const char *expanded_path, const char *hostname,
 // This should be in a mutex if multiple procs on the same node try to create
 // it at the same time
 int Container::create( const char *expanded_path, const char *hostname,
-        mode_t mode, int flags, int *extra_attempts ) 
+        mode_t mode, int flags, int *extra_attempts, pid_t pid ) 
 {
     int res = 0;
     do {
-        res = createHelper(expanded_path, hostname, mode,flags,extra_attempts);
+        res = createHelper(expanded_path, hostname, mode,flags,extra_attempts,
+                pid);
         if ( res != 0 ) {
             if ( errno != EEXIST && errno != ENOENT && errno != EISDIR
                     && errno != ENOTEMPTY ) 

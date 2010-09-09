@@ -33,7 +33,7 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
     // unless comm = MPI_COMM_SELF in which case
     // it appears that ad_common only passes the ADIO_CREATE to 0
     if (fd->access_mode & ADIO_CREATE) {
-        err = plfs_create( fd->filename, perm, amode );
+        err = plfs_create( fd->filename, perm, amode, rank );
         // then create the individual hostdirs with one proc per node
         // this fd->hints->ranklist thing doesn't work
         /*

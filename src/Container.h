@@ -38,7 +38,7 @@ class Container {
     public:
             // static stuff
         static int create( const char *, const char *, 
-                mode_t mode, int flags, int *extra_attempts );
+                mode_t mode, int flags, int *extra_attempts,pid_t );
 
         static bool isContainer( const char *physical_path); 
 
@@ -95,8 +95,8 @@ class Container {
         static int chmodModify (const char *path, mode_t mode);
         static int chownModify(const char *path,uid_t uid,gid_t gid );
         static int createHelper( const char *, const char *, 
-                mode_t mode, int flags, int *extra_attempts );
-        static int makeTopLevel( const char *, const char *, mode_t );
+                mode_t mode, int flags, int *extra_attempts, pid_t );
+        static int makeTopLevel( const char *, const char *, mode_t, pid_t );
         static string getChunkPath(  const char *, const char *, 
                 int pid, const char * );
         static string chunkPath( const char *hostdir, const char *type, 
