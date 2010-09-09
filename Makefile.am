@@ -52,7 +52,9 @@ Changelog \
 easyconf.sh \
 README.install \
 README.testing \
+README.POSIX \
 plfsrc.example \
+plfsrc.example2 \
 plfsrc.example.lanl \
 ad-patches
 
