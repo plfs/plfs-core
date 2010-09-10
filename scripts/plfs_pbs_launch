@@ -1,17 +1,27 @@
 #! /bin/tcsh
 
-set command = "make -k -C $HOME/Testing/plfs/trunk/fuse umount smount"
-set pexec = $HOME/Testing/utilities/scripts/pexec
+if ( ! -f ~/.plfsrc ) then
+  echo "No ~/.plfsrc found"
+  exit 1 
+endif
+
+set plfs   = $HOME/Testing/plfs/trunk/fuse/plfs
+set mnt_pt = `awk '/^mount_point/ {print $2}' ~/.plfsrc`
+set mount  = "$plfs $mnt_pt -o direct_io" 
+set pexec  = $HOME/Testing/utilities/scripts/pexec
 
 if ( -x $pexec ) then
     echo "Using pexec"
     set nodes = `uniq $PBS_NODEFILE | tr '\n' ','`
     echo $nodes
-    $pexec -pP 32 -m $nodes --all --ssh $command |& grep -v tput
-    $pexec -pP 32 -m $nodes --all --ssh cat $PLFS_MNT/.plfsdebug | grep -a Uptime 
+    set pexec = "$pexec -pP 32 -m $nodes --all --ssh"
+    if ( $1 == "umount" ) then
+      $pexec fusermount -u $mnt_pt
+    else 
+      $pexec mkdir -p $mnt_pt 
+      $pexec $mount |& grep -v tput
+    endif
+    $pexec grep -a Uptime $mnt_pt/.plfsdebug 
 else 
-    echo "Using ssh"
-    foreach node ( `uniq $PBS_NODEFILE` )
-        ssh $node $command  |& grep -v tput
-    end
+    echo "No pexec executable found"
 endif
