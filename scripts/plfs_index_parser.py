@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 """A parser for PLFS index files. Expects to read an index from stdin and outputs a human readable
 format to stdout. Use the -t flag to indicate that the index file contains timestamps. Currently, these
@@ -17,12 +17,14 @@ parser.add_option("-C", action="store_true", dest="chunks",
 parser.add_option("-r", action="store_true", dest="relative", 
   help="use relative timestamps [default=absolute]", 
     default=False)
-parser.add_option("-o", action="store_true", dest="offset", 
+parser.add_option("-o", action="store_true", dest="by_offset", 
   help="sort by offsets [default=sort by read order]", default=False)
 parser.add_option("-s", action="store_true", dest="summary", 
   help="show summary [default=%default]", default=False)
 parser.add_option("-t", action="store_true", dest="time_stamps", 
   help="show timestamps [default=%default]", default=True)
+parser.add_option("-T", action="store_true", dest="by_time", 
+  help="sort by timestamps [default=sort by read order]", default=False)
 parser.add_option("-q", action="store_true", dest="quiet", 
   help="quiet [default=%default]", default=False)
 (options, args) = parser.parse_args()
@@ -44,7 +46,7 @@ def printEntry(entry):
     start_time -= min_time
     end_time -= min_time
   if options.quiet is False:
-    print 'Range:%d-%d,Len:%d,Pid:%d,S:%.2f,E:%.2f' % (
+    print 'Range:%d-%d,Len:%d,Pid:%d,S:%f,E:%f' % (
           entry['offset'],
           entry['offset']+entry['length']-1,
           entry['length'],
@@ -62,6 +64,9 @@ def contiguous(last,cur):
   
 def get_offset(entry):
   return entry['offset']
+
+def get_time(entry):
+  return entry['start_time']
 
 if options.time_stamps:
     index_fmt = "llidd"
@@ -102,11 +107,30 @@ while 1:
 if options.compress is True and last is not None:
   entries.append(last)
 
-if options.offset:
+if options.by_offset:
   entries.sort(key=get_offset)
 
-for entry in entries:
-  printEntry(entry)
+if options.by_time:
+  entries.sort(key=get_time)
+
+if options.by_time:
+  entries.sort(key=get_time)
+
+# this overlaps thing is something I put in to look for whether ops
+# are overlapped.  I wanted to look into this since it looks like
+# FUSE serializes IO's to the same logical filename
+if options.by_time:
+  last = None
+  overlaps = 0
+  transitions = 0
+  for entry in entries:
+    printEntry(entry)
+    if last is not None:
+      if ( last['end_time'] > entry['start_time'] ): overlaps += 1
+      if ( last['pid'] != entry['pid'] ): transitions += 1 
+    last = entry
+  print "%d overlaps, %d transitions out of %d IO's\n" % \
+    (overlaps,transitions,len(entries))
 
 if options.summary:
   def pretty_print(key,value): print "%30s: %12.4f" % ( key, value )
