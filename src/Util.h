@@ -38,11 +38,6 @@ using namespace std;
 #define STR_EXPAND(tok) #tok
 #define STR(tok) STR_EXPAND(tok)
 
-enum 
-DirectoryOperation {
-    CHMOD, CHOWN, UTIME, RMDIR, MKDIR
-};
-
 class Util {
     public:
             // all the system calls
@@ -84,6 +79,8 @@ class Util {
             // other misc stuff
         static void Debug( const char *format, ... );
         static void Debug( const char *format, va_list );
+        static void SeriousError(string,pid_t);
+        static void OpenError(const char*, const char*,int,int,pid_t);
         static bool exists( const char* );
         static bool isDirectory( struct stat *buf );
         static bool isDirectory( const char * );

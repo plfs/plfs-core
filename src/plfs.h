@@ -20,6 +20,9 @@
 #endif
 
 /*
+   All PLFS function declarations in this file are in alphabetical order.
+   Please retain this as edits are made.
+
    All PLFS functions are either approximations of POSIX file IO calls or
    utility functions.
 
@@ -72,6 +75,9 @@ int plfs_mkdir( const char *path, mode_t );
 int plfs_open( Plfs_fd **, const char *path, 
         int flags, pid_t pid, mode_t );
 
+/* query a plfs_fd about how many writers and readers are using it */
+int plfs_query( Plfs_fd *, size_t *writers, size_t *readers );
+
 ssize_t plfs_read( Plfs_fd *, char *buf, size_t size, off_t offset );
 
 /* plfs_readdir
@@ -84,14 +90,11 @@ int plfs_readlink( const char *path, char *buf, size_t bufsize );
 
 ssize_t plfs_reference_count( Plfs_fd * );
 
-/* query a plfs_fd about how many writers and readers are using it */
-int plfs_query( Plfs_fd *, size_t *writers, size_t *readers );
-
 int plfs_rename( const char *from, const char *to );
 
 int plfs_rmdir( const char *path );
 
-
+void plfs_serious_error(const char *msg,pid_t pid );
 /*
    a funtion to get stats back from plfs operations
    the void * needs to be a pointer to a string but void * is used here

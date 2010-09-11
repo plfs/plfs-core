@@ -1,9 +1,17 @@
 #ifndef __PLFS_PRIVATE__
 #define __PLFS_PRIVATE__
 
+// is this file needed?  Why not move all this into plfs.h itself?  Anything
+// really private in here?
+
 #include <vector>
 #include <string>
 using namespace std;
+
+#define EISDIR_DEBUG \
+    if(ret!=0) {\
+        Util::OpenError(__FILE__,__FUNCTION__,__LINE__,pid,errno);\
+    }
 
 typedef struct {
     size_t num_hostdirs;

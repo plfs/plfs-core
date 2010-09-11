@@ -272,6 +272,11 @@ plfs_debug( const char *format, ... ) {
     va_end( args );
 }
 
+void 
+plfs_serious_error(const char *msg,pid_t pid ) {
+    Util::SeriousError(msg,pid);
+}
+
 int
 plfs_access( const char *logical, int mask ) {
     PLFS_ENTER;
@@ -876,10 +881,12 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
     //ret = Container::Access(path.c_str(),flags);
     if ( ret == 0 && flags & O_CREAT ) {
         ret = plfs_create( logical, mode, flags, pid ); 
+        EISDIR_DEBUG;
     }
 
     if ( ret == 0 && flags & O_TRUNC ) {
         ret = plfs_trunc( NULL, logical, 0 );
+        EISDIR_DEBUG;
     }
 
     if ( ret == 0 && *pfd) plfs_reference_count(*pfd);
@@ -900,7 +907,9 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
         ret = addWriter( wf, pid, path.c_str(), mode );
         plfs_debug("%s added writer: %d\n", __FUNCTION__, ret );
         if ( ret > 0 ) ret = 0; // add writer returns # of current writers
+        EISDIR_DEBUG;
         if ( ret == 0 && new_writefile ) ret = wf->openIndex( pid ); 
+        EISDIR_DEBUG;
         if ( ret != 0 && wf ) {
             delete wf;
             wf = NULL;
@@ -914,6 +923,7 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
             index = new Index( path );  
             new_index = true;
             ret = Container::populateIndex( path.c_str(), index );
+            EISDIR_DEBUG;
         }
         if ( ret == 0 ) {
             index->incrementOpens(1);
@@ -932,6 +942,7 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
         if ( wf ) {
             ret = Container::addOpenrecord(path.c_str(), 
                 Util::hostname(), pid );
+            EISDIR_DEBUG;
         }
         //cerr << __FUNCTION__ << " added open record for " << path << endl;
     } else if ( ret == 0 ) {

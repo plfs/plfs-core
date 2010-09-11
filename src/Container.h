@@ -32,6 +32,11 @@ using namespace std;
 #define ACCESSFILE     ".plfsaccess113918400"  
 #define CREATORFILE    "creator"
 
+enum
+DirectoryOperation {
+        CHMOD, CHOWN, UTIME, RMDIR, MKDIR
+};
+
 #include "Index.h"
 
 class Container {
@@ -90,8 +95,8 @@ class Container {
 
     private:
             // static stuff
-        static int Modify( DirectoryOperation, 
-                const char *, uid_t, gid_t, const struct utimbuf*, mode_t );
+        static int Modify(DirectoryOperation,const char*,uid_t,gid_t,
+                const struct utimbuf*,mode_t);
         static int chmodModify (const char *path, mode_t mode);
         static int chownModify(const char *path,uid_t uid,gid_t gid );
         static int createHelper( const char *, const char *, 

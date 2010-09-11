@@ -1,7 +1,6 @@
 #include "fusexx.h"
 #include "plfs.h"
 #include "plfs_private.h"
-#include "Util.h"
 #include "COPYRIGHT.h"
 
 class T;
@@ -13,31 +12,14 @@ class T;
 #include <list>
 using namespace std;
 
-struct dir_op {
-    // could be compressed with a union
-    DirectoryOperation   op;
-    const char           *path;
-    const struct utimbuf *t;
-    uid_t                u;
-    gid_t                g;
-    mode_t               m;
-};
-
-struct hash_element {
+struct 
+hash_element {
     string path;
     Plfs_fd *fd;
 };
 
-// and I don't like globals at the top of the .cpp.  So add all shared
-// data here and then declare one instance of this struct at the top of
-// the .cpp
-
-/*
-typedef struct {
-    bool   direct_io;
-    vector< string >             backends;
-} Params;
-*/
+//#include <hash_map>   // shoot, hash_map not found.  more appropriate though..
+#define HASH_MAP map
 
 class Plfs : public fusexx::fuse<Plfs> {
 	public:
@@ -81,8 +63,7 @@ class Plfs : public fusexx::fuse<Plfs> {
         
 
 	private:
-	static string pathToHash ( string expanded , uid_t uid , int flags ); 
-        static int iterate_backends( dir_op *d );
+        static string pathToHash ( string expanded , uid_t uid , int flags ); 
         static string expandPath( const char * );
         static int makePlfsFile( string, mode_t, int );
         static int removeDirectoryTree( const char*, bool truncate_only );

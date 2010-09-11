@@ -133,6 +133,29 @@ void Util::Debug( const char *format, ... ) { return; }
 void Util::Debug( const char *format, va_list args ) { return; }
 #endif
 
+void
+Util::SeriousError( string msg, pid_t pid ) {
+    string filename = getenv("HOME");
+    ostringstream oss;
+    oss << getenv("HOME") << "plfs.error." << hostname() << "." << pid;
+    FILE *debugfile = fopen( oss.str().c_str(), "a" );
+    if ( ! debugfile ) {
+        cerr << "PLFS ERROR: Couldn't open " << oss.str() 
+             << " for serious error: " << msg << endl;
+    } else {
+        fprintf(debugfile,"%s\n",msg.c_str());
+    }
+
+}
+
+void 
+Util::OpenError(const char *file, const char *func, int line, int Err, pid_t p){
+    ostringstream oss;
+    oss << "open() error seen at " << file << ":" << func << ":" << line << ": "
+        << strerror(Err); 
+    //SeriousError(oss.str(), p);
+}
+
 // initialize static variables
 HASH_MAP<string, double> utimers;
 HASH_MAP<string, off_t>  kbytes;
@@ -589,6 +612,7 @@ string Util::openFlagsToString( int flags ) {
     return oss.str(); 
 }
 
+/*
 // replaces a "%h" in a path with the hostname
 string Util::expandPath( string path, string hostname ) {
     size_t found = path.find( "%h" );
@@ -597,6 +621,7 @@ string Util::expandPath( string path, string hostname ) {
     }
     return path;
 }
+*/
         
 uid_t Util::Getuid() {
     ENTER_UTIL;

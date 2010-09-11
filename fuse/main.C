@@ -7,7 +7,7 @@ int main (int argc, char **argv) {
 	Plfs plfs;
     int ret;
     if ( (ret = plfs.init( &argc, argv )) != 0 ) {
-        cerr << "Mount failed: " << strerror(-ret) << "\n";
+        fprintf(stderr,"Mount failed: %s\n",strerror(-ret));
         exit( -1 );
     }
 
