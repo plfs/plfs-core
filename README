@@ -24,10 +24,14 @@ cp plfsrc.example /etc/plfsrc <root>
 # the weird map thing is for LANL to distribute users across multiple
 # panasas directors.  Most systems can have a simple map function.
 ./plfs [fuse_options] <mount point>
+- or -
+./plfs <mount point> [fuse_options] 
+
 # some useful options to pass to fuse:
 # -o allow_other   : if mounting as root, this allows others to use plfs
 # -o big_writes    : newer versions of fuse can break writes into 128K chunks 
 # -o direct_io     : older versions can too, but then mmap doesn't work
+# -h               : prints all options to pass to fuse (e.g. ./plfs -h)
 
 ***************************************************************************
 Developer Installation (Default Configuration Values. See configure --help)
