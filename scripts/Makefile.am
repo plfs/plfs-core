@@ -46,7 +46,7 @@
 bin_SCRIPTS =
 
 scripts = \
-plfs_index-parser.py \
+plfs_index_parser.py \
 plfs_pbs_launch \
 plfs_randomize_plfsrc.py
 
