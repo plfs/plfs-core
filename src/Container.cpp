@@ -874,7 +874,10 @@ int Container::makeDroppingReal(string path, mode_t mode) {
     return Util::Creat( path.c_str(), mode );
 }
 int Container::makeDropping(string path) {
-    return makeDroppingReal( path, DROPPING_MODE );
+    mode_t save_umask = umask((mode_t)DROPPING_MODE);
+    int ret = makeDroppingReal( path, DROPPING_MODE );
+    umask(save_umask);
+    return ret;
 }
 // returns 0 or -errno
 int Container::makeHostDir( const char *path, const char *host, mode_t mode ) {
@@ -954,8 +957,11 @@ mode_t Container::fileMode( mode_t mode ) {
 //    the file can be --r--r--r but the top level dir can't
 // also need to make it a dir and need to make exec by all
 mode_t Container::dirMode( mode_t mode ) {
+    /*
     int filemask = ~(S_IFREG);
-    mode = ( mode & filemask ) | S_IWUSR | S_IXUSR | S_IXGRP | S_IFDIR | S_IXOTH;
+    mode = (mode & filemask ) | S_IWUSR | S_IXUSR | S_IXGRP | S_IFDIR | S_IXOTH;
+    */
+    mode = mode | S_IWUSR | S_IXUSR | S_IXGRP | S_IXOTH;
     return mode;
 }
 
