@@ -15,9 +15,9 @@ if ( -x $pexec ) then
     set nodes = `uniq $PBS_NODEFILE | tr '\n' ','`
     echo $nodes
     set pexec = "$pexec -pP 32 -m $nodes --all --ssh"
-    if ( $1 == "umount" ) then
-      $pexec fusermount -u $mnt_pt
-    else 
+      # always try to unmount first
+    $pexec fusermount -u $mnt_pt
+    if ( $1 != "umount" ) then
       $pexec mkdir -p $mnt_pt 
       $pexec $mount |& grep -v tput
     endif

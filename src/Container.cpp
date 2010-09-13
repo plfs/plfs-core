@@ -30,7 +30,7 @@ int Container::Access( const char *path, int mask ) {
     int ret;
     string accessfile = getAccessFilePath(path);
         // Needed for open with a create flag
-    Util::Debug("%s Checking existence of %s\n", __FUNCTION__, accessfile.c_str());
+    Util::Debug("%s Check existence of %s\n",__FUNCTION__,accessfile.c_str());
     ret = Util::Access( accessfile.c_str(), F_OK );
     if(ret<0) {
         Util::Debug("Access failed with value :%d\n",errno);
@@ -746,7 +746,6 @@ int Container::makeTopLevel( const char *expanded_path,
     ostringstream oss;
     oss << strPath << "." << hostname << "." << pid;
     string tmpName( oss.str() ); 
-    string tmpAccess( getAccessFilePath(tmpName) );
     if ( Util::Mkdir( tmpName.c_str(), dirMode(mode) ) < 0 ) {
         if ( errno != EEXIST && errno != EISDIR ) {
             Util::Debug("Mkdir %s to %s failed: %s\n",
@@ -762,6 +761,7 @@ int Container::makeTopLevel( const char *expanded_path,
             }
         }
     }
+    string tmpAccess( getAccessFilePath(tmpName) );
     if ( makeAccess( tmpAccess, mode ) < 0 ) {
         Util::Debug("create access file in %s failed: %s\n", 
                         tmpName.c_str(), strerror(errno) );

@@ -213,7 +213,8 @@ plfs_create( const char *logical, mode_t mode, int flags, pid_t pid ) {
     PLFS_ENTER;
     int attempt = 0;
     ret = 0; // suppress compiler warning
-    return Container::create(path.c_str(),Util::hostname(),mode,flags,&attempt,pid);
+    return Container::create(path.c_str(),Util::hostname(),mode,flags,
+            &attempt,pid);
 }
 
 int
@@ -1166,13 +1167,11 @@ plfs_getattr( Plfs_fd *of, const char *logical, struct stat *stbuf ) {
         logical = of->getPath();    // this is the physical path
         backwards = true;
     }
-    plfs_debug("%s on logical %s\n", __FUNCTION__, logical);
     PLFS_ENTER; // this assumes it's operating on a logical path
-    plfs_debug("%s on %s\n", __FUNCTION__, path.c_str());
     if ( backwards ) {
         path = of->getPath();   // restore the stashed physical path
     }
-    plfs_debug("%s on %s\n", __FUNCTION__, path.c_str());
+    plfs_debug("%s on logical %s (%s)\n", __FUNCTION__, logical, path.c_str());
     if ( ! is_plfs_file( logical ) ) {
        /* if ( errno == EACCES ) {
             ret = -errno;
