@@ -119,12 +119,14 @@ struct OpenFd * WriteFile::getFd( pid_t pid ) {
     map<pid_t,OpenFd*>::iterator itr;
     struct OpenFd *ofd = NULL;
     if ( (itr = fds.find( pid )) != fds.end() ) {
+	/*
         ostringstream oss;
         oss << __FILE__ << ":" << __FUNCTION__ << " found fd " 
             << itr->second->fd << " with writers " 
             << itr->second->writers
             << " from pid " << pid << endl;
-        //Util::Debug("%s", oss.str().c_str() );
+        Util::Debug("%s", oss.str().c_str() );
+	*/
         ofd = itr->second;
     } else {
         // here's the code that used to do it so a child could share
@@ -307,11 +309,13 @@ int WriteFile::openDataFile(string path, string host, pid_t p, mode_t m){
 
 // returns an fd or -1
 int WriteFile::openFile( string physicalpath, mode_t mode ) {
+    mode_t old_mode=umask(0);
     int flags = O_WRONLY | O_APPEND | O_CREAT;
     int fd = Util::Open( physicalpath.c_str(), flags, mode );
     Util::Debug("open %s : %d %s\n", physicalpath.c_str(), 
             fd, ( fd < 0 ? strerror(errno) : "" ) );
     if ( fd >= 0 ) paths[fd] = physicalpath;    // remember so restore works
+    umask(old_mode);
     return ( fd >= 0 ? fd : -errno );
 }
 

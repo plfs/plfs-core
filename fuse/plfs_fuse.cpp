@@ -505,7 +505,7 @@ int Plfs::set_groups( uid_t uid ) {
     char *username;
     struct passwd *pwd;
     vector<gid_t> groups;
-    vector<gid_t> *groups_ptr;
+    vector<gid_t> *groups_ptr = NULL;
     static double age = plfs_wtime();
         // unfortunately, I think this whole thing needs to be in a mutex
         // it used to be the case that we only had the mutex around the
@@ -556,7 +556,11 @@ int Plfs::set_groups( uid_t uid ) {
 
     // now unlock the mutex, set the groups, and return 
     plfs_mutex_unlock( &self->group_mutex, __FUNCTION__ );
-    setgroups( groups_ptr->size(), (const gid_t*)&(groups_ptr->front()) ); 
+    if ( groups_ptr == NULL) {
+        plfs_debug("WTF: Got a null group ptr for %d\n", uid); 
+    } else {
+        setgroups( groups_ptr->size(), (const gid_t*)&(groups_ptr->front()) ); 
+    }
     return 0;
 }
 

@@ -874,7 +874,7 @@ int Container::makeDroppingReal(string path, mode_t mode) {
     return Util::Creat( path.c_str(), mode );
 }
 int Container::makeDropping(string path) {
-    mode_t save_umask = umask((mode_t)DROPPING_MODE);
+    mode_t save_umask = umask(0);
     int ret = makeDroppingReal( path, DROPPING_MODE );
     umask(save_umask);
     return ret;
