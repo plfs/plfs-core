@@ -45,7 +45,7 @@ class Container {
         static int create( const char *, const char *, 
                 mode_t mode, int flags, int *extra_attempts,pid_t );
 
-        static bool isContainer( const char *physical_path); 
+        static bool isContainer(const char *physical_path,mode_t*); 
 
         static string getIndexPath( const char *, const char * );
         static string getIndexPath( const char *, const char *, int pid );

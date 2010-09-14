@@ -67,7 +67,6 @@ class Plfs : public fusexx::fuse<Plfs> {
         static string expandPath( const char * );
         static int makePlfsFile( string, mode_t, int );
         static int removeDirectoryTree( const char*, bool truncate_only );
-        static bool isContainer( const char* );
         static bool isdebugfile( const char*, const char * );
         static bool isdebugfile( const char* );
         static int writeDebug( char *buf, size_t, off_t, const char* );

@@ -86,8 +86,30 @@ size_t Container::hashValue( const char *str ) {
 // we need to stat the top level as well and then only stat the accessfile
 // if the top level is a directory.  That's annoying.  We really don't want
 // to do two stats in this call.
-bool Container::isContainer( const char *physical_path ) {
+bool Container::isContainer( const char *physical_path, mode_t *mode ) {
     plfs_debug("%s checking %s\n", __FUNCTION__, physical_path);
+
+    struct stat buf;
+    int ret = Util::Lstat( physical_path, &buf );
+    if ( ret == 0 ) {
+        if ( mode ) *mode = buf.st_mode;
+        if ( Util::isDirectory(&buf) ) {
+            // it's either a directory or a container.  check for access file
+            plfs_debug("%s %s is a directory\n", __FUNCTION__, physical_path);
+            string accessfile = getAccessFilePath(physical_path); 
+            ret = Util::Lstat( accessfile.c_str(), &buf );
+            return ( ret == 0 ? true : false );    
+        } else {
+            // it's a regular file, or a link, or something
+            return false;
+        }
+    } else {    
+            // the lstat failed.  Assume it's ENOENT.  It might be perms
+            // in which case return an empty mode as well bec this means
+            // that the caller lacks permission to stat the thing
+        if ( mode ) *mode = 0;  // ENOENT
+        return false;
+    }
 
     // actually, I think we can do this the old one but then on 
     // a stat of a symlink, check then.  better to check in getattr
@@ -752,7 +774,7 @@ int Container::makeTopLevel( const char *expanded_path,
                 tmpName.c_str(), expanded_path, strerror(errno) );
             return -errno;
         } else if ( errno == EEXIST ) {
-            if ( ! Container::isContainer(tmpName.c_str()) ) {
+            if ( ! Container::isContainer(tmpName.c_str(),NULL) ) {
                 Util::Debug("Mkdir %s to %s failed: %s\n",
                     tmpName.c_str(), expanded_path, strerror(errno) );
             } else {
@@ -981,7 +1003,7 @@ int Container::createHelper( const char *expanded_path, const char *hostname,
         // first the top level container
     double begin_time, end_time;
     int res = 0;
-    if ( ! isContainer( expanded_path ) ) {
+    if ( ! isContainer( expanded_path, NULL ) ) {
         Util::Debug("Making top level container %s\n", expanded_path );
         begin_time = time(NULL);
         res = makeTopLevel( expanded_path, hostname, mode, pid );

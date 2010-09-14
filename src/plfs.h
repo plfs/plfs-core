@@ -40,7 +40,11 @@ int plfs_chmod_cleanup(const char *logical,mode_t mode );
 
 int plfs_chown_cleanup (const char *logical,uid_t uid,gid_t gid );
 
-int is_plfs_file( const char *path );
+/* is_plfs_file
+    returns bool.  Also if mode_t * is not NULL, leaves it 0 if the path
+    doesn't exist, or if it does exist, it fills it in with S_IFDIR etc
+*/
+int is_plfs_file( const char *path, mode_t * );
 
 int plfs_access( const char *path, int mask );
 

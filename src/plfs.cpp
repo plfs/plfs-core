@@ -179,21 +179,17 @@ expandPath(string logical) {
 int 
 plfs_chmod_cleanup(const char *logical,mode_t mode ) {   
     PLFS_ENTER;
-    if ( is_plfs_file( logical )) {
+    if ( is_plfs_file( logical,NULL )) {
         ret = Container::cleanupChmod( path.c_str() , mode , 1 , 0 , 0);
     }
-    else ret = 0;
-    
     PLFS_EXIT( ret );
 }
 
 int plfs_chown_cleanup (const char *logical,uid_t uid,gid_t gid ) {
     PLFS_ENTER;
-    if ( is_plfs_file( logical )) {
+    if ( is_plfs_file( logical, NULL )) {
         ret = Container::cleanupChown( path.c_str() , uid, gid);
     }
-    else ret = 0;
-    
     PLFS_EXIT( ret );
 }
 
@@ -250,19 +246,21 @@ int isReader( int flags ) {
 int 
 plfs_chown( const char *logical, uid_t u, gid_t g ) {
     PLFS_ENTER;
-    if ( is_plfs_file( logical ) ) {
+    mode_t mode = 0;
+    if ( is_plfs_file( logical, &mode ) ) {
         ret = Container::Chown( path.c_str(), u, g );
     } else {
-        ret = retValue(Util::Chown(path.c_str(),u,g)); 
+        if ( mode == 0 ) ret = -ENOENT;
+        else ret = retValue(Util::Chown(path.c_str(),u,g)); 
     }
     PLFS_EXIT(ret);
 }
 
 int
-is_plfs_file( const char *logical ) {
+is_plfs_file( const char *logical, mode_t *mode ) {
     PLFS_ENTER;
-    ret = 0; // suppress compiler warning
-    return Container::isContainer( path.c_str() );
+    ret = Container::isContainer(path.c_str(),mode); 
+    PLFS_EXIT(ret);
 }
 
 void 
@@ -281,9 +279,11 @@ plfs_serious_error(const char *msg,pid_t pid ) {
 int
 plfs_access( const char *logical, int mask ) {
     PLFS_ENTER;
-    if ( is_plfs_file( logical ) ) {
+    mode_t mode = 0;
+    if ( is_plfs_file( logical, &mode ) ) {
         ret = retValue( Container::Access( path.c_str(), mask ) );
     } else {
+        if ( mode == 0 ) ret = -ENOENT;
         ret = retValue( Util::Access( path.c_str(), mask ) );
     }
     PLFS_EXIT(ret);
@@ -292,10 +292,12 @@ plfs_access( const char *logical, int mask ) {
 int 
 plfs_chmod( const char *logical, mode_t mode ) {
     PLFS_ENTER;
-    if ( is_plfs_file( logical ) ) {
+    mode_t existing_mode = 0;
+    if ( is_plfs_file( logical, &existing_mode ) ) {
         ret = retValue( Container::Chmod( path.c_str(), mode ) );
     } else {
-        ret = retValue( Util::Chmod( path.c_str(), mode ) );
+        if ( existing_mode == 0 ) ret = -ENOENT;
+        else ret = retValue( Util::Chmod( path.c_str(), mode ) );
     }
     PLFS_EXIT(ret);
 }
@@ -356,10 +358,12 @@ plfs_rmdir( const char *logical ) {
 int
 plfs_utime( const char *logical, struct utimbuf *ut ) {
     PLFS_ENTER;
-    if ( is_plfs_file( logical ) ) {
+    mode_t mode = 0;
+    if ( is_plfs_file( logical, &mode ) ) {
         ret = Container::Utime( path.c_str(), ut );
     } else {
-        ret = retValue( Util::Utime( path.c_str(), ut ) );
+        if ( mode == 0 ) ret = -ENOENT;
+        else ret = retValue( Util::Utime( path.c_str(), ut ) );
     }
     PLFS_EXIT(ret);
 }
@@ -1016,7 +1020,7 @@ plfs_rename( const char *logical, const char *to ) {
     PLFS_ENTER;
     string topath = expandPath( to );
 
-    if ( is_plfs_file( to ) ) {
+    if ( is_plfs_file( to, NULL ) ) {
         // we can't just call rename bec it won't trash a dir in the toPath
         // so in case the toPath is a container, do this
         // this might fail with ENOENT but that's fine
@@ -1172,7 +1176,8 @@ plfs_getattr( Plfs_fd *of, const char *logical, struct stat *stbuf ) {
         path = of->getPath();   // restore the stashed physical path
     }
     plfs_debug("%s on logical %s (%s)\n", __FUNCTION__, logical, path.c_str());
-    if ( ! is_plfs_file( logical ) ) {
+    mode_t mode = 0;
+    if ( ! is_plfs_file( logical, &mode ) ) {
        /* if ( errno == EACCES ) {
             ret = -errno;
         } else {
@@ -1180,8 +1185,12 @@ plfs_getattr( Plfs_fd *of, const char *logical, struct stat *stbuf ) {
         }*/
         // this is how a symlink is stat'd since it doesn't look like
         // a plfs file
-        plfs_debug("%s on non plfs file %s\n", __FUNCTION__, path.c_str());
-        ret = retValue( Util::Lstat( path.c_str(), stbuf ) );        
+        if ( mode == 0 ) {
+            ret = -ENOENT;
+        } else {
+            plfs_debug("%s on non plfs file %s\n", __FUNCTION__, path.c_str());
+            ret = retValue( Util::Lstat( path.c_str(), stbuf ) );        
+        }
     } else {
         ret = Container::getattr( path.c_str(), stbuf );
         if ( ret == 0 ) {
@@ -1263,9 +1272,11 @@ extendFile( Plfs_fd *of, string strPath, off_t offset ) {
 int 
 plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
     PLFS_ENTER;
-    if ( ! is_plfs_file( logical ) ) {
+    mode_t mode = 0;
+    if ( ! is_plfs_file( logical, &mode ) ) {
         // this is weird, we expect only to operate on containers
-        ret = retValue( Util::Truncate(path.c_str(),offset) );
+        if ( mode == 0 ) ret = -ENOENT;
+        else ret = retValue( Util::Truncate(path.c_str(),offset) );
         PLFS_EXIT(ret);
     }
 
@@ -1329,7 +1340,8 @@ getAtomicUnlinkPath(string path) {
 int 
 plfs_unlink( const char *logical ) {
     PLFS_ENTER;
-    if ( is_plfs_file( logical ) ) {
+    mode_t mode =0;
+    if ( is_plfs_file( logical, &mode ) ) {
         // make this more atomic
         string atomicpath = getAtomicUnlinkPath(path);
         ret = retValue( Util::Rename(path.c_str(), atomicpath.c_str()));
@@ -1342,7 +1354,8 @@ plfs_unlink( const char *logical ) {
         }
         plfs_debug("Removed plfs container %s: %d\n",path.c_str(),ret);
     } else {
-        ret = retValue( Util::Unlink( path.c_str() ) );   
+        if ( mode == 0 ) ret = -ENOENT;
+        else ret = retValue( Util::Unlink( path.c_str() ) );   
     }
     PLFS_EXIT(ret); 
 }
