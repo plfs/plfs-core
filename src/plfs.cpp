@@ -902,6 +902,7 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
     // create the write index file after the write data file so that the
     // hostdir is created
     // for reads, create an index if needed, otherwise add a new reader
+    // this is so that any permission errors are returned on open
     if ( ret == 0 && isWriter(flags) ) {
         if ( *pfd ) {
             wf = (*pfd)->getWritefile();
@@ -934,7 +935,8 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
         if ( ret == 0 ) {
             index->incrementOpens(1);
         }
-        if ( ret != 0 && index ) {
+        // can't cache index if error or if in O_RDWR
+        if ( index && (ret != 0 || isWriter(flags) )){
             delete index;
             index = NULL;
         }
@@ -956,13 +958,15 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
         if ( index && new_index ) (*pfd)->setIndex( index  ); 
     }
     if (ret == 0) {
-        if (isWriter(flags)) {
+        // do we need to incrementOpens twice if O_RDWR ?
+        // if so, we need to decrement twice in close 
+        if (wf && isWriter(flags)) {
             (*pfd)->incrementOpens(1);
         }
-        if(isReader(flags)) {
+        if(index && isReader(flags)) {
             (*pfd)->incrementOpens(1);
         }
-        plfs_reference_count(*pfd);
+        plfs_reference_count(*pfd); 
     }
     PLFS_EXIT(ret);
 }
@@ -1432,7 +1436,7 @@ plfs_close( Plfs_fd *pfd, pid_t pid, int open_flags ) {
         ref_count = pfd->incrementOpens(-1);
       // Clean up reads moved fd reference count updates
     }   
-    if (isReader(open_flags)){
+    if (isReader(open_flags) && index){ // might have been O_RDWR so no index
         assert( index );
         readers = index->incrementOpens(-1);
         if ( readers == 0 ) {

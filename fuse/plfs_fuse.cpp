@@ -719,6 +719,7 @@ int Plfs::f_open(const char *path, struct fuse_file_info *fi) {
         if ( newly_created ) {
             addOpenFile( pathHash, of->pid, pfd );
         }
+        if ( fi->flags & O_RDWR ) self->o_rdwrs++;
     }
     //plfs_debug("%s: %s ref count: %d\n", __FUNCTION__, 
     //        strPath.c_str(), plfs_reference_count(pfd));
@@ -797,6 +798,7 @@ int Plfs::f_release( const char *path, struct fuse_file_info *fi ) {
     PLFS_EXIT;
 }
 
+// the fd_mutex should be held when calling this
 int Plfs::addOpenFile( string expanded, pid_t pid, Plfs_fd *pfd) {
 
     ostringstream oss;
@@ -804,6 +806,7 @@ int Plfs::addOpenFile( string expanded, pid_t pid, Plfs_fd *pfd) {
         expanded << " (" << pfd << ") pid " << pid << endl;
     plfs_debug("%s", oss.str().c_str() ); 
     self->open_files[expanded] = pfd;
+    plfs_debug("Current set of open files: %s\n", openFilesToString().c_str() );
     return 0;
 }
 
@@ -819,6 +822,7 @@ int Plfs::removeOpenFile( string expanded, pid_t pid, Plfs_fd *pfd ) {
     oss << __FUNCTION__ << " removed " << erased << " OpenFile for " <<
                 expanded << " (" << pfd << ") pid " << pid << endl;
     plfs_debug("%s",oss.str().c_str());
+    plfs_debug("Current set of open files: %s\n", openFilesToString().c_str() );
     return erased;
 }
 
@@ -933,6 +937,7 @@ string Plfs::openFilesToString() {
     int quant = self->open_files.size();
     oss << quant << " OpenFiles" << ( quant ? ": " : "" ) << endl;
     HASH_MAP<string, Plfs_fd *>::iterator itr;
+    plfs_debug("%s looking up file %s\n", __FUNCTION__, itr->first.c_str()); 
     for(itr = self->open_files.begin(); itr != self->open_files.end(); itr++){
         plfs_query( itr->second, &writers, &readers );
         oss << itr->second->getPath() << ", ";
