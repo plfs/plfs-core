@@ -41,7 +41,8 @@
 
 EXTRA_DIST = \
 plfs.sysconfig \
-plfs.init
+plfs.init \
+README
 
 ################################################################################
 # plfs
