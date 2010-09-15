@@ -2,6 +2,13 @@
 
 # for a full list of what options are available, try ./configure --help
 
+enable_debug_flags=0
+debug_flags="-O0 -g"
+
+# save the user-provided flags
+u_cflags="$CFLAGS"
+u_cxxflags="$CXXFLAGS"
+
 SCRIPT_PATH="${BASH_SOURCE[0]}";
 
 if ([ -h "${SCRIPT_PATH}" ]) then
@@ -19,6 +26,15 @@ conf_cmd_str="$SCRIPT_PATH/configure"
 # disable silent rules
 if [[ "$PLFS_WANT_VERBOSE_CONF_OUT" != "" && "$PLFS_WANT_VERBOSE_CONF_OUT" != "0" ]]; then
     conf_cmd_str=$conf_cmd_str" --disable-silent-rules"
+fi
+
+# disable silent rules
+if [[ "$PLFS_WANT_VERBOSE_CONF_OUT" != "" && "$PLFS_WANT_VERBOSE_CONF_OUT" != "0" ]]; then
+    conf_cmd_str=$conf_cmd_str" --disable-silent-rules"
+fi
+
+if [[ "$PLFS_WANT_DEBUG_FLAGS" != "" && "$PLFS_WANT_DEBUG_FLAGS" != "0" ]]; then
+    enable_debug_flags=1
 fi
 
 if [[ "$PLFS_WANT_ALL_DEBUG" != "" && "$PLFS_WANT_ALL_DEBUG" != "0" ]]; then
@@ -63,7 +79,13 @@ $conf_cmd_str
 
 EOF
 
-$conf_cmd_str
+if [[ $enable_debug_flags == 1 ]]
+then
+    CFLAGS="$debug_flags $u_cflags" CXXFLAGS="$debug_flags $u_cxxflags" $conf_cmd_str
+else
+    $conf_cmd_str
+fi
+
 
 # Copyright (c) 2009-2010, Los Alamos National Security, LLC. All rights
 # reserved.
