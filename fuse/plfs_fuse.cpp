@@ -700,7 +700,7 @@ int Plfs::f_open(const char *path, struct fuse_file_info *fi) {
     // parallelism
     plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
     string pathHash = pathToHash(strPath , fuse_get_context()->uid, fi->flags);
-    pfd = findOpenFile( pathHash );
+    pfd = findOpenFile(pathHash);
     if ( ! pfd ) newly_created = true;
 
     // every proc that opens a file creates a unique OpenFile but they share
@@ -717,7 +717,7 @@ int Plfs::f_open(const char *path, struct fuse_file_info *fi) {
         of->flags = fi->flags;
         fi->fh = (uint64_t)of;
         if ( newly_created ) {
-            addOpenFile( pathHash, of->pid, pfd );
+            addOpenFile(pathHash, of->pid, pfd);
         }
         if ( fi->flags & O_RDWR ) self->o_rdwrs++;
     }
@@ -806,7 +806,7 @@ int Plfs::addOpenFile( string expanded, pid_t pid, Plfs_fd *pfd) {
         expanded << " (" << pfd << ") pid " << pid << endl;
     plfs_debug("%s", oss.str().c_str() ); 
     self->open_files[expanded] = pfd;
-    plfs_debug("Current set of open files: %s\n", openFilesToString().c_str() );
+    //plfs_debug("Current open files: %s\n", openFilesToString(false).c_str());
     return 0;
 }
 
@@ -814,7 +814,7 @@ int Plfs::addOpenFile( string expanded, pid_t pid, Plfs_fd *pfd) {
 // this might sometimes fail to remove a file if we did a rename on an open file
 // because the rename removes the open file and then when the release comes
 // it has already been removed
-int Plfs::removeOpenFile( string expanded, pid_t pid, Plfs_fd *pfd ) {
+int Plfs::removeOpenFile(string expanded, pid_t pid, Plfs_fd *pfd) {
     ostringstream oss;
     int erased = 0;
     plfs_debug("%s", oss.str().c_str() ); 
@@ -822,7 +822,7 @@ int Plfs::removeOpenFile( string expanded, pid_t pid, Plfs_fd *pfd ) {
     oss << __FUNCTION__ << " removed " << erased << " OpenFile for " <<
                 expanded << " (" << pfd << ") pid " << pid << endl;
     plfs_debug("%s",oss.str().c_str());
-    plfs_debug("Current set of open files: %s\n", openFilesToString().c_str() );
+    //plfs_debug("Current open files: %s\n", openFilesToString(false).c_str());
     return erased;
 }
 
@@ -930,21 +930,24 @@ int Plfs::f_readn(const char *path, char *buf, size_t size, off_t offset,
     PLFS_EXIT;
 }
 
-string Plfs::openFilesToString() {
+// fd_mutex should be held when this is called
+string Plfs::openFilesToString(bool verbose) {
     ostringstream oss;
     size_t readers, writers;
-    plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
     int quant = self->open_files.size();
     oss << quant << " OpenFiles" << ( quant ? ": " : "" ) << endl;
     HASH_MAP<string, Plfs_fd *>::iterator itr;
-    plfs_debug("%s looking up file %s\n", __FUNCTION__, itr->first.c_str()); 
     for(itr = self->open_files.begin(); itr != self->open_files.end(); itr++){
-        plfs_query( itr->second, &writers, &readers );
-        oss << itr->second->getPath() << ", ";
-        oss << readers << " readers, "
-            << writers << " writers. " << endl;
+        plfs_debug("%s openFile %s\n", __FUNCTION__, itr->first.c_str()); 
+        if ( verbose ) {
+            plfs_query( itr->second, &writers, &readers );
+            oss << itr->second->getPath() << ", ";
+            oss << readers << " readers, "
+                << writers << " writers. " << endl;
+        } else {
+            oss << itr->first.c_str() << endl;
+        }
     }
-    plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
     return oss.str();
 }
 
@@ -972,6 +975,8 @@ int Plfs::writeDebug( char *buf, size_t size, off_t offset, const char *path ) {
     if ( isdebugfile( path, DEBUGFILE ) ) {
         string stats;
         plfs_stats( &stats );
+        // openFilesToString must be called from w/in a mutex
+        plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ ); 
         ret = snprintf( tmpbuf, DEBUGFILESIZE, 
                 "Version %s (SVN %s) (DATA %s)\n"
                 "Hostname %s, %.2f Uptime\n"
@@ -991,7 +996,8 @@ int Plfs::writeDebug( char *buf, size_t size, off_t offset, const char *path ) {
                 self->wtfs,
                 self->extra_attempts,
                 self->o_rdwrs,
-                openFilesToString().c_str() );
+                openFilesToString(true).c_str() );
+        plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
     } else {
         ret = snprintf(tmpbuf, maxsize, "%s", LogMessage::Dump().c_str());
     }
@@ -1089,26 +1095,23 @@ int Plfs::f_rename( const char *path, const char *to ) {
     
     ret = plfs_rename(path,toPath.c_str());
     findAllOpenFiles ( strPath, results );
-    while( results.size() != 0 )
-    {
-        
+    while( results.size() != 0 ) {
         struct hash_element current;
         current = results.front();
         results.pop_front();
         Plfs_fd *pfd;
         pfd = current.fd;
         uid_t *uid;
-        string pathHash = getRenameHash ( to , current.path , strPath); 
+        string pathHash = getRenameHash(toPath.c_str(), current.path ,strPath); 
         int   *flags;
         if ( ret == 0 && pfd ) {
             pid_t pid = fuse_get_context()->pid;
             // Extract the uid and flags from the string
-            removeOpenFile( current.path, pid, pfd );
-            addOpenFile( pathHash, pid, pfd );
+            removeOpenFile(current.path, pid, pfd);
+            addOpenFile(pathHash, pid, pfd);
             pfd->setPath( toPath ); 
-            plfs_debug("Rename open file %s -> %s (hope this works\n", 
-            path, to );
-    
+            plfs_debug("Rename open file %s -> %s (hope this works)\n", 
+                path, to );
         }
     }
     plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
@@ -1171,13 +1174,15 @@ Plfs::findAllOpenFiles( string expanded, list<struct hash_element > &results) {
         }   
     }
 }
+
 // Convert to string using the current filename hash 
-string Plfs:: getRenameHash ( string to, string current , string base) {
+// oh, it just rips the .uid.mode off and appends them.
+string Plfs:: getRenameHash(string to, string current, string base) {
     string uid_mode;
     string pathHash;
     
-    uid_mode = current.substr( base.size() , current.size() );
-    pathHash.append( to );
-    pathHash.append( uid_mode );
+    uid_mode = current.substr(base.size() , current.size());
+    pathHash.append(to);
+    pathHash.append(uid_mode);
     return pathHash;     
 }

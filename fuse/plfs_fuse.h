@@ -78,7 +78,7 @@ class Plfs : public fusexx::fuse<Plfs> {
                             list<struct hash_element > &results);
         static const char *getPlfsArg( const char *, const char * );
         static string confToString( PlfsConf * );
-        static string openFilesToString();
+        static string openFilesToString(bool);
         static mode_t getMode( string expanded );
         static int getattr_helper( const char *path, struct stat *, Plfs_fd *);
         static int get_groups( vector<gid_t> * );
