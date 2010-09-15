@@ -639,19 +639,39 @@ int Plfs::f_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     // then FUSE should empty the buffer and call this again at the
     // correct offset
 
-    vector<string> *dirents = (vector<string>*)fi->fh;
-    for( size_t i = offset; i < dirents->size(); i++ ) {
-        plfs_debug("Returned dirent %s\n",(*dirents)[i].c_str());
-        if ( 0 != filler(buf,(*dirents)[i].c_str(),NULL,i+1) ) {
-            break;
+    vector<string> *dirents = NULL;
+    if ( fi->fh ) {
+        dirents = new vector<string>;
+        ret = plfs_readdir(strPath.c_str(),(void*)dirents);
+        if (ret == 0) fi->fh = (uint64_t)dirents;
+    } else {
+        dirents = (vector<string>*)fi->fh;
+    }
+    if ( ret == 0 ) {   // we have a valid entry
+        for( size_t i = offset; i < dirents->size(); i++ ) {
+            plfs_debug("Returned dirent %s (index %d)\n",(*dirents)[i].c_str(),i);
+            if ( 0 != filler(buf,(*dirents)[i].c_str(),NULL,i+1) ) {
+                break;
+            }
         }
+        // if we make it here, we went through the full dir.  
+        // we once saw this scenario:
+        // opendir
+        // readdir
+        // rm entry
+        // readdir again
+        // getattr entry
+        // ENOENT
+        // so if we go thru the whole thing, delete it so we don't reuse stale
+        delete (vector<string>*)fi->fh;
+        fi->fh = (uint64_t)NULL;
     }
     PLFS_EXIT;
 }
 
 int Plfs::f_releasedir( const char *path, struct fuse_file_info *fi ) {
     PLFS_ENTER;
-    delete (vector<string>*)fi->fh;
+    if ( fi->fh ) delete (vector<string>*)fi->fh;
     PLFS_EXIT;
 }
 

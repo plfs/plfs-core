@@ -24,6 +24,7 @@ int Container::Access( const char *path, int mask ) {
     // there used to be some concern here that the accessfile might not
     // exist yet but the way containers are made ensures that an accessfile
     // will exist if the container exists
+    
     // doing just Access is insufficient when plfs daemon run as root
     // root can access everything.  so, we must also try the open
    
@@ -31,20 +32,22 @@ int Container::Access( const char *path, int mask ) {
     string accessfile = getAccessFilePath(path);
         // Needed for open with a create flag
     Util::Debug("%s Check existence of %s\n",__FUNCTION__,accessfile.c_str());
+
+        // why is this F_OK instead of the passed mask?
     ret = Util::Access( accessfile.c_str(), F_OK );
     if(ret<0) {
         Util::Debug("Access failed with value :%d\n",errno);
-        return 0;
     }
-    Util::Debug("The file exists attempting open\n");
-    ret = Util::Open(accessfile.c_str(),mask);
-    Util::Debug("Open returns %d\n",ret);
-    if(ret >= 0 )
-    {
-        Util::Close(ret);
-        return 0;
+    if ( ret == 0 ) {
+        Util::Debug("The file exists attempting open\n");
+        ret = Util::Open(accessfile.c_str(),mask);
+        Util::Debug("Open returns %d\n",ret);
+        if(ret >= 0 ) {
+            Util::Close(ret);
+            ret = 0;
+        }
     }
-    return -errno;
+    return ret; 
 }
 
 size_t Container::hashValue( const char *str ) {

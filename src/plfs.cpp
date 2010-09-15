@@ -332,6 +332,7 @@ plfs_readdir( const char *logical, void *vptr ) {
         (void) path;
         struct dirent *de;
         while ((de = readdir(dp)) != NULL) {
+            plfs_debug("Pushing %s into readdir for %s\n",de->d_name,logical);
             dents->push_back(de->d_name);
         }
     } else {
