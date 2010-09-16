@@ -101,9 +101,9 @@ struct OpenFile {
                    GET_GROUPS;                                                \
                    SET_GROUPS(fuse_get_context()->uid);                       \
                    START_TIMES;                                               \
-		   START_MESSAGE;                                             \
-		   lm << funct_id.str() << endl;                              \
-		   lm.flush();                                                \
+                   START_MESSAGE;                                             \
+                   lm << funct_id.str() << endl;                              \
+                   lm.flush();                                                \
                    SAVE_IDS;                                                  \
                    SET_IDS(fuse_get_context()->uid,fuse_get_context()->gid);  \
                    int ret = 0;                                               
