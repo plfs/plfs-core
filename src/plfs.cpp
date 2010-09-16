@@ -1094,6 +1094,12 @@ removeDirectoryTree( const char *path, bool truncate_only ) {
     ret = Util::Opendir( path, &dir );
     if ( dir == NULL ) return -errno;
 
+    bool is_meta_dir = false;
+    if (!strncmp(METADIR,&path[strlen(path)-strlen(METADIR)],strlen(METADIR))) {
+        plfs_debug("%s on METADIR\n", __FUNCTION__);
+        is_meta_dir = true;
+    }
+
     plfs_debug("opendir %s\n", path);
     while( (ent = readdir( dir ) ) != NULL ) {
         plfs_debug("readdir %s\n", path);
@@ -1124,9 +1130,17 @@ removeDirectoryTree( const char *path, bool truncate_only ) {
             // then the next writer comes and does the O_TRUNC and removes
             // the first writer's open files.  Instead let's just truncate
             // each open file
+
+            // however, if it's a metadata dropping, truncating it isn't
+            // meaningful since it's zero length.  We need to unlink them
+            // if it's truncate only.
+            // we know it's a metadata dropping if the parent dir is 'meta'
             int remove_ret = 0;
-            if ( truncate_only ) remove_ret = Util::Truncate(child.c_str(), 0);
-            else                 remove_ret = Util::Unlink  (child.c_str());
+            if ( truncate_only && ! is_meta_dir ) {
+                remove_ret = Util::Truncate(child.c_str(), 0);
+            } else {
+                remove_ret = Util::Unlink  (child.c_str());
+            }
             plfs_debug("removed/truncated %s: %s\n", 
                     child.c_str(), strerror(errno) );
             
@@ -1291,6 +1305,8 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
 
     if ( offset == 0 ) {
             // this is easy, just remove all droppings
+            // this now removes METADIR droppings instead of incorrectly 
+            // truncating them
         ret = removeDirectoryTree( path.c_str(), true );
     } else {
             // either at existing end, before it, or after it
@@ -1305,6 +1321,14 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
                 ret = extendFile( of, path, offset );    // make bigger
             }
         }
+
+            // TODO:
+            // it's unlikely but if a previously closed file is truncated
+            // somewhere in the middle, then future stats on the file will
+            // be incorrect because they'll reflect incorrect droppings in
+            // METADIR, so we need to go through the droppings in METADIR
+            // and modify or remove droppings that show an offset beyond
+            // this truncate point
     }
 
     // if we actually modified the container, update any open file handle
