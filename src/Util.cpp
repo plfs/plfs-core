@@ -183,8 +183,8 @@ string Util::toString( ) {
         }
         output += "\n";
     }
-    oss << "Util Total Errs " << total_errs << " from Ops " 
-        << total_ops << " in " 
+    oss << "Util Total Ops " << total_ops << " Errs " 
+        << total_errs << " in " 
         << std::setprecision(2) << std::fixed << total_time << "s\n";
     output += oss.str();
     return output;
@@ -219,8 +219,8 @@ string Util::timeToString( HASH_MAP<string,double>::iterator itr,
     *total_ops  += count;
     *total_time += value;
 
-    oss << setw(12) << itr->first << ": " << setw(8) << errs << " errs, " 
-        << setw(8) << count << " ops, " 
+    oss << setw(12) << itr->first << ": " << setw(8) << count << " ops, " 
+        << setw(8) << errs << " errs, " 
         << std::setprecision(2)
         << std::fixed
         << setw(8)
