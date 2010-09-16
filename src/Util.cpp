@@ -137,7 +137,7 @@ void
 Util::SeriousError( string msg, pid_t pid ) {
     string filename = getenv("HOME");
     ostringstream oss;
-    oss << getenv("HOME") << "plfs.error." << hostname() << "." << pid;
+    oss << getenv("HOME") << "/plfs.error." << hostname() << "." << pid;
     FILE *debugfile = fopen( oss.str().c_str(), "a" );
     if ( ! debugfile ) {
         cerr << "PLFS ERROR: Couldn't open " << oss.str() 
@@ -145,7 +145,7 @@ Util::SeriousError( string msg, pid_t pid ) {
     } else {
         fprintf(debugfile,"%s\n",msg.c_str());
     }
-
+    fclose(debugfile);
 }
 
 void 

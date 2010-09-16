@@ -930,6 +930,10 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
             index = new Index( path );  
             new_index = true;
             ret = Container::populateIndex( path.c_str(), index );
+            if ( ret != 0 ) {
+                plfs_debug("%s failed to create index on %s: %s\n",
+                        __FUNCTION__, path.c_str(), strerror(errno));
+            }
             EISDIR_DEBUG;
         }
         if ( ret == 0 ) {

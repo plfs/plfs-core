@@ -986,7 +986,7 @@ mode_t Container::dirMode( mode_t mode ) {
     int filemask = ~(S_IFREG);
     mode = (mode & filemask ) | S_IWUSR | S_IXUSR | S_IXGRP | S_IFDIR | S_IXOTH;
     */
-    mode = mode | S_IWUSR | S_IXUSR | S_IXGRP | S_IXOTH;
+    mode = mode | S_IRUSR | S_IWUSR | S_IXUSR | S_IXGRP | S_IXOTH;
     return mode;
 }
 
@@ -1007,7 +1007,7 @@ int Container::createHelper( const char *expanded_path, const char *hostname,
     double begin_time, end_time;
     int res = 0;
     if ( ! isContainer( expanded_path, NULL ) ) {
-        Util::Debug("Making top level container %s\n", expanded_path );
+        Util::Debug("Making top level container %s %x\n", expanded_path,mode);
         begin_time = time(NULL);
         res = makeTopLevel( expanded_path, hostname, mode, pid );
         end_time = time(NULL);
