@@ -28,11 +28,6 @@ if [[ "$PLFS_WANT_VERBOSE_CONF_OUT" != "" && "$PLFS_WANT_VERBOSE_CONF_OUT" != "0
     conf_cmd_str=$conf_cmd_str" --disable-silent-rules"
 fi
 
-# disable silent rules
-if [[ "$PLFS_WANT_VERBOSE_CONF_OUT" != "" && "$PLFS_WANT_VERBOSE_CONF_OUT" != "0" ]]; then
-    conf_cmd_str=$conf_cmd_str" --disable-silent-rules"
-fi
-
 if [[ "$PLFS_WANT_DEBUG_FLAGS" != "" && "$PLFS_WANT_DEBUG_FLAGS" != "0" ]]; then
     enable_debug_flags=1
 fi
