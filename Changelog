@@ -1,3 +1,141 @@
+~~~ Version 1.0.0.0pre.0.C
+
+No new features or performance engineering.  Just bug fixes.
+All the bug fixes we've made since the last release:
+
+31207 unlink non-atomic right now resolved  plfs  adamm 0
+johnbent@lanl.gov 2 weeks ago   8 days ago  0
+- We now rename the container to a hidden path before unlinking since
+the recursive unlink over a container is not atomic.
+
+31236 reproducible rename bug resolved  plfs  Nobody  0
+johnbent@lanl.gov 2 weeks ago   2 weeks ago 0
+- Simple bug in rename.  PLFS has to remove a container in the destination
+spot before doing a rename since the rename system call can clobber an
+existing file but not an existing directory.  So if the user wants to rename
+over an existing PLFS file, we have to remove the container first.  We had
+a bug where we were removing the src instead of the dest.
+
+31253 plfsrc improvement  resolved  plfs  Nobody  0
+adamm@lanl.gov  2 weeks ago   8 days ago  0
+- Make it so that if there is no map defined in the plfsrc file, it 
+defaults to:
+map MNT:BACK
+
+31346 Open files on rename  resolved  plfs  johnbent  0
+adamm@lanl.gov  2 weeks ago 2 weeks ago 8 days ago  0
+- The problem was that the rename was creating an open file in the open_files
+cache with the relative name but the open_files cache should be for absolute
+names.  Then when the remove file was asking the open_files cache to remove it,
+it wasn't found (i.e. absolute != relative).  So now rename correctly inserts
+the absolute path into the open_files cache.
+
+31348 symlink not working resolved  plfs  Nobody  0
+johnbent@lanl.gov 2 weeks ago   2 weeks ago 0
+- We now handle sym links correctly.  We just stash the logical front-end path
+into the backend symlink.  Then it just works.  On the plfs_getattr though, we
+now have to do two stats:  one of the entry to see if it's a symlink, ENONENT,
+a file, or a directory.  If it's a directory, we then have to check for the
+access file.
+
+31367 weird bug with relative paths in f_symlink (FUSE problem?)  resolved  plfs  Nobody  0
+johnbent@lanl.gov 2 weeks ago   9 days ago  0
+- This was nothing.  I had forgotten that symlinks can actually be relative.
+
+31375 can't remove a read-only file resolved  plfs  Nobody  0
+johnbent@lanl.gov 13 days ago   9 days ago  0
+- fixed this by making dirMode() always make files owner-writable because
+a file can only be deleted in the parent dir is writable. this means we
+can only remove a container if the top-level dir is writable. this
+means that a user can't protect file from themselves writing it. we can
+live with that.
+
+31421 svn co times out  resolved  plfs  Nobody  0
+adamm@lanl.gov  9 days ago    40 hours ago  0
+- This was a problem with O_RDWR files.  We started creating the index on opens
+for reads to check for permissions problems.  However, for O_RDONLY, we can
+cache this index, but not for O_RDWR.  We were however incorrectly caching it
+for O_RDWR and this was causing problems when reads wouldn't get newly written
+data.
+
+31424 weird issue with using an executable made in a plfs mountpoint on centos  resolved  plfs  samuel  0
+adamm@lanl.gov  9 days ago  9 days ago  8 days ago  0
+- Something weird where we built on centos: 
+We build plfs itself in a plfs mount point. We then try to run that
+plfs executable and get this error:
+cannot restore segment prot after reloc: Permission denied
+we then do this:
+/usr/sbin/setenforce 0
+And it works.  I think this is not a big deal, we know a workaround, and 
+it might actually work better on CentOS since we fixed some other bugs that
+were causing build issues on other distributions.  So this might be fixed now
+and if not, there's an easy workaround.
+
+31427 can't turn off debugging info resolved  plfs  johnbent  0
+adamm@lanl.gov  9 days ago    8 days ago  0
+- Silly issues with setting DEFINES in the configuration code.
+
+31587 umask breaking our 777 dropping thing resolved  plfs  Nobody  0
+johnbent@lanl.gov 3 days ago    3 days ago  0
+- We need to set droppings to 777 so that they can also be modified.  Otherwise,
+some other user can write to a file and create droppings and then the original
+owner can't remove the file.  But the umask was sometimes getting applied as
+well and the droppings weren't always 777.  So now we set the umask to 0 in 
+WriteFile::openFile (and then restore it).
+
+31616 truncate bug  resolved  plfs  Nobody  0
+johnbent@lanl.gov 3 days ago    40 hours ago  0
+- We haven't seen this in a long time.  We think it got magically fixed by some
+other bug fixes.
+
+31639 rmdir error seen on cuda  resolved  plfs  Nobody  0
+johnbent@lanl.gov 2 days ago    47 hours ago  0
+- This was strange and annoying since it was old code that had never had
+problems before on other systems.  But then something about FUSE on cuda was
+different.The problem was that on opendir, we were doing the actual readdir and
+caching it.  Then on readdir, we'd return the cached dirents.  But what was
+happening was:
+
+opendir
+readdir from offset 0 to end
+unlink entry
+readdir from offset 0 to end
+stat entry
+ENOENT
+
+So now we remove the dirents after we do a complete readdir to end. Then if a
+new readdir comes in, we refetch the dirents. Therefore, we get the newly
+revised set of dirents following the unlink so we don't return a deleted entry
+on the readdir.
+
+31656 permission error on open  resolved  plfs  Nobody  0
+johnbent@lanl.gov 2 days ago    22 hours ago  0
+- This was a long weird one but the resolution was that Gary had code that
+was calling open with O_CREAT but no mode and it was resulting in very weird
+permissions.  This is fine and that's what happens on other file systems is that
+the file gets created with weird permission bits.  But PLFS was failing to 
+create the file bec it was putting the weird permission bits on the container 
+and was then unable to create the droppings.  We just weren't adding S_IRUSR in
+the dirMode() call.
+
+31704 rename of an open file causes segfault on next read of .plfsdebug resolved  plfs  Nobody  0
+johnbent@lanl.gov 42 hours ago    40 hours ago  0
+- This was related to the other rename of an open file.  The rename was 
+removing the plfs fd but not removing the entry in the open_files cache.  Then
+when we iterated down it, we dereferenced a dangling pointer.  The fix was
+making sure that we keep the set of open files consistent with the open_files
+cache.  We screwed this up by inserting a relative path and then trying to 
+remove an absolute one.
+
+31720 can't build plfs in plfs johnbent@lanl.gov 40 hours ago    14 hours ago  0
+- This is fixed now. The problem was that truncate wasn't cleaning up meta
+droppings so the stat was wrong and reads that pre-allocated a buffer
+according to the stat were finding garbage in the buffer.  It works now for
+truncates to 0 bec it just unlinks all the metadata droppings. However, I
+wonder if on this case, we should probably set the mtime of the access file.
+It doesn't yet work for truncates to the middle of the file. For these, we have
+to selectively unlink/modify metadata droppings.
+
 ~~~ Version 1.0pre.0 
 
 1) Problems with building the PLFS SC09 paper.  Problems are in data/summary

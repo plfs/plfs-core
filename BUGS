@@ -1,3 +1,9 @@
+DEPRECATED:  We now manage bugs with change.lanl.gov.
+This file is no longer maintained.
+
+
+
+========================================================================
 OPEN:
 
 7) I've seen a crash with a core backtrace that says something about ld 
