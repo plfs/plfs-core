@@ -1329,6 +1329,46 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
             // METADIR, so we need to go through the droppings in METADIR
             // and modify or remove droppings that show an offset beyond
             // this truncate point
+
+
+            struct dirent *dent         = NULL;
+            DIR *dir                    = NULL;
+            string meta_path            = Container::getMetaDirPath(path);
+
+            Util::Opendir( meta_path.c_str() , &dir );
+    
+            if ( dir == NULL ) { 
+               Util::Debug("%s wtf\n", __FUNCTION__ );
+               return 0; 
+            }
+
+            while( ret == 0 && (dent = readdir( dir )) != NULL ) {
+               string full_path( path ); full_path += "/"; 
+               full_path += dent->d_name;
+               
+               off_t last_offset;
+               size_t total_bytes;
+               struct timespec time;
+               ostringstream oss;
+               string host = Container::fetchMeta( dent->d_name, 
+                    &last_offset, &total_bytes, &time );
+
+              if(last_offset > offset)
+              {
+                 oss << meta_path << "/" << offset << "."  
+                    << total_bytes << "." << time.tv_sec 
+                    << "." << time.tv_nsec << "." << host;
+                 string new_path (path); 
+                 new_path += oss.str();
+                 ret = Util::Rename(full_path.c_str(), new_path.c_str());
+                 if ( ret != 0 ) {
+                    Util::Debug("%s wtf, Rename of metadata in truncate failed\n", 
+                                   __FUNCTION__ );
+                 }
+              }
+            
+
+            }
     }
 
     // if we actually modified the container, update any open file handle
