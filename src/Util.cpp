@@ -120,6 +120,9 @@ Util::Debug( const char *format, va_list args ) {
     if ( ! init ) {
         init = 1;
         if ( getenv( "PLFS_DEBUG" ) ) {
+            // get the env and parse through it for %.h and %.s
+            // and %.p.  Replace %h with hostname, %.s with timestamp,
+            // %.p with pid
             debugfile = fopen( getenv("PLFS_DEBUG"), "w" );
         }
     }
@@ -144,8 +147,8 @@ Util::SeriousError( string msg, pid_t pid ) {
              << " for serious error: " << msg << endl;
     } else {
         fprintf(debugfile,"%s\n",msg.c_str());
+        fclose(debugfile);
     }
-    fclose(debugfile);
 }
 
 void 
