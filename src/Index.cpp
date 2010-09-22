@@ -762,7 +762,7 @@ void Index::truncate( off_t offset ) {
             // say entry is 5.5 that means that ten
             // is a valid offset, so truncate to 7
             // would mean the new length would be 3
-        prev->second.length = offset - prev->second.logical_offset + 1;
+        prev->second.length = offset - prev->second.logical_offset ;//+ 1;???
         Util::Debug("%s Modified a global index record to length %u\n",
                 __FUNCTION__, (uint)prev->second.length);
         if (prev->second.length==0) {
@@ -796,16 +796,29 @@ void Index::truncateHostIndex( off_t offset ) {
 // index, so now we need to dump the modified global index into
 // a new local index
 // also, we need to know the pid of the previous index
+// This had to be changed because we are recreating the index 
+// based on physical offsets which the local index doesn't 
+// use. The index is rearranged by begin timestamps
 int Index::rewriteIndex( int fd ) {
     this->fd = fd;
     map<off_t,ContainerEntry>::iterator itr;
+    map<double,ContainerEntry> global_index_timesort;
+    map<double,ContainerEntry>::iterator itrd;
+    
+
     for( itr = global_index.begin(); itr != global_index.end(); itr++ ) {
+        global_index_timesort.insert(
+                pair<double,ContainerEntry>(itr->second.begin_timestamp,itr->second));
+    }
+
+    for( itrd = global_index_timesort.begin(); itrd != 
+            global_index_timesort.end(); itrd++ ) 
+    {
         double begin_timestamp = 0, end_timestamp = 0;
-        begin_timestamp = itr->second.begin_timestamp;
-        end_timestamp   = itr->second.end_timestamp;
-	// BUG here.  For some reason, we have the id here incorrect
-        addWrite( itr->second.logical_offset,itr->second.length, 
-                itr->second.original_chunk, begin_timestamp, end_timestamp );
+        begin_timestamp = itrd->second.begin_timestamp;
+        end_timestamp   = itrd->second.end_timestamp;
+        addWrite( itrd->second.logical_offset,itrd->second.length, 
+                itrd->second.original_chunk, begin_timestamp, end_timestamp );
         ostringstream os;
         os << __FUNCTION__ << " added : " << itr->second << endl; 
         Util::Debug("%s", os.str().c_str() );

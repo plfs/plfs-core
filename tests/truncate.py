@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.1
+#!/usr/bin/env python
 
 """A test that creates a PLFS file, stats it, truncates it in the middle,
 reads it, makes sure the data is what's expected, stats it and makes sure
@@ -23,6 +23,8 @@ parser.add_option("--truncate_only", action="store_true",
   help="Skip the initial create [default=%default]", default=False)
 parser.add_option("-t", dest="target", 
   help="target file [default=%default]", default=getDefaultTarget())
+parser.add_option("-p", dest="preserve", action="store_true",
+  help="don't unlink file after tests [default=%default]", default=False)
 
 def openFile(path,mode):
   try:
@@ -33,13 +35,18 @@ def openFile(path,mode):
   return f
 
 def checkData(path,data,phase):
+  fdata = None 
   f = openFile(path,'r')
   fdata = f.read()
   f.close()
-  if (fdata==data): return 
+  if (fdata == data): return 
   else:
     print 'Data integrity error after %s' % phase
-    print 'Expected %s, got %s' % (data,fdata)
+    if(len(fdata)!=len(data)):
+      print "Length mismatch %d != %d" %(len(fdata),len(data))
+    print 'Expected %s, got %s' % (fdata,data)
+    for i in range(0,len(fdata)):
+      print "%c ? %c" % (data[i],fdata[i])
     exit(-2)
 
 def main():
@@ -68,7 +75,8 @@ def main():
 
   checkData(options.target,data[0:tlen],'truncate') 
 
-  os.unlink(options.target)
+  if ( options.preserve is False ):
+    os.unlink(options.target)
 
 if __name__ == "__main__": main()
 
