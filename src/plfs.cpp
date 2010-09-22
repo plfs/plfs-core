@@ -1383,9 +1383,12 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
             // them at the old path....
         if ( ret == 0 && of && of->getWritefile() ) {
             ret = of->getWritefile()->restoreFds();
+        } else {
+            Util::Debug("%s failed: %s\n", __FUNCTION__, strerror(errno));
         }
     }
 
+    Util::Debug("%s %s to %u: %d",__FUNCTION__,path.c_str(),(uint)offset,ret);
     PLFS_EXIT(ret);
 }
 

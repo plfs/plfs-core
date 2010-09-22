@@ -505,6 +505,7 @@ double Util::getTime( ) {
     return (double)time.tv_sec + time.tv_usec/1.e6; 
 }
 
+// returns n or returns -1
 ssize_t Util::Writen( int fd, const void *vptr, size_t n ) {
     ENTER_UTIL;
     size_t      nleft;

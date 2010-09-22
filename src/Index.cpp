@@ -104,6 +104,7 @@ Index::Index( string logical, int fd ) : Metadata::Metadata() {
     ostringstream os;
     os << __FUNCTION__ << ": " << this << " created index on " <<
         logical_path << endl;
+    Util::Debug("%s", os.str().c_str() );
 }
 
 void
@@ -230,11 +231,18 @@ int Index::flush() {
     // ok, vectors are guaranteed to be contiguous
     // so just dump it in one fell swoop
     size_t  len = hostIndex.size() * sizeof(HostEntry);
+    ostringstream os;
+    os << __FUNCTION__ << " flushing : " << len << " bytes" << endl; 
+    Util::Debug("%s", os.str().c_str() );
     if ( len == 0 ) return 0;   // could be 0 if we weren't buffering
     // valgrind complains about writing uninitialized bytes here....
     // but it's fine as far as I can tell.
     void *start = &(hostIndex.front());
     int ret     = Util::Writen( fd, start, len );
+    if ( ret != (size_t)len ) {
+        Util::Debug("%s failed write to fd %d: %s\n", 
+                __FUNCTION__, fd, strerror(errno));
+    }
     hostIndex.clear();
     return ( ret < 0 ? -errno : 0 );
 }
@@ -730,7 +738,7 @@ void Index::truncate( off_t offset ) {
     map<off_t,ContainerEntry>::iterator itr, prev;
     bool first = false;
     Util::Debug("Before %s in %p, now are %d chunks\n",
-        __FUNCTION__,this,chunk_map.size());
+        __FUNCTION__,this,global_index.size());
 
         // Finds the first element whose offset >= offset. 
     itr = global_index.lower_bound( offset );
@@ -747,16 +755,16 @@ void Index::truncate( off_t offset ) {
             // say entry is 5.5 that means that ten
             // is a valid offset, so truncate to 7
             // would mean the new length would be 3
-        Util::Debug("Modified a global index record\n");
         prev->second.length = offset - prev->second.logical_offset + 1;
+        Util::Debug("%s Modified a global index record to length %u\n",
+                __FUNCTION__, (uint)prev->second.length);
         if (prev->second.length==0) {
           Util::Debug( "Just truncated index entry to 0 length\n" );
         }
       }
     }
     Util::Debug("After %s in %p, now are %d chunks\n",
-        __FUNCTION__,this,chunk_map.size());
-
+        __FUNCTION__,this,global_index.size());
 }
 
 // operates on a host entry which is not sorted
@@ -790,6 +798,9 @@ int Index::rewriteIndex( int fd ) {
         end_timestamp   = itr->second.end_timestamp;
         addWrite( itr->second.logical_offset,itr->second.length, 
                 itr->second.id, begin_timestamp, end_timestamp );
+        ostringstream os;
+        os << __FUNCTION__ << " added : " << itr->second << endl; 
+        Util::Debug("%s", os.str().c_str() );
     }
     return flush(); 
 }

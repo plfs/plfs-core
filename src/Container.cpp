@@ -1146,7 +1146,7 @@ int Container::Truncate( const char *path, off_t offset ) {
             if ( index->lastOffset() > offset ) {
                 Util::Debug("%s %p at %ld\n",__FUNCTION__,index,offset);
                 index->truncate( offset );
-                int fd = Util::Open( indexfile.c_str(), O_TRUNC );
+                int fd = Util::Open(indexfile.c_str(), O_TRUNC | O_WRONLY);
                 if ( fd < 0 ) {
                     cerr << "Couldn't overwrite index file " << indexfile
                          << ": " << strerror( fd ) << endl;
@@ -1155,6 +1155,7 @@ int Container::Truncate( const char *path, off_t offset ) {
                 }
                 ret = index->rewriteIndex( fd );
                 Util::Close( fd );
+                if ( ret != 0 ) break;
             }
             Util::Debug("%s removing index %p\n",__FUNCTION__,index);
             delete index;

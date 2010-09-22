@@ -333,6 +333,8 @@ int WriteFile::restoreFds( ) {
     // to guard against it.  I guess it if does happen we just need to do
     // reg ex changes to all the paths
     assert( ! has_been_renamed );
+
+    plfs_debug("Entering %s\n",__FUNCTION__);
     
     // first reset the index fd
     if ( index ) {
@@ -365,5 +367,6 @@ int WriteFile::restoreFds( ) {
     // normally we return ret at the bottom of our functions but this
     // function had so much error handling, I just cut out early on any 
     // error.  therefore, if we get here, it's happy days!
+    plfs_debug("Exiting %s\n",__FUNCTION__);
     return 0;
 }
