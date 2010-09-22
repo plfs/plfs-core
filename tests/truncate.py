@@ -19,7 +19,7 @@ def getDefaultTarget():
 parser = optparse.OptionParser()
 parser.add_option("--truncate_len", help="The length to truncate the file", 
   default=None)
-parser.add_option("--truncate_only", action=store_true, 
+parser.add_option("--truncate_only", action="store_true", 
   help="Skip the initial create [default=%default]", default=False)
 parser.add_option("-t", dest="target", 
   help="target file [default=%default]", default=getDefaultTarget())
@@ -46,10 +46,11 @@ def main():
   (options, args) = parser.parse_args()
 
   data="hello world"
-  f = openFile(options.target,'w')
-  print "Writing '%s' to %s" % (data,options.target)
-  f.write(data)
-  f.close()
+  if ( options.truncate_only is not None ):
+    f = openFile(options.target,'w')
+    print "Writing '%s' to %s" % (data,options.target)
+    f.write(data)
+    f.close()
 
   checkData(options.target,data,phase='write') 
 
