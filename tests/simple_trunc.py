@@ -1,8 +1,4 @@
-#!/usr/bin/env python
-
-"""A test that creates a PLFS file, stats it, truncates it in the middle,
-reads it, makes sure the data is what's expected, stats it and makes sure
-that is as expected."""
+#!/usr/bin/python
 
 import sys
 import struct
@@ -17,8 +13,8 @@ def getDefaultTarget():
   return "foo"
 
 parser = optparse.OptionParser()
-parser.add_option("--truncate_len", help="The length to truncate the file", 
-  default=100)
+parser.add_option("-T", dest="length", default=100, type="int",
+  help="The length to truncate the file [default=%default]")
 parser.add_option("-t", dest="target", 
   help="target file [default=%default]", default=getDefaultTarget())
 
@@ -29,9 +25,9 @@ def openFile(path,mode):
 def main():
   (options, args) = parser.parse_args()
 
+  print "Truncating '%s' to %d" % (options.target,options.length)
   f = openFile(options.target, 'a')
-  f.truncate(options.truncate_len)
-  print "Truncated '%s' to %d" % (data,tlen)
+  f.truncate(options.length)
   f.close()
 
 if __name__ == "__main__": main()

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3.1
 
 """A test that creates a PLFS file, stats it, truncates it in the middle,
 reads it, makes sure the data is what's expected, stats it and makes sure
@@ -27,8 +27,8 @@ parser.add_option("-t", dest="target",
 def openFile(path,mode):
   try:
     f = open(path,mode)
-  except IOError as (errno, strerror):
-    print "I/O error({0}): {1}".format(errno, strerror)
+  except: 
+    print 'openFile error'
     exit(-1)
   return f
 
@@ -43,8 +43,8 @@ def checkData(path,data,phase):
     exit(-2)
 
 def main():
+  print "I made it into the the main"
   (options, args) = parser.parse_args()
-
   data="hello world"
   if ( options.truncate_only is not None ):
     f = openFile(options.target,'w')
@@ -61,8 +61,8 @@ def main():
   f = openFile(options.target, 'a')
   try:
     f.truncate(tlen)
-  except IOError as (errno, strerror):
-      print "Truncate error({0}): {1}".format(errno, strerror)
+  except IOError: 
+      print "Truncate error"
   print "Truncated '%s' to %d" % (data,tlen)
   f.close()
 
@@ -71,3 +71,4 @@ def main():
   os.unlink(options.target)
 
 if __name__ == "__main__": main()
+

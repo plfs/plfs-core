@@ -17,9 +17,11 @@
 using namespace std;
 
 
-#define PLFS_ENTER string path = expandPath(logical); \
-    plfs_debug("EXPAND in %s: %s->%s\n",__FUNCTION__,logical,path.c_str()); \
-    int ret = 0;
+#define PLFS_ENTER int my_errno, ret;\
+ string path = expandPath(logical,&my_errno); \
+ plfs_debug("EXPAND in %s: %s->%s\n",__FUNCTION__,logical,path.c_str());\
+ if ( my_errno != 0 ) {  errno = my_errno; return -errno; } \
+ else ret = 0;
 #define PLFS_EXIT(X) return(X);
 
 // a struct for making reads be multi-threaded
@@ -66,7 +68,7 @@ vector<string> &tokenize(const string& str,const string& delimiters,
 
 // takes a logical path and returns a physical one
 string
-expandPath(string logical) {
+expandPath(string logical, int *ep_errno) {
     static bool init = false;
     // set all of these up once from plfsrc, then reuse
     static vector<string> expected_tokens; 
@@ -74,6 +76,8 @@ expandPath(string logical) {
     static string mnt_pt; 
     static PlfsConf *pconf;
 
+
+    *ep_errno = 0;
     // this is done once
     // it reads the map and creates tokens for the expression that
     // matches logical and the expression used to resolve into physical
@@ -85,7 +89,6 @@ expandPath(string logical) {
         vector<string> map_tokens;
         string expected;
         string resolve;
-
         // seed random so we can load balance requests for the root dir
         srand(time(NULL));
 
@@ -111,7 +114,6 @@ expandPath(string logical) {
       plfs_debug("PlfsConf error: %s\n", pconf->err_msg.c_str());
       return "INVALID";
     }
-
     // set remaining to the part of logical after the mnt_pt and tokenize it
     string remaining;
     vector<string>remaining_tokens;
@@ -709,8 +711,9 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
 }
 
 bool
-plfs_init(PlfsConf *pconf) {
-    expandPath(pconf->mnt_pt);
+plfs_init(PlfsConf *pconf) { 
+    int ep_errno;
+    expandPath(pconf->mnt_pt,&ep_errno);
     return true;
 }
 
@@ -856,7 +859,6 @@ get_plfs_conf() {
             } 
         } 
     }
-    
     if ( hidden->error ) return hidden;
 
     pconf = hidden; // don't clear the NULL until fully populated
@@ -987,7 +989,8 @@ plfs_symlink(const char *logical, const char *to) {
     // and then un-resolve it on the readlink...
     // ok, let's try that then.  no, let's try the first way
     PLFS_ENTER;
-    string toPath = expandPath(to);
+    int ep_errno;
+    string toPath = expandPath(to,&ep_errno);
     //ret = retValue(Util::Symlink(path.c_str(),toPath.c_str()));
     ret = retValue(Util::Symlink(logical,toPath.c_str()));
     plfs_debug("%s: %s to %s: %d\n", __FUNCTION__, 
@@ -1027,7 +1030,8 @@ plfs_readlink(const char *logical, char *buf, size_t bufsize) {
 int
 plfs_rename( const char *logical, const char *to ) {
     PLFS_ENTER;
-    string topath = expandPath( to );
+    int ep_errno;
+    string topath = expandPath( to , &ep_errno);
 
     if ( is_plfs_file( to, NULL ) ) {
         // we can't just call rename bec it won't trash a dir in the toPath
@@ -1321,54 +1325,6 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
                 ret = extendFile( of, path, offset );    // make bigger
             }
         }
-
-            // TODO:
-            // it's unlikely but if a previously closed file is truncated
-            // somewhere in the middle, then future stats on the file will
-            // be incorrect because they'll reflect incorrect droppings in
-            // METADIR, so we need to go through the droppings in METADIR
-            // and modify or remove droppings that show an offset beyond
-            // this truncate point
-
-
-            struct dirent *dent         = NULL;
-            DIR *dir                    = NULL;
-            string meta_path            = Container::getMetaDirPath(path);
-
-            Util::Opendir( meta_path.c_str() , &dir );
-    
-            if ( dir == NULL ) { 
-               Util::Debug("%s wtf\n", __FUNCTION__ );
-               return 0; 
-            }
-
-            while( ret == 0 && (dent = readdir( dir )) != NULL ) {
-               string full_path( path ); full_path += "/"; 
-               full_path += dent->d_name;
-               
-               off_t last_offset;
-               size_t total_bytes;
-               struct timespec time;
-               ostringstream oss;
-               string host = Container::fetchMeta( dent->d_name, 
-                    &last_offset, &total_bytes, &time );
-
-              if(last_offset > offset)
-              {
-                 oss << meta_path << "/" << offset << "."  
-                    << total_bytes << "." << time.tv_sec 
-                    << "." << time.tv_nsec << "." << host;
-                 string new_path (path); 
-                 new_path += oss.str();
-                 ret = Util::Rename(full_path.c_str(), new_path.c_str());
-                 if ( ret != 0 ) {
-                    Util::Debug("%s wtf, Rename of metadata in truncate failed\n", 
-                                   __FUNCTION__ );
-                 }
-              }
-            
-
-            }
     }
 
     // if we actually modified the container, update any open file handle

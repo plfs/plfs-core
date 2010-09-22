@@ -1132,11 +1132,19 @@ int Container::nextdropping( string physical_path,
     return 1;
 }
 
+// this should be called when the truncate offset is less than the
+// current size of the file
+// we don't actually remove any data here, we just edit index files
+// and meta droppings
+// when a file is truncated to zero, that is handled separately and
+// that does actually remove data files
 // returns 0 or -errno
 int Container::Truncate( const char *path, off_t offset ) {
     int ret;
     string indexfile;
 
+	// this code here goes through each index dropping and rewrites it
+	// preserving only entries that contain data prior to truncate offset
     DIR *td = NULL, *hd = NULL; struct dirent *tent = NULL;
     while((ret = nextdropping(path,&indexfile,INDEXPREFIX, &td,&hd,&tent))== 1){
         Index *index = new Index( indexfile, -1 );
@@ -1168,6 +1176,12 @@ int Container::Truncate( const char *path, off_t offset ) {
             break;
         }
     }
+
+	if ( ret == 0 ) {
+		ret = truncateMeta(path,offset);
+	}
+	/*
+	// if this code is still here in 2011, delete it
     // now remove all the meta droppings
     ret = Util::Opendir( getMetaDirPath( path ).c_str(), &td ); 
     if ( ret == 0 ) {
@@ -1182,5 +1196,59 @@ int Container::Truncate( const char *path, off_t offset ) {
         }
         Util::Closedir( td );
     }
+	*/
+    Util::Debug("%s on %s to %ld ret: %d\n", __FUNCTION__, path, offset, ret);
     return ret;
+}
+
+int
+Container::truncateMeta(const char *path, off_t offset){
+
+	// TODO:
+   	// it's unlikely but if a previously closed file is truncated
+   	// somewhere in the middle, then future stats on the file will
+   	// be incorrect because they'll reflect incorrect droppings in
+   	// METADIR, so we need to go through the droppings in METADIR
+   	// and modify or remove droppings that show an offset beyond
+   	// this truncate point
+
+   	struct dirent *dent         = NULL;
+   	DIR *dir                    = NULL;
+   	string meta_path            = getMetaDirPath(path);
+
+   	int ret = Util::Opendir( meta_path.c_str() , &dir );
+    
+   	if ( dir == NULL ) { 
+		Util::Debug("%s wtf\n", __FUNCTION__ );
+		return 0; 
+   	}
+
+   	while( ret == 0 && (dent = readdir( dir )) != NULL ) {
+		if ( !strcmp( ".", dent->d_name ) || !strcmp( "..", dent->d_name ) ) {
+			continue;
+		}
+		string full_path( path ); full_path += "/"; 
+		full_path += dent->d_name;
+   	
+		off_t last_offset;
+		size_t total_bytes;
+		struct timespec time;
+		ostringstream oss;
+		string host = fetchMeta( dent->d_name, 
+			&last_offset, &total_bytes, &time );
+
+		if(last_offset > offset) {
+			oss << meta_path << "/" << offset << "."  
+				<< total_bytes << "." << time.tv_sec 
+				<< "." << time.tv_nsec << "." << host;
+			string new_path (path); 
+			new_path += oss.str();
+			ret = Util::Rename(full_path.c_str(), new_path.c_str());
+			if ( ret != 0 ) {
+				Util::Debug("%s wtf, Rename of metadata in truncate failed\n",
+					__FUNCTION__ );
+			}
+		}
+   	}
+    Util::Debug("%s on %s to %ld ret: %d\n", __FUNCTION__, path, offset, ret);
 }

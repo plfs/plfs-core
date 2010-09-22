@@ -54,6 +54,10 @@ class ContainerEntry : HostEntry {
 
     protected:
         off_t chunk_offset;
+	pid_t original_chunk;	// we just need to track this so we can 
+				// rewrite the index appropriately for
+				// things like truncate to the middle or
+				// for the as-yet-unwritten index flattening
 
 	friend ostream& operator <<(ostream &,const ContainerEntry &);
 

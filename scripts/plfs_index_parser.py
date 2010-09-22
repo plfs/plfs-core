@@ -113,24 +113,20 @@ if options.by_offset:
 if options.by_time:
   entries.sort(key=get_time)
 
-if options.by_time:
-  entries.sort(key=get_time)
-
 # this overlaps thing is something I put in to look for whether ops
 # are overlapped.  I wanted to look into this since it looks like
 # FUSE serializes IO's to the same logical filename
-if options.by_time:
-  last = None
-  overlaps = 0
-  transitions = 0
-  for entry in entries:
-    printEntry(entry)
-    if last is not None:
-      if ( last['end_time'] > entry['start_time'] ): overlaps += 1
-      if ( last['pid'] != entry['pid'] ): transitions += 1 
+last = None
+overlaps = 0
+transitions = 0
+for entry in entries:
+  printEntry(entry)
+  if last is not None:
+    if ( last['end_time'] > entry['start_time'] ): overlaps += 1
+    if ( last['pid'] != entry['pid'] ): transitions += 1 
     last = entry
-  print "%d overlaps, %d transitions out of %d IO's\n" % \
-    (overlaps,transitions,len(entries))
+print "%d overlaps, %d transitions out of %d IO's\n" % \
+  (overlaps,transitions,len(entries))
 
 if options.summary:
   def pretty_print(key,value): print "%30s: %12.4f" % ( key, value )

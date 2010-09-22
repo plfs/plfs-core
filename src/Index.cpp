@@ -302,6 +302,12 @@ int Index::readIndex( string hostindex ) {
     // which chunk id we've assigned to each chunk path.  we could use
     // our permanent chunk_map to look this up but it'd be a backwards 
     // lookup so that might be slow for large N's.
+    // we do however remember the original pid so that we can rewrite 
+    // the index correctly for the cases where we do the reverse thing
+    // and recreate a host index dropping (we do this for truncating to 
+    // the middle and for flattening an index [for which we don't yet
+    // actually have any code, it's just an idea])
+
     // since the order of the entries for each pid in a host index corresponds
     // to the order of the writes within that pid's chunk file, we also 
     // remember the current offset for each chunk file (but we only need
@@ -351,6 +357,7 @@ int Index::readIndex( string hostindex ) {
         c_entry.logical_offset    = h_entry.logical_offset;
         c_entry.length            = h_entry.length;
         c_entry.id                = known_chunks[chunkpath];
+	c_entry.original_chunk    = h_entry.id;
         c_entry.chunk_offset      = chunk_offsets[chunkpath];
         c_entry.begin_timestamp = h_entry.begin_timestamp;
         c_entry.end_timestamp   = h_entry.end_timestamp;
@@ -796,8 +803,9 @@ int Index::rewriteIndex( int fd ) {
         double begin_timestamp = 0, end_timestamp = 0;
         begin_timestamp = itr->second.begin_timestamp;
         end_timestamp   = itr->second.end_timestamp;
+	// BUG here.  For some reason, we have the id here incorrect
         addWrite( itr->second.logical_offset,itr->second.length, 
-                itr->second.id, begin_timestamp, end_timestamp );
+                itr->second.original_chunk, begin_timestamp, end_timestamp );
         ostringstream os;
         os << __FUNCTION__ << " added : " << itr->second << endl; 
         Util::Debug("%s", os.str().c_str() );
