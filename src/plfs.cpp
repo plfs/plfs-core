@@ -1321,6 +1321,9 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
                 ret = 0; // nothing to do
             } else if ( stbuf.st_size > offset ) {
                 ret = Container::Truncate(path.c_str(), offset); // make smaller
+                if (ret == 0 ) {
+                    ret=Container::truncateMeta(path.c_str(), offset);
+                }
             } else if ( stbuf.st_size < offset ) {
                 ret = extendFile( of, path, offset );    // make bigger
             }

@@ -1227,7 +1227,7 @@ Container::truncateMeta(const char *path, off_t offset){
 		if ( !strcmp( ".", dent->d_name ) || !strcmp( "..", dent->d_name ) ) {
 			continue;
 		}
-		string full_path( path ); full_path += "/"; 
+		string full_path( meta_path ); full_path += "/"; 
 		full_path += dent->d_name;
    	
 		off_t last_offset;
@@ -1236,12 +1236,12 @@ Container::truncateMeta(const char *path, off_t offset){
 		ostringstream oss;
 		string host = fetchMeta( dent->d_name, 
 			&last_offset, &total_bytes, &time );
-
+        // We are making smaller so we can use the offset as the total_bytes
 		if(last_offset > offset) {
 			oss << meta_path << "/" << offset << "."  
-				<< total_bytes << "." << time.tv_sec 
+				<< offset    << "." << time.tv_sec 
 				<< "." << time.tv_nsec << "." << host;
-			ret = Util::Rename(full_path.c_str(), oss.c_str());
+			ret = Util::Rename(full_path.c_str(), oss.str().c_str());
 			if ( ret != 0 ) {
 				Util::Debug("%s wtf, Rename of metadata in truncate failed\n",
 					__FUNCTION__ );

@@ -91,11 +91,11 @@ class Container {
         static int cleanupChmod( const char *path, 
             mode_t mode , int top, uid_t uid , gid_t gid );
         static int cleanupChown( const char *path, uid_t uid, gid_t gid); 
+	    static int truncateMeta(const char *path, off_t offset);
        
 
     private:
             // static stuff
-	static int truncateMeta(const char *path, off_t offset);
         static int Modify(DirectoryOperation,const char*,uid_t,gid_t,
                 const struct utimbuf*,mode_t);
         static int chmodModify (const char *path, mode_t mode);
