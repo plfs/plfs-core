@@ -315,12 +315,15 @@ int Index::readIndex( string hostindex ) {
     // important stuff that needs to be more permanent into the container index)
 
     // need to remember a chunk id for each distinct chunk file
-    map<string,pid_t> known_chunks;
-    map<string,pid_t>::iterator known_chunks_itr;
+    // we used to key this with the path but we can just key it with the id
+    map<pid_t,pid_t> known_chunks;
+    map<pid_t,pid_t>::iterator known_chunks_itr;
 
     // need to remember the current offset position within each chunk as well
-    map<string,off_t> chunk_offsets;
-    map<string,off_t>::iterator chunk_offsets_itr;
+    // we were doing this with paths as the keys but I think we can just do
+    // it with the pids so we can have simpler lookups in the maps
+    map<pid_t,off_t> chunk_offsets;
+    map<pid_t,off_t>::iterator chunk_offsets_itr;
 
         // so we have an index mapped in, let's read it and create 
         // mappings to chunk files in our chunk map
@@ -331,21 +334,19 @@ int Index::readIndex( string hostindex ) {
     for( size_t i = 0; i < entries; i++ ) {
         ContainerEntry c_entry;
         HostEntry      h_entry = h_index[i];
-        string chunkpath       = Container::chunkPathFromIndexPath( 
-                                                hostindex, h_entry.id );
         
         //  too verbose
         //Util::Debug("Checking chunk %s\n", chunkpath.c_str());
 
             // remember the mapping of a chunkpath to a chunkid
             // and set the initial offset
-        if( known_chunks.find( chunkpath ) == known_chunks.end() ) {
+        if( known_chunks.find(h_entry.id) == known_chunks.end() ) {
             ChunkFile cf;
-            cf.path = chunkpath; 
+            cf.path = Container::chunkPathFromIndexPath(hostindex,h_entry.id);
             cf.fd   = -1;
             chunk_map.push_back( cf );
-            known_chunks[chunkpath]  = chunk_id++;
-            chunk_offsets[chunkpath] = 0;
+            known_chunks[h_entry.id]  = chunk_id++;
+            chunk_offsets[h_entry.id] = 0;
             // chunk_map is indexed by chunk_id so these need to be the same
             assert( (size_t)chunk_id == chunk_map.size() );
             Util::Debug("Inserting chunk %s (%d)\n", cf.path.c_str(),
@@ -354,14 +355,17 @@ int Index::readIndex( string hostindex ) {
 
             // copy all info from the host entry to the global and advance
             // the chunk offset
+            // we need to remember the original chunk so we can reverse
+            // this process and rewrite an index dropping from an index
+            // in-memory data structure
         c_entry.logical_offset    = h_entry.logical_offset;
         c_entry.length            = h_entry.length;
-        c_entry.id                = known_chunks[chunkpath];
-	c_entry.original_chunk    = h_entry.id;
-        c_entry.chunk_offset      = chunk_offsets[chunkpath];
-        c_entry.begin_timestamp = h_entry.begin_timestamp;
-        c_entry.end_timestamp   = h_entry.end_timestamp;
-        chunk_offsets[chunkpath] += h_entry.length;
+        c_entry.id                = known_chunks[h_entry.id];
+        c_entry.original_chunk    = h_entry.id;
+        c_entry.chunk_offset      = chunk_offsets[h_entry.id];
+        c_entry.begin_timestamp   = h_entry.begin_timestamp;
+        c_entry.end_timestamp     = h_entry.end_timestamp;
+        chunk_offsets[h_entry.id] += h_entry.length;
         last_offset = max( (off_t)(c_entry.logical_offset+c_entry.length),
                             last_offset );
         total_bytes += c_entry.length;
@@ -604,6 +608,9 @@ int Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
             return -errno;
         } 
         */
+        // I'm not sure why we used to open the chunk file here and
+        // now we don't.  If you figure it out, pls explain it here.
+        // we must have done the open elsewhere.  But where and why not here?
         Util::Debug("Not opening chunk file %s yet\n", cf_ptr->path.c_str());
     }
     Util::Debug("Will read from chunk %s at off %ld (shift %ld)\n",
@@ -795,10 +802,6 @@ void Index::truncateHostIndex( off_t offset ) {
 // created a partial global index, and truncated that global
 // index, so now we need to dump the modified global index into
 // a new local index
-// also, we need to know the pid of the previous index
-// This had to be changed because we are recreating the index 
-// based on physical offsets which the local index doesn't 
-// use. The index is rearranged by begin timestamps
 int Index::rewriteIndex( int fd ) {
     this->fd = fd;
     map<off_t,ContainerEntry>::iterator itr;
@@ -806,9 +809,22 @@ int Index::rewriteIndex( int fd ) {
     map<double,ContainerEntry>::iterator itrd;
     
 
+    // so this is confusing.  before we dump the global_index back into
+    // a physical index entry, we have to resort it by timestamp instead
+    // of leaving it sorted by offset.
+    // this is because we have a small optimization in that we don't 
+    // actually write the physical offsets in the physical index entries.
+    // we don't need to since the writes are log-structured so the order
+    // of the index entries matches the order of the writes to the data
+    // chunk.  Therefore when we read in the index entries, we know that
+    // the first one to a physical data dropping is to the 0 offset at the
+    // physical data dropping and the next one is follows that, etc.
+    // this code is in:
+    // readIndex in the chunk_offsets map
     for( itr = global_index.begin(); itr != global_index.end(); itr++ ) {
         global_index_timesort.insert(
-                pair<double,ContainerEntry>(itr->second.begin_timestamp,itr->second));
+                pair<double,ContainerEntry>(
+                    itr->second.begin_timestamp,itr->second));
     }
 
     for( itrd = global_index_timesort.begin(); itrd != 
