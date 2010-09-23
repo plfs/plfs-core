@@ -6,10 +6,12 @@
 
 int main (int argc, char **argv) {
     const char *target  = argv[1];
+	/*
     if ( ! is_plfs_file( target, NULL ) ) {
         fprintf( stderr, "%s is not a container\n", target );
         exit( 0 );
     }
+	*/
     Index index( target, 0 );
     int ret = Container::populateIndex( target, &index );
     if ( ret != 0 ) {
