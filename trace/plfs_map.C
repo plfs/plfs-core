@@ -19,7 +19,7 @@ int main (int argc, char **argv) {
     }
         // can't compress if you want to do the viz
         // this needs to be command line flag clearly
-    index.compress();
+    //index.compress();
     cerr << "# INDEX DUMP OF " << target << endl;
     cout << index << endl;
     exit( 0 );

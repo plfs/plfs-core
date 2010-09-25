@@ -728,7 +728,7 @@ void Index::addWrite( off_t offset, size_t length, pid_t pid,
     abutable = false;
 
         // incoming abuts with last
-    if ( quant && abutable
+    if ( quant && abutable && hostIndex[quant-1].id == pid
         && hostIndex[quant-1].logical_offset + (off_t)hostIndex[quant-1].length 
             == offset )
     {
@@ -736,6 +736,27 @@ void Index::addWrite( off_t offset, size_t length, pid_t pid,
              (long)hostIndex[quant-1].logical_offset ); 
         hostIndex[quant-1].length += length;
     } else {
+        // where does the physical offset inside the chunk get set?
+        // oh.  it doesn't.  On the read back, we assume there's a
+        // one-to-one mapping btwn index and data file.  A truncate
+        // which modifies the index file but not the data file will
+        // break this assumption.  I believe this means we need to
+        // put the physical offset into the host entries.
+        // I think it also means that every open needs to be create 
+        // unique index and data chunks and never append to existing ones
+        // because if we append to existing ones, it means we need to
+        // stat them to know where the offset is and we'd rather not
+        // do a stat on the open
+        //
+        // so we need to do this:
+        // 1) track current offset by pid in the index data structure that
+        // we use for writing.  
+        // 2) Change the merge code to only merge for consecutive writes
+        // to the same pid: Done
+        // 3) remove the offset tracking when we create the read index
+        // 4) add a timestamp to the index and data droppings.  make sure
+        // that the code that finds an index path from a data path and
+        // vice versa (if that code exists) still works
         HostEntry entry;
         entry.logical_offset = offset;
         entry.length         = length; 

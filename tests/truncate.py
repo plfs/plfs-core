@@ -46,7 +46,7 @@ def checkData(path,data,phase,verbose):
     print 'Data integrity error after %s' % phase
     if(len(fdata)!=len(data)):
       print "Length mismatch %d != %d" %(len(fdata),len(data))
-    print 'Expected %s, got %s' % (data,fdata)
+    print 'Expected %s, got %s' % (data[:100],fdata[:100])
     if (verbose is True):
       for i in range(0,min(len(fdata),len(data))):
         print "%c ? %c" % (data[i],fdata[i])
@@ -59,14 +59,17 @@ def truncateFile(target,tlen):
   except IOError: 
       print "Truncate error"
   print "Truncated %s to %d" % (target,tlen)
+  f.flush()
   f.close()
 
 def writeFile(target,data,offset,mode):
   fd = os.open(target, mode)
-  f = os.fdopen(fd,'w')
+  f = os.fdopen(fd,'w',0)
   f.seek(offset,0)
   print "Writing %d bytes to %s at off %d" % (len(data),target,offset)
   f.write(data)
+  f.flush()
+  os.fsync(fd)
   f.close()
 
 def main():

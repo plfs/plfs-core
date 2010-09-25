@@ -265,6 +265,7 @@ is_plfs_file( const char *logical, mode_t *mode ) {
     PLFS_EXIT(ret);
 }
 
+#ifdef PLFS_DEBUG_ON
 void 
 plfs_debug( const char *format, ... ) {
     va_list args;
@@ -272,6 +273,10 @@ plfs_debug( const char *format, ... ) {
     Util::Debug(format, args);
     va_end( args );
 }
+#else
+void 
+plfs_debug( const char *format, ... ) { }
+#endif
 
 void 
 plfs_serious_error(const char *msg,pid_t pid ) {
@@ -1045,8 +1050,7 @@ plfs_rename( const char *logical, const char *to ) {
 }
 
 ssize_t 
-plfs_write( Plfs_fd *pfd, const char *buf, size_t size, off_t offset, pid_t pid)
-{
+plfs_write(Plfs_fd *pfd, const char *buf, size_t size, off_t offset, pid_t pid){
 
     // this can fail because this call is not in a mutex so it's possible
     // that some other thread in a close is changing ref counts right now
@@ -1059,9 +1063,9 @@ plfs_write( Plfs_fd *pfd, const char *buf, size_t size, off_t offset, pid_t pid)
     int ret = 0; ssize_t written;
     WriteFile *wf = pfd->getWritefile();
 
-    plfs_debug("Write to %s, offset %ld\n", 
-            pfd->getPath(), (long)offset );
-    ret = written = wf->write( buf, size, offset, pid );
+    ret = written = wf->write(buf, size, offset, pid);
+    plfs_debug("%s: Wrote to %s, offset %ld, size %ld: ret %ld\n", 
+            __FUNCTION__, pfd->getPath(), (long)offset, (long)size, (long)ret);
 
     PLFS_EXIT( ret >= 0 ? written : ret );
 }
@@ -1344,7 +1348,7 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
         }
     }
 
-    Util::Debug("%s %s to %u: %d",__FUNCTION__,path.c_str(),(uint)offset,ret);
+    Util::Debug("%s %s to %u: %d\n",__FUNCTION__,path.c_str(),(uint)offset,ret);
     PLFS_EXIT(ret);
 }
 
