@@ -1312,6 +1312,7 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
     }
     Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
 
+    // once we're here, we know it's a PLFS file
     if ( offset == 0 ) {
             // this is easy, just remove all droppings
             // this now removes METADIR droppings instead of incorrectly 
@@ -1360,6 +1361,13 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
     }
 
     Util::Debug("%s %s to %u: %d\n",__FUNCTION__,path.c_str(),(uint)offset,ret);
+
+    if ( ret == 0 ) {
+        // update the timestamp
+        struct utimbuf ut;
+        ut.actime = ut.modtime = time(NULL);
+        ret = Container::Utime( path.c_str(), &ut );
+    }
     PLFS_EXIT(ret);
 }
 
