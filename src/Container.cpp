@@ -436,12 +436,16 @@ int Container::populateIndex( const char *path, Index *index ) {
     return ret;
 }
 
-string Container::getDataPath( const char *path, const char *host, int pid ) {
-    return getChunkPath( path, host, pid, DATAPREFIX );
+string Container::getDataPath(const char *path, const char *host, int pid,
+        double ts) 
+{
+    return getChunkPath( path, host, pid, DATAPREFIX, ts );
 }
 
-string Container::getIndexPath( const char *path, const char *host, int pid ) {
-    return getChunkPath( path, host, pid, INDEXPREFIX );
+string Container::getIndexPath(const char *path, const char *host, int pid,
+        double ts) 
+{
+    return getChunkPath( path, host, pid, INDEXPREFIX, ts );
 }
 
 // this function takes a container path, a hostname, a pid, and a type and 
@@ -449,43 +453,80 @@ string Container::getIndexPath( const char *path, const char *host, int pid ) {
 // the resulting path looks like this:
 // container/HOSTDIRPREFIX.hash(host)/type.host.pid
 string Container::getChunkPath( const char *container, const char *host, 
-        int pid, const char *type )
+        int pid, const char *type, double timestamp )
 {
-    return chunkPath( getHostDirPath(container,host).c_str(), type, host, pid );
+    ostringstream oss;
+    oss.setf(ios::fixed,ios::floatfield);
+    oss << timestamp;
+    return chunkPath(getHostDirPath(container,host).c_str(), type, host, pid,
+            oss.str());
 }
 
 string Container::chunkPath( const char *hostdir, const char *type, 
-        const char *host, int pid ) 
+        const char *host, int pid, string ts ) 
 {
     ostringstream oss;
-    oss << hostdir << "/" << type << host << "." << pid;
+    oss << hostdir << "/" << type << ts << "." << host << "." << pid;
+    plfs_debug("%s: ts %s, host %s\n",__FUNCTION__,ts.c_str(),host);
     return oss.str();
 }
 
+// container/HOSTDIRPREFIX.XXX/type.ts.host.pid
 string Container::hostdirFromChunk( string chunkpath, const char *type ) {
+    // this finds the type (either INDEX or DATA prefix and deletes up to it
     chunkpath.erase( chunkpath.rfind(type), chunkpath.size() );
     return chunkpath;
 }
 
 // take the path to an index and a pid, and return the path to that chunk file
-// path to index looks like: container/HOSTDIRPREFIX.XXX/INDEXPREFIX.host.pid
+// path to index looks like: 
+// container/HOSTDIRPREFIX.XXX/INDEXPREFIX.ts.host.pid
 string Container::chunkPathFromIndexPath( string hostindex, pid_t pid ) {
-    string host      = hostFromChunk( hostindex, INDEXPREFIX );
-    string hostdir   = hostdirFromChunk( hostindex, INDEXPREFIX );
-    return chunkPath( hostdir.c_str(), DATAPREFIX, host.c_str(), pid );
+    string host      = hostFromChunk( hostindex, INDEXPREFIX);
+    string hostdir   = hostdirFromChunk( hostindex, INDEXPREFIX);
+    string timestamp = timestampFromChunk(hostindex,INDEXPREFIX);
+    string chunkpath = 
+        chunkPath(hostdir.c_str(), DATAPREFIX, host.c_str(), pid,timestamp);
+    plfs_debug("%s: Returning %s from %s\n",__FUNCTION__,chunkpath.c_str(),
+            hostindex.c_str());
+    return chunkpath;
 }
 
-// a chunk looks like: container/HOSTDIRPREFIX.XXX/type.host.pid
+// a chunk looks like: container/HOSTDIRPREFIX.XXX/type.ts.host.pid
+string Container::timestampFromChunk( string chunkpath, const char *type ) {
+    // cut off everything through the type
+    plfs_debug("%s:%d path is %s\n",__FUNCTION__,__LINE__,chunkpath.c_str());
+    chunkpath.erase( 0, chunkpath.rfind(type) + strlen(type) );
+    // erase everything after the second "." 
+    size_t firstdot = chunkpath.find(".")+1;
+    chunkpath.erase(chunkpath.find(".",firstdot),chunkpath.size());
+    plfs_debug("%s: Returning %s\n",__FUNCTION__,chunkpath.c_str());
+    return chunkpath;
+    // cut off the pid 
+    chunkpath.erase( chunkpath.rfind("."),chunkpath.size());
+    // cut off the host
+    chunkpath.erase( chunkpath.rfind("."),chunkpath.size());
+    // what's left is a double
+    return chunkpath; 
+}
+
+// a chunk looks like: container/HOSTDIRPREFIX.XXX/type.ts.host.pid
 string Container::containerFromChunk( string chunkpath ) {
     chunkpath.erase( chunkpath.rfind(HOSTDIRPREFIX), chunkpath.size() );
     return chunkpath;
 }
 
-// a chunk looks like: container/HOSTDIRPREFIX.XXX/type.host.pid
+// a chunk looks like: container/HOSTDIRPREFIX.XXX/type.ts.host.pid
 // where type is either DATAPREFIX or INDEXPREFIX
 string Container::hostFromChunk( string chunkpath, const char *type ) {
+    // cut off everything through the type
     chunkpath.erase( 0, chunkpath.rfind(type) + strlen(type) );
+    // cut off everything though the ts
+    chunkpath.erase( 0, chunkpath.find(".")+1);
+    chunkpath.erase( 0, chunkpath.find(".")+1);
+    // then cut off everything after the host
     chunkpath.erase( chunkpath.rfind("."), chunkpath.size() );
+    //plfs_debug("%s:%d path is %s\n",__FUNCTION__,__LINE__,chunkpath.c_str());
     return chunkpath;
 }
 
@@ -1197,7 +1238,8 @@ int Container::Truncate( const char *path, off_t offset ) {
         Util::Closedir( td );
     }
 	*/
-    Util::Debug("%s on %s to %ld ret: %d\n", __FUNCTION__, path, offset, ret);
+    Util::Debug("%s on %s to %ld ret: %d\n", 
+            __FUNCTION__, path, (long)offset, ret);
     return ret;
 }
 
@@ -1248,5 +1290,5 @@ Container::truncateMeta(const char *path, off_t offset){
 			}
 		}
    	}
-    Util::Debug("%s on %s to %ld ret: %d\n", __FUNCTION__, path, offset, ret);
+    return ret;
 }

@@ -13,6 +13,9 @@ using namespace std;
         Util::OpenError(__FILE__,__FUNCTION__,__LINE__,pid,errno);\
     }
 
+vector<string> &tokenize(const string& str,const string& delimiters,
+        vector<string> &tokens);
+
 typedef struct {
     size_t num_hostdirs;
     size_t threadpool_size;

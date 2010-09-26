@@ -47,9 +47,9 @@ class Container {
 
         static bool isContainer(const char *physical_path,mode_t*); 
 
-        static string getIndexPath( const char *, const char * );
-        static string getIndexPath( const char *, const char *, int pid );
-        static string getDataPath(  const char *, const char *, int pid );
+        static string getIndexPath( const char *, const char *, double);
+        static string getIndexPath( const char *, const char *, int pid,double);
+        static string getDataPath(  const char *, const char *, int pid,double);
 
         static int addMeta( off_t, size_t, const char *, const char * );
         static string fetchMeta( string, off_t *, size_t *, struct timespec * );
@@ -66,7 +66,7 @@ class Container {
         static mode_t fileMode( mode_t );
         static mode_t dirMode(  mode_t );
         static mode_t containerMode(  mode_t );
-        static int makeHostDir( const char *path, const char *host, mode_t mode );
+        static int makeHostDir(const char *path, const char *host, mode_t mode);
 
         static int getattr( const char *, struct stat * );
 
@@ -104,14 +104,15 @@ class Container {
                 mode_t mode, int flags, int *extra_attempts, pid_t );
         static int makeTopLevel( const char *, const char *, mode_t, pid_t );
         static string getChunkPath(  const char *, const char *, 
-                int pid, const char * );
+                int pid, const char *, double );
         static string chunkPath( const char *hostdir, const char *type, 
-                const char *host, int pid );
+                const char *host, int pid, string ts );
         static string getOpenrecord( const char *, const char *, pid_t );
         static string getOpenHostsDir( string );
         static int discoverOpenHosts( const char *, set<string> * );
         static string hostFromChunk( string datapath, const char *type );
         static string hostdirFromChunk( string chunkpath, const char *type );
+        static string timestampFromChunk(string hostindex, const char *type);
         static string containerFromChunk( string datapath );
         static struct dirent *getnextent( DIR *dir, const char *prefix );
         static int makeMeta( string path, mode_t type, mode_t mode );

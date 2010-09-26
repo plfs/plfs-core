@@ -49,8 +49,8 @@ off_t HostEntry::logical_tail() const {
 
 bool ContainerEntry::abut( const ContainerEntry &other ) {
     return ( HostEntry::abut(other) && 
-            ( chunk_offset + (off_t)length == other.chunk_offset 
-             || other.chunk_offset + (off_t)other.length == chunk_offset ) );
+            ( physical_offset + (off_t)length == other.physical_offset 
+             || other.physical_offset + (off_t)other.length == physical_offset ) );
 }
 
 bool ContainerEntry::mergable( const ContainerEntry &other ) {
@@ -72,7 +72,7 @@ ostream& operator <<(ostream &os,const ContainerEntry &entry) {
         << end_timestamp   << " "
         << setw(16)
         << entry.logical_tail() << " "
-        << " [" << entry.id << "." << setw(10) << entry.chunk_offset << "]";
+        << " [" << entry.id << "." << setw(10) << entry.physical_offset << "]";
     return os;
 }
 
@@ -319,12 +319,6 @@ int Index::readIndex( string hostindex ) {
     map<pid_t,pid_t> known_chunks;
     map<pid_t,pid_t>::iterator known_chunks_itr;
 
-    // need to remember the current offset position within each chunk as well
-    // we were doing this with paths as the keys but I think we can just do
-    // it with the pids so we can have simpler lookups in the maps
-    map<pid_t,off_t> chunk_offsets;
-    map<pid_t,off_t>::iterator chunk_offsets_itr;
-
         // so we have an index mapped in, let's read it and create 
         // mappings to chunk files in our chunk map
     HostEntry *h_index = (HostEntry*)maddr;
@@ -346,7 +340,6 @@ int Index::readIndex( string hostindex ) {
             cf.fd   = -1;
             chunk_map.push_back( cf );
             known_chunks[h_entry.id]  = chunk_id++;
-            chunk_offsets[h_entry.id] = 0;
             // chunk_map is indexed by chunk_id so these need to be the same
             assert( (size_t)chunk_id == chunk_map.size() );
             Util::Debug("Inserting chunk %s (%d)\n", cf.path.c_str(),
@@ -362,10 +355,9 @@ int Index::readIndex( string hostindex ) {
         c_entry.length            = h_entry.length;
         c_entry.id                = known_chunks[h_entry.id];
         c_entry.original_chunk    = h_entry.id;
-        c_entry.chunk_offset      = chunk_offsets[h_entry.id];
+        c_entry.physical_offset   = h_entry.physical_offset; 
         c_entry.begin_timestamp   = h_entry.begin_timestamp;
         c_entry.end_timestamp     = h_entry.end_timestamp;
-        chunk_offsets[h_entry.id] += h_entry.length;
         last_offset = max( (off_t)(c_entry.logical_offset+c_entry.length),
                             last_offset );
         total_bytes += c_entry.length;
@@ -416,7 +408,7 @@ int Index::handleOverlap( ContainerEntry *g_entry,
         if ( old.length > g_entry->length ) {
             old.length         -= g_entry->length;
             old.logical_offset += g_entry->length;
-            old.chunk_offset   += g_entry->length;
+            old.physical_offset+= g_entry->length;
             pair< map<off_t,ContainerEntry>::iterator, bool > insert_old;
             insert_old = insertGlobalEntry( &old );
             if ( insert_old.second == false ) {
@@ -457,7 +449,7 @@ int Index::handleOverlap( ContainerEntry *g_entry,
                 off_t  adjustment = new_loff - old_loff; 
                 next->second.length         -= adjustment;
                 next->second.logical_offset += adjustment;
-                next->second.chunk_offset   += adjustment;
+                next->second.physical_offset+= adjustment;
                 break;
             }
         } else {
@@ -596,7 +588,7 @@ int Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
         off_t shift, string &path, pid_t *chunk_id, ContainerEntry *entry ) 
 {
     ChunkFile *cf_ptr = &(chunk_map[entry->id]); // typing shortcut
-    *chunk_off  = entry->chunk_offset + shift;
+    *chunk_off  = entry->physical_offset + shift;
     *chunk_len  = entry->length       - shift;
     *chunk_id   = entry->id;
     if( cf_ptr->fd < 0 ) {
@@ -725,7 +717,7 @@ void Index::addWrite( off_t offset, size_t length, pid_t pid,
         // we use this mode to be able to create trace vizualizations
         // so we don't want to merge anything bec that will reduce the
         // fidelity of the trace vizualization
-    abutable = false;
+    abutable = false; // BEWARE: 'true' path hasn't been tested in a LONG time.
 
         // incoming abuts with last
     if ( quant && abutable && hostIndex[quant-1].id == pid
@@ -750,13 +742,13 @@ void Index::addWrite( off_t offset, size_t length, pid_t pid,
         //
         // so we need to do this:
         // 1) track current offset by pid in the index data structure that
-        // we use for writing.  
+        // we use for writing: DONE
         // 2) Change the merge code to only merge for consecutive writes
-        // to the same pid: Done
-        // 3) remove the offset tracking when we create the read index
+        // to the same pid: DONE
+        // 3) remove the offset tracking when we create the read index: DONE
         // 4) add a timestamp to the index and data droppings.  make sure
         // that the code that finds an index path from a data path and
-        // vice versa (if that code exists) still works
+        // vice versa (if that code exists) still works: DONE
         HostEntry entry;
         entry.logical_offset = offset;
         entry.length         = length; 
@@ -765,6 +757,14 @@ void Index::addWrite( off_t offset, size_t length, pid_t pid,
         // valgrind complains about this line as well:
         // Address 0x97373bc is 20 bytes inside a block of size 40 alloc'd
         entry.end_timestamp   = end_timestamp;
+
+        // lookup the physical offset
+        map<pid_t,off_t>::iterator itr = physical_offsets.find(pid);
+        if ( itr == physical_offsets.end() ) {
+            physical_offsets[pid] = 0;
+        }
+        entry.physical_offset = physical_offsets[pid];
+        physical_offsets[pid] += length;
         hostIndex.push_back( entry );
     }
 }
@@ -841,7 +841,6 @@ int Index::rewriteIndex( int fd ) {
     // the first one to a physical data dropping is to the 0 offset at the
     // physical data dropping and the next one is follows that, etc.
     // this code is in:
-    // readIndex in the chunk_offsets map
     for( itr = global_index.begin(); itr != global_index.end(); itr++ ) {
         global_index_timesort.insert(
                 pair<double,ContainerEntry>(

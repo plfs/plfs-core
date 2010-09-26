@@ -64,7 +64,7 @@ def truncateFile(target,tlen):
 
 def writeFile(target,data,offset,mode):
   fd = os.open(target, mode)
-  f = os.fdopen(fd,'w',0)
+  f = os.fdopen(fd,'w')
   f.seek(offset,0)
   print "Writing %d bytes to %s at off %d" % (len(data),target,offset)
   f.write(data)

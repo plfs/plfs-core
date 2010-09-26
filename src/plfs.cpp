@@ -1310,6 +1310,7 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
         else ret = retValue( Util::Truncate(path.c_str(),offset) );
         PLFS_EXIT(ret);
     }
+    Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
 
     if ( offset == 0 ) {
             // this is easy, just remove all droppings
@@ -1320,19 +1321,23 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
             // either at existing end, before it, or after it
         struct stat stbuf;
         ret = plfs_getattr( of, logical, &stbuf );
+        Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
         if ( ret == 0 ) {
             if ( stbuf.st_size == offset ) {
                 ret = 0; // nothing to do
             } else if ( stbuf.st_size > offset ) {
                 ret = Container::Truncate(path.c_str(), offset); // make smaller
+                Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
             } else if ( stbuf.st_size < offset ) {
                 ret = extendFile( of, path, offset );    // make bigger
             }
         }
     }
+    Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
 
     // if we actually modified the container, update any open file handle
     if ( ret == 0 && of && of->getWritefile() ) {
+        Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
         ret = of->getWritefile()->truncate( offset );
         of->truncate( offset );
             // here's a problem, if the file is open for writing, we've
@@ -1342,10 +1347,16 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
             // a rename because the writefile will attempt to restore
             // them at the old path....
         if ( ret == 0 && of && of->getWritefile() ) {
+            Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
             ret = of->getWritefile()->restoreFds();
+            if ( ret != 0 ) {
+                Util::Debug("%s:%d failed: %s\n", 
+                        __FUNCTION__, __LINE__, strerror(errno));
+            }
         } else {
             Util::Debug("%s failed: %s\n", __FUNCTION__, strerror(errno));
         }
+        Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
     }
 
     Util::Debug("%s %s to %u: %d\n",__FUNCTION__,path.c_str(),(uint)offset,ret);

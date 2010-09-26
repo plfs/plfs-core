@@ -65,6 +65,7 @@ class WriteFile : public Metadata {
                                // a rename
         Index *index;
         mode_t mode;
+        double createtime;
 };
 
 #endif

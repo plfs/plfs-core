@@ -32,6 +32,14 @@ class HostEntry {
 
     protected:
         off_t  logical_offset;
+        off_t  physical_offset;  // I tried so hard to not put this in here
+                                 // to save some bytes in the index entries
+                                 // on disk.  But truncate breaks it all.
+                                 // we assume that each write makes one entry
+                                 // in the data file and one entry in the index
+                                 // file.  But when we remove entries and 
+                                 // rewrite the index, then we break this 
+                                 // assumption.  blech.
         size_t length;
         pid_t  id;
         double begin_timestamp;
@@ -53,8 +61,7 @@ class ContainerEntry : HostEntry {
         bool abut( const ContainerEntry & );
 
     protected:
-        off_t chunk_offset;
-	pid_t original_chunk;	// we just need to track this so we can 
+        pid_t original_chunk;	// we just need to track this so we can 
 				// rewrite the index appropriately for
 				// things like truncate to the middle or
 				// for the as-yet-unwritten index flattening
@@ -136,6 +143,9 @@ class Index : public Metadata {
             // so that the aggregated index can just have an int to point
             // to a local file instead of putting the full string in there
         vector< ChunkFile >       chunk_map;
+
+            // need to remember the current offset position within each chunk 
+        map<pid_t,off_t> physical_offsets;
 
         bool   populated;
         pid_t  mypid;

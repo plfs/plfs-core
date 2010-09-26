@@ -24,6 +24,7 @@ WriteFile::WriteFile( string path, string hostname,
     // stat'ing an open file
     this->synchronous_index = true;
     this->has_been_renamed  = false;
+    this->createtime        = Util::getTime();
     pthread_mutex_init( &data_mux, NULL );
     pthread_mutex_init( &index_mux, NULL );
 }
@@ -201,8 +202,7 @@ int WriteFile::extend( off_t offset ) {
     // make a fake write
     if ( fds.begin() == fds.end() ) return -ENOENT;
     pid_t p = fds.begin()->first;
-    double ts = Util::getTime();
-    index->addWrite( offset, 0, p, ts, ts );
+    index->addWrite( offset, 0, p, createtime, createtime );
     addWrite( offset, 0 );   // maintain metadata
     return 0;
 }
@@ -300,11 +300,13 @@ int WriteFile::truncate( off_t offset ) {
 }
 
 int WriteFile::openIndexFile( string path, string host, pid_t p, mode_t m ) {
-    return openFile( Container::getIndexPath(path.c_str(),host.c_str(), p ), m);
+    return openFile( Container::getIndexPath(
+                path.c_str(),host.c_str(),p,createtime), m);
 }
 
 int WriteFile::openDataFile(string path, string host, pid_t p, mode_t m){
-    return openFile( Container::getDataPath( path.c_str(), host.c_str(), p ),m);
+    return openFile( Container::getDataPath( 
+                path.c_str(),host.c_str(),p,createtime),m);
 }
 
 // returns an fd or -1

@@ -25,9 +25,9 @@ endif
 # also should query groups to be smart about who to chown things too
 echo "chowning file"
 ls -lt $file
-chown johnbent.cosmo $file
+chown johnbent.staff $file
 set group = `ls -lt $file | awk '{print $4}'`
-if ( $group != "cosmo" ) then
+if ( $group != "staff" ) then
     echo "chown fail"
     exit 1
 endif
