@@ -884,6 +884,13 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
     bool new_index     = false;
     bool new_pfd       = false;
 
+    /*
+    if ( pid == 0 ) { // this should be MPI rank 0
+        // just one message per MPI open to make sure the version is right
+        fprintf(stderr, "PLFS version %s\n", plfs_version());
+    }
+    */
+
     // ugh, no idea why this line is here or what it does 
     if ( mode == 420 || mode == 416 ) mode = 33152; 
 
@@ -1297,6 +1304,11 @@ extendFile( Plfs_fd *of, string strPath, off_t offset ) {
         wf = NULL;
     }
     PLFS_EXIT(ret);
+}
+
+const char *
+plfs_version( ) {
+    return STR(SVN_VERSION);
 }
 
 // the Plfs_fd can be NULL
