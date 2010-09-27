@@ -8,6 +8,8 @@
 #include <string>
 using namespace std;
 
+#define SVNVERS $Rev$
+
 #define EISDIR_DEBUG \
     if(ret!=0) {\
         Util::OpenError(__FILE__,__FUNCTION__,__LINE__,pid,errno);\
