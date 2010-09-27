@@ -5,7 +5,7 @@ diff -Naur openmpi-1.3.4.ORIG/ompi/mca/io/romio/romio/adio/common/ad_fstype.c op
      static char myname[] = "ADIO_RESOLVEFILETYPE_PREFIX";
      *error_code = MPI_SUCCESS;
  
-+fprintf(stderr,"in ADIO_FileSysType_prefix and found %s\n",filename);
++//fprintf(stderr,"in ADIO_FileSysType_prefix and found %s\n",filename);
 +
      if (!strncmp(filename, "pfs:", 4) || !strncmp(filename, "PFS:", 4)) {
  	*fstype = ADIO_PFS;
