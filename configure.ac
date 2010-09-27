@@ -125,19 +125,42 @@ AC_PROG_CXX
 AC_PROG_CPP
 AC_PROG_CXXCPP
 AM_PROG_CC_C_O
-
 AC_PROG_LIBTOOL
 
 # now check for all the other stuff PLFS needs
 # check for some headers XXX more are needed...
 
 AC_CHECK_HEADERS([\
-sys/types.h \
-sys/statvfs.h \
-fcntl.h \
-sys/fsuid.h])
+sys/types.h sys/statvfs.h fcntl.h sys/fsuid.h \
+utime.h sys/time.h sys/param.h sys/mount.h])
 
+# check for some functions that plfs uses
+
+AC_CHECK_FUNCS([\
+gethostname gethrtime gettimeofday memset mkdir munmap \
+rmdir strdup strerror strstr utime endgrent])
+
+# check for some used types
+AC_TYPE_INT64_T
+AC_TYPE_MODE_T
+AC_TYPE_OFF_T
+AC_TYPE_PID_T
+AC_TYPE_SIZE_T
+AC_TYPE_SSIZE_T
+AC_TYPE_UID_T
+AC_TYPE_UINT64_T
+
+# check for extra stuff that plfs uses
 AX_PTHREAD
+AC_FUNC_MALLOC
+AC_FUNC_MMAP
+AC_STRUCT_ST_BLOCKS
+AC_HEADER_STDBOOL
+AC_FUNC_LSTAT_FOLLOWS_SLASHED_SYMLINK
+AC_FUNC_GETGROUPS
+AC_FUNC_CHOWN
+AC_CHECK_MEMBERS([struct stat.st_blksize])
+
 AC_PLFS_DEUBG_FLAG_CHECK
 # first see what needs to be built - XXX ugly (update later)
 AC_PKG_PLFS_COMPONENTS
