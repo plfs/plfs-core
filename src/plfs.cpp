@@ -813,6 +813,8 @@ get_plfs_conf() {
             hidden->err_msg = "Conf file " + file + " error: key " +
                 *negative + " is not positive.\n";
         }
+        // Added because valgrind reminded us to close the file pointer
+        fclose(fp);
         break;
     }
 

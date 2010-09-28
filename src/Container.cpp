@@ -1290,5 +1290,8 @@ Container::truncateMeta(const char *path, off_t offset){
 			}
 		}
    	}
+    // This was added because valgrind discovered a memory leak from not closing the directory
+    // pointer
+    ret=Util::Closedir(dir);
     return ret;
 }
