@@ -213,12 +213,19 @@ int Container::cleanupChmod( const char *path, mode_t mode , int top ,
                 ||!strcmp(dent->d_name, CREATORFILE ) 
                 ||!strcmp(dent->d_name, ACCESSFILE )) continue;
         if (!strncmp( dent->d_name , HOSTDIRPREFIX, strlen(HOSTDIRPREFIX)) ||
-                !strncmp( dent->d_name , DROPPINGPREFIX , strlen(DROPPINGPREFIX) )) {
+                !strncmp( dent->d_name , DROPPINGPREFIX , strlen(DROPPINGPREFIX)) ||
+                !strncmp( dent->d_name , METADIR , strlen(METADIR) ) || 
+                top==2) {
             if ( Util::isDirectory( full_path.c_str() ) ) {
-                ret = cleanupChmod( full_path.c_str() , mode , 0 , uid , gid );
+
+                if(!strncmp( dent->d_name , METADIR , strlen(METADIR))) {
+                    ret = cleanupChmod( full_path.c_str() , mode , 2 , uid , gid );
+                }else{
+                    ret = cleanupChmod( full_path.c_str() , mode , 0 , uid , gid );
+                }
                 if ( ret != 0 ) break;
             }
-            if ( top == 0 ) {         
+            if ( top == 0 || top == 2) {         
                 ret = Util::Chown( full_path.c_str() , uid , gid );
                 if( ret == 0 ) {
                     ret = Util::Chmod( full_path.c_str() , mode ); 
@@ -226,7 +233,9 @@ int Container::cleanupChmod( const char *path, mode_t mode , int top ,
             } 
         }
         if(top == 1 ) {
-            ret = Util::Chmod( full_path.c_str() , dirMode( mode  ) );
+            mode_t m = dirMode(mode);
+            plfs_debug("%s chmod %s to %o\n", __FUNCTION__,full_path.c_str(),m);
+            ret = Util::Chmod( full_path.c_str() , m );
         }
     }
     Util::Closedir( dir );
@@ -1027,7 +1036,8 @@ mode_t Container::dirMode( mode_t mode ) {
     int filemask = ~(S_IFREG);
     mode = (mode & filemask ) | S_IWUSR | S_IXUSR | S_IXGRP | S_IFDIR | S_IXOTH;
     */
-    mode = mode | S_IRUSR | S_IWUSR | S_IXUSR | S_IXGRP | S_IXOTH;
+    int filemask = ~(S_IWOTH | S_IWGRP);  // take off write for others
+    mode = (mode&filemask) | S_IRUSR | S_IWUSR | S_IXUSR | S_IXGRP | S_IXOTH;
     return mode;
 }
 

@@ -390,6 +390,10 @@ int Index::handleOverlap( ContainerEntry *g_entry,
         pair< map<off_t,ContainerEntry>::iterator, bool > insert_ret ) 
 {
 
+        // we currently break if the overlap doesn't perfectly match
+        // (i.e. logical offset and length)
+        // so return ENOSYS to reflect this until we fix it
+
         // if the first insert attempt failed due to collision, remove
         // the one already at that offset, insert the new one, and fix
         // the old one by either adjusting or discarding as the case may be
@@ -402,6 +406,14 @@ int Index::handleOverlap( ContainerEntry *g_entry,
             Util::Debug(
                     "WTF? Deleted old entry but couldn't insert new" );
             return -1;
+        }
+
+        if (old.length != g_entry->length || 
+            old.logical_offset != g_entry->logical_offset) 
+        {
+            plfs_debug("%s cowardly refusing to handle partial overlaps\n");
+            errno = ENOSYS; // hopefully this persists
+            return -errno;
         }
 
         // does the old one still have valid data?

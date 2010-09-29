@@ -230,7 +230,11 @@ addWriter( WriteFile *wf, pid_t pid, const char *path, mode_t mode ) {
 
 int
 isWriter( int flags ) {
-    return (flags & O_WRONLY || flags & O_RDWR);
+    // Added O_APPEND for other user trying to write
+    // Removed this functionality for first release
+    // If anyone ever encounters problems with the append 
+    // flag this might be a good place to look
+    return (flags & O_WRONLY || flags & O_RDWR );
 }
 // Was running into reference count problems so I had to change this code
 // The RDONLY flag is has the lsb set as 0 had to do some bit shifting
