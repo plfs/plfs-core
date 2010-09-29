@@ -12,3 +12,6 @@ if the same open() happens to do overwrites, this is handled correctly
 2) no hard links.  This is because hard links are not possible on directories
 and logical files in PLFS are "containers" and containers are built from
 physical directories.
+
+3) a user can't set their own file to be read-only on the user.  Therefore, a 
+user can always write their own files.
