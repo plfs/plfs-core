@@ -16,8 +16,7 @@ physical directories.
 3) a user can't set their own file to be read-only on the user.  Therefore, a 
 user can always write their own files.
 
-4) a user can't give write permissions to group or to other on a PLFS file.
-read is fine but only the creator of a file can ever write to that file.
+4) REMOVED.  LEFT TO PRESERVE ORDERING. 
 
 5) if someone doesn't have read permissions on a file, but they have execute
 permissions on a directory, when they stat the file, it will always appear to
