@@ -1032,12 +1032,7 @@ mode_t Container::fileMode( mode_t mode ) {
 //    the file can be --r--r--r but the top level dir can't
 // also need to make it a dir and need to make exec by all
 mode_t Container::dirMode( mode_t mode ) {
-    /*
-    int filemask = ~(S_IFREG);
-    mode = (mode & filemask ) | S_IWUSR | S_IXUSR | S_IXGRP | S_IFDIR | S_IXOTH;
-    */
-    int filemask = ~(S_IWOTH | S_IWGRP);  // take off write for others
-    mode = (mode&filemask) | S_IRUSR | S_IWUSR | S_IXUSR | S_IXGRP | S_IXOTH;
+    mode = (mode) | S_IRUSR | S_IWUSR | S_IXUSR | S_IXGRP | S_IXOTH;
     return mode;
 }
 

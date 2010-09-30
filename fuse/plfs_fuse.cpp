@@ -981,7 +981,8 @@ int Plfs::writeDebug( char *buf, size_t size, off_t offset, const char *path ) {
         // openFilesToString must be called from w/in a mutex
         plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ ); 
         ret = snprintf( tmpbuf, DEBUGFILESIZE, 
-                "Version %s (SVN %s) (DATA %s)\n"
+                "Version %s (SVN %s) (DATA %s) (LIB %s)\n"
+                "Build date: %s\n"
                 "Hostname %s, %.2f Uptime\n"
                 "%s"
                 "%s"
@@ -990,7 +991,11 @@ int Plfs::writeDebug( char *buf, size_t size, off_t offset, const char *path ) {
                 "%d ExtraAttempts\n"
                 "%d Opens with O_RDWR\n"
                 "%s",
-                STR(TAG_VERSION), STR(SVN_VERSION), STR(DATA_VERSION),
+                STR(TAG_VERSION), 
+		STR(SVN_VERSION), 
+		STR(DATA_VERSION),
+                plfs_version(),
+                plfs_buildtime(),
                 self->myhost.c_str(), 
                 plfs_wtime() - self->begin_time,
                 confToString(self->pconf).c_str(),
@@ -1076,9 +1081,6 @@ int Plfs::f_rename( const char *path, const char *to ) {
         // renames it to CVS/Entries, and then 
         // we need to figure out how to do rename on an open file....
 
-    // make the rename happen in the mutex so that no-one can start opening
-    // this thing until it's done
-    plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
         // ok, we remove the openfile at the old path
         // this means that when the release tries to remove it, it won't find it
         // but that's ok because not finding it doesn't bother the release.
@@ -1092,29 +1094,43 @@ int Plfs::f_rename( const char *path, const char *to ) {
         // a new path and hopefully if it opens any new droppings it will do
         // so using the new path
         
+    // make the rename happen in the mutex so that no-one can start opening
+    // this thing until it's done
+    plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
+    list< struct hash_element > results;
+    // there's something weird on Adam's centos box where it seems to allow
+    // users to screw with each other's directories even if they shouldn't
+    // since a plfs file is actually a directory, this means that users could
+    // rename the plfs file.  Put a check in here to prevent this.  It 
+    // shouldn't be necessary we check on most OS's but put this in as a 
+    // work-around for weird-ass centos
+    ret = plfs_access(path,W_OK);
+    if ( ret == 0 ) {
+        ret = plfs_rename(path,toPath.c_str());
         // Updated this code to search for all open files because the open
         // files are now cached based on a uid and flags
-    list< struct hash_element > results;
-    
-    ret = plfs_rename(path,toPath.c_str());
-    findAllOpenFiles ( strPath, results );
-    while( results.size() != 0 ) {
-        struct hash_element current;
-        current = results.front();
-        results.pop_front();
-        Plfs_fd *pfd;
-        pfd = current.fd;
-        uid_t *uid;
-        string pathHash = getRenameHash(toPath.c_str(), current.path ,strPath); 
-        int   *flags;
-        if ( ret == 0 && pfd ) {
-            pid_t pid = fuse_get_context()->pid;
-            // Extract the uid and flags from the string
-            removeOpenFile(current.path, pid, pfd);
-            addOpenFile(pathHash, pid, pfd);
-            pfd->setPath( toPath ); 
-            plfs_debug("Rename open file %s -> %s (hope this works)\n", 
-                path, to );
+        if ( ret == 0 ) {
+            findAllOpenFiles ( strPath, results );
+            while( results.size() != 0 ) {
+                struct hash_element current;
+                current = results.front();
+                results.pop_front();
+                Plfs_fd *pfd;
+                pfd = current.fd;
+                uid_t *uid;
+                string pathHash = getRenameHash(toPath.c_str(), 
+                                    current.path ,strPath); 
+                int   *flags;
+                if ( ret == 0 && pfd ) {
+                    pid_t pid = fuse_get_context()->pid;
+                    // Extract the uid and flags from the string
+                    removeOpenFile(current.path, pid, pfd);
+                    addOpenFile(pathHash, pid, pfd);
+                    pfd->setPath( toPath ); 
+                    plfs_debug("Rename open file %s -> %s (hope this works)\n",
+                        path, to );
+                }
+            }
         }
     }
     plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );

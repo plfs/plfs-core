@@ -230,10 +230,6 @@ addWriter( WriteFile *wf, pid_t pid, const char *path, mode_t mode ) {
 
 int
 isWriter( int flags ) {
-    // Added O_APPEND for other user trying to write
-    // Removed this functionality for first release
-    // If anyone ever encounters problems with the append 
-    // flag this might be a good place to look
     return (flags & O_WRONLY || flags & O_RDWR );
 }
 // Was running into reference count problems so I had to change this code
@@ -363,6 +359,7 @@ plfs_mkdir( const char *logical, mode_t mode ) {
 int
 plfs_rmdir( const char *logical ) {
     PLFS_ENTER;
+    plfs_debug("%s on %s as %d:%d\n",__FUNCTION__,logical,getuid(),geteuid());
     ret = retValue(Util::Rmdir(path.c_str()));
     PLFS_EXIT(ret);
 }
@@ -1134,6 +1131,11 @@ removeDirectoryTree( const char *path, bool truncate_only ) {
         if ( ! strcmp( ent->d_name, OPENHOSTDIR ) && truncate_only ) {
             continue;   // don't remove open hosts
         }
+        if ( ! strcmp( ent->d_name, CREATORFILE ) && truncate_only ) {
+                       continue;   // don't remove the creator file
+        }
+
+        
         string child( path );
         child += "/";
         child += ent->d_name;
@@ -1316,6 +1318,10 @@ const char *
 plfs_version( ) {
     return STR(SVN_VERSION);
 }
+const char *
+plfs_buildtime( ) {
+    return __DATE__; 
+}
 
 // the Plfs_fd can be NULL
 int 
@@ -1382,9 +1388,9 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
 
     if ( ret == 0 ) {
         // update the timestamp
-        struct utimbuf ut;
-        ut.actime = ut.modtime = time(NULL);
-        ret = Container::Utime( path.c_str(), &ut );
+        //struct utimbuf *ut;
+        //ut.actime = ut.modtime = time(NULL);
+        ret = Container::Utime( path.c_str(), NULL );
     }
     PLFS_EXIT(ret);
 }
@@ -1396,7 +1402,7 @@ string
 getAtomicUnlinkPath(string path) {
     string atomicpath = path + ".plfs_atomic_unlink.";
     stringstream timestamp;
-    timestamp << Util::getTime();
+    timestamp << fixed << Util::getTime();
     vector<string> tokens;
     tokenize(path,"/",tokens);
     atomicpath = "";
@@ -1416,16 +1422,26 @@ plfs_unlink( const char *logical ) {
     mode_t mode =0;
     if ( is_plfs_file( logical, &mode ) ) {
         // make this more atomic
-        string atomicpath = getAtomicUnlinkPath(path);
-        ret = retValue( Util::Rename(path.c_str(), atomicpath.c_str()));
+        // there's some problem where users are allowed
+        // through fuse to remove other users directories
+        // so this rename works even if permission should be
+        // denied.
+        // so as a small kludge around this weird directory thing
+        // try to remove the creator file and if that works, then proceed
+        string creator = Container::getCreatorFilePath(path.c_str());
+        ret = retValue(Util::Unlink(creator.c_str()));
         if ( ret == 0 ) {
-            plfs_debug("Converted %s to %s for atomic unlink\n",
-                    path.c_str(), atomicpath.c_str());
-            ret = removeDirectoryTree( atomicpath.c_str(), false );  
-        } else {    // something weird with atomicpath, just try path
-            ret = removeDirectoryTree( path.c_str(), false );  
+            string atomicpath = getAtomicUnlinkPath(path);
+            ret = retValue( Util::Rename(path.c_str(), atomicpath.c_str()));
+            if ( ret == 0 ) {
+                plfs_debug("Converted %s to %s for atomic unlink\n",
+                        path.c_str(), atomicpath.c_str());
+                ret = removeDirectoryTree( atomicpath.c_str(), false );  
+            } else {    // something weird with atomicpath, just try path
+                ret = removeDirectoryTree( path.c_str(), false );  
+            }
+            plfs_debug("Removed plfs container %s: %d\n",path.c_str(),ret);
         }
-        plfs_debug("Removed plfs container %s: %d\n",path.c_str(),ret);
     } else {
         if ( mode == 0 ) ret = -ENOENT;
         else ret = retValue( Util::Unlink( path.c_str() ) );   
