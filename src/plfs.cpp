@@ -733,10 +733,15 @@ get_plfs_conf() {
     map<string,string> confs;
     vector<string> possible_files;
     bool parsed = false;
+
     // find which file to open
-    string home_file = getenv("HOME");
-    home_file.append("/.plfsrc");
-    string etc_file = "/etc/plfsrc";
+    // make home_file by default be the same as etc
+    string home_file,etc_file;
+    home_file = etc_file = "/etc/plfsrc";
+    if ( getenv("HOME") ) {
+        home_file = getenv("HOME");
+        home_file.append("/.plfsrc");
+    }
 
     // search the two possibilities differently if root or normal user
     if ( getuid()==0 ) {    // is root
