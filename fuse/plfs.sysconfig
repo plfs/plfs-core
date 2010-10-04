@@ -1,2 +1,2 @@
 PLFS_MNT='/tmp/plfs'
-PLFSOPTS='-o direct_io,allow_other'
+PLFSOPTS='-o big_writes,allow_other'
