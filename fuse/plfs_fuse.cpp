@@ -177,14 +177,13 @@ int Plfs::init( int *argc, char **argv ) {
         if ( strstr( argv[i], "direct_io" ) ) {
             pconf->direct_io = 1;
         }
-        if ( argv[i][0] != '-' ) {
+        if ( argv[i][0] != '-' && ! mnt_pt_found ) {
             if ( strcmp(pconf->mnt_pt.c_str(),argv[i]) ) {
                 fprintf(stderr,"FATAL mount point mismatch: %s != %s\n",
                     pconf->mnt_pt.c_str(), argv[i] );
                 return -ECONNREFUSED;  
             }
             mnt_pt_found = true;
-            break;
         }
     }
     if ( mnt_pt_found ) {
