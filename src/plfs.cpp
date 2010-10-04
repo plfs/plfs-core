@@ -291,7 +291,7 @@ plfs_access( const char *logical, int mask ) {
         ret = retValue( Container::Access( path.c_str(), mask ) );
     } else {
         if ( mode == 0 ) ret = -ENOENT;
-        ret = retValue( Util::Access( path.c_str(), mask ) );
+        else ret = retValue( Util::Access( path.c_str(), mask ) );
     }
     PLFS_EXIT(ret);
 }
@@ -1061,6 +1061,9 @@ plfs_rename( const char *logical, const char *to ) {
     }
     plfs_debug("Trying to rename %s to %s\n", path.c_str(), topath.c_str());
     ret = retValue( Util::Rename(path.c_str(), topath.c_str()));
+    if ( ret == 0 ) { // update the timestamp
+        ret = Container::Utime( topath.c_str(), NULL );
+    }
     PLFS_EXIT(ret);
 }
 
@@ -1391,10 +1394,7 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
 
     Util::Debug("%s %s to %u: %d\n",__FUNCTION__,path.c_str(),(uint)offset,ret);
 
-    if ( ret == 0 ) {
-        // update the timestamp
-        //struct utimbuf *ut;
-        //ut.actime = ut.modtime = time(NULL);
+    if ( ret == 0 ) { // update the timestamp
         ret = Container::Utime( path.c_str(), NULL );
     }
     PLFS_EXIT(ret);

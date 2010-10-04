@@ -1098,13 +1098,15 @@ int Plfs::f_rename( const char *path, const char *to ) {
     // this thing until it's done
     plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
     list< struct hash_element > results;
+
     // there's something weird on Adam's centos box where it seems to allow
     // users to screw with each other's directories even if they shouldn't
     // since a plfs file is actually a directory, this means that users could
     // rename the plfs file.  Put a check in here to prevent this.  It 
     // shouldn't be necessary we check on most OS's but put this in as a 
     // work-around for weird-ass centos
-    ret = plfs_access(path,W_OK);
+    //ret = plfs_access(path,W_OK);
+
     if ( ret == 0 ) {
         ret = plfs_rename(path,toPath.c_str());
         // Updated this code to search for all open files because the open
