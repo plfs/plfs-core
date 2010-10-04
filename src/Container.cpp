@@ -28,10 +28,21 @@ int Container::Access( const char *path, int mask ) {
     // doing just Access is insufficient when plfs daemon run as root
     // root can access everything.  so, we must also try the open
    
+    mode_t open_mode;
     int ret;
     string accessfile = getAccessFilePath(path);
         // Needed for open with a create flag
     Util::Debug("%s Check existence of %s\n",__FUNCTION__,accessfile.c_str());
+
+    if((mask & W_OK) && (mask & R_OK)){
+        open_mode = O_RDWR;
+    }
+    else if(mask & R_OK){
+        open_mode = O_RDONLY;
+    }
+    else if(mask & W_OK){
+        open_mode = O_WRONLY;
+    }
 
         // why is this F_OK instead of the passed mask?
     ret = Util::Access( accessfile.c_str(), F_OK );
@@ -40,7 +51,7 @@ int Container::Access( const char *path, int mask ) {
     }
     if ( ret == 0 ) {
         Util::Debug("The file exists attempting open\n");
-        ret = Util::Open(accessfile.c_str(),mask);
+        ret = Util::Open(accessfile.c_str(),open_mode);
         Util::Debug("Open returns %d\n",ret);
         if(ret >= 0 ) {
             Util::Close(ret);
@@ -559,7 +570,7 @@ int Container::addMeta( off_t last_offset, size_t total_bytes,
         << host;
     metafile = oss.str();
     Util::Debug("Creating metafile %s\n", metafile.c_str() );
-    return ignoreNoEnt(Util::Creat( metafile.c_str(), DEFAULT_MODE ));
+    return ignoreNoEnt(Util::Creat( metafile.c_str(), DROPPING_MODE ));
 }
 
 string Container::fetchMeta( string metafile_name, 
