@@ -1346,10 +1346,19 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
 
     // once we're here, we know it's a PLFS file
     if ( offset == 0 ) {
+        // first check to make sure we are allowed to truncate this
+        // all the droppings are global so we can truncate them but
+        // the access file has the correct permissions
+        string access = Container::getAccessFilePath(path);
+        ret = Util::Truncate(access.c_str(),0);
+        plfs_debug("Tested truncate of %s: %d\n",access.c_str(),ret);
+
+        if ( ret == 0 ) {
             // this is easy, just remove all droppings
             // this now removes METADIR droppings instead of incorrectly 
             // truncating them
-        ret = removeDirectoryTree( path.c_str(), true );
+            ret = removeDirectoryTree( path.c_str(), true );
+        }
     } else {
             // either at existing end, before it, or after it
         struct stat stbuf;
