@@ -18,7 +18,7 @@ RETVAL=0
 start() {
    if [ -x /usr/sbin/plfs ]; then
       echo -n $"Starting plfs: "
-      /usr/sbin/plfs $PLFS_MNT $PLFSOPTS -plfs_backend=$FS_MNT >/dev/null
+      /usr/sbin/plfs $PLFS_MNT $PLFSOPTS >/dev/null
       RETVAL=$?
       echo
    fi
