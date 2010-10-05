@@ -17,11 +17,9 @@
 using namespace std;
 
 
-#define PLFS_ENTER int my_errno, ret;\
- string path = expandPath(logical,&my_errno); \
- plfs_debug("EXPAND in %s: %s->%s\n",__FUNCTION__,logical,path.c_str());\
- if ( my_errno != 0 ) {  errno = my_errno; return -errno; } \
- else ret = 0;
+#define PLFS_ENTER bool is_mnt_pt = false; int ret = 0;\
+ string path = expandPath(logical,&is_mnt_pt); \
+ plfs_debug("EXPAND in %s: %s->%s\n",__FUNCTION__,logical,path.c_str());
 #define PLFS_EXIT(X) return(X);
 
 // a struct for making reads be multi-threaded
@@ -67,8 +65,10 @@ vector<string> &tokenize(const string& str,const string& delimiters,
 }
 
 // takes a logical path and returns a physical one
+// also returns whether the logical matches the mount point
+// readdir is the only caller that's interested in this....
 string
-expandPath(string logical, int *ep_errno) {
+expandPath(string logical, bool *mount_point) {
     static bool init = false;
     // set all of these up once from plfsrc, then reuse
     static vector<string> expected_tokens; 
@@ -77,7 +77,7 @@ expandPath(string logical, int *ep_errno) {
     static PlfsConf *pconf;
 
 
-    *ep_errno = 0;
+    if (mount_point) *mount_point = false;
     // this is done once
     // it reads the map and creates tokens for the expression that
     // matches logical and the expression used to resolve into physical
@@ -129,6 +129,7 @@ expandPath(string logical, int *ep_errno) {
         // load balance requests for the root dir 
         // this is a problem right here.  When we do a readdir on the
         // root, we need to actually aggregate across all backends.
+        if (mount_point) *mount_point = true;
         return pconf->backends[rand()%pconf->backends.size()];
     }
 
@@ -331,24 +332,44 @@ plfs_stats( void *vptr ) {
     (*stats) = ustats;
 }
 
-// returns 0 or -errno
-int 
-plfs_readdir( const char *logical, void *vptr ) {
-    PLFS_ENTER;
+int
+plfs_readdir_helper( const char *physical, void *vptr ) {
     vector<string> *dents = (vector<string> *)vptr;
     DIR *dp;
-    ret = Util::Opendir( path.c_str(), &dp );
+    int ret = Util::Opendir( physical, &dp );
     if ( ret == 0 && dp ) {
-        (void) path;
         struct dirent *de;
         while ((de = readdir(dp)) != NULL) {
-            plfs_debug("Pushing %s into readdir for %s\n",de->d_name,logical);
+            plfs_debug("Pushing %s into readdir for %s\n",de->d_name,physical);
             dents->push_back(de->d_name);
         }
     } else {
         ret = -errno;
     }
     Util::Closedir( dp );
+    return ret;
+}
+
+// returns 0 or -errno
+int 
+plfs_readdir( const char *logical, void *vptr ) {
+    PLFS_ENTER;
+    if ( is_mnt_pt ) {
+        // this is sort of weird and this will be unnecessary
+        // once we do the full distribution in V2 but right now
+        // the only time we need to aggregate across backends
+        // is when we do a readdir on the root....
+        PlfsConf *pconf = get_plfs_conf();
+        vector<string>::iterator itr;
+        for(itr = pconf->backends.begin(); 
+            itr != pconf->backends.end() && ret == 0; 
+            itr++)
+        {
+            ret = plfs_readdir_helper((*itr).c_str(),vptr);
+        }
+    } else {
+        ret = plfs_readdir_helper(path.c_str(),vptr);
+    }
     PLFS_EXIT(ret);
 }
 
@@ -721,8 +742,7 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
 
 bool
 plfs_init(PlfsConf *pconf) { 
-    int ep_errno;
-    expandPath(pconf->mnt_pt,&ep_errno);
+    expandPath(pconf->mnt_pt,NULL);
     return true;
 }
 
@@ -1012,8 +1032,7 @@ plfs_symlink(const char *logical, const char *to) {
     // and then un-resolve it on the readlink...
     // ok, let's try that then.  no, let's try the first way
     PLFS_ENTER;
-    int ep_errno;
-    string toPath = expandPath(to,&ep_errno);
+    string toPath = expandPath(to,NULL);
     //ret = retValue(Util::Symlink(path.c_str(),toPath.c_str()));
     ret = retValue(Util::Symlink(logical,toPath.c_str()));
     plfs_debug("%s: %s to %s: %d\n", __FUNCTION__, 
@@ -1053,8 +1072,7 @@ plfs_readlink(const char *logical, char *buf, size_t bufsize) {
 int
 plfs_rename( const char *logical, const char *to ) {
     PLFS_ENTER;
-    int ep_errno;
-    string topath = expandPath( to , &ep_errno);
+    string topath = expandPath(to, NULL);
 
     if ( is_plfs_file( to, NULL ) ) {
         // we can't just call rename bec it won't trash a dir in the toPath
