@@ -114,6 +114,7 @@ expandPath(string logical, int *ep_errno) {
       plfs_debug("PlfsConf error: %s\n", pconf->err_msg.c_str());
       return "INVALID";
     }
+
     // set remaining to the part of logical after the mnt_pt and tokenize it
     string remaining;
     vector<string>remaining_tokens;
@@ -126,6 +127,8 @@ expandPath(string logical, int *ep_errno) {
 
     if ( remaining_tokens.empty() ) {
         // load balance requests for the root dir 
+        // this is a problem right here.  When we do a readdir on the
+        // root, we need to actually aggregate across all backends.
         return pconf->backends[rand()%pconf->backends.size()];
     }
 
