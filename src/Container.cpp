@@ -225,15 +225,15 @@ int Container::cleanupChmod( const char *path, mode_t mode , int top ,
                 ||!strcmp(dent->d_name, CREATORFILE ) 
                 ||!strcmp(dent->d_name, ACCESSFILE )) continue;
         if (!strncmp( dent->d_name , HOSTDIRPREFIX, strlen(HOSTDIRPREFIX)) ||
-                !strncmp( dent->d_name , DROPPINGPREFIX , strlen(DROPPINGPREFIX)) ||
+            !strncmp( dent->d_name , DROPPINGPREFIX , strlen(DROPPINGPREFIX)) ||
                 !strncmp( dent->d_name , METADIR , strlen(METADIR) ) || 
                 top==2) {
             if ( Util::isDirectory( full_path.c_str() ) ) {
 
                 if(!strncmp( dent->d_name , METADIR , strlen(METADIR))) {
-                    ret = cleanupChmod( full_path.c_str() , mode , 2 , uid , gid );
+                    ret = cleanupChmod(full_path.c_str(),mode,2,uid,gid);
                 }else{
-                    ret = cleanupChmod( full_path.c_str() , mode , 0 , uid , gid );
+                    ret = cleanupChmod(full_path.c_str(),mode,0,uid,gid);
                 }
                 if ( ret != 0 ) break;
             }
