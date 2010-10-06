@@ -42,6 +42,12 @@ WriteFile::~WriteFile() {
         delete index;
         index = NULL;
     }
+
+    map<pid_t,OpenFd*>::iterator itr;
+    for(itr=fds.begin();itr!=fds.end();itr++){
+        delete itr->second;
+    }
+
     pthread_mutex_destroy( &data_mux );
     pthread_mutex_destroy( &index_mux );
 }

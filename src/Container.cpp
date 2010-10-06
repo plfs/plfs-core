@@ -377,11 +377,11 @@ indexer_thread( void *va ) {
         if ( ! tasks_remaining ) break;
 
         // handle the task
-        Index *subindex = new Index(task.path);
-        ret = subindex->readIndex(task.path);
+        Index subindex(task.path);
+        ret = subindex.readIndex(task.path);
         if ( ret != 0 ) break;
         args->index->lock(__FUNCTION__);
-        args->index->merge(subindex);
+        args->index->merge(&subindex);
         args->index->unlock(__FUNCTION__);
         Util::Debug("THREAD MERGE %s into main index\n", task.path.c_str());
     }
@@ -429,15 +429,14 @@ int Container::populateIndex( const char *path, Index *index ) {
         args.tasks = &tasks;
         pthread_mutex_init( &(args.mux), NULL );
         size_t num_threads = min(get_plfs_conf()->threadpool_size,tasks.size());
-        ThreadPool *threadpool = 
-            new ThreadPool(num_threads,indexer_thread, (void*)&args);
+        ThreadPool threadpool(num_threads,indexer_thread, (void*)&args);
         Util::Debug("%d THREADS to create index for %s\n", num_threads, path);
-        ret = threadpool->threadError();    // returns errno
+        ret = threadpool.threadError();    // returns errno
         if ( ret ) {
             Util::Debug("THREAD pool error %s\n", strerror(ret) );
             ret = -ret;
         } else {
-            vector<void*> *stati    = threadpool->getStati();
+            vector<void*> *stati    = threadpool.getStati();
             ssize_t rc;  // needs to be size of void*
             for( size_t t = 0; t < num_threads; t++ ) {
                 void *status = (*stati)[t];
