@@ -852,7 +852,12 @@ int Index::rewriteIndex( int fd ) {
     // chunk.  Therefore when we read in the index entries, we know that
     // the first one to a physical data dropping is to the 0 offset at the
     // physical data dropping and the next one is follows that, etc.
-    // this code is in:
+    //
+    // update, we know include physical offsets in the index entries so
+    // we don't have to order them by timestamps anymore.  However, I'm
+    // reluctant to change this code so near a release date and it doesn't
+    // hurt them to be sorted so just leave this for now even though it
+    // is technically unnecessary
     for( itr = global_index.begin(); itr != global_index.end(); itr++ ) {
         global_index_timesort.insert(
                 pair<double,ContainerEntry>(
@@ -867,9 +872,11 @@ int Index::rewriteIndex( int fd ) {
         end_timestamp   = itrd->second.end_timestamp;
         addWrite( itrd->second.logical_offset,itrd->second.length, 
                 itrd->second.original_chunk, begin_timestamp, end_timestamp );
+        /*
         ostringstream os;
         os << __FUNCTION__ << " added : " << itr->second << endl; 
         Util::Debug("%s", os.str().c_str() );
+        */
     }
     return flush(); 
 }
