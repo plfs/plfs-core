@@ -666,14 +666,13 @@ plfs_read_new(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
         pthread_mutex_init( &(args.mux), NULL );
         size_t num_threads = min(get_plfs_conf()->threadpool_size,tasks.size());
         plfs_debug("%d THREADS to %ld\n", num_threads, offset);
-        ThreadPool *threadpool = new ThreadPool(num_threads,reader_thread,
-                                     (void*)&args);
-        error = threadpool->threadError();   // returns errno
+        ThreadPool threadpool(num_threads,reader_thread, (void*)&args);
+        error = threadpool.threadError();   // returns errno
         if ( error ) {
             plfs_debug("THREAD pool error %s\n", strerror(error) );
             error = -error;       // convert to -errno
         } else {
-            vector<void*> *stati    = threadpool->getStati();
+            vector<void*> *stati    = threadpool.getStati();
             for( size_t t = 0; t < num_threads; t++ ) {
                 void *status = (*stati)[t];
                 ret = (ssize_t)status;
@@ -683,7 +682,6 @@ plfs_read_new(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
             }
         }
         pthread_mutex_destroy(&(args.mux));
-        delete threadpool;
     } else {  
         while( ! tasks.empty() ) {
             ReadTask task = tasks.front();
@@ -802,6 +800,7 @@ get_plfs_conf() {
             // it shows up at start time so turn off
             //plfs_debug("plfsrc has %s -> %s\n", key, value); 
         }
+        fclose(fp);
         map<string,string>::iterator itr;
         hidden->parsed = true;
         if ( (itr = confs.find("threadpool_size")) != confs.end() ) {
@@ -842,8 +841,6 @@ get_plfs_conf() {
             hidden->err_msg = "Conf file " + file + " error: key " +
                 *negative + " is not positive.\n";
         }
-        // Added because valgrind reminded us to close the file pointer
-        fclose(fp);
         break;
     }
 
@@ -953,6 +950,7 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
             wf = (*pfd)->getWritefile();
         } 
         if ( wf == NULL ) {
+            // do we delete this on error?
             wf = new WriteFile( path, Util::hostname(), mode ); 
             new_writefile = true;
         }
@@ -972,12 +970,14 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
             index = (*pfd)->getIndex();
         }
         if ( index == NULL ) {
+            // do we delete this on error?
             index = new Index( path );  
             new_index = true;
             ret = Container::populateIndex( path.c_str(), index );
             if ( ret != 0 ) {
                 plfs_debug("%s failed to create index on %s: %s\n",
                         __FUNCTION__, path.c_str(), strerror(errno));
+                delete(index);
             }
             EISDIR_DEBUG;
         }
@@ -992,6 +992,7 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
     }
 
     if ( ret == 0 && ! *pfd ) {
+        // do we delete this on error?
         *pfd = new Plfs_fd( wf, index, pid, mode, path.c_str() ); 
         new_pfd       = true;
         // we create one open record for all the pids using a file

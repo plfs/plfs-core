@@ -622,8 +622,6 @@ int Plfs::f_opendir( const char *path, struct fuse_file_info *fi ) {
     vector<string> *dirents = new vector<string>;
     ret = plfs_readdir(strPath.c_str(),(void*)dirents);
     if (ret == 0) fi->fh = (uint64_t)dirents;
-    // Valgrind caught this also if ret != 0 we need to free the memory
-    // allocated for dirents
     else delete dirents;
     PLFS_EXIT;
 }
@@ -646,6 +644,7 @@ int Plfs::f_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         dirents = new vector<string>;
         ret = plfs_readdir(strPath.c_str(),(void*)dirents);
         if (ret == 0) fi->fh = (uint64_t)dirents;
+        else delete dirents;
     } else {
         dirents = (vector<string>*)fi->fh;
     }
