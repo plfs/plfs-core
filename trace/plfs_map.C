@@ -1,3 +1,4 @@
+#include <string.h>
 #include <stdlib.h>
 #include "plfs.h"
 #include "Container.h"
@@ -15,7 +16,8 @@ int main (int argc, char **argv) {
     Index index( target, 0 );
     int ret = Container::populateIndex( target, &index );
     if ( ret != 0 ) {
-        fprintf( stderr, "Couldn't read index from %s\n", target );
+        fprintf( stderr, "Couldn't read index from %s: %s\n", 
+                target, strerror(errno) );
     }
         // can't compress if you want to do the viz
         // this needs to be command line flag clearly
