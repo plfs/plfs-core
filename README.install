@@ -25,9 +25,10 @@ To install PLFS as a FUSE filesystem.
 
 To install PLFS as a ROMIO ADIO layer for MPI-IO.
 
-  That's harder.  Look in the patches directory and good luck.  If you get it
-  working, you still have to pass 'plfs:' as a preface to the path you
-  provide MPI-IO because ROMIO doesn't know how to identify a PLFS filesystem
+  That's harder.  Look at the README in the ad-patches directory and good luck.
+  If you get it working, you still have to pass 'plfs:' as a preface to the 
+  path you provide MPI-IO because ROMIO doesn't know how to identify a FUSE
+  based filesystem 
 
 To build the PLFS library and link apps against it.
 
