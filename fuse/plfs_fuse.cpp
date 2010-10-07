@@ -1018,7 +1018,7 @@ int Plfs::writeDebug( char *buf, size_t size, off_t offset, const char *path ) {
     //validsize = strlen( &(tmpbuf[offset]) );
 
     memcpy( buf, (const void*)&(tmpbuf[offset]), validsize );
-    delete tmpbuf;
+    delete []tmpbuf;
     tmpbuf = NULL;
     plfs_debug("Returning the buffer for debugfile %s\n", path);
     return validsize; 

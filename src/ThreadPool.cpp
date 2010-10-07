@@ -32,7 +32,7 @@ ThreadPool::ThreadPool( size_t size, void *(*func) (void *), void *args ) {
     }
     // clean up the thread stuff
     pthread_attr_destroy(&attr);
-    delete threads;
+    delete []threads;
 }
 
 ThreadPool::~ThreadPool() {
