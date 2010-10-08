@@ -43,11 +43,6 @@ WriteFile::~WriteFile() {
         index = NULL;
     }
 
-    map<pid_t,OpenFd>::iterator itr;
-    //for(itr=fds.begin();itr!=fds.end();itr++){
-    //    delete itr->second;
-    //}
-
     pthread_mutex_destroy( &data_mux );
     pthread_mutex_destroy( &index_mux );
 }
@@ -194,8 +189,6 @@ int WriteFile::removeWriter( pid_t pid ) {
         if ( ofd->writers <= 0 ) {
             ret = closeFd( ofd->fd );
             fds.erase( pid );
-            delete ofd;
-            ofd = NULL;
         }
     }
     Util::Debug("%s (%d) on %s now has %d writers: %d\n", 
