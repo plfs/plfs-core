@@ -430,7 +430,6 @@ int Index::handleOverlap(ContainerEntry &incoming,
         pair<map<off_t,ContainerEntry>::iterator, bool> &insert_ret ) 
 {
 
-    return 0;
     // all the stuff we use
     map<off_t,ContainerEntry>::iterator first, last, cur; // place holders
     cur = first = last = insert_ret.first;
