@@ -43,10 +43,10 @@ WriteFile::~WriteFile() {
         index = NULL;
     }
 
-    map<pid_t,OpenFd*>::iterator itr;
-    for(itr=fds.begin();itr!=fds.end();itr++){
-        delete itr->second;
-    }
+    map<pid_t,OpenFd>::iterator itr;
+    //for(itr=fds.begin();itr!=fds.end();itr++){
+    //    delete itr->second;
+    //}
 
     pthread_mutex_destroy( &data_mux );
     pthread_mutex_destroy( &index_mux );
@@ -81,9 +81,9 @@ int WriteFile::addWriter( pid_t pid, bool child ) {
     } else {
         int fd = openDataFile( physical_path, hostname, pid, DROPPING_MODE); 
         if ( fd >= 0 ) {
-            ofd = new struct OpenFd;
-            ofd->writers = 1;
-            ofd->fd = fd;
+            struct OpenFd ofd;
+            ofd.writers = 1;
+            ofd.fd = fd;
             fds[pid] = ofd;
         } else {
             ret = -errno;
@@ -103,9 +103,9 @@ size_t WriteFile::numWriters( ) {
     if ( paranoid_about_reference_counting ) {
         int check = 0;
         Util::MutexLock(   &data_mux, __FUNCTION__ );
-        map<pid_t, OpenFd *>::iterator pids_itr;
+        map<pid_t, OpenFd >::iterator pids_itr;
         for( pids_itr = fds.begin(); pids_itr != fds.end(); pids_itr++ ) {
-            check += pids_itr->second->writers;
+            check += pids_itr->second.writers;
         }
         if ( writers != check ) {
             Util::Debug("%s %d not equal %d\n", __FUNCTION__, 
@@ -123,7 +123,7 @@ size_t WriteFile::numWriters( ) {
 // and then the reference counting is screwed up
 // the problem is that a child is using the parents fd
 struct OpenFd * WriteFile::getFd( pid_t pid ) {
-    map<pid_t,OpenFd*>::iterator itr;
+    map<pid_t,OpenFd>::iterator itr;
     struct OpenFd *ofd = NULL;
     if ( (itr = fds.find( pid )) != fds.end() ) {
 	/*
@@ -134,7 +134,7 @@ struct OpenFd * WriteFile::getFd( pid_t pid ) {
             << " from pid " << pid << endl;
         Util::Debug("%s", oss.str().c_str() );
 	*/
-        ofd = itr->second;
+        ofd = &(itr->second);
     } else {
         // here's the code that used to do it so a child could share
         // a parent fd but for some reason I commented it out
@@ -284,11 +284,11 @@ int WriteFile::Close() {
     int failures = 0;
 
     Util::MutexLock(   &data_mux , __FUNCTION__);
-    map<pid_t,OpenFd *>::iterator itr;
+    map<pid_t,OpenFd >::iterator itr;
         // these should already be closed here
         // from each individual pid's close but just in case
     for( itr = fds.begin(); itr != fds.end(); itr++ ) {
-        if ( closeFd( itr->second->fd ) != 0 ) {
+        if ( closeFd( itr->second.fd ) != 0 ) {
             failures++;
         }
     }
@@ -333,7 +333,7 @@ int WriteFile::openFile( string physicalpath, mode_t mode ) {
 // return 0 or -errno
 int WriteFile::restoreFds( ) {
     map<int,string>::iterator paths_itr;
-    map<pid_t, OpenFd *>::iterator pids_itr;
+    map<pid_t, OpenFd >::iterator pids_itr;
     int ret = 0;
 
     // if an open WriteFile ever gets truncated after being renamed, that
@@ -362,14 +362,14 @@ int WriteFile::restoreFds( ) {
     // then the data fds
     for( pids_itr = fds.begin(); pids_itr != fds.end(); pids_itr++ ) {
 
-        paths_itr = paths.find( pids_itr->second->fd );
+        paths_itr = paths.find( pids_itr->second.fd );
         if ( paths_itr == paths.end() ) return -ENOENT;
 
         string datapath = paths_itr->second;
-        if ( closeFd( pids_itr->second->fd ) != 0 ) return -errno;
+        if ( closeFd( pids_itr->second.fd ) != 0 ) return -errno;
 
-        pids_itr->second->fd = openFile( datapath, mode );
-        if ( pids_itr->second->fd < 0 ) return -errno;
+        pids_itr->second.fd = openFile( datapath, mode );
+        if ( pids_itr->second.fd < 0 ) return -errno;
     }
 
     // normally we return ret at the bottom of our functions but this

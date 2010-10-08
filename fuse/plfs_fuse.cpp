@@ -160,7 +160,7 @@ int Plfs::init( int *argc, char **argv ) {
     pconf = get_plfs_conf();
     if (pconf->error) {
         fprintf(stderr,"FATAL: %s", pconf->err_msg.c_str());
-        return -pconf->error;  // Required key not available 
+        return -(pconf->error);  // Required key not available 
     }
     plfs_init(pconf); // warm up the path resolution cache
 

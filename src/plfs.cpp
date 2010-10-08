@@ -293,6 +293,7 @@ plfs_access( const char *logical, int mask ) {
     mode_t mode = 0;
     if ( is_plfs_file( logical, &mode ) ) {
         ret = retValue( Container::Access( path.c_str(), mask ) );
+        assert(ret!=-20);
     } else {
         if ( mode == 0 ) ret = -ENOENT;
         else ret = retValue( Util::Access( path.c_str(), mask ) );
@@ -822,7 +823,8 @@ get_plfs_conf() {
             // don't set missing here, we will try to automatically produce it
         }
         if ( (itr=confs.find("backends")) != confs.end() ) {
-            tokenize(itr->second,",",hidden->backends);
+            string backend = itr->second;
+            tokenize(backend,",",hidden->backends);
         } else {
             missing = new string("backends");
         }
