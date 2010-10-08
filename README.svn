@@ -1,0 +1,10 @@
+To make a branch:
+> svn copy trunk branches/mybranch
+
+To diff/merge a branch:
+> svn log --verbose --stop-on-copy https://plfs.svn.sourceforge.net/svnroot/plfs/branches/mybranch
+The last entry is when the branch was made (e.g. r348)
+> cd trunk
+> svn up
+> svn diff -r 348:HEAD https://plfs.svn.sourceforge.net/svnroot/plfs/branches/mybranch
+> svn merge -r 348:HEAD https://plfs.svn.sourceforge.net/svnroot/plfs/branches/mybranch
