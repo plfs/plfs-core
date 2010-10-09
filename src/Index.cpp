@@ -504,6 +504,10 @@ int Index::handleOverlap(ContainerEntry &incoming,
     oss << "Entries have now been trimmed:" << endl;
     for(cur=winners.begin();cur!=winners.end();cur++) oss << cur->second <<endl;
 
+    // I've seen weird cases where when a file is continuously overwritten
+    // slightly (like config.log), that it makes a huge mess of small little
+    // chunks.  It'd be nice to compress winners before inserting into global
+
     // now put the winners back into the global index
     global_index.insert(winners.begin(),winners.end());
     plfs_debug("%s",oss.str().c_str());
