@@ -51,8 +51,8 @@ void LogMessage::flush() {
     pthread_mutex_unlock( &log_mutex );
 
     Util::Debug("%s", this->str().c_str() );
-    this->str().resize(0);
-    this->clear();
+    //this->str().resize(0);
+    //this->clear();
     // for some reason flushing doesn't clear it?
 }
 
