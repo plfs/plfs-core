@@ -94,9 +94,24 @@ struct OpenFile {
                                 (const gid_t*)&(orig_groups.front()));
 #endif
 
+// this bit here is due to PLFS-FUSE crashing on johnbent's mac laptop and
+// desktop.  I discovered that passing -s to FUSE to make it run in single
+// threaded mode made the crash go away on the laptop, so I added this to
+// make PLFS itself run single-threaded.  But FUSE-PLFS still crashed so 
+// this suggests something wrong in FUSE itself
+//#define DEBUG_MUTEX 0
+#ifdef DEBUG_MUTEX
+    #define DEBUG_MUTEX_ON plfs_mutex_lock(&self->debug_mutex,__FUNCTION__); 
+    #define DEBUG_MUTEX_OFF plfs_mutex_unlock(&self->debug_mutex,__FUNCTION__); 
+#else
+    #define DEBUG_MUTEX_ON
+    #define DEBUG_MUTEX_OFF
+#endif
+
 #define PLFS_ENTER vector<gid_t> orig_groups;                                 \
                    ostringstream funct_id;                                    \
                    LogMessage lm, lm2;                                        \
+                   DEBUG_MUTEX_ON;                                            \
                    string strPath  = expandPath( path );                      \
                    GET_GROUPS;                                                \
                    SET_GROUPS(fuse_get_context()->uid);                       \
@@ -112,8 +127,9 @@ struct OpenFile {
 #define PLFS_EXIT  SET_IDS(s_uid,s_gid);                                \
                    RESTORE_GROUPS;                                      \
                    END_TIMES;                                           \
-		   END_MESSAGE;					        \
+                   END_MESSAGE;					                        \
                    lm2 << funct_id.str() << endl; lm2.flush();          \
+                   DEBUG_MUTEX_OFF;                                     \
                    return ret;
 
 #define EXIT_IF_DEBUG  if ( isdebugfile(path) ) return 0;
@@ -204,6 +220,7 @@ int Plfs::init( int *argc, char **argv ) {
     pthread_mutex_init( &(container_mutex), NULL );
     pthread_mutex_init( &(fd_mutex), NULL );
     pthread_mutex_init( &(group_mutex), NULL );
+    pthread_mutex_init( &(debug_mutex), NULL );
 
         // we used to make a trash container but now that we moved to library, 
         // fuse layer doesn't handle silly rename
