@@ -557,7 +557,7 @@ int Index::insertGlobal( ContainerEntry *g_entry ) {
         oss << __FUNCTION__ << " of " << logical_path << " trying to insert "
             << "overlap at " << g_entry->logical_offset << endl;
         plfs_debug("%s", oss.str().c_str() );
-        return handleOverlap( *g_entry, ret );
+        handleOverlap( *g_entry, ret );
     } else {
             // might as well try to merge any potentially adjoining regions
         /*
@@ -574,8 +574,8 @@ int Index::insertGlobal( ContainerEntry *g_entry ) {
             global_index.erase( ret.first );
         }
         */
-        return 0;
     }
+    return 0;
 }
 
 // just a little helper to print an error message and make sure the fd is
