@@ -7,7 +7,7 @@ Version:	1.0.0
 Release:	%{_release}%{?dist}
 License:	LANS LLC
 Group:		System Environment/Filesystems
-Source:		plfs-%{version}.tgz
+Source:		plfs-%{version}.tar.gz
 URL:		http://institutes.lanl.gov/plfs
 BuildRoot:	%{_tmppath}/plfs-%{version}-root
 Requires:       fuse, fuse-libs
