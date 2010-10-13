@@ -4,6 +4,8 @@
 #include <math.h>
 #include <sstream>
 #include <queue>
+#include <deque>
+#include <algorithm>
 #include <assert.h>
 using namespace std;
 
@@ -357,7 +359,7 @@ typedef struct {
 // the shared arguments passed to all of the indexer threads
 typedef struct {
     Index *index;
-    queue <IndexerTask> *tasks;
+    deque<IndexerTask> *tasks;
     pthread_mutex_t mux;
 } IndexerArgs;
 
@@ -375,7 +377,7 @@ indexer_thread( void *va ) {
         Util::MutexLock(&(args->mux),__FUNCTION__);
         if ( ! args->tasks->empty() ) {
             task = args->tasks->front();
-            args->tasks->pop();
+            args->tasks->pop_front();
         } else {
             tasks_remaining = false;
         }
@@ -402,7 +404,7 @@ int Container::populateIndex( const char *path, Index *index ) {
     int ret = 0;
     string hostindex;
     IndexerTask task;
-    queue <IndexerTask> tasks;
+    deque<IndexerTask> tasks;
 
     plfs_debug("In %s\n", __FUNCTION__);
     
@@ -410,7 +412,7 @@ int Container::populateIndex( const char *path, Index *index ) {
     DIR *td = NULL, *hd = NULL; struct dirent *tent = NULL;
     while((ret = nextdropping(path,&hostindex,INDEXPREFIX, &td,&hd,&tent))== 1){
         task.path = hostindex;
-        tasks.push(task);  // makes a copy and pushes it
+        tasks.push_back(task);  // makes a copy and pushes it
     }
     // -ERRNO Needs to be returned
     if(ret < 0)
@@ -421,39 +423,44 @@ int Container::populateIndex( const char *path, Index *index ) {
     if ( tasks.empty() ) {
         ret = 0;    // easy, 0 length file
         plfs_debug("No THREADS needed to create index for empty %s\n", path );
-    } else if ( tasks.size() == 1 || get_plfs_conf()->threadpool_size <= 1 ) {
-        while( ! tasks.empty() ) {
-            IndexerTask task = tasks.front();
-            tasks.pop();
-            ret = index->readIndex(task.path);
-            if ( ret != 0 ) break;
-        }
     } else {
-        // here's where to do the threaded thing
-        IndexerArgs args;
-        args.index = index;
-        args.tasks = &tasks;
-        pthread_mutex_init( &(args.mux), NULL );
-        size_t num_threads = min(get_plfs_conf()->threadpool_size,tasks.size());
-        ThreadPool threadpool(num_threads,indexer_thread, (void*)&args);
-        plfs_debug("%d THREADS to create index for %s\n", num_threads, path);
-        ret = threadpool.threadError();    // returns errno
-        if ( ret ) {
-            plfs_debug("THREAD pool error %s\n", strerror(ret) );
-            ret = -ret;
+            // shuffle might help for large parallel opens on a 
+            // file w/ lots of index droppings
+        random_shuffle(tasks.begin(),tasks.end()); 
+        if ( tasks.size() == 1 || get_plfs_conf()->threadpool_size <= 1 ) {
+            while( ! tasks.empty() ) {
+                IndexerTask task = tasks.front();
+                tasks.pop_front();
+                ret = index->readIndex(task.path);
+                if ( ret != 0 ) break;
+            }
         } else {
-            vector<void*> *stati    = threadpool.getStati();
-            ssize_t rc;  // needs to be size of void*
-            for( size_t t = 0; t < num_threads; t++ ) {
-                void *status = (*stati)[t];
-                rc = (ssize_t)status;
-                if ( rc != 0 ) {
-                    ret = (int)rc;
-                    break;
+            // here's where to do the threaded thing
+            IndexerArgs args;
+            args.index = index;
+            args.tasks = &tasks;
+            pthread_mutex_init( &(args.mux), NULL );
+            size_t count = min(get_plfs_conf()->threadpool_size,tasks.size());
+            ThreadPool threadpool(count,indexer_thread, (void*)&args);
+            plfs_debug("%d THREADS to create index for %s\n",count, path);
+            ret = threadpool.threadError();    // returns errno
+            if ( ret ) {
+                plfs_debug("THREAD pool error %s\n", strerror(ret) );
+                ret = -ret;
+            } else {
+                vector<void*> *stati    = threadpool.getStati();
+                ssize_t rc;  // needs to be size of void*
+                for( size_t t = 0; t < count; t++ ) {
+                    void *status = (*stati)[t];
+                    rc = (ssize_t)status;
+                    if ( rc != 0 ) {
+                        ret = (int)rc;
+                        break;
+                    }
                 }
             }
         }
-    }
+    }   
     /*
     if ( ret == 0 ) {
         cerr << "Done " << __FUNCTION__ << " DUMP Index: " << (*index) << endl;
