@@ -176,9 +176,9 @@ config/Makefile
 src/Makefile
 fuse/Makefile
 ad_plfs/Makefile
-trace/Makefile
 scripts/Makefile
 tests/Makefile
+tools/Makefile
 ])
 
 AC_OUTPUT

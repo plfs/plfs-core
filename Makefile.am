@@ -63,8 +63,8 @@ config \
 src \
 fuse \
 ad_plfs \
-trace \
 scripts \
+tools \
 tests
 
 ACLOCAL_AMFLAGS = -I config
