@@ -128,7 +128,6 @@ AM_PROG_CC_C_O
 AC_PROG_LIBTOOL
 
 # now check for all the other stuff PLFS needs
-# check for some headers XXX more are needed...
 
 AC_CHECK_HEADERS([\
 sys/types.h sys/statvfs.h fcntl.h sys/fsuid.h \
