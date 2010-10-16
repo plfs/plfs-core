@@ -179,6 +179,44 @@ expandPath(string logical, bool *mount_point) {
     return resolved;
 }
 
+// returns 0 or -errno
+int 
+plfs_dump_index( FILE *fp, const char *logical, bool compress ) {
+    PLFS_ENTER;
+    Index index(path);
+    ret = Container::populateIndex(path,&index);
+    if ( ret == 0 ) {
+        if (compress) index.compress();
+        ostringstream oss;
+        oss << index;
+        fprintf(fp,"%s",oss.str().c_str());
+    }
+    PLFS_EXIT(ret);
+}
+
+// returns 0 or -errno
+int
+plfs_flatten_index(Plfs_fd *pfd, const char *logical) {
+    PLFS_ENTER;
+    Index *index;
+    bool newly_created = false;
+    ret = 0;
+    if ( pfd && pfd->getIndex() ) {
+        index = pfd->getIndex();
+    } else {
+        index = new Index( path );  
+        newly_created = true;
+        ret = Container::populateIndex( path, index );
+    }
+    if (is_plfs_file(logical,NULL)) {
+        ret = Container::flattenIndex(path,index);
+    } else {
+        ret = -EBADF; // not sure here.  Maybe return SUCCESS?
+    }
+    if ( newly_created ) delete index;
+    PLFS_EXIT(ret);
+}
+
 // For chmod we need to guarantee that the creator owns all of 
 // the droppings in the hostdirs and that their mode is set
 // accordingly
@@ -186,7 +224,7 @@ int
 plfs_chmod_cleanup(const char *logical,mode_t mode ) {   
     PLFS_ENTER;
     if ( is_plfs_file( logical,NULL )) {
-        ret = Container::cleanupChmod( path.c_str() , mode , 1 , 0 , 0);
+        ret = Container::cleanupChmod( path, mode , 1 , 0 , 0);
     }
     PLFS_EXIT( ret );
 }
@@ -194,7 +232,7 @@ plfs_chmod_cleanup(const char *logical,mode_t mode ) {
 int plfs_chown_cleanup (const char *logical,uid_t uid,gid_t gid ) {
     PLFS_ENTER;
     if ( is_plfs_file( logical, NULL )) {
-        ret = Container::cleanupChown( path.c_str() , uid, gid);
+        ret = Container::cleanupChown( path, uid, gid);
     }
     PLFS_EXIT( ret );
 }
@@ -215,7 +253,7 @@ plfs_create( const char *logical, mode_t mode, int flags, pid_t pid ) {
     PLFS_ENTER;
     int attempt = 0;
     ret = 0; // suppress compiler warning
-    return Container::create(path.c_str(),Util::hostname(),mode,flags,
+    return Container::create(path,Util::hostname(),mode,flags,
             &attempt,pid);
 }
 
@@ -254,7 +292,7 @@ plfs_chown( const char *logical, uid_t u, gid_t g ) {
     PLFS_ENTER;
     mode_t mode = 0;
     if ( is_plfs_file( logical, &mode ) ) {
-        ret = Container::Chown( path.c_str(), u, g );
+        ret = Container::Chown( path, u, g );
     } else {
         if ( mode == 0 ) ret = -ENOENT;
         else ret = retValue(Util::Chown(path.c_str(),u,g)); 
@@ -265,7 +303,7 @@ plfs_chown( const char *logical, uid_t u, gid_t g ) {
 int
 is_plfs_file( const char *logical, mode_t *mode ) {
     PLFS_ENTER;
-    ret = Container::isContainer(path.c_str(),mode); 
+    ret = Container::isContainer(path,mode); 
     PLFS_EXIT(ret);
 }
 
@@ -292,7 +330,7 @@ plfs_access( const char *logical, int mask ) {
     PLFS_ENTER;
     mode_t mode = 0;
     if ( is_plfs_file( logical, &mode ) ) {
-        ret = retValue( Container::Access( path.c_str(), mask ) );
+        ret = retValue( Container::Access( path, mask ) );
         assert(ret!=-20);
     } else {
         if ( mode == 0 ) ret = -ENOENT;
@@ -306,7 +344,7 @@ plfs_chmod( const char *logical, mode_t mode ) {
     PLFS_ENTER;
     mode_t existing_mode = 0;
     if ( is_plfs_file( logical, &existing_mode ) ) {
-        ret = retValue( Container::Chmod( path.c_str(), mode ) );
+        ret = retValue( Container::Chmod( path, mode ) );
     } else {
         if ( existing_mode == 0 ) ret = -ENOENT;
         else ret = retValue( Util::Chmod( path.c_str(), mode ) );
@@ -394,7 +432,7 @@ plfs_utime( const char *logical, struct utimbuf *ut ) {
     PLFS_ENTER;
     mode_t mode = 0;
     if ( is_plfs_file( logical, &mode ) ) {
-        ret = Container::Utime( path.c_str(), ut );
+        ret = Container::Utime( path, ut );
     } else {
         if ( mode == 0 ) ret = -ENOENT;
         else ret = retValue( Util::Utime( path.c_str(), ut ) );
@@ -975,7 +1013,7 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
             // do we delete this on error?
             index = new Index( path );  
             new_index = true;
-            ret = Container::populateIndex( path.c_str(), index );
+            ret = Container::populateIndex( path, index );
             if ( ret != 0 ) {
                 plfs_debug("%s failed to create index on %s: %s\n",
                         __FUNCTION__, path.c_str(), strerror(errno));
@@ -1000,7 +1038,7 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
         // we create one open record for all the pids using a file
         // only create the open record for files opened for writing
         if ( wf ) {
-            ret = Container::addOpenrecord(path.c_str(), 
+            ret = Container::addOpenrecord(path, 
                 Util::hostname(), pid );
             EISDIR_DEBUG;
         }
@@ -1086,7 +1124,7 @@ plfs_rename( const char *logical, const char *to ) {
     plfs_debug("Trying to rename %s to %s\n", path.c_str(), topath.c_str());
     ret = retValue( Util::Rename(path.c_str(), topath.c_str()));
     if ( ret == 0 ) { // update the timestamp
-        ret = Container::Utime( topath.c_str(), NULL );
+        ret = Container::Utime( topath, NULL );
     }
     PLFS_EXIT(ret);
 }
@@ -1270,7 +1308,7 @@ plfs_getattr( Plfs_fd *of, const char *logical, struct stat *stbuf ) {
             ret = retValue( Util::Lstat( path.c_str(), stbuf ) );        
         }
     } else {
-        ret = Container::getattr( path.c_str(), stbuf );
+        ret = Container::getattr( path, stbuf );
         if ( ret == 0 ) {
             // is it also open currently?
             // we might be reading from some other users writeFile but
@@ -1310,7 +1348,7 @@ plfs_getattr( Plfs_fd *of, const char *logical, struct stat *stbuf ) {
 int
 plfs_mode(const char *logical, mode_t *mode) {
     PLFS_ENTER;
-    *mode = Container::getmode(path.c_str());
+    *mode = Container::getmode(path);
     PLFS_EXIT(ret);
 }
 
@@ -1333,7 +1371,7 @@ extendFile( Plfs_fd *of, string strPath, off_t offset ) {
     WriteFile *wf = ( of && of->getWritefile() ? of->getWritefile() : NULL );
     pid_t pid = ( of ? of->getPid() : 0 );
     if ( wf == NULL ) {
-        mode_t mode = Container::getmode( strPath.c_str() ); 
+        mode_t mode = Container::getmode( strPath ); 
         wf = new WriteFile( strPath.c_str(), Util::hostname(), mode );
         ret = wf->openIndex( pid );
         newly_opened = true;
@@ -1392,7 +1430,7 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
             if ( stbuf.st_size == offset ) {
                 ret = 0; // nothing to do
             } else if ( stbuf.st_size > offset ) {
-                ret = Container::Truncate(path.c_str(), offset); // make smaller
+                ret = Container::Truncate(path, offset); // make smaller
                 Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
             } else if ( stbuf.st_size < offset ) {
                 ret = extendFile( of, path, offset );    // make bigger
@@ -1428,7 +1466,7 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
     Util::Debug("%s %s to %u: %d\n",__FUNCTION__,path.c_str(),(uint)offset,ret);
 
     if ( ret == 0 ) { // update the timestamp
-        ret = Container::Utime( path.c_str(), NULL );
+        ret = Container::Utime( path, NULL );
     }
     PLFS_EXIT(ret);
 }

@@ -121,6 +121,8 @@ class Index : public Metadata {
         void truncateHostIndex( off_t offset );
 
         void compress();
+        int global_to_file(int fd);
+        int global_from_stream(void *addr); 
 
 		friend ostream& operator <<(ostream &,const Index &);
 

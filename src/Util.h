@@ -55,7 +55,8 @@ class Util {
         static int Lstat( const char*, struct stat * );
         static int Mkdir( const char*, mode_t );
         static int Mknod( const char *path, mode_t mode, dev_t dev );
-        static int Mmap( void *, size_t, int, int, int, off_t , void ** );
+        static int Mmap( size_t, int, void ** );
+        static int Munmap( void *, size_t );
         static int MutexLock( pthread_mutex_t *mux, const char *whence );
         static int MutexUnlock( pthread_mutex_t *mux, const char *whence );
         static int Open( const char*, int );
@@ -63,6 +64,7 @@ class Util {
         static int Opendir( const char *dirname, DIR ** );
         static ssize_t Pread( int, void *, size_t, off_t );
         static ssize_t Pwrite(int, const void *buf, size_t count, off_t offset);
+        static ssize_t Read( int, void *, size_t );
         static ssize_t Readlink(const char*, char *buf, size_t bufsize);
         static int Rename( const char*, const char * );
         static int Rmdir( const char* );

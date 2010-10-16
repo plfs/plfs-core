@@ -43,6 +43,11 @@ PlfsConf* get_plfs_conf();
 */
 bool plfs_init(PlfsConf*);
 
+int plfs_chmod_cleanup(const char *logical,mode_t mode );
+int plfs_chown_cleanup (const char *logical,uid_t uid,gid_t gid );
+
+ssize_t plfs_reference_count( Plfs_fd * );
+void plfs_stat_add(const char*func, double time, int );
 
 int plfs_mutex_lock( pthread_mutex_t *mux, const char *whence );
 int plfs_mutex_unlock( pthread_mutex_t *mux, const char *whence );

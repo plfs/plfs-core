@@ -31,6 +31,8 @@ using namespace std;
     // where to stash the chmods and chowns, and identify containers
 #define ACCESSFILE     ".plfsaccess113918400"  
 #define CREATORFILE    "creator"
+#define GLOBALINDEX    "global.index"
+#define GLOBALCHUNK    "global.chunk"
 
 enum
 DirectoryOperation {
@@ -42,80 +44,84 @@ DirectoryOperation {
 class Container {
     public:
             // static stuff
-        static int create( const char *, const char *, 
+        static int create( const string &, const string &, 
                 mode_t mode, int flags, int *extra_attempts,pid_t );
 
-        static bool isContainer(const char *physical_path,mode_t*); 
+        static bool isContainer(const string &physical_path,mode_t*); 
 
-        static string getIndexPath( const char *, const char *, double);
-        static string getIndexPath( const char *, const char *, int pid,double);
-        static string getDataPath(  const char *, const char *, int pid,double);
+        static string getIndexPath( const string &, const string &, int pid,double);
+        static string getDataPath(  const string &, const string &, int pid,double);
 
-        static int addMeta( off_t, size_t, const char *, const char * );
-        static string fetchMeta( string, off_t *, size_t *, struct timespec * );
-        static int addOpenrecord( const char *, const char *, pid_t );
-        static int removeOpenrecord( const char *, const char *, pid_t );
+        static int addMeta( off_t, size_t, const string &, const string & );
+        static string fetchMeta( const string&, off_t *, size_t *, struct timespec * );
+        static int addOpenrecord( const string &, const string &, pid_t );
+        static int removeOpenrecord( const string &, const string &, pid_t );
 
-        static string getHostDirPath( const char *, const char * );
-        static string getMetaDirPath( string );
-        static string getVersionDir( string path );
-        static string getAccessFilePath( string path );
-        static string getCreatorFilePath( string path );
-        static string chunkPathFromIndexPath( string hostindex, pid_t pid );
+        static string getHostDirPath( const string &, const string & );
+        static string getMetaDirPath( const string& );
+        static string getVersionDir( const string& path );
+        static string getAccessFilePath( const string& path );
+        static string getCreatorFilePath( const string& path );
+        static string chunkPathFromIndexPath( const string& hostindex, pid_t pid );
+        static string getGlobalChunkPath(const string&);
+        static string getGlobalIndexPath(const string&);
+        static string makeUniquePath(const string&);
 
         static mode_t fileMode( mode_t );
         static mode_t dirMode(  mode_t );
         static mode_t containerMode(  mode_t );
-        static int makeHostDir(const char *path, const char *host, mode_t mode);
+        static int makeHostDir(const string &path, const string &host, mode_t mode);
 
-        static int getattr( const char *, struct stat * );
+        static int getattr( const string &, struct stat * );
 
-        static mode_t getmode( const char * );
-        static int Chown( const char *path, uid_t uid, gid_t gid );
-        static int Chmod( const char *path, mode_t mode );
-        static int Utime( const char *path, const struct utimbuf *buf );
-        static int Truncate( const char *, off_t );
-        static int Access( const char *path, int mask );
+        static mode_t getmode( const string & );
+        static int Chown( const string &path, uid_t uid, gid_t gid );
+        static int Chmod( const string &path, mode_t mode );
+        static int Utime( const string &path, const struct utimbuf *buf );
+        static int Truncate( const string &, off_t );
+        static int Access( const string &path, int mask );
 
-        static int populateIndex( const char *, Index * );
+        static int flattenIndex( const string &, Index * );
+        static int populateIndex( const string &, Index * );
+        static int aggregateIndices( const string &, Index * );
         static int freeIndex( Index ** );
         static size_t hashValue( const char *str );
         static blkcnt_t bytesToBlocks( size_t total_bytes );
-        static int nextdropping( string, string *, const char *,
+        static int nextdropping( const string&, string *, const char *,
                 DIR **, DIR **, struct dirent ** );
-        static int makeSubdir(string path, mode_t mode);
-        static int makeDropping(string path);
-        static int makeAccess(string path,mode_t mode);
-        static int makeDroppingReal(string path, mode_t mode); 
-        static int makeCreator(string path);
-        static int cleanupChmod( const char *path, 
+        static int makeSubdir(const string& path, mode_t mode);
+        static int makeDropping(const string& path);
+        static int makeAccess(const string& path,mode_t mode);
+        static int makeDroppingReal(const string& path, mode_t mode); 
+        static int makeCreator(const string& path);
+        static int cleanupChmod( const string &path, 
             mode_t mode , int top, uid_t uid , gid_t gid );
-        static int cleanupChown( const char *path, uid_t uid, gid_t gid); 
-	    static int truncateMeta(const char *path, off_t offset);
+        static int cleanupChown( const string &path, uid_t uid, gid_t gid); 
+	    static int truncateMeta(const string &path, off_t offset);
        
 
     private:
             // static stuff
-        static int Modify(DirectoryOperation,const char*,uid_t,gid_t,
+        static int Modify(DirectoryOperation,const string &,uid_t,gid_t,
                 const struct utimbuf*,mode_t);
-        static int chmodModify (const char *path, mode_t mode);
-        static int chownModify(const char *path,uid_t uid,gid_t gid );
-        static int createHelper( const char *, const char *, 
+        static int chmodModify (const string &path, mode_t mode);
+        static int chownModify(const string &path,uid_t uid,gid_t gid );
+        static int createHelper( const string &, const string &, 
                 mode_t mode, int flags, int *extra_attempts, pid_t );
-        static int makeTopLevel( const char *, const char *, mode_t, pid_t );
-        static string getChunkPath(  const char *, const char *, 
+        static int makeTopLevel( const string &, const string &, mode_t, pid_t );
+        static string getChunkPath( const string &, const string &, 
                 int pid, const char *, double );
-        static string chunkPath( const char *hostdir, const char *type, 
-                const char *host, int pid, string ts );
-        static string getOpenrecord( const char *, const char *, pid_t );
-        static string getOpenHostsDir( string );
-        static int discoverOpenHosts( const char *, set<string> * );
+        static string chunkPath( const string &hostdir, const char *type, 
+                const string &host, int pid, const string &ts );
+        static string getOpenrecord( const string &, const string &, pid_t );
+        static string getOpenHostsDir( const string &);
+        static int discoverOpenHosts( const string &, set<string> * );
         static string hostFromChunk( string datapath, const char *type );
         static string hostdirFromChunk( string chunkpath, const char *type );
         static string timestampFromChunk(string hostindex, const char *type);
         static string containerFromChunk( string datapath );
         static struct dirent *getnextent( DIR *dir, const char *prefix );
-        static int makeMeta( string path, mode_t type, mode_t mode );
+        static int makeMeta( const string &path, mode_t type, mode_t mode );
         static int ignoreNoEnt( int ret );
 };
 

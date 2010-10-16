@@ -299,13 +299,11 @@ int WriteFile::truncate( off_t offset ) {
 }
 
 int WriteFile::openIndexFile( string path, string host, pid_t p, mode_t m ) {
-    return openFile( Container::getIndexPath(
-                path.c_str(),host.c_str(),p,createtime), m);
+    return openFile(Container::getIndexPath(path,host,p,createtime),m);
 }
 
 int WriteFile::openDataFile(string path, string host, pid_t p, mode_t m){
-    return openFile( Container::getDataPath( 
-                path.c_str(),host.c_str(),p,createtime),m);
+    return openFile(Container::getDataPath(path,host,p,createtime),m);
 }
 
 // returns an fd or -1

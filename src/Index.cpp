@@ -21,7 +21,7 @@
 #include "plfs.h"
 #include "Container.h"
 #include "Index.h"
-#include <sys/mman.h>
+#include "plfs_private.h"
 
 #ifndef MAP_NOCACHE
     // this is a way to tell mmap not to waste buffer cache.  since we just
@@ -98,6 +98,11 @@ ostream& operator <<(ostream &os,const ContainerEntry &entry) {
 }
 
 ostream& operator <<(ostream &os,const Index &ndx ) {
+    os << "# Index of " << ndx.logical_path << endl;
+    os << "# Data Droppings" << endl;
+    for(int i = 0; i < ndx.chunk_map.size(); i++ ) {
+        os << "# " << i << " " << ndx.chunk_map[i].path << endl;
+    }
     map<off_t,ContainerEntry>::const_iterator itr;
     os << "# ID Logical_offset Length Begin_timestamp End_timestamp "
        << " Logical_tail ID.Chunk_offset " << endl;
@@ -285,7 +290,7 @@ void *Index::mapIndex( string hostindex, int *fd, off_t *length ) {
         return NULL;
     }
 
-    Util::Mmap(NULL, *length, PROT_READ, MAP_PRIVATE|MAP_NOCACHE,*fd,0,&addr);
+    Util::Mmap(*length,*fd,&addr);
     return addr;
 }
 
@@ -304,7 +309,7 @@ int Index::readIndex( string hostindex ) {
     plfs_debug("%s", os.str().c_str() );
 
     maddr = mapIndex( hostindex, &fd, &length );
-    if( maddr == NULL || maddr == MAP_FAILED ) {
+    if( (int)maddr == -1 ) {
         return cleanupReadIndex( fd, maddr, length, 0, "mapIndex",
             hostindex.c_str() );
     }
@@ -326,8 +331,7 @@ int Index::readIndex( string hostindex ) {
     // we do however remember the original pid so that we can rewrite 
     // the index correctly for the cases where we do the reverse thing
     // and recreate a host index dropping (we do this for truncating to 
-    // the middle and for flattening an index [for which we don't yet
-    // actually have any code, it's just an idea])
+    // the middle and for flattening an index) 
 
     // since the order of the entries for each pid in a host index corresponds
     // to the order of the writes within that pid's chunk file, we also 
@@ -391,6 +395,80 @@ int Index::readIndex( string hostindex ) {
     plfs_debug("After %s in %p, now are %d chunks\n",
         __FUNCTION__,this,chunk_map.size());
     return cleanupReadIndex(fd, maddr, length, 0, "DONE",hostindex.c_str());
+}
+
+// returns 0 or -errno
+int Index::global_from_stream(void *addr) {
+
+    // first read the header to know how many entries there are
+    size_t quant = 0;
+    size_t *sarray = (size_t*)addr;
+    quant = sarray[0];
+    if ( quant < 0 ) return -EBADF;
+    plfs_debug("%s for %s has %ld entries\n",
+            __FUNCTION__,logical_path.c_str(),(long)quant);
+
+    // then skip past the header
+    addr = (void*)&(sarray[1]);
+
+    // then read in all the entries
+    ContainerEntry *entries = (ContainerEntry*)addr;
+    for(size_t i=0;i<quant;i++) {
+        ContainerEntry e = entries[i];
+        // just put it right into place. no need to worry about overlap
+        // since the global index on disk was already pruned
+        global_index[e.logical_offset] = e;
+    }
+
+    // then skip past the entries
+    addr = (void*)&(entries[quant]);
+
+    // now read in the vector of chunk files
+    plfs_debug("%s of %s now parsing data chunk paths\n",
+            __FUNCTION__,logical_path.c_str());
+    vector<string> chunk_paths;
+    tokenize((char*)addr,"\n",chunk_paths); // might be inefficient...
+    for( size_t i = 0; i < chunk_paths.size(); i++ ) {
+        ChunkFile cf;
+        cf.path = chunk_paths[i];
+        cf.fd = -1;
+        chunk_map.push_back(cf);
+    }
+
+    return 0;
+}
+
+// returns 0 or -errno
+int Index::global_to_file(int fd){
+
+    // first write the number of container entries
+    size_t quant = global_index.size();
+    int ret = Util::Writen(fd,(void*)(&quant),sizeof(size_t));
+    plfs_debug("Wrote header for global index of %s\n",
+            logical_path.c_str(),ret); 
+    if ( ret != sizeof(size_t) ) return -errno;
+
+    // then write the container entries themselves
+    map<off_t,ContainerEntry>::iterator itr;
+    size_t  len = sizeof(ContainerEntry);
+    for( itr = global_index.begin(); itr != global_index.end(); itr++ ) {
+        void *start = &(itr->second);
+        ret = Util::Writen(fd, start, len);
+        if ( ret != len ) return -errno;
+    }
+    plfs_debug("Wrote entries for global index of %s: %d\n",
+            logical_path.c_str(),ret); 
+
+    // then dump the chunk map which maps id's to data chunk paths
+    ostringstream chunks;
+    for(int i = 0; i < chunk_map.size(); i++ ) {
+        chunks << chunk_map[i].path << endl;
+    }
+    chunks << '\0'; // null term the file
+    ret = Util::Writen(fd,(void*)(chunks.str().c_str()),chunks.str().length());
+    plfs_debug("Wrote the chunk map for global index of %s: %d\n",
+            logical_path.c_str(),ret); 
+    return (ret == chunks.str().length() ? 0 : -errno); 
 }
 
 size_t Index::splitEntry( ContainerEntry *entry, 
@@ -589,8 +667,8 @@ int Index::cleanupReadIndex( int fd, void *maddr, off_t length, int ret,
                 last_func, indexfile, strerror( errno ) );
     }
 
-    if ( maddr != NULL && maddr != MAP_FAILED ) {
-        ret2 = munmap( maddr, length );
+    if ( maddr != NULL && (int)maddr == -1 ) {
+        ret2 = Util::Munmap( maddr, length );
         if ( ret2 < 0 ) {
             ostringstream oss;
             oss << "WTF. readIndex failed during munmap of "  << indexfile 
@@ -600,7 +678,7 @@ int Index::cleanupReadIndex( int fd, void *maddr, off_t length, int ret,
         }
     }
 
-    if ( maddr == MAP_FAILED ) {
+    if ( (int)maddr == -1 ) {
         plfs_debug("mmap failed on %s: %s\n",indexfile,strerror(errno));
     }
 
@@ -880,7 +958,6 @@ int Index::rewriteIndex( int fd ) {
     map<double,ContainerEntry> global_index_timesort;
     map<double,ContainerEntry>::iterator itrd;
     
-
     // so this is confusing.  before we dump the global_index back into
     // a physical index entry, we have to resort it by timestamp instead
     // of leaving it sorted by offset.

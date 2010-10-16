@@ -373,6 +373,12 @@ int Util::Symlink( const char *path, const char *to ) {
     EXIT_UTIL;
 }
 
+ssize_t Util::Read( int fd, void *buf, size_t size) {
+    ENTER_IO;
+    ret = read( fd, buf, size ); 
+    EXIT_IO;
+}
+
 ssize_t Util::Write( int fd, const void *buf, size_t size) {
     ENTER_IO;
     ret = write( fd, buf, size ); 
@@ -415,12 +421,18 @@ int Util::Closedir( DIR *dp ) {
     EXIT_UTIL;
 }
 
-int Util::Mmap( void *addr, size_t len, int prot, int flags, int fildes, 
-        off_t offset, void **retaddr ) 
-{
+int Util::Munmap(void *addr,size_t len) {
     ENTER_UTIL;
-    *retaddr = mmap( addr, len, prot, flags, fildes, offset );
-    ret = ( *retaddr == NULL ? -errno : 0 );
+    ret = munmap(addr,len);
+    EXIT_UTIL;
+}
+
+int Util::Mmap( size_t len, int fildes, void **retaddr) {
+    ENTER_UTIL;
+    int prot  = PROT_READ;
+    int flags = MAP_PRIVATE|MAP_NOCACHE;
+    *retaddr = mmap( NULL, len, prot, flags, fildes, 0 );
+    ret = ( *retaddr == NULL || (int)*retaddr == -1 ? -1 : 0 );
     EXIT_UTIL;
 }
 
