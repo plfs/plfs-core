@@ -39,23 +39,35 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+noinst_PROGRAMS = \
+plfs_map \
+plfs_flatten_index
+
 ################################################################################
 # plfs_map
 ################################################################################
-sources = \
-plfs_map.C
-
-noinst_PROGRAMS = \
-plfs_map
-
 plfs_map_SOURCES = \
-$(sources)
+plfs_map.C
 
 plfs_map_CXXFLAGS = \
 -I$(top_srcdir)/src \
 @PLFS_DEBUG_CFLAGS@
 
 plfs_map_LDFLAGS = \
+-L../src -lplfs \
+@PTHREAD_LIBS@
+
+################################################################################
+# plfs_flatten_index
+################################################################################
+plfs_flatten_index_SOURCES = \
+plfs_flatten_index.C
+
+plfs_flatten_index_CXXFLAGS = \
+-I$(top_srcdir)/src \
+@PLFS_DEBUG_CFLAGS@
+
+plfs_flatten_index_LDFLAGS = \
 -L../src -lplfs \
 @PTHREAD_LIBS@
 
