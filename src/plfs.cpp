@@ -184,7 +184,7 @@ int
 plfs_dump_index( FILE *fp, const char *logical, bool compress ) {
     PLFS_ENTER;
     Index index(path);
-    ret = Container::populateIndex(path,&index);
+    ret = Container::populateIndex(path,&index,true);
     if ( ret == 0 ) {
         if (compress) index.compress();
         ostringstream oss;
@@ -194,21 +194,27 @@ plfs_dump_index( FILE *fp, const char *logical, bool compress ) {
     PLFS_EXIT(ret);
 }
 
+// should be called with a logical path and already_expanded false
+// or called with a physical path and already_expanded true
 // returns 0 or -errno
 int
-plfs_flatten_index(Plfs_fd *pfd, const char *logical) {
+plfs_flatten_index(Plfs_fd *pfd, const char *logical,bool already_expanded) {
     PLFS_ENTER;
     Index *index;
     bool newly_created = false;
+    if ( already_expanded ) path = logical; // we were passed physical
     ret = 0;
     if ( pfd && pfd->getIndex() ) {
         index = pfd->getIndex();
     } else {
         index = new Index( path );  
         newly_created = true;
-        ret = Container::populateIndex( path, index );
+        // before we populate, need to blow away any old one
+        ret = Container::populateIndex(path,index,false);
     }
-    if (is_plfs_file(logical,NULL)) {
+    if (already_expanded || is_plfs_file(logical,NULL)) {
+        // if it's already expanded, the caller has already verified that
+        // it's a plfs file
         ret = Container::flattenIndex(path,index);
     } else {
         ret = -EBADF; // not sure here.  Maybe return SUCCESS?
@@ -753,7 +759,7 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
         index = new Index( pfd->getPath() );
         if ( index ) {
             new_index_created = true;
-            ret = Container::populateIndex( pfd->getPath(), index );
+            ret = Container::populateIndex(pfd->getPath(),index,false);
         } else {
             ret = -EIO;
         }
@@ -1013,11 +1019,12 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
             // do we delete this on error?
             index = new Index( path );  
             new_index = true;
-            ret = Container::populateIndex( path, index );
+            ret = Container::populateIndex(path,index,true);
             if ( ret != 0 ) {
                 plfs_debug("%s failed to create index on %s: %s\n",
                         __FUNCTION__, path.c_str(), strerror(errno));
                 delete(index);
+                index = NULL;
             }
             EISDIR_DEBUG;
         }
@@ -1607,6 +1614,7 @@ plfs_close( Plfs_fd *pfd, pid_t pid, int open_flags ) {
     //        index = NULL;
     //        pfd->setIndex(NULL);
     //}
+
     if ( ret == 0 && ref_count == 0 ) {
         ostringstream oss;
         oss << __FUNCTION__ << " removing OpenFile " << pfd << endl;

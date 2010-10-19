@@ -82,7 +82,7 @@ class Container {
         static int Access( const string &path, int mask );
 
         static int flattenIndex( const string &, Index * );
-        static int populateIndex( const string &, Index * );
+        static int populateIndex(const string &,Index *,bool use_cached_global);
         static int aggregateIndices( const string &, Index * );
         static int freeIndex( Index ** );
         static size_t hashValue( const char *str );

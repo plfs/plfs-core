@@ -426,22 +426,28 @@ int Container::flattenIndex( const string &path, Index *index ) {
 // this is the function that returns the container index
 // should first check for top-level index and if it exists, just use it
 // returns -errno or 0 
-int Container::populateIndex( const string &path, Index *index ) {
+int Container::populateIndex(const string &path, Index *index,bool use_global) {
     int ret = 0;
 
     // first try for the top-level global index
-    int idx_fd = Util::Open(getGlobalIndexPath(path).c_str(),O_RDONLY);
+    int idx_fd = -1;
+    if ( use_global ) {
+        idx_fd = Util::Open(getGlobalIndexPath(path).c_str(),O_RDONLY);
+    }
     if ( idx_fd >= 0 ) {
         plfs_debug("Using cached global flattened index for %s\n",path.c_str());
-        off_t len;
+        off_t len = -1;
         ret = Util::Lseek(idx_fd,0,SEEK_END,&len);
         if ( ret != -1 ) {
             void *addr;
-            off_t len;
             ret = Util::Mmap(len,idx_fd,&addr);
             if ( ret != -1 ) {
                 ret = index->global_from_stream(addr);
                 Util::Munmap(addr,len);
+            } else {
+                plfs_debug("WTF: mmap %s of len %ld: %s\n",
+                        getGlobalIndexPath(path).c_str(),
+                        (long)len, strerror(errno));
             }
         }
         Util::Close(idx_fd);

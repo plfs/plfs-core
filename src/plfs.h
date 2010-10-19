@@ -73,7 +73,7 @@ void plfs_debug( const char *format, ... );
 
 int plfs_dump_index( FILE *fp, const char *path, bool compress );
 
-int plfs_flatten_index( Plfs_fd *, const char *path );
+int plfs_flatten_index( Plfs_fd *, const char *path, bool already_expanded );
 
 /* Plfs_fd can be NULL */
 int plfs_getattr( Plfs_fd *, const char *path, struct stat *stbuf );

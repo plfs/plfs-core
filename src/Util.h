@@ -31,6 +31,15 @@
 
 using namespace std;
 
+#ifndef MAP_NOCACHE
+    // this is a way to tell mmap not to waste buffer cache.  since we just
+    // read the index files once sequentially, we don't want it polluting cache
+    // unfortunately, not all platforms support this (but they're small)
+    #define MAP_NOCACHE 0
+#endif
+
+
+
 //#include <hash_map>   // shoot, hash_map not found.  more appropriate though..
 #define HASH_MAP map
 
