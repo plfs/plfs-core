@@ -71,9 +71,9 @@ int plfs_create( const char *path, mode_t mode, int flags, pid_t pid );
 
 void plfs_debug( const char *format, ... );
 
-int plfs_dump_index( FILE *fp, const char *path, bool compress );
+int plfs_dump_index( FILE *fp, const char *path, int compress );
 
-int plfs_flatten_index( Plfs_fd *, const char *path, bool already_expanded );
+int plfs_flatten_index( Plfs_fd *, const char *path, int already_expanded );
 
 /* Plfs_fd can be NULL */
 int plfs_getattr( Plfs_fd *, const char *path, struct stat *stbuf );

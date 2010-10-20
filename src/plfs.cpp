@@ -181,7 +181,7 @@ expandPath(string logical, bool *mount_point) {
 
 // returns 0 or -errno
 int 
-plfs_dump_index( FILE *fp, const char *logical, bool compress ) {
+plfs_dump_index( FILE *fp, const char *logical, int compress ) {
     PLFS_ENTER;
     Index index(path);
     ret = Container::populateIndex(path,&index,true);
@@ -198,7 +198,7 @@ plfs_dump_index( FILE *fp, const char *logical, bool compress ) {
 // or called with a physical path and already_expanded true
 // returns 0 or -errno
 int
-plfs_flatten_index(Plfs_fd *pfd, const char *logical,bool already_expanded) {
+plfs_flatten_index(Plfs_fd *pfd, const char *logical,int already_expanded) {
     PLFS_ENTER;
     Index *index;
     bool newly_created = false;

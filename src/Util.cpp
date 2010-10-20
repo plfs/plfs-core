@@ -432,7 +432,7 @@ int Util::Mmap( size_t len, int fildes, void **retaddr) {
     int prot  = PROT_READ;
     int flags = MAP_PRIVATE|MAP_NOCACHE;
     *retaddr = mmap( NULL, len, prot, flags, fildes, 0 );
-    ret = ( *retaddr == NULL || (int)*retaddr == -1 ? -1 : 0 );
+    ret = ( *retaddr == (void*)NULL || *retaddr == (void*)-1 ? -1 : 0 );
     EXIT_UTIL;
 }
 

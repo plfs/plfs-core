@@ -309,7 +309,7 @@ int Index::readIndex( string hostindex ) {
     plfs_debug("%s", os.str().c_str() );
 
     maddr = mapIndex( hostindex, &fd, &length );
-    if( (int)maddr == -1 ) {
+    if( maddr == (void*)-1 ) {
         return cleanupReadIndex( fd, maddr, length, 0, "mapIndex",
             hostindex.c_str() );
     }
@@ -667,7 +667,7 @@ int Index::cleanupReadIndex( int fd, void *maddr, off_t length, int ret,
                 last_func, indexfile, strerror( errno ) );
     }
 
-    if ( maddr != NULL && (int)maddr == -1 ) {
+    if ( maddr != NULL && maddr != (void*)-1 ) {
         ret2 = Util::Munmap( maddr, length );
         if ( ret2 < 0 ) {
             ostringstream oss;
@@ -678,7 +678,7 @@ int Index::cleanupReadIndex( int fd, void *maddr, off_t length, int ret,
         }
     }
 
-    if ( (int)maddr == -1 ) {
+    if ( maddr == (void*)-1 ) {
         plfs_debug("mmap failed on %s: %s\n",indexfile,strerror(errno));
     }
 
