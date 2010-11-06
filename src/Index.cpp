@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <sys/dir.h>
 #include <dirent.h>
+#include <stdlib.h>
 #include <math.h>
 #include <assert.h>
 #include <sys/syscall.h>
@@ -100,7 +101,7 @@ ostream& operator <<(ostream &os,const ContainerEntry &entry) {
 ostream& operator <<(ostream &os,const Index &ndx ) {
     os << "# Index of " << ndx.logical_path << endl;
     os << "# Data Droppings" << endl;
-    for(int i = 0; i < ndx.chunk_map.size(); i++ ) {
+    for(size_t i = 0; i < ndx.chunk_map.size(); i++ ) {
         os << "# " << i << " " << ndx.chunk_map[i].path << endl;
     }
     map<off_t,ContainerEntry>::const_iterator itr;
@@ -136,7 +137,6 @@ Index::Index( string logical, int fd ) : Metadata::Metadata() {
 void
 Index::lock( const char *function ) {
     Util::MutexLock( &fd_mux, function );
-
 }
 
 void
@@ -264,8 +264,8 @@ int Index::flush() {
     // valgrind complains about writing uninitialized bytes here....
     // but it's fine as far as I can tell.
     void *start = &(hostIndex.front());
-    int ret     = Util::Writen( fd, start, len );
-    if ( ret != (size_t)len ) {
+    size_t ret     = Util::Writen( fd, start, len );
+    if ( ret != len ) {
         plfs_debug("%s failed write to fd %d: %s\n", 
                 __FUNCTION__, fd, strerror(errno));
     }
@@ -295,8 +295,8 @@ void *Index::mapIndex( string hostindex, int *fd, off_t *length ) {
 }
 
 
+// this builds a global in-memory index from a physical host index dropping
 // return 0 for sucess, -errno for failure
-// this builds a global index from a local index
 int Index::readIndex( string hostindex ) {
     off_t length = (off_t)-1;
     int   fd = -1;
@@ -397,6 +397,7 @@ int Index::readIndex( string hostindex ) {
     return cleanupReadIndex(fd, maddr, length, 0, "DONE",hostindex.c_str());
 }
 
+// constructs a global index from a "stream" (i.e. a chunk of memory)
 // returns 0 or -errno
 int Index::global_from_stream(void *addr) {
 
@@ -438,37 +439,81 @@ int Index::global_from_stream(void *addr) {
     return 0;
 }
 
+// this writes a flattened in-memory global index to a physical file
 // returns 0 or -errno
 int Index::global_to_file(int fd){
-
-    // first write the number of container entries
-    size_t quant = global_index.size();
-    int ret = Util::Writen(fd,(void*)(&quant),sizeof(size_t));
-    plfs_debug("Wrote header for global index of %s\n",
-            logical_path.c_str(),ret); 
-    if ( ret != sizeof(size_t) ) return -errno;
-
-    // then write the container entries themselves
-    map<off_t,ContainerEntry>::iterator itr;
-    size_t  len = sizeof(ContainerEntry);
-    for( itr = global_index.begin(); itr != global_index.end(); itr++ ) {
-        void *start = &(itr->second);
-        ret = Util::Writen(fd, start, len);
-        if ( ret != len ) return -errno;
+    void *buffer; 
+    size_t length;
+    int ret = global_to_stream(&buffer,&length);
+    if (ret==0) {
+        size_t sz = Util::Writen(fd,buffer,length);
+        ret = ( sz == length ? 0 : -errno );
+        free(buffer); 
     }
-    plfs_debug("Wrote entries for global index of %s: %d\n",
-            logical_path.c_str(),ret); 
+    return ret;
+}
 
-    // then dump the chunk map which maps id's to data chunk paths
+// a helper routine for global_to_stream: copies to a pointer and advances it
+char *Index::memcpy_helper(char *dst, void *src, size_t len) {
+    char *ret = (char*)memcpy((void*)dst,src,len);
+    ret += len;
+    return ret;
+}
+
+// this writes a flattened in-memory global index to a memory address
+// it allocates the memory.  The caller must free it.
+// returns 0 or -errno
+int Index::global_to_stream(void **buffer,size_t *length) {
+    int ret = 0;
+    size_t quant = global_index.size();
+
+    // first build the vector of chunk paths, trim them to relative
+    // to the container so they're smaller and still valid after rename
+    // this gets written last but compute it first to compute length
     ostringstream chunks;
-    for(int i = 0; i < chunk_map.size(); i++ ) {
-        chunks << chunk_map[i].path << endl;
+    for(size_t i = 0; i < chunk_map.size(); i++ ) {
+        chunks << chunk_map[i].path.substr(logical_path.length()) << endl;
     }
     chunks << '\0'; // null term the file
-    ret = Util::Writen(fd,(void*)(chunks.str().c_str()),chunks.str().length());
-    plfs_debug("Wrote the chunk map for global index of %s: %d\n",
-            logical_path.c_str(),ret); 
-    return (ret == chunks.str().length() ? 0 : -errno); 
+    size_t chunks_length = chunks.str().length();
+
+    // compute the length 
+    *length = sizeof(quant);    // the header
+    *length += quant*sizeof(ContainerEntry); 
+    *length += chunks_length; 
+
+    // allocate the buffer
+    *buffer = malloc(*length);
+    // Let's check this malloc and make sure it succeeds
+    if(!buffer){
+        plfs_debug("%s, Malloc of stream buffer failed\n",__FUNCTION__);
+        return -1;
+    }
+    char *ptr = (char*)*buffer;
+    if ( ! *buffer ) return -ENOMEM;
+
+    // copy in the header
+    ptr = memcpy_helper(ptr,&quant,sizeof(quant));
+    plfs_debug("%s: Copied header for global index of %s\n",
+            __FUNCTION__, logical_path.c_str()); 
+
+    // copy in each container entry
+    size_t  centry_length = sizeof(ContainerEntry);
+    map<off_t,ContainerEntry>::iterator itr;
+    for( itr = global_index.begin(); itr != global_index.end(); itr++ ) {
+        void *start = &(itr->second);
+        ptr = memcpy_helper(ptr,start,centry_length);
+    }
+    plfs_debug("%s: Copied %ld entries for global index of %s\n",
+            __FUNCTION__, (long)quant,logical_path.c_str()); 
+
+    // copy the chunk paths
+    ptr = memcpy_helper(ptr,(void*)chunks.str().c_str(),chunks_length);
+    plfs_debug("%s: Copied the chunk map for global index of %s\n",
+            __FUNCTION__, logical_path.c_str()); 
+    assert(ptr==(char*)*buffer+*length);
+
+    return ret;
 }
 
 size_t Index::splitEntry( ContainerEntry *entry, 
@@ -950,48 +995,18 @@ void Index::truncateHostIndex( off_t offset ) {
 
 // ok, someone is truncating a file, so we reread a local index,
 // created a partial global index, and truncated that global
-// index, so now we need to dump the modified global index into
+// index, so now we just need to dump the modified global index into
 // a new local index
 int Index::rewriteIndex( int fd ) {
     this->fd = fd;
     map<off_t,ContainerEntry>::iterator itr;
     map<double,ContainerEntry> global_index_timesort;
     map<double,ContainerEntry>::iterator itrd;
-    
-    // so this is confusing.  before we dump the global_index back into
-    // a physical index entry, we have to resort it by timestamp instead
-    // of leaving it sorted by offset.
-    // this is because we have a small optimization in that we don't 
-    // actually write the physical offsets in the physical index entries.
-    // we don't need to since the writes are log-structured so the order
-    // of the index entries matches the order of the writes to the data
-    // chunk.  Therefore when we read in the index entries, we know that
-    // the first one to a physical data dropping is to the 0 offset at the
-    // physical data dropping and the next one is follows that, etc.
-    //
-    // update, we know include physical offsets in the index entries so
-    // we don't have to order them by timestamps anymore.  However, I'm
-    // reluctant to change this code so near a release date and it doesn't
-    // hurt them to be sorted so just leave this for now even though it
-    // is technically unnecessary
-    for( itr = global_index.begin(); itr != global_index.end(); itr++ ) {
-        global_index_timesort.insert(
-                make_pair(itr->second.begin_timestamp,itr->second));
-    }
 
-    for( itrd = global_index_timesort.begin(); itrd != 
-            global_index_timesort.end(); itrd++ ) 
-    {
-        double begin_timestamp = 0, end_timestamp = 0;
-        begin_timestamp = itrd->second.begin_timestamp;
-        end_timestamp   = itrd->second.end_timestamp;
-        addWrite( itrd->second.logical_offset,itrd->second.length, 
-                itrd->second.original_chunk, begin_timestamp, end_timestamp );
-        /*
-        ostringstream os;
-        os << __FUNCTION__ << " added : " << itr->second << endl; 
-        plfs_debug("%s", os.str().c_str() );
-        */
+    for( itr = global_index.begin(); itr != global_index.end(); itr++ ) {
+        addWrite( itr->second.logical_offset,itr->second.length, 
+                itr->second.original_chunk, itr->second.begin_timestamp, 
+                itr->second.end_timestamp );
     }
     return flush(); 
 }

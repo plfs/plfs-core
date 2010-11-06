@@ -19,7 +19,7 @@ struct ADIOI_Fns_struct ADIO_PLFS_operations = {
     ADIOI_GEN_WriteStridedColl, /* WriteStridedColl */
     ADIOI_GEN_SeekIndividual, /* SeekIndividual */
     ADIOI_PLFS_Fcntl, /* Fcntl */
-    ADIOI_GEN_SetInfo, /* SetInfo */
+    ADIOI_PLFS_SetInfo, /* SetInfo */
     ADIOI_GEN_ReadStrided, /* ReadStrided */
     ADIOI_GEN_WriteStrided, /* WriteStrided */
     ADIOI_PLFS_Close, /* Close */
@@ -35,16 +35,3 @@ struct ADIOI_Fns_struct ADIO_PLFS_operations = {
     ADIOI_PLFS_Resize, /* Resize */
     ADIOI_PLFS_Delete, /* Delete */
 };
-
-int ad_plfs_amode( int access_mode ) {
-    int amode = 0; // O_META;
-    if (access_mode & ADIO_RDONLY)
-        amode = amode | O_RDONLY;
-    if (access_mode & ADIO_WRONLY)
-        amode = amode | O_WRONLY;
-    if (access_mode & ADIO_RDWR)
-        amode = amode | O_RDWR;
-    if (access_mode & ADIO_EXCL)
-        amode = amode | O_EXCL;
-    return amode;
-}

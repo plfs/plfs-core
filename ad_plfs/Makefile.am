@@ -48,6 +48,7 @@ ad_plfs_open.c \
 ad_plfs_read.c \
 ad_plfs_resize.c \
 ad_plfs_write.c \
+ad_plfs_hints.c \
 ad_plfs.c
 
 headers = \

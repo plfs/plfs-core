@@ -14,7 +14,7 @@ void ADIOI_PLFS_Fcntl(ADIO_File fd, int flag, ADIO_Fcntl_t *fcntl_struct,
     struct stat buf;
     int ret;
 
-    plfs_debug("%s: begin\n", myname );
+    plfs_debug( stderr, "%s: begin\n" );
 
     switch(flag) {
     case ADIO_FCNTL_GET_FSIZE:

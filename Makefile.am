@@ -62,7 +62,6 @@ SUBDIRS = \
 config \
 src \
 fuse \
-ad_plfs \
 scripts \
 tools \
 tests

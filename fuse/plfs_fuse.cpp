@@ -724,7 +724,7 @@ int Plfs::f_open(const char *path, struct fuse_file_info *fi) {
     // every proc that opens a file creates a unique OpenFile but they share
     // a Plfs_fd
     ret = plfs_open( &pfd, strPath.c_str(), fi->flags, 
-            fuse_get_context()->pid, mode );
+            fuse_get_context()->pid, mode,NULL );
 
     if ( ret == 0 ) {
         struct OpenFile *of = new OpenFile;

@@ -194,15 +194,11 @@ plfs_dump_index( FILE *fp, const char *logical, int compress ) {
     PLFS_EXIT(ret);
 }
 
-// should be called with a logical path and already_expanded false
-// or called with a physical path and already_expanded true
-// returns 0 or -errno
 int
-plfs_flatten_index(Plfs_fd *pfd, const char *logical,int already_expanded) {
+plfs_flatten_index(Plfs_fd *pfd, const char *logical) {
     PLFS_ENTER;
     Index *index;
     bool newly_created = false;
-    if ( already_expanded ) path = logical; // we were passed physical
     ret = 0;
     if ( pfd && pfd->getIndex() ) {
         index = pfd->getIndex();
@@ -212,9 +208,7 @@ plfs_flatten_index(Plfs_fd *pfd, const char *logical,int already_expanded) {
         // before we populate, need to blow away any old one
         ret = Container::populateIndex(path,index,false);
     }
-    if (already_expanded || is_plfs_file(logical,NULL)) {
-        // if it's already expanded, the caller has already verified that
-        // it's a plfs file
+    if (is_plfs_file(logical,NULL)) {
         ret = Container::flattenIndex(path,index);
     } else {
         ret = -EBADF; // not sure here.  Maybe return SUCCESS?
@@ -944,13 +938,25 @@ get_plfs_conf() {
     return pconf;
 }
 
+// Can't directly access the FD struct in ADIO 
+int plfs_index_stream(Plfs_fd **pfd, char ** buffer){
+    size_t length;
+    if ( (*pfd)->getIndex() == NULL ) return -1;
+    int ret = (*pfd)->getIndex()->global_to_stream((void **)buffer,&length);
+    if(ret!=0) return -1;
+    plfs_debug("In plfs_index_stream global to stream has size %d", length);
+    return length;
+}
+
 // pass in a NULL Plfs_fd to have one created for you
 // pass in a valid one to add more writers to it
 // one problem is that we fail if we're asked to overwrite a normal file
 // in RDWR mode, we increment reference count twice.  make sure to decrement
 // twice on the close
 int
-plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode) {
+plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode, 
+        char * index_stream) 
+{
     PLFS_ENTER;
     WriteFile *wf      = NULL;
     Index     *index   = NULL;
@@ -1095,7 +1101,8 @@ int
 plfs_link(const char *logical, const char *to) {
     PLFS_ENTER;
     plfs_debug( "Can't make a hard link to a container.\n" );
-    PLFS_EXIT(-ENOSYS);
+    ret = -ENOSYS;
+    PLFS_EXIT(ret);
     /*
     string toPath = expandPath(to);
     ret = retValue(Util::Link(logical,toPath.c_str()));
@@ -1300,7 +1307,8 @@ plfs_getattr( Plfs_fd *of, const char *logical, struct stat *stbuf ) {
     }
     plfs_debug("%s on logical %s (%s)\n", __FUNCTION__, logical, path.c_str());
     mode_t mode = 0;
-    if ( ! is_plfs_file( logical, &mode ) ) {
+    if ( ! backwards && ! is_plfs_file( logical, &mode ) ) {
+        // if it's backwards, it means we were already passed the physical path
        /* if ( errno == EACCES ) {
             ret = -errno;
         } else {

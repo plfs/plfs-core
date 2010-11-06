@@ -15,38 +15,36 @@ void ADIOI_PLFS_WriteContig(ADIO_File fd, void *buf, int count,
 			    int *error_code)
 {
     int err=-1, datatype_size, len, rank;
+    ADIO_Offset myoff;
     static char myname[] = "ADIOI_PLFS_WRITECONTIG";
 
     MPI_Type_size(datatype, &datatype_size);
     len = datatype_size * count;
     MPI_Comm_rank( fd->comm, &rank );
 
-    if (file_ptr_type == ADIO_INDIVIDUAL) {
-        offset = fd->fp_ind;
+    // for the romio/test/large_file we always get an offset of 0
+    // maybe we need to increment fd->fp_ind ourselves?
+    if (file_ptr_type == ADIO_EXPLICIT_OFFSET) {
+        myoff = offset;
+    } else {
+        myoff = fd->fp_ind;
     }
-    plfs_debug("%s: offset %ld len %ld rank %d (%d==%d)\n", 
-            myname, (long)offset, (long)len, rank, file_ptr_type,
-            ADIO_INDIVIDUAL );
-    err = plfs_write( fd->fs_ptr, buf, len, offset, rank );
+    plfs_debug( stderr, "%s: offset %ld len %ld rank %d\n", 
+            myname, (long)myoff, (long)len, rank );
+    err = plfs_write( fd->fs_ptr, buf, len, myoff, rank );
 
-    // ERROR
+#ifdef HAVE_STATUS_SET_BYTES
+    if (err >= 0 ) MPIR_Status_set_bytes(status, datatype, err);
+#endif
+
     if (err < 0 ) {
         *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
 					   myname, __LINE__, MPI_ERR_IO,
 					   "**io",
 					   "**io %s", strerror(-err));
-        return;
-    }
-
-    // SUCCESS
-    #ifdef HAVE_STATUS_SET_BYTES
-        MPIR_Status_set_bytes(status, datatype, err);
-    #endif
-    fd->fp_sys_posn = offset + err;
-
-    if (file_ptr_type == ADIO_INDIVIDUAL) {
+    } else {
         fd->fp_ind += err;
+        *error_code = MPI_SUCCESS;
     }
-    *error_code = MPI_SUCCESS;
 }
 

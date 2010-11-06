@@ -12,7 +12,7 @@ void ADIOI_PLFS_Flush(ADIO_File fd, int *error_code)
 {
     int err, rank;
     static char myname[] = "ADIOI_PLFS_FLUSH";
-    plfs_debug("%s: begin\n", myname );
+    plfs_debug( stderr, "%s: begin\n", myname );
 
     MPI_Comm_rank(fd->comm, &rank);
 

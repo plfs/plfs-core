@@ -17,7 +17,7 @@
 # $HEADER$
 #
 
-include $(top_srcdir)/Makefile.options
+#include $(top_srcdir)/Makefile.options
 
 noinst_LTLIBRARIES = libadio_plfs.la
 libadio_plfs_la_SOURCES = \
@@ -27,6 +27,7 @@ libadio_plfs_la_SOURCES = \
 	ad_plfs_delete.c \
 	ad_plfs_fcntl.c \
 	ad_plfs_flush.c \
+	ad_plfs_hints.c \
 	ad_plfs_open.c \
 	ad_plfs_read.c \
 	ad_plfs_resize.c \

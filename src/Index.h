@@ -121,9 +121,10 @@ class Index : public Metadata {
         void truncateHostIndex( off_t offset );
 
         void compress();
+        int debug_from_stream(void *addr);
         int global_to_file(int fd);
         int global_from_stream(void *addr); 
-
+        int global_to_stream(void **buffer,size_t *length);
 		friend ostream& operator <<(ostream &,const Index &);
 
     private:
@@ -139,6 +140,8 @@ class Index : public Metadata {
         size_t splitEntry(ContainerEntry*,set<off_t> &,
                 multimap<off_t,ContainerEntry> &);
         void findSplits(ContainerEntry&,set<off_t> &);
+
+        char *memcpy_helper(char *dst, void *src, size_t len);
 
             // where we buffer the host index (i.e. write)
         vector< HostEntry > hostIndex;

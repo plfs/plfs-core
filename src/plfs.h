@@ -73,7 +73,7 @@ void plfs_debug( const char *format, ... );
 
 int plfs_dump_index( FILE *fp, const char *path, int compress );
 
-int plfs_flatten_index( Plfs_fd *, const char *path, int already_expanded );
+int plfs_flatten_index( Plfs_fd *, const char *path );
 
 /* Plfs_fd can be NULL */
 int plfs_getattr( Plfs_fd *, const char *path, struct stat *stbuf );
@@ -91,7 +91,7 @@ int plfs_mkdir( const char *path, mode_t );
 /* plfs_open
 */
 int plfs_open( Plfs_fd **, const char *path, 
-        int flags, pid_t pid, mode_t );
+        int flags, pid_t pid, mode_t , char *index_stream);
 
 /* query a plfs_fd about how many writers and readers are using it */
 int plfs_query( Plfs_fd *, size_t *writers, size_t *readers );

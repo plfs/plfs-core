@@ -12,7 +12,7 @@ diff -Naur mpich2-1.2.1p1.ORIG/src/mpi/romio/adio/common/ad_fstype.c mpich2-1.2.
 +    else if (!strncmp(filename, "plfs:", 5) || !strncmp(filename, "PLFS:", 5)) {
 +	*fstype = ADIO_PLFS;
 +    }
-+    if (!strncmp(filename, "hfs:", 4) || !strncmp(filename, "HFS:", 4)) {
++    else if (!strncmp(filename, "hfs:", 4) || !strncmp(filename, "HFS:", 4)) {
  	*fstype = ADIO_HFS;
      }
      else if (!strncmp(filename, "xfs:", 4) || !strncmp(filename, "XFS:", 4)) {

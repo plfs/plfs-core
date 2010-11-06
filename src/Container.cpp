@@ -419,6 +419,7 @@ int Container::flattenIndex( const string &path, Index *index ) {
 
     if ( ret == 0 ) { // dump was successful so do the atomic rename
         ret = Util::Rename(unique_temporary.c_str(),globalIndex.c_str());
+        if ( ret != 0 ) ret = -errno;
     }
     return ( ret == 0 ? 0 : -errno );
 }
