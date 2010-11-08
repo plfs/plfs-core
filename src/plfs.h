@@ -78,6 +78,9 @@ int plfs_flatten_index( Plfs_fd *, const char *path );
 /* Plfs_fd can be NULL */
 int plfs_getattr( Plfs_fd *, const char *path, struct stat *stbuf );
 
+/* An optimized routine to fetch the index (used by ADIO) */
+int plfs_index_stream(Plfs_fd **pfd, char ** buffer);
+
 int plfs_link( const char *path, const char *to );
 
 /* 

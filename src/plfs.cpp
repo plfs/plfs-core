@@ -1293,32 +1293,14 @@ removeDirectoryTree( const char *path, bool truncate_only ) {
 // returns 0 or -errno
 int 
 plfs_getattr( Plfs_fd *of, const char *logical, struct stat *stbuf ) {
-    // ok, this is hard
-    // we have a logical path maybe passed in or a physical path
-    // already stashed in the of
-    bool backwards = false;
-    if ( logical == NULL ) {
-        logical = of->getPath();    // this is the physical path
-        backwards = true;
-    }
     PLFS_ENTER; // this assumes it's operating on a logical path
-    if ( backwards ) {
-        path = of->getPath();   // restore the stashed physical path
-    }
-    plfs_debug("%s on logical %s (%s)\n", __FUNCTION__, logical, path.c_str());
     mode_t mode = 0;
-    if ( ! backwards && ! is_plfs_file( logical, &mode ) ) {
-        // if it's backwards, it means we were already passed the physical path
-       /* if ( errno == EACCES ) {
-            ret = -errno;
-        } else {
-            ret = retValue( Util::Lstat( path.c_str(), stbuf ) );
-        }*/
-        // this is how a symlink is stat'd since it doesn't look like
-        // a plfs file
+    if ( ! is_plfs_file( logical, &mode ) ) {
         if ( mode == 0 ) {
             ret = -ENOENT;
         } else {
+            // this is how a symlink is stat'd since it doesn't look like
+            // a plfs file
             plfs_debug("%s on non plfs file %s\n", __FUNCTION__, path.c_str());
             ret = retValue( Util::Lstat( path.c_str(), stbuf ) );        
         }
@@ -1353,10 +1335,6 @@ plfs_getattr( Plfs_fd *of, const char *logical, struct stat *stbuf ) {
             logical,of?of->getPath():"NULL",path.c_str(),
             strerror(errno));
     }
-    //cerr << __FUNCTION__ << " of " << path << "(" 
-    //     << (of == NULL ? "closed" : "open") 
-    //     << ") size is " << stbuf->st_size << endl;
-
     PLFS_EXIT(ret);
 }
 

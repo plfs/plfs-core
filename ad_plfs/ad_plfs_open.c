@@ -197,7 +197,7 @@ int broadcast_index(Plfs_fd **pfd, ADIO_File fd,
     int msg_len;
 
     if(rank==0){ 
-        err = plfs_open(pfd, fd->filename, amode, rank, perm , NULL);
+        err = plfs_open(pfd, fd->filename, amode, rank, perm, NULL);
     }
     MPIBCAST(&err,1,MPI_INT,0,MPI_COMM_WORLD);   // was 0's open successful?
     if(err !=0 ) return err;
