@@ -1,0 +1,815 @@
+diff -Naur openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs.c openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs.c
+--- openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs.c	1969-12-31 17:00:00.000000000 -0700
++++ openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs.c	2010-11-08 13:25:22.617221709 -0700
+@@ -0,0 +1,37 @@
++/* -*- Mode: C; c-basic-offset:4 ; -*- */
++/* 
++ *   $Id: ad_plfs.c,v 1.6 2005/05/23 23:27:44 rross Exp $
++ *
++ *   Copyright (C) 2001 University of Chicago. 
++ *   See COPYRIGHT notice in top-level directory.
++ */
++
++#include "ad_plfs.h"
++
++/* adioi.h has the ADIOI_Fns_struct define */
++#include "adioi.h"
++
++struct ADIOI_Fns_struct ADIO_PLFS_operations = {
++    ADIOI_PLFS_Open, /* Open */
++    ADIOI_PLFS_ReadContig, /* ReadContig */
++    ADIOI_PLFS_WriteContig, /* WriteContig */
++    ADIOI_GEN_ReadStridedColl, /* ReadStridedColl */
++    ADIOI_GEN_WriteStridedColl, /* WriteStridedColl */
++    ADIOI_GEN_SeekIndividual, /* SeekIndividual */
++    ADIOI_PLFS_Fcntl, /* Fcntl */
++    ADIOI_PLFS_SetInfo, /* SetInfo */
++    ADIOI_GEN_ReadStrided, /* ReadStrided */
++    ADIOI_GEN_WriteStrided, /* WriteStrided */
++    ADIOI_PLFS_Close, /* Close */
++    ADIOI_FAKE_IreadContig, /* IreadContig */
++    ADIOI_FAKE_IwriteContig, /* IwriteContig */
++    ADIOI_FAKE_IODone, /* ReadDone */
++    ADIOI_FAKE_IODone, /* WriteDone */
++    ADIOI_FAKE_IOComplete, /* ReadComplete */
++    ADIOI_FAKE_IOComplete, /* WriteComplete */
++    ADIOI_FAKE_IreadStrided, /* IreadStrided */
++    ADIOI_FAKE_IwriteStrided, /* IwriteStrided */
++    ADIOI_PLFS_Flush, /* Flush */
++    ADIOI_PLFS_Resize, /* Resize */
++    ADIOI_PLFS_Delete, /* Delete */
++};
+diff -Naur openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_close.c openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_close.c
+--- openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_close.c	1969-12-31 17:00:00.000000000 -0700
++++ openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_close.c	2010-11-08 13:25:22.627223185 -0700
+@@ -0,0 +1,48 @@
++/* -*- Mode: C; c-basic-offset:4 ; -*- */
++/* 
++ *   $Id: ad_plfs_close.c,v 1.9 2004/10/04 15:51:01 robl Exp $    
++ *
++ *   Copyright (C) 1997 University of Chicago. 
++ *   See COPYRIGHT notice in top-level directory.
++ */
++
++#include "ad_plfs.h"
++
++void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
++{
++    int err, rank, amode;
++    static char myname[] = "ADIOI_PLFS_CLOSE";
++    plfs_debug( stderr, "%s: begin\n", myname );
++
++    MPI_Comm_rank( fd->comm, &rank );
++    amode = 0;//O_META;
++    if (fd->access_mode & ADIO_RDONLY)
++        amode = amode | O_RDONLY;
++    if (fd->access_mode & ADIO_WRONLY)
++        amode = amode | O_WRONLY;
++    if (fd->access_mode & ADIO_RDWR)
++        amode = amode | O_RDWR;
++    if (fd->access_mode & ADIO_EXCL)
++        amode = amode | O_EXCL;
++
++    if(fd->fs_ptr==NULL) {
++        // ADIO does a weird thing where it 
++        // passes CREAT to just 0 and then
++        // immediately closes.  When we handle
++        // the CREAT, we put a NULL in
++        *error_code = MPI_SUCCESS;
++        return;
++    }
++
++    err = plfs_close(fd->fs_ptr, rank, amode);
++    fd->fs_ptr = NULL;
++
++    if (err < 0 ) {
++	*error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
++					   myname, __LINE__, MPI_ERR_IO,
++					   "**io",
++					   "**io %s", strerror(-err));
++    } else {
++         *error_code = MPI_SUCCESS;
++    }
++}
+diff -Naur openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_delete.c openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_delete.c
+--- openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_delete.c	1969-12-31 17:00:00.000000000 -0700
++++ openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_delete.c	2010-11-08 13:25:22.627223186 -0700
+@@ -0,0 +1,26 @@
++/* -*- Mode: C; c-basic-offset:4 ; -*- */
++/* 
++ *   $Id: ad_plfs_delete.c,v 1.7 2004/10/04 15:51:01 robl Exp $    
++ *
++ *   Copyright (C) 1997 University of Chicago. 
++ *   See COPYRIGHT notice in top-level directory.
++ */
++
++#include "ad_plfs.h"
++#include "adio.h"
++
++void ADIOI_PLFS_Delete(char *filename, int *error_code)
++{
++    int err;
++    static char myname[] = "ADIOI_PLFS_DELETE";
++    plfs_debug( stderr, "%s: begin\n", myname );
++
++    err = plfs_unlink(filename);
++    if (err < 0) {
++	*error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
++					   myname, __LINE__, MPI_ERR_IO,
++					   "**io",
++					   "**io %s", strerror(-err));
++    }
++    else *error_code = MPI_SUCCESS;
++}
+diff -Naur openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_fcntl.c openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_fcntl.c
+--- openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_fcntl.c	1969-12-31 17:00:00.000000000 -0700
++++ openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_fcntl.c	2010-11-08 13:25:22.627223186 -0700
+@@ -0,0 +1,48 @@
++/* -*- Mode: C; c-basic-offset:4 ; -*- */
++/* 
++ *
++ *   Copyright (C) 1997 University of Chicago. 
++ *   See COPYRIGHT notice in top-level directory.
++ */
++
++#include "ad_plfs.h"
++
++void ADIOI_PLFS_Fcntl(ADIO_File fd, int flag, ADIO_Fcntl_t *fcntl_struct,
++		      int *error_code)
++{
++    static char myname[] = "ADIOI_PVFS_FCNTL";
++    struct stat buf;
++    int ret;
++
++    plfs_debug( stderr, "%s: begin\n" );
++
++    switch(flag) {
++    case ADIO_FCNTL_GET_FSIZE:
++        ret = plfs_getattr( fd->fs_ptr, fd->filename, &buf );
++        if ( ret == 0 ) {
++            fcntl_struct->fsize = buf.st_size;
++            *error_code = MPI_SUCCESS;
++        } else {
++	    *error_code = MPIO_Err_create_code(MPI_SUCCESS,
++					       MPIR_ERR_RECOVERABLE, myname,
++					       __LINE__, MPI_ERR_IO, "**io",
++					       "**io %s", strerror(errno));
++        }
++	//if (fd->fp_sys_posn != -1) {
++	//     pvfs_lseek64(fd->fd_sys, fd->fp_sys_posn, SEEK_SET);
++        //}
++	break;
++
++    case ADIO_FCNTL_SET_DISKSPACE:
++    case ADIO_FCNTL_SET_ATOMICITY:
++    default:
++	/* --BEGIN ERROR HANDLING-- */
++	*error_code = MPIO_Err_create_code(MPI_SUCCESS,
++					   MPIR_ERR_RECOVERABLE,
++					   myname, __LINE__,
++					   MPI_ERR_ARG,
++					   "**flag", "**flag %d", flag);
++	return;  
++	/* --END ERROR HANDLING-- */
++    }
++}
+diff -Naur openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_flush.c openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_flush.c
+--- openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_flush.c	1969-12-31 17:00:00.000000000 -0700
++++ openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_flush.c	2010-11-08 13:25:22.637223393 -0700
+@@ -0,0 +1,31 @@
++/* -*- Mode: C; c-basic-offset:4 ; -*- */
++/* 
++ *   $Id: ad_plfs_flush.c,v 1.13 2004/10/04 15:51:08 robl Exp $    
++ *
++ *   Copyright (C) 1997 University of Chicago. 
++ *   See COPYRIGHT notice in top-level directory.
++ */
++
++#include "ad_plfs.h"
++
++void ADIOI_PLFS_Flush(ADIO_File fd, int *error_code)
++{
++    int err, rank;
++    static char myname[] = "ADIOI_PLFS_FLUSH";
++    plfs_debug( stderr, "%s: begin\n", myname );
++
++    MPI_Comm_rank(fd->comm, &rank);
++
++    // even though this is a collective routine, everyone must flush here
++    // because everyone has there own data file handle
++    err = plfs_sync(fd->fs_ptr,rank);
++
++    if (err < 0) {
++	*error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
++					   myname, __LINE__, MPI_ERR_IO,
++					   "**io",
++					   "**io %s", strerror(-err));
++    } else {
++         *error_code = MPI_SUCCESS;
++    }
++}
+diff -Naur openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs.h openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs.h
+--- openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs.h	1969-12-31 17:00:00.000000000 -0700
++++ openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs.h	2010-11-08 13:25:22.637223393 -0700
+@@ -0,0 +1,55 @@
++/* -*- Mode: C; c-basic-offset:4 ; -*- */
++/* 
++ *   $Id: ad_plfs.h,v 1.6 2004/10/04 15:51:01 robl Exp $    
++ *
++ *   Copyright (C) 1997 University of Chicago. 
++ *   See COPYRIGHT notice in top-level directory.
++ */
++
++#ifndef AD_PLFS_INCLUDE
++#define AD_PLFS_INCLUDE
++
++#ifndef ROMIOCONF_H_INCLUDED
++#include "romioconf.h"
++#define ROMIOCONF_H_INCLUDED
++#endif
++#ifdef ROMIO_PLFS_NEEDS_INT64_DEFINITION
++typedef long long int int64_t;
++#endif
++
++#include <unistd.h>
++#include <sys/types.h>
++#include <sys/uio.h>
++#include <fcntl.h>
++#include "plfs.h"
++#include "adio.h"
++
++void ADIOI_PLFS_Open(ADIO_File fd, int *error_code);
++void ADIOI_PLFS_Close(ADIO_File fd, int *error_code);
++void ADIOI_PLFS_ReadContig(ADIO_File fd, void *buf, int count, 
++                      MPI_Datatype datatype, int file_ptr_type,
++                     ADIO_Offset offset, ADIO_Status *status, int
++		     *error_code);
++void ADIOI_PLFS_WriteContig(ADIO_File fd, void *buf, int count, 
++                      MPI_Datatype datatype, int file_ptr_type,
++                      ADIO_Offset offset, ADIO_Status *status, int
++		      *error_code);   
++void ADIOI_PLFS_Fcntl(ADIO_File fd, int flag, ADIO_Fcntl_t *fcntl_struct, int
++		*error_code); 
++/*
++void ADIOI_PLFS_WriteStrided(ADIO_File fd, void *buf, int count,
++		       MPI_Datatype datatype, int file_ptr_type,
++		       ADIO_Offset offset, ADIO_Status *status, int
++		       *error_code);
++void ADIOI_PLFS_ReadStrided(ADIO_File fd, void *buf, int count,
++		       MPI_Datatype datatype, int file_ptr_type,
++		       ADIO_Offset offset, ADIO_Status *status, int
++		       *error_code);
++void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code);
++*/
++void ADIOI_PLFS_Flush(ADIO_File fd, int *error_code);
++void ADIOI_PLFS_Delete(char *filename, int *error_code);
++void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code);
++void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code);
++
++#endif
+diff -Naur openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_hints.c openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_hints.c
+--- openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_hints.c	1969-12-31 17:00:00.000000000 -0700
++++ openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_hints.c	2010-11-08 13:25:22.637223393 -0700
+@@ -0,0 +1,49 @@
++#include "ad_plfs.h"
++
++#define POORMANS_GDB \
++    printf("%d in %s:%d\n", rank, __FUNCTION__,__LINE__);
++
++void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code) {
++    static char myname[] = "ADIOI_PLFS_SETINFO";
++    char* value;
++    int flag, tmp_val = -1;
++    int disable_broadcast = 1;
++    int gen_error_code,rank;
++
++    MPI_Comm_rank( fd->comm, &rank );
++    *error_code = MPI_SUCCESS;
++    
++    if ((fd->info) == MPI_INFO_NULL) {
++	    /* This must be part of the open call. can set striping parameters 
++         * if necessary. 
++         */ 
++	    MPI_Info_create(&(fd->info));
++
++        /* plfs_disable_broadcast */ 
++        if (users_info != MPI_INFO_NULL) {
++	        value = (char *) ADIOI_Malloc((MPI_MAX_INFO_VAL+1)*sizeof(char));
++            MPI_Info_get(users_info, "plfs_disable_broadcast", MPI_MAX_INFO_VAL,
++                 value, &flag);
++            if (flag) {
++                disable_broadcast = atoi(value);
++                tmp_val = disable_broadcast;
++                MPI_Bcast(&tmp_val, 1, MPI_INT, 0, fd->comm);
++                if (tmp_val != disable_broadcast) {
++                    FPRINTF(stderr, "ADIOI_PLFS_SetInfo: "
++                            "the value for key \"plfs_disable_broadcast\" "
++                            "must be the same on all processes\n");
++                    MPI_Abort(MPI_COMM_WORLD, 1);
++                }
++	            MPI_Info_set(fd->info, "plfs_disable_broadcast", value); 
++            }
++	        ADIOI_Free(value);
++        }
++    }
++
++    ADIOI_GEN_SetInfo(fd, users_info, &gen_error_code); 
++    /* If this function is successful, use the error code 
++     * returned from ADIOI_GEN_SetInfo
++     * otherwise use the error_code generated by this function
++     */
++    if(*error_code == MPI_SUCCESS) *error_code = gen_error_code;
++}
+diff -Naur openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_open.c openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_open.c
+--- openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_open.c	1969-12-31 17:00:00.000000000 -0700
++++ openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_open.c	2010-11-08 13:25:22.647223553 -0700
+@@ -0,0 +1,224 @@
++/* -*- Mode: C; c-basic-offset:4 ; -*- */
++/* 
++ *   $Id: ad_plfs_open.c,v 1.18 2005/05/23 23:27:44 rross Exp $    
++ *
++ *   Copyright (C) 1997 University of Chicago. 
++ *   See COPYRIGHT notice in top-level directory.
++ */
++
++#include "ad_plfs.h"
++
++#define VERBOSE_DEBUG 0
++
++// a bunch of helper macros we added when we had a really hard time debugging
++// this file.  We were confused by ADIO calling rank 0 initially on the create
++// and then again on the open (and a bunch of other stuff)
++#if VERBOSE_DEBUG == 1
++    #define POORMANS_GDB \
++        fprintf(stderr,"%d in %s:%d\n", rank, __FUNCTION__,__LINE__);
++
++    #define TEST_BCAST(X) \
++    {\
++        int test = -X;\
++        if(rank==0) test = X; \
++        MPIBCAST( &test, 1, MPI_INT, 0, MPI_COMM_WORLD );\
++        fprintf(stderr,"rank %d got test %d\n",rank,test);\
++        if(test!=X){ \
++            MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);\
++        }\
++    }
++#else
++    #define POORMANS_GDB {}
++    #define TEST_BCAST(X) {}
++#endif
++
++#define MPIBCAST(A,B,C,D,E) \
++    POORMANS_GDB \
++    { \
++        int ret = MPI_Bcast(A,B,C,D,E); \
++        if(ret!=MPI_SUCCESS) { \
++            int resultlen; \
++            char err_buffer[MPI_MAX_ERROR_STRING]; \
++            MPI_Error_string(ret,err_buffer,&resultlen); \
++            printf("Error:%s | Rank:%d\n",err_buffer,rank); \
++            MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO); \
++        } \
++    } \
++    POORMANS_GDB
++    
++
++// I removed this from POORMANS_GDB
++// MPI_Barrier(MPI_COMM_WORLD);
++    
++
++int open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm, 
++        int amode,int rank);
++int check_index_broadcast(ADIO_File fd,int rank);
++int broadcast_index(Plfs_fd **pfd, ADIO_File fd, 
++        int *error_code,int perm,int amode,int rank);
++int getPerm(ADIO_File);
++int getAmode(ADIO_File);
++
++int getPerm(ADIO_File fd) {
++    int perm = fd->perm;
++    if (fd->perm == ADIO_PERM_NULL) {
++        int old_mask = umask(022);
++        umask(old_mask);
++        perm = old_mask ^ 0666;
++    }
++    return perm;
++}
++
++int getAmode(ADIO_File fd) {
++    int amode = 0;//O_META;
++    if (fd->access_mode & ADIO_RDONLY) amode = amode | O_RDONLY;
++    if (fd->access_mode & ADIO_WRONLY) amode = amode | O_WRONLY;
++    if (fd->access_mode & ADIO_RDWR)   amode = amode | O_RDWR;
++    if (fd->access_mode & ADIO_EXCL)   amode = amode | O_EXCL;
++    return amode;
++}
++
++void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
++{
++    Plfs_fd *pfd =NULL;
++    // I think perm is the mode and amode is the flags
++    int err = 0,perm, amode, old_mask,rank;
++ 
++    MPI_Comm_rank( MPI_COMM_WORLD, &rank );
++    static char myname[] = "ADIOI_PLFS_OPEN";
++
++    perm = getPerm(fd);
++    amode = getAmode(fd);
++
++    // ADIO makes 2 calls into here:
++    // first, just 0 with CREATE
++    // then everyone without
++    if (fd->access_mode & ADIO_CREATE) {
++        err = plfs_create(fd->filename, perm, amode, rank);
++        if ( err != 0 ) {
++            *error_code =MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
++					   myname, __LINE__, MPI_ERR_IO,
++					   "**io",
++					   "**io %s", strerror(-err));
++        } else {
++            *error_code = MPI_SUCCESS;
++        }
++        fd->fs_ptr = NULL; // set null because ADIO is about to close it
++        return;
++    }
++    
++    // if we make it here, we're doing RDONLY, WRONLY, or RDWR
++    err=open_helper(fd,&pfd,error_code,perm,amode,rank);
++    MPIBCAST( &err, 1, MPI_INT, 0, MPI_COMM_WORLD );
++    if ( err != 0 ) {
++        *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
++					   myname, __LINE__, MPI_ERR_IO,
++					   "**io",
++					   "**io %s", strerror(-err));
++        plfs_debug( "%s: failure\n", myname );
++        return;
++    } else {
++        plfs_debug( "%s: Success on open (%d)!\n", myname, rank );
++        *error_code = MPI_SUCCESS;
++    }
++    return;
++}
++
++int check_index_broadcast(ADIO_File fd, int rank) {
++    int broadcast = 1,flag,resultlen;
++    char *value;
++    char err_buffer[MPI_MAX_ERROR_STRING];
++
++    // get the value of broadcast
++    value = (char *) ADIOI_Malloc((MPI_MAX_INFO_VAL+1)*sizeof(char));
++    int mpi_ret=MPI_Info_get(fd->info,"plfs_disable_broadcast",
++            MPI_MAX_INFO_VAL,value,&flag);
++
++    // If there is an error on the info get the rank and the error message
++    if(mpi_ret!=MPI_SUCCESS){   
++        MPI_Error_string(mpi_ret,err_buffer,&resultlen);
++        MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
++        return -1;
++    }else{
++        if(flag) broadcast= (atoi(value) ? 0 : 1);
++    }
++    ADIOI_Free(value);
++    return broadcast;
++}
++
++// a helper that determines whether 0 distributes the index to everyone else
++// or whether everyone just calls plfs_open directly
++int open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
++        int amode,int rank)
++{
++    int err = 0, broadcast=0;
++    static char myname[] = "ADIOI_PLFS_OPENHELPER";
++    
++    if (fd->access_mode==ADIO_RDONLY) {
++        if ( rank == 0 ) {
++            broadcast = check_index_broadcast(fd,rank);
++        }
++        MPIBCAST( &broadcast, 1, MPI_INT, 0, MPI_COMM_WORLD );
++    } else {
++        broadcast = 0; // we don't create an index unless we're in read mode 
++    }
++
++    // If we are read only and have the hint let's flatten that index
++    if(broadcast){
++        err = broadcast_index(pfd,fd,error_code,perm,amode,rank);
++    } else {
++        // everyone opens themselves (write mode or read mode w/out broacast)
++        err = plfs_open( pfd, fd->filename, amode, rank, perm ,NULL);
++    }
++    
++    if ( err < 0 ) {
++        *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
++					   myname, __LINE__, MPI_ERR_IO,
++					   "**io",
++					   "**io %s", strerror(-err));
++        plfs_debug( "%s: failure\n", myname );
++        return -1;
++    } else {
++        plfs_debug( "%s: Success on open(%d)!\n", myname, rank );
++        fd->fs_ptr = *pfd;
++        fd->fd_direct = -1;
++        *error_code = MPI_SUCCESS;
++        return 0;
++    }
++}
++
++// 0 gets the index by calling plfs_open() first and then extracting the index
++// it then broadcasts that to the rest who then pass it to their own plfs_open()
++int broadcast_index(Plfs_fd **pfd, ADIO_File fd, 
++        int *error_code,int perm,int amode,int rank) 
++{
++    int err = 0;
++    char *index_stream;
++    int msg_len;
++
++    if(rank==0){ 
++        err = plfs_open(pfd, fd->filename, amode, rank, perm, NULL);
++    }
++    MPIBCAST(&err,1,MPI_INT,0,MPI_COMM_WORLD);   // was 0's open successful?
++    if(err !=0 ) return err;
++
++    // rank 0 turns the index into a stream, broadcasts its size, then it
++    if(rank==0){
++        msg_len = plfs_index_stream(pfd,&index_stream); 
++        if(msg_len<0) MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
++    }
++    MPIBCAST(&msg_len, 1, MPI_INT, 0, MPI_COMM_WORLD);
++    if(rank!=0) {
++        index_stream = malloc(msg_len);
++        // We need to check that the malloc succeeded or the broadcast is in vain
++        if(!index_stream){
++            plfs_debug("Rank %d aborting because of a failed malloc\n");
++            MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
++        }
++    }
++    MPIBCAST(index_stream,msg_len,MPI_CHAR,0,MPI_COMM_WORLD);
++    if(rank!=0) err = plfs_open(pfd,fd->filename,amode,rank,perm,index_stream);
++    free(index_stream);
++    return 0;
++} 
++
+diff -Naur openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_read.c openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_read.c
+--- openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_read.c	1969-12-31 17:00:00.000000000 -0700
++++ openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_read.c	2010-11-08 13:25:22.647223553 -0700
+@@ -0,0 +1,50 @@
++/* -*- Mode: C; c-basic-offset:4 ; -*- */
++/* 
++ *   $Id: ad_plfs_read.c,v 1.15 2004/10/07 16:15:17 rross Exp $    
++ *
++ *   Copyright (C) 1997 University of Chicago. 
++ *   See COPYRIGHT notice in top-level directory.
++ */
++
++#include "adio.h"
++#include "adio_extern.h"
++#include "ad_plfs.h"
++
++void ADIOI_PLFS_ReadContig(ADIO_File fd, void *buf, int count, 
++                     MPI_Datatype datatype, int file_ptr_type,
++		     ADIO_Offset offset, ADIO_Status *status, int *error_code)
++{
++    int err=-1, datatype_size, len, rank;
++    ADIO_Offset myoff;
++    static char myname[] = "ADIOI_PLFS_READCONTIG";
++
++    MPI_Type_size(datatype, &datatype_size);
++    len = datatype_size * count;
++    MPI_Comm_rank( fd->comm, &rank );
++
++    // for the romio/test/large_file we always get an offset of 0
++    // maybe we need to increment fd->fp_ind ourselves?
++    if (file_ptr_type == ADIO_EXPLICIT_OFFSET) {
++        myoff = offset;
++    } else {
++        myoff = fd->fp_ind;
++    }
++    plfs_debug( stderr, "%s: offset %ld len %ld rank %d\n", 
++            myname, (long)myoff, (long)len, rank );
++
++    err = plfs_read( fd->fs_ptr, buf, len, myoff );
++
++#ifdef HAVE_STATUS_SET_BYTES
++    if (err >= 0 ) MPIR_Status_set_bytes(status, datatype, err);
++#endif
++
++    if (err < 0 ) {
++	*error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
++					   myname, __LINE__, MPI_ERR_IO,
++					   "**io",
++					   "**io %s", strerror(-err));
++    } else {
++        fd->fp_ind += err;
++        *error_code = MPI_SUCCESS;
++    }
++}
+diff -Naur openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_resize.c openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_resize.c
+--- openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_resize.c	1969-12-31 17:00:00.000000000 -0700
++++ openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_resize.c	2010-11-08 13:25:22.647223553 -0700
+@@ -0,0 +1,34 @@
++/* -*- Mode: C; c-basic-offset:4 ; -*- */
++/* 
++ *   $Id: ad_plfs_resize.c,v 1.15 2004/10/04 16:37:05 robl Exp $    
++ *
++ *   Copyright (C) 1997 University of Chicago. 
++ *   See COPYRIGHT notice in top-level directory.
++ */
++
++#include "ad_plfs.h"
++
++void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code)
++{
++    int err;
++    int rank;
++    static char myname[] = "ADIOI_PLFS_RESIZE";
++    plfs_debug( stderr, "%s: begin\n", myname );
++
++    /* because MPI_File_set_size is a collective operation, and PLFS1 clients
++     * do not cache metadata locally, one client can resize and broadcast the
++     * result to the others */
++    MPI_Comm_rank(fd->comm, &rank);
++    if (rank == fd->hints->ranklist[0]) {
++	err = plfs_trunc(fd->fs_ptr, fd->filename, size);
++    }
++    MPI_Bcast(&err, 1, MPI_INT, 0, fd->comm);
++
++    if (err < 0) {
++	*error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
++					   myname, __LINE__, MPI_ERR_IO,
++					   "**io",
++					   "**io %s", strerror(-err));
++    }
++    else *error_code = MPI_SUCCESS;
++}
+diff -Naur openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_write.c openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_write.c
+--- openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_write.c	1969-12-31 17:00:00.000000000 -0700
++++ openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_write.c	2010-11-08 13:25:22.657222994 -0700
+@@ -0,0 +1,50 @@
++/* -*- Mode: C; c-basic-offset:4 ; -*- */
++/* 
++ *   $Id: ad_plfs_write.c,v 1.17 2004/10/07 16:15:18 rross Exp $    
++ *
++ *   Copyright (C) 1997 University of Chicago. 
++ *   See COPYRIGHT notice in top-level directory.
++ */
++
++#include "ad_plfs.h"
++#include "adio_extern.h"
++
++void ADIOI_PLFS_WriteContig(ADIO_File fd, void *buf, int count, 
++			    MPI_Datatype datatype, int file_ptr_type,
++			    ADIO_Offset offset, ADIO_Status *status,
++			    int *error_code)
++{
++    int err=-1, datatype_size, len, rank;
++    ADIO_Offset myoff;
++    static char myname[] = "ADIOI_PLFS_WRITECONTIG";
++
++    MPI_Type_size(datatype, &datatype_size);
++    len = datatype_size * count;
++    MPI_Comm_rank( fd->comm, &rank );
++
++    // for the romio/test/large_file we always get an offset of 0
++    // maybe we need to increment fd->fp_ind ourselves?
++    if (file_ptr_type == ADIO_EXPLICIT_OFFSET) {
++        myoff = offset;
++    } else {
++        myoff = fd->fp_ind;
++    }
++    plfs_debug( stderr, "%s: offset %ld len %ld rank %d\n", 
++            myname, (long)myoff, (long)len, rank );
++    err = plfs_write( fd->fs_ptr, buf, len, myoff, rank );
++
++#ifdef HAVE_STATUS_SET_BYTES
++    if (err >= 0 ) MPIR_Status_set_bytes(status, datatype, err);
++#endif
++
++    if (err < 0 ) {
++        *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
++					   myname, __LINE__, MPI_ERR_IO,
++					   "**io",
++					   "**io %s", strerror(-err));
++    } else {
++        fd->fp_ind += err;
++        *error_code = MPI_SUCCESS;
++    }
++}
++
+diff -Naur openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/Makefile.am openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/Makefile.am
+--- openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/Makefile.am	1969-12-31 17:00:00.000000000 -0700
++++ openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/Makefile.am	2010-11-08 13:25:22.657222994 -0700
+@@ -0,0 +1,77 @@
++# Copyright (c) 2009-2010, Los Alamos National Security, LLC. All rights
++# reserved.
++#
++# This software was produced under U.S. Government contract DE-AC52-06NA25396
++# for Los Alamos National Laboratory (LANL), which is operated by Los Alamos
++# National Security, LLC for the U.S. Department of Energy. The U.S. Government
++# has rights to use, reproduce, and distribute this software.  NEITHER THE
++# GOVERNMENT NOR LOS ALAMOS NATIONAL SECURITY, LLC MAKES ANY WARRANTY, EXPRESS
++# OR IMPLIED, OR ASSUMES ANY LIABILITY FOR THE USE OF THIS SOFTWARE.  If
++# software is modified to produce derivative works, such modified software
++# should be clearly marked, so as not to confuse it with the version available
++# from LANL.
++#
++# Additionally, redistribution and use in source and binary forms, with or
++# without modification, are permitted provided that the following conditions are
++# met:
++#
++# •    Redistributions of source code must retain the above copyright notice,
++# this list of conditions and the following disclaimer.
++#
++# •   Redistributions in binary form must reproduce the above copyright notice,
++# this list of conditions and the following disclaimer in the documentation
++# and/or other materials provided with the distribution.
++#
++# •   Neither the name of Los Alamos National Security, LLC, Los Alamos National
++# Laboratory, LANL, the U.S. Government, nor the names of its contributors may
++# be used to endorse or promote products derived from this software without
++# specific prior written permission.
++#
++# THIS SOFTWARE IS PROVIDED BY LOS ALAMOS NATIONAL SECURITY, LLC AND
++# CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
++# PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL LOS ALAMOS NATIONAL
++# SECURITY, LLC OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
++# PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
++# BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
++# IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++# POSSIBILITY OF SUCH DAMAGE.
++
++sources = \
++ad_plfs_close.c \
++ad_plfs_delete.c \
++ad_plfs_fcntl.c \
++ad_plfs_flush.c \
++ad_plfs_open.c \
++ad_plfs_read.c \
++ad_plfs_resize.c \
++ad_plfs_write.c \
++ad_plfs_hints.c \
++ad_plfs.c
++
++headers = \
++ad_plfs.h
++
++lib_LTLIBRARIES =
++
++################################################################################
++# libadplfs
++################################################################################
++if PLFS_BUILD_ADIO
++lib_LTLIBRARIES += libadplfs.la
++
++libadplfs_la_SOURCES = \
++$(headers) \
++$(sources)
++
++libadplfs_la_CFLAGS = \
++-D_FILE_OFFSET_BITS=64 \
++-I$(top_srcdir)/src \
++@PLFS_MPI_CFLAGS@ \
++@PLFS_ROMIO_CFLAGS@
++
++libadplfs_la_LDFLAGS = \
++-version-info 0:0:0
++endif
+diff -Naur openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/README openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/README
+--- openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/README	1969-12-31 17:00:00.000000000 -0700
++++ openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/README	2010-11-08 13:25:22.677222554 -0700
+@@ -0,0 +1,34 @@
++A couple of possible optimizations.
++
++1) We are already only doing the container creation by a single rank per node.
++
++2) We could expand the API and then only write one index by aggregating
++   the index info during collective writes
++
++3) For reads, we could put the global index into shared memory?  That's 
++   probably not a big savings anyway since the files will be cached so
++   rereading them is not a big deal and the space overhead of redundant
++   copies is also probably not a big deal.
++
++4) On the open, we are already just one rank per node create the openhost file.
++
++5) On the close, we could have just one rank create the metadata file
++   by doing reduces on everyone's total data and last offset.
++
++==============
++
++Well, I'm getting closer to making this work:
++
++make the dynamic plfs library
++untar mpich
++cp ad_plfs into romio/adio
++hack mpich to include ad_plfs
++setenv LD_FLAGS "-lplfs -L/Users/johnbent/Testing/plfs/branches/library/src"
++setenv CFLAGS -I/Users/johnbent/Testing/plfs/branches/library/src
++./configure --with-file-system=plfs+ufs -cflags=-I/Users/johnbent/Testing/plfs/branches/library/src -lib="-lplfs -L/Users/johnbent/Testing/plfs/branches/library/src -dynamiclib -single_module -undefined dynamic_lookup"
++
++This builds lib/libmpich.a and when we otool -L lib/mpich.a | grep plfs,
++we see that it's linking to it.  Then I can build a user job, but when I
++try to run it I see:
++
++./fs_test.x: ./fs_test.x: cannot execute binary file
