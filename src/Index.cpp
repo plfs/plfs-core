@@ -437,7 +437,7 @@ int Index::global_from_stream(void *addr) {
     tokenize((char*)addr,"\n",chunk_paths); // might be inefficient...
     for( size_t i = 0; i < chunk_paths.size(); i++ ) {
         ChunkFile cf;
-        cf.path = chunk_paths[i];
+        cf.path = logical_path + "/" + chunk_paths[i];
         cf.fd = -1;
         chunk_map.push_back(cf);
     }
