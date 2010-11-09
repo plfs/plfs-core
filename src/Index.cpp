@@ -120,6 +120,7 @@ void Index::init( string logical ) {
     last_offset     = 0;
     total_bytes     = 0;
     hostIndex.clear();
+    hostIndexOffset = 0;
     global_index.clear();
     chunk_map.clear();
     pthread_mutex_init( &fd_mux, NULL );
@@ -165,6 +166,7 @@ Index::~Index() {
        << chunk_map.size() << " chunks"<< endl;
     plfs_debug("%s", os.str().c_str() );
     plfs_debug("There are %d chunks to close fds for\n", chunk_map.size());
+    flush(true);    // make sure to get it all out
     for( unsigned i = 0; i < chunk_map.size(); i++ ) {
         if ( chunk_map[i].fd > 0 ) {
             plfs_debug("Closing fd %d for %s\n",
@@ -253,23 +255,27 @@ bool Index::ispopulated( ) {
 // returns 0 or -errno
 // this dumps the local index
 // and then clears it
-int Index::flush() {
-    // ok, vectors are guaranteed to be contiguous
-    // so just dump it in one fell swoop
-    size_t  len = hostIndex.size() * sizeof(HostEntry);
-    ostringstream os;
-    os << __FUNCTION__ << " flushing : " << len << " bytes" << endl; 
-    plfs_debug("%s", os.str().c_str() );
-    if ( len == 0 ) return 0;   // could be 0 if we weren't buffering
-    // valgrind complains about writing uninitialized bytes here....
-    // but it's fine as far as I can tell.
-    void *start = &(hostIndex.front());
-    size_t ret     = Util::Writen( fd, start, len );
-    if ( ret != len ) {
-        plfs_debug("%s failed write to fd %d: %s\n", 
-                __FUNCTION__, fd, strerror(errno));
+int Index::flush(bool force) {
+    size_t  entries = hostIndex.size();
+    size_t  ret = 0;
+    if ( force || entries > 1024 ) {    // only write them out sometimes...
+        size_t  len = entries * sizeof(HostEntry);
+        if ( len == 0 ) return 0;   // could be 0 if we weren't buffering
+        ostringstream os;
+        os << __FUNCTION__ << " flushing : " << len << " bytes" << endl; 
+        plfs_debug("%s", os.str().c_str() );
+        // valgrind complains about writing uninitialized bytes here....
+        // but it's fine as far as I can tell.
+        // ok, vectors are guaranteed to be contiguous
+        // so just dump it in one fell swoop
+        void *start = &(hostIndex.front());
+        size_t ret     = Util::Writen( fd, start, len );
+        if ( ret != len ) {
+            plfs_debug("%s failed write to fd %d: %s\n", 
+                    __FUNCTION__, fd, strerror(errno));
+        }
+        hostIndex.clear();
     }
-    hostIndex.clear();
     return ( ret < 0 ? -errno : 0 );
 }
 
@@ -1008,5 +1014,5 @@ int Index::rewriteIndex( int fd ) {
                 itr->second.original_chunk, itr->second.begin_timestamp, 
                 itr->second.end_timestamp );
     }
-    return flush(); 
+    return flush(true); 
 }

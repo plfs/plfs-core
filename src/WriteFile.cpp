@@ -56,7 +56,7 @@ int WriteFile::sync( pid_t pid ) {
     } else {
         ret = Util::Fsync( ofd->fd );
         Util::MutexLock( &index_mux, __FUNCTION__ );
-        if ( ret == 0 ) index->flush();
+        if ( ret == 0 ) index->flush(true);
         if ( ret == 0 ) ret = Util::Fsync( index->getFd() );
         Util::MutexUnlock( &index_mux, __FUNCTION__ );
         if ( ret != 0 ) ret = -errno;
@@ -237,7 +237,7 @@ ssize_t WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid){
         if ( ret >= 0 ) {
             Util::MutexLock(   &index_mux , __FUNCTION__);
             index->addWrite( offset, ret, pid, begin, end );
-            if ( synchronous_index ) ret = index->flush();  
+            if ( synchronous_index ) ret = index->flush(false);  
             if ( ret >= 0 )          addWrite( offset, size ); // metadata
             Util::MutexUnlock( &index_mux, __FUNCTION__ );
         }
@@ -264,7 +264,7 @@ int WriteFile::openIndex( pid_t pid ) {
 int WriteFile::closeIndex( ) {
     int ret = 0;
     Util::MutexLock(   &index_mux , __FUNCTION__);
-    ret = index->flush();
+    ret = index->flush(true);
     ret = closeFd( index->getFd() );
     delete( index );
     index = NULL;
@@ -338,7 +338,7 @@ int WriteFile::restoreFds( ) {
     // first reset the index fd
     if ( index ) {
         Util::MutexLock( &index_mux, __FUNCTION__ );
-        index->flush();
+        index->flush(true);
 
         paths_itr = paths.find( index->getFd() );
         if ( paths_itr == paths.end() ) return -ENOENT;

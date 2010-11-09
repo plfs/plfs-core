@@ -95,7 +95,7 @@ class Index : public Metadata {
 
         void addWrite( off_t offset, size_t bytes, pid_t, double, double );
 
-        int flush();
+        int flush(bool lazy);
 
         off_t lastOffset( );
 
@@ -145,6 +145,7 @@ class Index : public Metadata {
 
             // where we buffer the host index (i.e. write)
         vector< HostEntry > hostIndex;
+        off_t hostIndexOffset;
 
             // this is a global index made by aggregating multiple locals
         map< off_t, ContainerEntry > global_index;
