@@ -1,0 +1,16 @@
+# this should be square root of total number of compute nodes
+num_hostdirs 32
+
+# this should be related to how many threads you want running on a machine
+threadpool_size 16
+
+# these must be full paths, can be just a single one
+backends /panfs/scratch2/vol1/.plfs_store,/panfs/scratch2/vol2/.plfs_store,/panfs/scratch2/vol3/.plfs_store,/panfs/scratch2/vol4/.plfs_store,/panfs/scratch2/vol5/.plfs_store,/panfs/scratch2/vol6/.plfs_store,/panfs/scratch2/vol7/.plfs_store,/panfs/scratch2/vol8/.plfs_store,/panfs/scratch2/vol9/.plfs_store,/panfs/scratch2/vol10/.plfs_store,/panfs/scratch2/vol11/.plfs_store,/panfs/scratch2/vol12/.plfs_store
+
+# this must match where FUSE is mounted and the logical paths passed to ADIO
+mount_point /mnt/plfs
+
+# this shows how to read the logical, find the user name, hash it, and construct
+# the physical
+map /mnt/plfs/$1:HASH($1)/$1
+
