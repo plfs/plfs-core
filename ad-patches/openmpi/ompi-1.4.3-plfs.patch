@@ -717,7 +717,7 @@ diff -Naur openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/ad_plfs/Makefile.am o
 +# $HEADER$
 +#
 +
-+#include $(top_srcdir)/Makefile.options
++include $(top_srcdir)/Makefile.options
 +
 +noinst_LTLIBRARIES = libadio_plfs.la
 +libadio_plfs_la_SOURCES = \
