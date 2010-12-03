@@ -8,6 +8,8 @@ void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code) {
     char* value;
     int flag, tmp_val = -1;
     int disable_broadcast = 1;
+    int compress_index = 0;
+    int flatten_close = 0;
     int gen_error_code,rank;
 
     MPI_Comm_rank( fd->comm, &rank );
@@ -19,11 +21,11 @@ void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code) {
          */ 
 	    MPI_Info_create(&(fd->info));
 
-        /* plfs_disable_broadcast */ 
         if (users_info != MPI_INFO_NULL) {
 	        value = (char *) ADIOI_Malloc((MPI_MAX_INFO_VAL+1)*sizeof(char));
+            /* plfs_disable_broadcast */ 
             MPI_Info_get(users_info, "plfs_disable_broadcast", MPI_MAX_INFO_VAL,
-                 value, &flag);
+                            value, &flag);
             if (flag) {
                 disable_broadcast = atoi(value);
                 tmp_val = disable_broadcast;
@@ -35,6 +37,36 @@ void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code) {
                     MPI_Abort(MPI_COMM_WORLD, 1);
                 }
 	            MPI_Info_set(fd->info, "plfs_disable_broadcast", value); 
+            }
+            MPI_Info_get(users_info, "plfs_compress_index", MPI_MAX_INFO_VAL,
+                            value, &flag);
+            /* Compression flag*/
+            if(flag){
+                compress_index = atoi(value);
+                tmp_val = compress_index;
+                MPI_Bcast(&tmp_val,1,MPI_INT,0,fd->comm);
+                if (tmp_val != compress_index) {
+                    FPRINTF(stderr, "ADIOI_PLFS_SetInfo: "
+                            "the value for key \"plfs_compress_index\" "
+                            "must be the same on all processes\n");
+                    MPI_Abort(MPI_COMM_WORLD, 1);
+                }
+	            MPI_Info_set(fd->info, "plfs_compress_index", value); 
+            }
+            /* flatten_close */
+            MPI_Info_get(users_info, "plfs_flatten_close", MPI_MAX_INFO_VAL,
+                            value, &flag);
+            if(flag){
+                flatten_close = atoi(value);
+                tmp_val = flatten_close;
+                MPI_Bcast(&tmp_val,1,MPI_INT,0,fd->comm);
+                if (tmp_val != flatten_close) {
+                    FPRINTF(stderr, "ADIOI_PLFS_SetInfo: "
+                            "the value for key \"plfs_flatten_close\" "
+                            "must be the same on all processes\n");
+                    MPI_Abort(MPI_COMM_WORLD, 1);
+                }
+	            MPI_Info_set(fd->info, "plfs_flatten_close", value); 
             }
 	        ADIOI_Free(value);
         }

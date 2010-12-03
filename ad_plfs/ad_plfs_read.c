@@ -1,6 +1,6 @@
 /* -*- Mode: C; c-basic-offset:4 ; -*- */
 /* 
- *   $Id: ad_plfs_read.c,v 1.15 2004/10/07 16:15:17 rross Exp $    
+ *   $Id: ad_plfs_read.c,v 1.1 2010/11/29 19:59:01 adamm Exp $    
  *
  *   Copyright (C) 1997 University of Chicago. 
  *   See COPYRIGHT notice in top-level directory.
@@ -29,7 +29,7 @@ void ADIOI_PLFS_ReadContig(ADIO_File fd, void *buf, int count,
     } else {
         myoff = fd->fp_ind;
     }
-    plfs_debug( stderr, "%s: offset %ld len %ld rank %d\n", 
+    plfs_debug( "%s: offset %ld len %ld rank %d\n", 
             myname, (long)myoff, (long)len, rank );
 
     err = plfs_read( fd->fs_ptr, buf, len, myoff );

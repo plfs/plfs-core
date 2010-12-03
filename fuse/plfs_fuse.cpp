@@ -787,7 +787,7 @@ int Plfs::f_release( const char *path, struct fuse_file_info *fi ) {
         assert( openfile->flags == fi->flags );
         plfs_debug("%s: %s ref count: %d\n", __FUNCTION__, 
             strPath.c_str(), plfs_reference_count(of));
-        int remaining = plfs_close( of, openfile->pid, fi->flags );
+        int remaining = plfs_close( of, openfile->pid, fi->flags ,NULL);
         fi->fh = (uint64_t)NULL;
         if ( remaining == 0 ) {
             string pathHash = pathToHash(strPath,openfile->uid,openfile->flags);

@@ -95,7 +95,7 @@ class Index : public Metadata {
 
         void addWrite( off_t offset, size_t bytes, pid_t, double, double );
 
-        int flush(bool lazy);
+        int flush();
 
         off_t lastOffset( );
 
@@ -115,7 +115,7 @@ class Index : public Metadata {
                 string &path, bool *hole, pid_t *chunk_id, off_t logical ); 
 
         int insertGlobal( ContainerEntry * );
-        void merge( Index *other );
+        void merge( Index *other);
         void truncate( off_t offset );
         int rewriteIndex( int fd );
         void truncateHostIndex( off_t offset );
@@ -126,7 +126,12 @@ class Index : public Metadata {
         int global_from_stream(void *addr); 
         int global_to_stream(void **buffer,size_t *length);
 		friend ostream& operator <<(ostream &,const Index &);
-
+        // Added to get chunk path on write
+        string index_path;
+        void setBuffer(bool value) {this->buffer=value;}
+        void setStopBuffer(bool value) {this->stop_buffer=value;}
+        bool StopBuffer() {return this->stop_buffer;}
+        
     private:
         void init( string );
         int chunkFound( int *, off_t *, size_t *, off_t, 
@@ -135,8 +140,10 @@ class Index : public Metadata {
         void *mapIndex( string, int *, off_t * );
         int handleOverlap( ContainerEntry &g_entry,
             pair< map<off_t,ContainerEntry>::iterator, bool > &insert_ret );
-        pair <map<off_t,ContainerEntry>::iterator,bool> insertGlobalEntry(
-            ContainerEntry *g_entry );
+        map<off_t,ContainerEntry>::iterator insertGlobalEntryHint(
+            ContainerEntry *g_entry ,map<off_t,ContainerEntry>::iterator hint);
+        pair<map<off_t,ContainerEntry>::iterator,bool> insertGlobalEntry(
+            ContainerEntry *g_entry);
         size_t splitEntry(ContainerEntry*,set<off_t> &,
                 multimap<off_t,ContainerEntry> &);
         void findSplits(ContainerEntry&,set<off_t> &);
@@ -145,7 +152,6 @@ class Index : public Metadata {
 
             // where we buffer the host index (i.e. write)
         vector< HostEntry > hostIndex;
-        off_t hostIndexOffset;
 
             // this is a global index made by aggregating multiple locals
         map< off_t, ContainerEntry > global_index;
@@ -165,7 +171,10 @@ class Index : public Metadata {
         off_t  last_offset;
         size_t total_bytes;
         int    fd;
-        pthread_mutex_t    fd_mux;   // to allow thread safety 
+        bool buffer; // Are we buffering the index on write
+        bool stop_buffer; // Did our index get too large
+        pthread_mutex_t    fd_mux;   // to allow thread safety
+
 };
 
 #define MAP_ITR map<off_t,ContainerEntry>::iterator

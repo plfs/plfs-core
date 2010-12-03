@@ -44,10 +44,14 @@ class WriteFile : public Metadata {
         int sync( pid_t pid );
 
         void       setPath( string path ); 
+        void       setBuffer() {this->buffer=true;}
 
         int restoreFds();
+        Index * getIndex() {return index;}
+        
     private:
-        int openIndexFile( string path, string host, pid_t, mode_t );
+        int openIndexFile( string path, string host, pid_t, mode_t 
+                            , string* index_path);
         int openDataFile(string path, string host, pid_t, mode_t );
         int openFile( string, mode_t mode );
         int Close( );
@@ -66,6 +70,9 @@ class WriteFile : public Metadata {
         Index *index;
         mode_t mode;
         double createtime;
+        // Keeps track of writes for flush of index
+        int write_count;
+        bool buffer;
 };
 
 #endif

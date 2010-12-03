@@ -413,7 +413,8 @@ int Container::flattenIndex( const string &path, Index *index ) {
     }
 
     // compress then dump and then close the files
-    index->compress();
+    // compress adds overhead and no benefit if the writes weren't through FUSE
+    //index->compress();  
     int ret = index->global_to_file(index_fd);
     Util::Close(index_fd);
 
@@ -421,7 +422,7 @@ int Container::flattenIndex( const string &path, Index *index ) {
         ret = Util::Rename(unique_temporary.c_str(),globalIndex.c_str());
         if ( ret != 0 ) ret = -errno;
     }
-    return ( ret == 0 ? 0 : -errno );
+    return ret;
 }
 
 // this is the function that returns the container index
@@ -431,6 +432,8 @@ int Container::populateIndex(const string &path, Index *index,bool use_global) {
     int ret = 0;
 
     // first try for the top-level global index
+    plfs_debug("%s on %s %s attempt to use flattened index\n",
+            __FUNCTION__,path.c_str(),(use_global?"will":"will not"));
     int idx_fd = -1;
     if ( use_global ) {
         idx_fd = Util::Open(getGlobalIndexPath(path).c_str(),O_RDONLY);

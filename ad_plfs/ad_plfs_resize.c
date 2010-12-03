@@ -1,6 +1,6 @@
 /* -*- Mode: C; c-basic-offset:4 ; -*- */
 /* 
- *   $Id: ad_plfs_resize.c,v 1.15 2004/10/04 16:37:05 robl Exp $    
+ *   $Id: ad_plfs_resize.c,v 1.1 2010/11/29 19:59:01 adamm Exp $    
  *
  *   Copyright (C) 1997 University of Chicago. 
  *   See COPYRIGHT notice in top-level directory.
@@ -13,7 +13,7 @@ void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code)
     int err;
     int rank;
     static char myname[] = "ADIOI_PLFS_RESIZE";
-    plfs_debug( stderr, "%s: begin\n", myname );
+    plfs_debug( "%s: begin\n", myname );
 
     /* because MPI_File_set_size is a collective operation, and PLFS1 clients
      * do not cache metadata locally, one client can resize and broadcast the

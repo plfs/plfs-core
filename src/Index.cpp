@@ -7,7 +7,6 @@
 #include <sys/types.h>
 #include <sys/dir.h>
 #include <dirent.h>
-#include <stdlib.h>
 #include <math.h>
 #include <assert.h>
 #include <sys/syscall.h>
@@ -101,7 +100,7 @@ ostream& operator <<(ostream &os,const ContainerEntry &entry) {
 ostream& operator <<(ostream &os,const Index &ndx ) {
     os << "# Index of " << ndx.logical_path << endl;
     os << "# Data Droppings" << endl;
-    for(size_t i = 0; i < ndx.chunk_map.size(); i++ ) {
+    for(int i = 0; i < ndx.chunk_map.size(); i++ ) {
         os << "# " << i << " " << ndx.chunk_map[i].path << endl;
     }
     map<off_t,ContainerEntry>::const_iterator itr;
@@ -116,11 +115,12 @@ ostream& operator <<(ostream &os,const Index &ndx ) {
 void Index::init( string logical ) {
     logical_path    = logical;
     populated       = false;
+    buffer          = false;
+    stop_buffer     = false;
     chunk_id        = 0;
     last_offset     = 0;
     total_bytes     = 0;
     hostIndex.clear();
-    hostIndexOffset = 0;
     global_index.clear();
     chunk_map.clear();
     pthread_mutex_init( &fd_mux, NULL );
@@ -138,6 +138,7 @@ Index::Index( string logical, int fd ) : Metadata::Metadata() {
 void
 Index::lock( const char *function ) {
     Util::MutexLock( &fd_mux, function );
+
 }
 
 void
@@ -166,7 +167,6 @@ Index::~Index() {
        << chunk_map.size() << " chunks"<< endl;
     plfs_debug("%s", os.str().c_str() );
     plfs_debug("There are %d chunks to close fds for\n", chunk_map.size());
-    flush(true);    // make sure to get it all out
     for( unsigned i = 0; i < chunk_map.size(); i++ ) {
         if ( chunk_map[i].fd > 0 ) {
             plfs_debug("Closing fd %d for %s\n",
@@ -228,13 +228,13 @@ void Index::merge(Index *other) {
     for(itr = other->chunk_map.begin(); itr != other->chunk_map.end(); itr++){
         chunk_map.push_back(*itr);
     }
-
         // copy over the other's container entries but shift the index 
         // so they index into the new larger chunk_map
     map<off_t,ContainerEntry>::const_iterator ce_itr;
     map<off_t,ContainerEntry> *og = &(other->global_index);
     for( ce_itr = og->begin(); ce_itr != og->end(); ce_itr++ ) {
         ContainerEntry entry = ce_itr->second;
+        // Don't need to shift in the case of flatten on close
         entry.id += chunk_map_shift;
         insertGlobal(&entry);
     }
@@ -255,27 +255,23 @@ bool Index::ispopulated( ) {
 // returns 0 or -errno
 // this dumps the local index
 // and then clears it
-int Index::flush(bool force) {
-    size_t  entries = hostIndex.size();
-    size_t  ret = 0;
-    if ( force || entries > 1024 ) {    // only write them out sometimes...
-        size_t  len = entries * sizeof(HostEntry);
-        if ( len == 0 ) return 0;   // could be 0 if we weren't buffering
-        ostringstream os;
-        os << __FUNCTION__ << " flushing : " << len << " bytes" << endl; 
-        plfs_debug("%s", os.str().c_str() );
-        // valgrind complains about writing uninitialized bytes here....
-        // but it's fine as far as I can tell.
-        // ok, vectors are guaranteed to be contiguous
-        // so just dump it in one fell swoop
-        void *start = &(hostIndex.front());
-        size_t ret     = Util::Writen( fd, start, len );
-        if ( ret != len ) {
-            plfs_debug("%s failed write to fd %d: %s\n", 
-                    __FUNCTION__, fd, strerror(errno));
-        }
-        hostIndex.clear();
+int Index::flush() {
+    // ok, vectors are guaranteed to be contiguous
+    // so just dump it in one fell swoop
+    size_t  len = hostIndex.size() * sizeof(HostEntry);
+    ostringstream os;
+    os << __FUNCTION__ << " flushing : " << len << " bytes" << endl; 
+    plfs_debug("%s", os.str().c_str() );
+    if ( len == 0 ) return 0;   // could be 0 if we weren't buffering
+    // valgrind complains about writing uninitialized bytes here....
+    // but it's fine as far as I can tell.
+    void *start = &(hostIndex.front());
+    int ret     = Util::Writen( fd, start, len );
+    if ( ret != (size_t)len ) {
+        plfs_debug("%s failed write to fd %d: %s\n", 
+                __FUNCTION__, fd, strerror(errno));
     }
+    hostIndex.clear();
     return ( ret < 0 ? -errno : 0 );
 }
 
@@ -389,9 +385,6 @@ int Index::readIndex( string hostindex ) {
         c_entry.physical_offset   = h_entry.physical_offset; 
         c_entry.begin_timestamp   = h_entry.begin_timestamp;
         c_entry.end_timestamp     = h_entry.end_timestamp;
-        last_offset = max( (off_t)(c_entry.logical_offset+c_entry.length),
-                            last_offset );
-        total_bytes += c_entry.length;
         int ret = insertGlobal( &c_entry );
         if ( ret != 0 ) {
             return cleanupReadIndex( fd, maddr, length, ret, "insertGlobal",
@@ -424,7 +417,13 @@ int Index::global_from_stream(void *addr) {
         ContainerEntry e = entries[i];
         // just put it right into place. no need to worry about overlap
         // since the global index on disk was already pruned
-        global_index[e.logical_offset] = e;
+        // UPDATE : The global index may never touch the disk
+        // this happens on our broadcast on close optimization
+        
+        // Something fishy here we insert the address of the entry
+        // in the Index::insertGlobal code 
+        //global_index[e.logical_offset] = e;
+        insertGlobalEntry(&e);
     }
 
     // then skip past the entries
@@ -436,12 +435,41 @@ int Index::global_from_stream(void *addr) {
     vector<string> chunk_paths;
     tokenize((char*)addr,"\n",chunk_paths); // might be inefficient...
     for( size_t i = 0; i < chunk_paths.size(); i++ ) {
+        if(chunk_paths[i].size()<7) continue;
         ChunkFile cf;
         cf.path = logical_path + "/" + chunk_paths[i];
         cf.fd = -1;
         chunk_map.push_back(cf);
     }
 
+    return 0;
+}
+
+// Helper function to debug global_to_stream
+int Index::debug_from_stream(void *addr){
+
+    // first read the header to know how many entries there are
+    size_t quant = 0;
+    size_t *sarray = (size_t*)addr;
+    quant = sarray[0];
+    if ( quant < 0 ) {
+        plfs_debug("WTF the size of your stream index is less than 0\n");
+        return -1;
+    }
+    plfs_debug("%s for %s has %ld entries\n",
+        __FUNCTION__,logical_path.c_str(),(long)quant);
+    // then skip past the entries
+    ContainerEntry *entries = (ContainerEntry*)addr;
+    addr = (void*)&(entries[quant]);
+
+    // now read in the vector of chunk files
+    plfs_debug("%s of %s now parsing data chunk paths\n",
+                __FUNCTION__,logical_path.c_str());
+    vector<string> chunk_paths;
+    tokenize((char*)addr,"\n",chunk_paths); // might be inefficient...
+    for( size_t i = 0; i < chunk_paths.size(); i++ ) {
+        plfs_debug("Chunk path:%d is :%s\n",i,chunk_paths[i].c_str());
+    }
     return 0;
 }
 
@@ -452,8 +480,8 @@ int Index::global_to_file(int fd){
     size_t length;
     int ret = global_to_stream(&buffer,&length);
     if (ret==0) {
-        size_t sz = Util::Writen(fd,buffer,length);
-        ret = ( sz == length ? 0 : -errno );
+        ret = Util::Writen(fd,buffer,length);
+        ret = ( ret == length ? 0 : -errno );
         free(buffer); 
     }
     return ret;
@@ -471,13 +499,20 @@ char *Index::memcpy_helper(char *dst, void *src, size_t len) {
 // returns 0 or -errno
 int Index::global_to_stream(void **buffer,size_t *length) {
     int ret = 0;
+    // Global ?? or this
     size_t quant = global_index.size();
 
+    //Check if we stopped buffering, if so return -1 and length of -1
+    if(stop_buffer){
+        *length=-1;
+        return -1;
+    }
+    
     // first build the vector of chunk paths, trim them to relative
     // to the container so they're smaller and still valid after rename
     // this gets written last but compute it first to compute length
     ostringstream chunks;
-    for(size_t i = 0; i < chunk_map.size(); i++ ) {
+    for(int i = 0; i < chunk_map.size(); i++ ) {
         chunks << chunk_map[i].path.substr(logical_path.length()) << endl;
     }
     chunks << '\0'; // null term the file
@@ -643,9 +678,19 @@ int Index::handleOverlap(ContainerEntry &incoming,
     return 0;
 }
 
-pair <map<off_t,ContainerEntry>::iterator,bool> Index::insertGlobalEntry(
-        ContainerEntry *g_entry ) 
+map<off_t,ContainerEntry>::iterator Index::insertGlobalEntryHint(
+        ContainerEntry *g_entry ,map<off_t,ContainerEntry>::iterator hint) 
 {
+    return global_index.insert(hint, 
+            pair<off_t,ContainerEntry>( g_entry->logical_offset, *g_entry ) );
+}
+
+pair<map<off_t,ContainerEntry>::iterator,bool> Index::insertGlobalEntry(
+        ContainerEntry *g_entry) 
+{
+    last_offset = max( (off_t)(g_entry->logical_offset+g_entry->length),
+                            last_offset );
+    total_bytes += g_entry->length;
     return global_index.insert( 
             pair<off_t,ContainerEntry>( g_entry->logical_offset, *g_entry ) );
 }
@@ -704,6 +749,7 @@ int Index::insertGlobal( ContainerEntry *g_entry ) {
         }
         */
     }
+
     return 0;
 }
 
@@ -946,6 +992,30 @@ void Index::addWrite( off_t offset, size_t length, pid_t pid,
         entry.physical_offset = physical_offsets[pid];
         physical_offsets[pid] += length;
         hostIndex.push_back( entry );
+        // Needed for our index stream function
+        // It seems that we can store this pid for the global entry
+        ContainerEntry c_entry;
+        c_entry.logical_offset = entry.logical_offset;
+        c_entry.length            = entry.length;
+        c_entry.id                = entry.id;
+        c_entry.original_chunk    = entry.id;
+        c_entry.physical_offset   = entry.physical_offset;
+        c_entry.begin_timestamp   = entry.begin_timestamp;
+        c_entry.end_timestamp     = entry.end_timestamp;
+
+        // Only buffer if we are using the ADIO layer
+        if (buffer) insertGlobal(&c_entry);
+
+        // Make sure we have the chunk path
+        if(chunk_map.size()==0){
+            ChunkFile cf;
+            cf.fd = -1;
+            cf.path = Container::chunkPathFromIndexPath(index_path,entry.id);
+            // No good we need the Index Path please be stashed somewhere
+            //plfs_debug("The hostIndex logical path is: %s\n",cf.path.c_str());
+            plfs_debug("Using chunk path from index path: %s\n",cf.path.c_str());
+            chunk_map.push_back( cf );
+        }
     }
 }
 
@@ -1001,18 +1071,48 @@ void Index::truncateHostIndex( off_t offset ) {
 
 // ok, someone is truncating a file, so we reread a local index,
 // created a partial global index, and truncated that global
-// index, so now we just need to dump the modified global index into
+// index, so now we need to dump the modified global index into
 // a new local index
 int Index::rewriteIndex( int fd ) {
     this->fd = fd;
     map<off_t,ContainerEntry>::iterator itr;
     map<double,ContainerEntry> global_index_timesort;
     map<double,ContainerEntry>::iterator itrd;
-
+    
+    // so this is confusing.  before we dump the global_index back into
+    // a physical index entry, we have to resort it by timestamp instead
+    // of leaving it sorted by offset.
+    // this is because we have a small optimization in that we don't 
+    // actually write the physical offsets in the physical index entries.
+    // we don't need to since the writes are log-structured so the order
+    // of the index entries matches the order of the writes to the data
+    // chunk.  Therefore when we read in the index entries, we know that
+    // the first one to a physical data dropping is to the 0 offset at the
+    // physical data dropping and the next one is follows that, etc.
+    //
+    // update, we know include physical offsets in the index entries so
+    // we don't have to order them by timestamps anymore.  However, I'm
+    // reluctant to change this code so near a release date and it doesn't
+    // hurt them to be sorted so just leave this for now even though it
+    // is technically unnecessary
     for( itr = global_index.begin(); itr != global_index.end(); itr++ ) {
-        addWrite( itr->second.logical_offset,itr->second.length, 
-                itr->second.original_chunk, itr->second.begin_timestamp, 
-                itr->second.end_timestamp );
+        global_index_timesort.insert(
+                make_pair(itr->second.begin_timestamp,itr->second));
     }
-    return flush(true); 
+
+    for( itrd = global_index_timesort.begin(); itrd != 
+            global_index_timesort.end(); itrd++ ) 
+    {
+        double begin_timestamp = 0, end_timestamp = 0;
+        begin_timestamp = itrd->second.begin_timestamp;
+        end_timestamp   = itrd->second.end_timestamp;
+        addWrite( itrd->second.logical_offset,itrd->second.length, 
+                itrd->second.original_chunk, begin_timestamp, end_timestamp );
+        /*
+        ostringstream os;
+        os << __FUNCTION__ << " added : " << itr->second << endl; 
+        plfs_debug("%s", os.str().c_str() );
+        */
+    }
+    return flush(); 
 }

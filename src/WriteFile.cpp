@@ -25,6 +25,8 @@ WriteFile::WriteFile( string path, string hostname,
     this->synchronous_index = true;
     this->has_been_renamed  = false;
     this->createtime        = Util::getTime();
+    this->write_count       = 0;
+    this->buffer            = false;
     pthread_mutex_init( &data_mux, NULL );
     pthread_mutex_init( &index_mux, NULL );
 }
@@ -56,7 +58,7 @@ int WriteFile::sync( pid_t pid ) {
     } else {
         ret = Util::Fsync( ofd->fd );
         Util::MutexLock( &index_mux, __FUNCTION__ );
-        if ( ret == 0 ) index->flush(true);
+        if ( ret == 0 ) index->flush();
         if ( ret == 0 ) ret = Util::Fsync( index->getFd() );
         Util::MutexUnlock( &index_mux, __FUNCTION__ );
         if ( ret != 0 ) ret = -errno;
@@ -209,6 +211,10 @@ int WriteFile::extend( off_t offset ) {
 // we are currently doing synchronous index writing.
 // this is where to change it to buffer if you'd like
 // returns bytes written or -errno
+
+// We were thinking about keeping the buffer around the
+// entire duration of the write, but that means our appended index will
+// have a lot duplicate information. Let's buffer the index and flush on the close
 ssize_t WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid){
     int ret = 0; 
     ssize_t written;
@@ -237,12 +243,21 @@ ssize_t WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid){
         if ( ret >= 0 ) {
             Util::MutexLock(   &index_mux , __FUNCTION__);
             index->addWrite( offset, ret, pid, begin, end );
-            if ( synchronous_index ) ret = index->flush(false);  
+            // Flush every 1024 writes, might want to 
+            // experiment with this value
+            if ( synchronous_index && write_count%1024==0 && write_count>0) {
+                ret = index->flush();
+                // Check if the index has grown too large stop buffering
+                if(write_count > 104857600 * 2 && !index->StopBuffer()){
+                    index->setStopBuffer(true);
+                    plfs_debug("The index has grown over 100MB,buffering stopped\n");
+                }
+            }
             if ( ret >= 0 )          addWrite( offset, size ); // metadata
             Util::MutexUnlock( &index_mux, __FUNCTION__ );
         }
     }
-
+    write_count++;
     // return bytes written or error
     return ( ret >= 0 ? written : -errno );
 }
@@ -250,13 +265,17 @@ ssize_t WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid){
 // returns 0 or -errno
 int WriteFile::openIndex( pid_t pid ) {
     int ret = 0;
-    int fd = openIndexFile( physical_path, hostname, pid, DROPPING_MODE );
+    string index_path;
+    int fd = openIndexFile( physical_path, hostname, pid, DROPPING_MODE ,&index_path);
     if ( fd < 0 ) {
         ret = -errno;
     } else {
         Util::MutexLock(   &index_mux , __FUNCTION__);
         index = new Index( physical_path, fd );
         Util::MutexUnlock( &index_mux, __FUNCTION__ );
+        plfs_debug("In open Index path is %s\n",index_path.c_str());
+        index->index_path=index_path;
+        index->setBuffer(buffer);
     }
     return ret;
 }
@@ -264,7 +283,7 @@ int WriteFile::openIndex( pid_t pid ) {
 int WriteFile::closeIndex( ) {
     int ret = 0;
     Util::MutexLock(   &index_mux , __FUNCTION__);
-    ret = index->flush(true);
+    ret = index->flush();
     ret = closeFd( index->getFd() );
     delete( index );
     index = NULL;
@@ -298,8 +317,9 @@ int WriteFile::truncate( off_t offset ) {
     return 0;
 }
 
-int WriteFile::openIndexFile( string path, string host, pid_t p, mode_t m ) {
-    return openFile(Container::getIndexPath(path,host,p,createtime),m);
+int WriteFile::openIndexFile( string path, string host, pid_t p, mode_t m ,string* index_path) {
+    *index_path = Container::getIndexPath(path,host,p,createtime);
+    return openFile(*index_path,m);
 }
 
 int WriteFile::openDataFile(string path, string host, pid_t p, mode_t m){
@@ -338,7 +358,7 @@ int WriteFile::restoreFds( ) {
     // first reset the index fd
     if ( index ) {
         Util::MutexLock( &index_mux, __FUNCTION__ );
-        index->flush(true);
+        index->flush();
 
         paths_itr = paths.find( index->getFd() );
         if ( paths_itr == paths.end() ) return -ENOENT;

@@ -27,7 +27,7 @@ WriteFile *Plfs_fd::getWritefile( ) {
 }
 
 Index *Plfs_fd::getIndex( ) {
-    return index;
+    return this->index;
 }
 
 pid_t Plfs_fd::getPid() {
