@@ -1,8 +1,36 @@
+./copyright?
 .TH PLFS 1 12/3/2010
 .SH NAME
 PLFS (Parallel Log Structured File System) \- General Information
-.SH PLFS
+.SH SYNOPSIS
+.B ./plfs [
+.I fuse_options
+.B ] <
+.I mount point
+.B >
+
+.SH DESCRIPTION
 PLFS is an interposition layer.
 
+.SH FILES
+.I /etc/.plfsrc
+.RS
+The system wide configuration file.  
+.RE
+.I ~/.plfsrc
+.RS
+Per user configuration file.
+.RE
+.P
+See
+.BR plfsrc(5) 
+for further details.
+
+.SH AUTHORS
+PLFS is developed at Los Alamos National Laboratory and is
+available under LANL LA-CC-08-104. It is hosted at 
+.I http://sourceforge.net/projects/plfs
+and more information is available at 
+.I http://institue.lanl.gov/plfs
 
 

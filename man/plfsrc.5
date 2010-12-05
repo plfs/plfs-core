@@ -1,8 +1,42 @@
+./ Copyright?
 .TH plfsrc 5 12/3/2010
 .SH NAME
 plfsrc \- the configuration file for PLFS (Parallel Log Structured File System)
 .SH File Format
 The file
+
+
+.SH EXAMPLE
+A configuration file might appear as follows:
+.P
+# this should be square root of total number of compute nodes
+.br
+num_hostdirs 32
+
+# this should be related to how many threads you want running on a machine
+.br
+threadpool_size 16
+
+# these must be full paths, can be just a single one or a comma separated list
+.br
+backends /tmp/.plfs_store
+
+# this must match where FUSE is mounted and the logical paths passed to ADIO
+.br
+mount_point /tmp/plfs
+
+# this shows how to read the logical, find the user name, hash it, and construct 
+the physical, the beginning of it must match the mount point
+.br
+map /var/tmp/plfs/$1:HASH($1)/$1
+
+
+.SH AUTHORS
+PLFS is developed at Los Alamos National Laboratory and is
+available under LANL LA-CC-08-104. It is hosted at 
+.I http://sourceforge.net/projects/plfs
+and more information is available at 
+.I http://institue.lanl.gov/plfs
 
 .SH SEE ALSO
 plfs(1)
