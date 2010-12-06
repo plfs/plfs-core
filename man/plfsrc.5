@@ -2,33 +2,64 @@
 .TH plfsrc 5 12/3/2010
 .SH NAME
 plfsrc \- the configuration file for PLFS (Parallel Log Structured File System)
-.SH File Format
-The file
+.SH DESCRIPTION
+This configuration file defines the mapping between logical and physical paths on the parallel filesystem.  It also has some configuration options that PLFS will use to try and optimize performance.  This file is never written by PLFS, it is only read and it is the duty of the systems administrator to properly create and maintain this file.
+./do I need something here about interpretatio order, ie cmd line option, then user file, then system file?
+.SH FILE FORMAT
+The file consists of one keyword argument pair per line.  Configuration options must be separated by whitespace, ie "keyword argument".  Any line with a # is not interpreted.  Path names must be fully qualified.  Note that all keywords and values should be in lower-case.
+The possible keywords and their meanings are as follows:
 
+.B
+num_hostdirs
+.RS
+This should be the square root of the total number of compute nodes.
+.RE
+.B
+threadpool_size
+.RS
+This value is set to the number of threads to run on a machine.
+.RE
+.B
+backends
+.RS
+The location where you want the physcial containers to reside.
+.RE
+.B
+mount_point
+.RS
+Where FUSE is mounted, and the logical paths passed to ADIO
+.RE
+.B
+map
+.RS
+This is to hash by user name so directories may reside on multiple meatdata servers.  It reads the logical path, finds the user name, hashes it, and then constructs the physical path.  The beginning path must match the mount point given in the
+.B
+mount_point
+keyword.
+.RE
 
 .SH EXAMPLE
 A configuration file might appear as follows:
 .P
-# this should be square root of total number of compute nodes
-.br
 num_hostdirs 32
-
-# this should be related to how many threads you want running on a machine
 .br
 threadpool_size 16
-
-# these must be full paths, can be just a single one or a comma separated list
 .br
 backends /tmp/.plfs_store
-
-# this must match where FUSE is mounted and the logical paths passed to ADIO
 .br
 mount_point /tmp/plfs
-
-# this shows how to read the logical, find the user name, hash it, and construct 
-the physical, the beginning of it must match the mount point
 .br
-map /var/tmp/plfs/$1:HASH($1)/$1
+map /tmp/plfs/$1:HASH($1)/$1
+
+.SH FILES
+.I /etc/.plfsrc
+.RS
+The system wide configuration file.
+.RE
+.I ~/.plfsrc
+.RS
+Per user configuration file.
+.RE
 
 
 .SH AUTHORS
