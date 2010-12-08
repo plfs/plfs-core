@@ -40,6 +40,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 bin_PROGRAMS = \
+plfs_dump_config \
 plfs_map \
 plfs_flatten_index
 
@@ -68,6 +69,21 @@ plfs_flatten_index_CXXFLAGS = \
 @PLFS_DEBUG_CFLAGS@
 
 plfs_flatten_index_LDFLAGS = \
+-L../src -lplfs \
+@PTHREAD_LIBS@
+
+
+################################################################################
+# plfs_dump_config
+################################################################################
+plfs_dump_config_SOURCES = \
+plfs_dump_config.C
+
+plfs_dump_config_CXXFLAGS = \
+-I$(top_srcdir)/src \
+@PLFS_DEBUG_CFLAGS@
+
+plfs_dump_config_LDFLAGS = \
 -L../src -lplfs \
 @PTHREAD_LIBS@
 
