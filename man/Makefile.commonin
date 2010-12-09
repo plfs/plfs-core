@@ -1,4 +1,18 @@
 # Comments
+
+
+# Common
+AUTHORSREP = \
+PLFS is developed at Los Alamos National Laboratory and is \
+available under LANL LA-CC-08-104. It is hosted at \
+.I http\:\/\/sourceforge.net\/projects\/plfs \
+and more information is available at \
+.I http\:\/\/institue.lanl.gov\/plfs
+
+SEEALSOREP = \
+plfs(1)
+
+
 .1in.1:
 	@ echo Creating $@ man page...
 	@ sed -e 's/#PACKAGE_STRING#/@PACKAGE_STRING@/g' \
@@ -12,5 +26,7 @@
 .5in.5:
 	@ echo Creating $@ man page...
 	@ sed -e 's/#PACKAGE_STRING#/@PACKAGE_STRING@/g' \
+	  -e 's/#AUTHORS#/$(AUTHORSREP)/g' \
+	  -e 's/#SEEALSO#/$(SEEALSOREP)/g' \
 	  > $@ < $<
 
