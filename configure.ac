@@ -178,6 +178,7 @@ ad_plfs/Makefile
 scripts/Makefile
 tests/Makefile
 tools/Makefile
+man/Makefile
 ])
 
 AC_OUTPUT

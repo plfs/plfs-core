@@ -1,5 +1,5 @@
 ./ Copyright?
-.TH plfsrc 5 12/3/2010
+.TH plfsrc 5 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
 plfsrc \- the configuration file for PLFS (Parallel Log Structured File System)
 .SH DESCRIPTION

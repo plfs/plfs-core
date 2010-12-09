@@ -65,7 +65,8 @@ fuse \
 ad_plfs \
 scripts \
 tools \
-tests
+tests \
+man
 
 ACLOCAL_AMFLAGS = -I config
 
