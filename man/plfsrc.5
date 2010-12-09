@@ -6,7 +6,7 @@ plfsrc \- the configuration file for PLFS (Parallel Log Structured File System)
 This configuration file defines the mapping between logical and physical paths on the parallel filesystem.  It also has some configuration options that PLFS will use to try and optimize performance.  This file is never written by PLFS, it is only read and it is the duty of the systems administrator to properly create and maintain this file.
 ./do I need something here about interpretatio order, ie cmd line option, then user file, then system file?
 .SH FILE FORMAT
-The file consists of one keyword argument pair per line.  Configuration options must be separated by whitespace, ie "keyword argument".  Any line with a # is not interpreted.  Path names must be fully qualified.  Note that all keywords and values should be in lower-case.
+The file consists of one keyword argument pair per line.  Configuration options must be separated by whitespace, ie "keyword argument".  Any line with a # is not interpreted.  Path names must be fully qualified.  Note that all keywords should be in lower-case.
 The possible keywords and their meanings are as follows:
 
 .B

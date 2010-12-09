@@ -174,9 +174,9 @@ int Plfs::init( int *argc, char **argv ) {
 
     // ask the library to read in our configuration parameters
     pconf = get_plfs_conf();
-    if (pconf->error) {
-        fprintf(stderr,"FATAL: %s", pconf->err_msg.c_str());
-        return -(pconf->error);  // Required key not available 
+    if (pconf->err_msg) {
+        fprintf(stderr,"FATAL: %s", pconf->err_msg->c_str());
+        return -EINVAL;  
     }
     plfs_init(pconf); // warm up the path resolution cache
 
@@ -194,16 +194,18 @@ int Plfs::init( int *argc, char **argv ) {
             pconf->direct_io = 1;
         }
         if ( argv[i][0] != '-' && ! mnt_pt_found ) {
-            if ( strcmp(pconf->mnt_pt.c_str(),argv[i]) ) {
-                fprintf(stderr,"FATAL mount point mismatch: %s != %s\n",
-                    pconf->mnt_pt.c_str(), argv[i] );
+            pmnt = find_mount_point(pconf,argv[i],mnt_pt_found);
+            if ( ! mnt_pt_found ) {
+                fprintf(stderr,"FATAL mount point mismatch: %s not found\n", 
+                    argv[i] );
+                plfs_dump_config();
                 return -ECONNREFUSED;  
             }
             mnt_pt_found = true;
         }
     }
     if ( mnt_pt_found ) {
-        cerr << "Starting PLFS on " << hostname << ":" << pconf->mnt_pt << endl;
+        cerr << "Starting PLFS on " << hostname << ":" << pmnt->mnt_pt << endl;
     }
 
 
@@ -241,8 +243,8 @@ Plfs::Plfs () {
 string Plfs::expandPath( const char *path ) {
 
     string full_logical;
-    static int mnt_len = strlen(self->pconf->mnt_pt.c_str());
-    if ( ! strncmp(path,self->pconf->mnt_pt.c_str(),mnt_len) ) {
+    static int mnt_len = strlen(self->pmnt->mnt_pt.c_str());
+    if ( ! strncmp(path,self->pmnt->mnt_pt.c_str(),mnt_len) ) {
         full_logical = path; // already absolute
     } else {
         // another weird thing is that sometimes the path is not prefaced with a
@@ -258,7 +260,7 @@ string Plfs::expandPath( const char *path ) {
             full_logical = self->pconf->mnt_pt + '/' + path; // make absolute
         }
         */
-        full_logical = self->pconf->mnt_pt + path; // make absolute
+        full_logical = self->pmnt->mnt_pt + path; // make absolute
     }
     plfs_debug("%s %s->%s\n", __FUNCTION__, path, full_logical.c_str());
     return full_logical;
@@ -457,7 +459,6 @@ int Plfs::f_utime (const char *path, struct utimbuf *ut) {
 // this needs to recurse on all data and index files
 int Plfs::f_chmod (const char *path, mode_t mode) {
     PLFS_ENTER;
-    Plfs_fd *pfd = NULL;
 
     plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
     ret = plfs_chmod( strPath.c_str(), mode );
@@ -1013,7 +1014,7 @@ int Plfs::writeDebug( char *buf, size_t size, off_t offset, const char *path ) {
                 plfs_buildtime(),
                 self->myhost.c_str(), 
                 plfs_wtime() - self->begin_time,
-                confToString(self->pconf).c_str(),
+                confToString(self->pconf,self->pmnt).c_str(),
                 stats.c_str(),
                 self->make_container_time,
                 self->wtfs,
@@ -1041,16 +1042,16 @@ int Plfs::writeDebug( char *buf, size_t size, off_t offset, const char *path ) {
     return validsize; 
 }
 
-string Plfs::confToString( PlfsConf *p ) {
+string Plfs::confToString( PlfsConf *p, PlfsMount *pmnt ) {
     ostringstream oss;
-    oss << "Mount point: "      << p->mnt_pt << endl  
-        << "Map function: "     << p->map << endl
+    oss << "Mount point: "      << pmnt->mnt_pt << endl  
+        << "Map function: "     << pmnt->map << endl
         << "Direct IO: "        << p->direct_io << endl
         << "Executable bit: "   << ! p->direct_io << endl
         << "Backends: "
         ;
     vector<string>::iterator itr;
-    for ( itr = p->backends.begin(); itr != p->backends.end(); itr++ ) {
+    for ( itr = pmnt->backends.begin(); itr != pmnt->backends.end(); itr++ ) {
         oss << *itr << ",";
     }
     oss << endl;
@@ -1134,10 +1135,8 @@ int Plfs::f_rename( const char *path, const char *to ) {
                 results.pop_front();
                 Plfs_fd *pfd;
                 pfd = current.fd;
-                uid_t *uid;
                 string pathHash = getRenameHash(toPath.c_str(), 
                                     current.path ,strPath); 
-                int   *flags;
                 if ( ret == 0 && pfd ) {
                     pid_t pid = fuse_get_context()->pid;
                     // Extract the uid and flags from the string

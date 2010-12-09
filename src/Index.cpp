@@ -16,6 +16,7 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <stdlib.h>
 
 #include <time.h>
 #include "plfs.h"
@@ -100,7 +101,7 @@ ostream& operator <<(ostream &os,const ContainerEntry &entry) {
 ostream& operator <<(ostream &os,const Index &ndx ) {
     os << "# Index of " << ndx.logical_path << endl;
     os << "# Data Droppings" << endl;
-    for(int i = 0; i < ndx.chunk_map.size(); i++ ) {
+    for(unsigned i = 0; i < ndx.chunk_map.size(); i++ ) {
         os << "# " << i << " " << ndx.chunk_map[i].path << endl;
     }
     map<off_t,ContainerEntry>::const_iterator itr;
@@ -267,7 +268,7 @@ int Index::flush() {
     // but it's fine as far as I can tell.
     void *start = &(hostIndex.front());
     int ret     = Util::Writen( fd, start, len );
-    if ( ret != (size_t)len ) {
+    if ( (size_t)ret != (size_t)len ) {
         plfs_debug("%s failed write to fd %d: %s\n", 
                 __FUNCTION__, fd, strerror(errno));
     }
@@ -481,7 +482,7 @@ int Index::global_to_file(int fd){
     int ret = global_to_stream(&buffer,&length);
     if (ret==0) {
         ret = Util::Writen(fd,buffer,length);
-        ret = ( ret == length ? 0 : -errno );
+        ret = ( (size_t)ret == length ? 0 : -errno );
         free(buffer); 
     }
     return ret;
@@ -512,7 +513,7 @@ int Index::global_to_stream(void **buffer,size_t *length) {
     // to the container so they're smaller and still valid after rename
     // this gets written last but compute it first to compute length
     ostringstream chunks;
-    for(int i = 0; i < chunk_map.size(); i++ ) {
+    for(unsigned i = 0; i < chunk_map.size(); i++ ) {
         chunks << chunk_map[i].path.substr(logical_path.length()) << endl;
     }
     chunks << '\0'; // null term the file

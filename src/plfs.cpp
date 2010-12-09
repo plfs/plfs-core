@@ -64,65 +64,57 @@ vector<string> &tokenize(const string& str,const string& delimiters,
 	return tokens;
 }
 
+PlfsMount *
+find_mount_point(PlfsConf *pconf, string logical, bool &found) {
+    map<string,PlfsMount*>::iterator itr; 
+    for(itr=pconf->mnt_pts.begin(); itr!=pconf->mnt_pts.end(); itr++) {
+        if(strncmp(itr->first.c_str(),logical.c_str(),itr->first.length())==0) {
+            found = true;
+            return itr->second;
+        }
+    }
+    found = false;
+    return NULL;
+}
+
 // takes a logical path and returns a physical one
 // also returns whether the logical matches the mount point
 // readdir is the only caller that's interested in this....
 string
 expandPath(string logical, bool *mount_point) {
-    static bool init = false;
-    // set all of these up once from plfsrc, then reuse
-    static vector<string> expected_tokens; 
-    static vector<string> resolve_tokens; 
-    static string mnt_pt; 
-    static PlfsConf *pconf;
-
+    static PlfsConf *pconf = NULL;
 
     if (mount_point) *mount_point = false;
-    // this is done once
-    // it reads the map and creates tokens for the expression that
-    // matches logical and the expression used to resolve into physical
-    // boy, I wonder if we have to protect this.  In fuse, it *should* get
-    // done at mount time so that will init it before threads show up
-    // in adio, there are no threads.  should be OK.  
-    if ( ! init ) {
+    if ( ! pconf ) {
         pconf = get_plfs_conf();
-        vector<string> map_tokens;
-        string expected;
-        string resolve;
-        // seed random so we can load balance requests for the root dir
-        srand(time(NULL));
-
-        // get the mount point from the plfsrc 
-        mnt_pt = pconf->mnt_pt;
-
-        // split the map line into expected and resolve
-        tokenize(pconf->map,":",map_tokens);
-        expected = map_tokens[0];
-        resolve = map_tokens[1];
-        
-        // remove the mnt_point from the expected string (if there) 
-        // and then tokenize the rest of it as well as tokenizing resolve
-        if (strncmp(expected.c_str(),mnt_pt.c_str(),mnt_pt.size())==0) {
-            expected = expected.substr(mnt_pt.size());
-        }
-        tokenize(expected,"/",expected_tokens);
-        tokenize(resolve,"/",resolve_tokens);
-        init = true;  
+        assert(pconf);
     }
 
-    if ( pconf->error ) {
-      plfs_debug("PlfsConf error: %s\n", pconf->err_msg.c_str());
+    if ( pconf->err_msg ) {
+      plfs_debug("PlfsConf error: %s\n", pconf->err_msg->c_str());
       return "INVALID";
+    }
+
+    // find the appropriate PlfsMount from the PlfsConf
+    bool mnt_pt_found = false;
+    PlfsMount *pm = find_mount_point(pconf,logical,mnt_pt_found);
+
+    if(!mnt_pt_found) {
+        fprintf(stderr,"No mount point for %s\n", logical.c_str());
+        return "PLFS_NO_MOUNT_POINT_FOUND";
     }
 
     // set remaining to the part of logical after the mnt_pt and tokenize it
     string remaining;
     vector<string>remaining_tokens;
-    if (strncmp(logical.c_str(),mnt_pt.c_str(),mnt_pt.size())==0) {
-        remaining = logical.substr(mnt_pt.size());
+    plfs_debug("Trim mnt %s from path %s\n",pm->mnt_pt.c_str(),logical.c_str());
+    if (strncmp(logical.c_str(),pm->mnt_pt.c_str(),pm->mnt_pt.size())==0) {
+        remaining = logical.substr(pm->mnt_pt.size());
     } else {
         remaining = logical;
     }
+    plfs_debug("Tokenizing the remaining logical path after the mount pt: %s\n",
+            remaining.c_str());
     tokenize(remaining,"/",remaining_tokens);
 
     if ( remaining_tokens.empty() ) {
@@ -130,17 +122,21 @@ expandPath(string logical, bool *mount_point) {
         // this is a problem right here.  When we do a readdir on the
         // root, we need to actually aggregate across all backends.
         if (mount_point) *mount_point = true;
-        return pconf->backends[rand()%pconf->backends.size()];
+        return pm->backends[rand()%pm->backends.size()];
     }
 
     // let's go through the expected tokens and map them
     // however, if the map is bad in the plfsrc file, then
     // this might not work, so let's check to make sure the
     // map is correct
-    assert(remaining_tokens.size()>=expected_tokens.size());
+    if(remaining_tokens.size()<pm->expected_tokens.size()) {
+        fprintf(stderr,"FATAL in %s:%d for path %s\n",
+                __FUNCTION__,__LINE__,logical.c_str());
+        assert(remaining_tokens.size()>=pm->expected_tokens.size());
+    }
     map<string,string> expected_map;
-    for(size_t i = 0; i < expected_tokens.size(); i++) {
-        expected_map[expected_tokens[i]] = remaining_tokens[i];
+    for(size_t i = 0; i < pm->expected_tokens.size(); i++) {
+        expected_map[pm->expected_tokens[i]] = remaining_tokens[i];
     }
 
     // so now all of the vars in expected are mapped to what they received
@@ -148,8 +144,8 @@ expandPath(string logical, bool *mount_point) {
 
     // so now go through resolve_tokens and build up the physical path
     string resolved;
-    for(size_t j = 0; j < resolve_tokens.size(); j++) {
-        string tok = resolve_tokens[j];
+    for(size_t j = 0; j < pm->resolve_tokens.size(); j++) {
+        string tok = pm->resolve_tokens[j];
         if ( tok.c_str()[0] == '$' ) {
             resolved += '/';
             // if it's a var, replace it with the var we discovered
@@ -164,8 +160,8 @@ expandPath(string logical, bool *mount_point) {
             for(size_t i = 0; i < expected_map[var].size(); i++) {
                 total+=(int)expected_map[var][i];
             }
-            total %= pconf->backends.size();
-            resolved += pconf->backends[total];
+            total %= pm->backends.size();
+            resolved += pm->backends[total];
         } else {
             resolved += '/';
             resolved += tok;
@@ -173,10 +169,37 @@ expandPath(string logical, bool *mount_point) {
     }
     
     // now throw on all of the remaining that weren't expected
-    for(size_t k = expected_tokens.size(); k < remaining_tokens.size(); k++){
+    for(size_t k = pm->expected_tokens.size();k<remaining_tokens.size();k++){
         resolved += "/" + remaining_tokens[k];
     }
     return resolved;
+}
+
+// returns 0 or -EINVAL
+int
+plfs_dump_config() {
+    PlfsConf *pconf = get_plfs_conf();
+    if ( pconf->err_msg ) {
+        cerr << "FATAL conf file error: " << *(pconf->err_msg) << endl;
+        return -EINVAL;
+    }
+
+    // if we make it here, we're all good
+    cout << "Config file correctly parsed:" << endl
+        << "Num Hostdirs: " << pconf->num_hostdirs << endl
+        << "Threadpool size: " << pconf->threadpool_size << endl
+        << "Num Mountpoints: " << pconf->mnt_pts.size() << endl;
+    map<string,PlfsMount*>::iterator itr; 
+    vector<string>::iterator bitr;
+    for(itr=pconf->mnt_pts.begin();itr!=pconf->mnt_pts.end();itr++) {
+        PlfsMount *pmnt = itr->second; 
+        cout << "Mount Point " << itr->first << ":" << endl;
+        for(bitr = pmnt->backends.begin(); bitr != pmnt->backends.end();bitr++){
+            cout << "\tBackend: " << *bitr << endl;
+        }
+        cout << "\tMap: " << pmnt->map << endl;
+    }
+    return 0;
 }
 
 // returns 0 or -errno
@@ -403,8 +426,11 @@ plfs_readdir( const char *logical, void *vptr ) {
         // is when we do a readdir on the root....
         PlfsConf *pconf = get_plfs_conf();
         vector<string>::iterator itr;
-        for(itr = pconf->backends.begin(); 
-            itr != pconf->backends.end() && ret == 0; 
+        bool found = false;
+        PlfsMount *pmnt = find_mount_point(pconf,logical,found);
+        assert(found);
+        for(itr = pmnt->backends.begin(); 
+            itr != pmnt->backends.end() && ret == 0; 
             itr++)
         {
             ret = plfs_readdir_helper((*itr).c_str(),vptr);
@@ -701,12 +727,13 @@ plfs_read_new(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
     // tasks is empty for a zero length file or an EOF 
     if ( ret != 0 || tasks.empty() ) PLFS_EXIT(ret);
 
-    if ( tasks.size() > 1 && get_plfs_conf()->threadpool_size > 1 ) { 
+    PlfsConf *pconf = get_plfs_conf();
+    if ( tasks.size() > 1 && pconf->threadpool_size > 1 ) { 
         ReaderArgs args;
         args.index = index;
         args.tasks = &tasks;
         pthread_mutex_init( &(args.mux), NULL );
-        size_t num_threads = min(get_plfs_conf()->threadpool_size,tasks.size());
+        size_t num_threads = min(pconf->threadpool_size,tasks.size());
         plfs_debug("%d THREADS to %ld\n", num_threads, offset);
         ThreadPool threadpool(num_threads,reader_thread, (void*)&args);
         error = threadpool.threadError();   // returns errno
@@ -782,166 +809,190 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
 
 bool
 plfs_init(PlfsConf *pconf) { 
-    expandPath(pconf->mnt_pt,NULL);
+    map<string,PlfsMount*>::iterator itr = pconf->mnt_pts.begin();
+    if (itr==pconf->mnt_pts.end()) return false;
+    expandPath(itr->first,NULL);
     return true;
 }
 
+// inserts a mount point into a plfs conf structure
+// also creates a map if one wasn't provided if possible
+// also tokenizes the expected paths
+// returns an error string if there's any problems
+string *
+insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt) {
+    string *error = NULL;
+    if( pmnt->map.length() == 0 ) {
+        if ( pmnt->backends.size() == 1 ) {
+            pmnt->map = pmnt->mnt_pt + "/:" + pmnt->backends[0];
+        } else {
+            error = new string("No map specified for mount point");
+        }
+    }
+    if( pmnt->backends.size() == 0 ) {
+        error = new string("No backends specified for mount point");
+    }
+    if(!error) {
+        // set up the structures we need for path resolution
+        vector<string> map_tokens;
+        string expected;
+        string resolve;
+        const string &mnt_pt = pmnt->mnt_pt;   // shortcut
+        tokenize(pmnt->map,":",map_tokens);
+        if(map_tokens.size() != 2 ) {
+            error = new string("Bad map value");
+            return error;
+        }
+        expected = map_tokens[0];
+        resolve = map_tokens[1];
+
+        // remove the mnt_point from the expected string (if there) 
+        // and then tokenize the rest of it as well as tokenizing resolve
+        if (strncmp(expected.c_str(),mnt_pt.c_str(),mnt_pt.size())==0) {
+            expected = expected.substr(mnt_pt.size());
+        }
+        tokenize(expected,"/",pmnt->expected_tokens);
+        tokenize(resolve,"/",pmnt->resolve_tokens);
+        plfs_debug("Inserting mount point %s as discovered in %s\n",
+                pmnt->mnt_pt.c_str(),pconf->file.c_str());
+        pconf->mnt_pts[mnt_pt] = pmnt;
+    }
+    return error;
+}
+
+PlfsConf *
+parse_conf(FILE *fp, PlfsConf &defaults,string file) {
+    PlfsConf *pconf = new PlfsConf;
+    PlfsMount *pmnt = NULL;
+    // copy over the defaults first
+    //memcpy(pconf,&defaults,sizeof(PlfsConf));
+    pconf->file = file;
+    plfs_debug("Parsing %s\n", pconf->file.c_str());
+
+    char input[8192];
+    char key[8192];
+    char value[8192];
+    int line = 0;
+    while(fgets(input,8192,fp)) {
+        line++;
+        if (input[0]=='\n' || input[0] == '\r' || input[0]=='#') continue;
+        sscanf(input, "%s %s\n", key, value);
+        plfs_debug("Read %s %s (%d %c)\n", key, value,strlen(input),input[0]);
+        if( strstr(value,"//") != NULL ) {
+            pconf->err_msg = new string("Double slashes '//' are bad");
+            break;
+        }
+        if(strcmp(key,"threadpool_size")==0) {
+            pconf->threadpool_size = atoi(value);
+            if (pconf->threadpool_size <=0) {
+                pconf->err_msg = new string("illegal negative value");
+                break;
+            }
+        } else if (strcmp(key,"num_hostdirs")==0) {
+            pconf->num_hostdirs = atoi(value);
+            if (pconf->num_hostdirs <= 0) {
+                pconf->err_msg = new string("illegal negative value");
+                break;
+            }
+        } else if (strcmp(key,"mount_point")==0) {
+            // clear and save the previous one
+            if (pmnt) {
+                pconf->err_msg = insert_mount_point(pconf,pmnt);
+                if(pconf->err_msg) break;
+            }
+            pmnt = new PlfsMount;
+            pmnt->mnt_pt = value;
+        } else if (strcmp(key,"map")==0) {
+            if( !pmnt ) {
+                pconf->err_msg = new string("No mount point yet declared");
+                break;
+            }
+            pmnt->map = value;
+        } else if (strcmp(key,"backends")==0) {
+            if( !pmnt ) {
+                pconf->err_msg = new string("No mount point yet declared");
+                break;
+            }
+            tokenize(value,",",pmnt->backends); 
+        } else {
+            ostringstream error_msg;
+            error_msg << "Unknown key " << key;
+            pconf->err_msg = new string(error_msg.str());
+            break;
+        }
+    }
+
+    // save the current mount point
+    if ( !pconf->err_msg ) {
+        if(pmnt) {
+            pconf->err_msg = insert_mount_point(pconf,pmnt);
+        } else {
+            pconf->err_msg = new string("No mount point specified");
+        }
+    }
+
+    if(pconf->err_msg) {
+        ostringstream error_msg;
+        error_msg << "Parse error in " << file << " line " << line << ": "
+            << *(pconf->err_msg) << endl;
+        delete pconf->err_msg;
+        pconf->err_msg = new string(error_msg.str());
+    }
+
+    return pconf;
+}
 
 // get a pointer to a struct holding plfs configuration values
-PlfsConf *
+// this is called multiple times but should be set up initially just once
+// it reads the map and creates tokens for the expression that
+// matches logical and the expression used to resolve into physical
+// boy, I wonder if we have to protect this.  In fuse, it *should* get
+// done at mount time so that will init it before threads show up
+// in adio, there are no threads.  should be OK.  
+PlfsConf*
 get_plfs_conf() {
     static PlfsConf *pconf = NULL;
-    if ( pconf ) return pconf;  // already made 
+    static bool init = false;
+    if ( init ) return pconf; 
+    init = true;
+    pconf = new PlfsConf;
 
     map<string,string> confs;
     vector<string> possible_files;
-    bool parsed = false;
 
-    // find which file to open
-    // make home_file by default be the same as etc
+    // find which file to open (if there's no home, just use /etc/plfsrc)
+    // check home file first, then etc if not found
     string home_file,etc_file;
     home_file = etc_file = "/etc/plfsrc";
     if ( getenv("HOME") ) {
         home_file = getenv("HOME");
         home_file.append("/.plfsrc");
     }
-
-    // search the two possibilities differently if root or normal user
-    if ( getuid()==0 ) {    // is root
-        possible_files.push_back(etc_file);
-        possible_files.push_back(home_file);
-    } else {
-        possible_files.push_back(home_file);
-        possible_files.push_back(etc_file);
-    }
+    possible_files.push_back(home_file);
+    possible_files.push_back(etc_file);
 
     // set up defaults
-    PlfsConf *hidden = new PlfsConf;
-    hidden->threadpool_size = 16;   // seems like a nice number
-    hidden->num_hostdirs = 32;      // ideal is sqrt of num compute nodes
-    hidden->map = "";               // we don't know how to make up a map
-    hidden->error = 0;              // no errors yet :) 
+    PlfsConf defaults;
+    defaults.threadpool_size = 8;
+    defaults.num_hostdirs = 32; // ideal is sqrt of num nodes in typical job
+    defaults.err_msg = NULL;
 
     // try to parse each file until one works
     // the C++ way to parse like this is istringstream (bleh)
-    string file;
     for( size_t i = 0; i < possible_files.size(); i++ ) {
-        string *missing = NULL;
-        string *negative = NULL;
-        file = possible_files[i];
+        string file = possible_files[i];
         FILE *fp = fopen(file.c_str(),"r");
         if ( fp == NULL ) continue;
-        parsed = true;
-        char line[8192];
-        char key[8192];
-        char value[8192];
-        while(fgets(line,8192,fp)) {
-            if (strlen(line)==0 || line[0]=='#') continue;
-            sscanf(line, "%s %s\n", key, value);
-            confs[key] = value;
-            // it shows up at start time so turn off
-            //plfs_debug("plfsrc has %s -> %s\n", key, value); 
-        }
+        pconf = parse_conf(fp,defaults,file);
         fclose(fp);
-        map<string,string>::iterator itr;
-        hidden->parsed = true;
-        if ( (itr = confs.find("threadpool_size")) != confs.end() ) {
-            hidden->threadpool_size = atoi((itr->second).c_str());
-            if ( hidden->threadpool_size <= 0 ) {
-                negative = new string("threadpool_size");
-            }
-        }
-        if ( (itr = confs.find("num_hostdirs")) != confs.end() ) {
-            hidden->num_hostdirs = atoi((itr->second).c_str());
-            if ( hidden->num_hostdirs <= 0 ) {
-                negative = new string("num_hostdirs");
-            }
-        }
-        if ( (itr = confs.find("map")) != confs.end() ) {
-            hidden->map = itr->second;
-        } else {
-            // missing = new string("map");
-            // don't set missing here, we will try to automatically produce it
-        }
-        if ( (itr=confs.find("backends")) != confs.end() ) {
-            string backend = itr->second;
-            tokenize(backend,",",hidden->backends);
-        } else {
-            missing = new string("backends");
-        }
-        if ( (itr=confs.find("mount_point")) != confs.end() ) {
-            hidden->mnt_pt = itr->second;
-        } else {
-            missing = new string("mount_point");
-        }
-        if ( missing ) {
-            hidden->error = EINVAL;
-            hidden->err_msg = "Conf file " + file + " error: necessary key " +
-                *missing + " not defined.\n";
-        }
-        if ( negative ) {
-            hidden->error = EINVAL;
-            hidden->err_msg = "Conf file " + file + " error: key " +
-                *negative + " is not positive.\n";
-        }
         break;
     }
 
-    if ( ! parsed ) {
-      hidden->error = ENOENT;
-      hidden->err_msg = "No valid conf file found\n";
-    }
-
-    // now check the backends
-    vector<string>::iterator itr;
-    for(itr = hidden->backends.begin(); 
-        itr != hidden->backends.end(); 
-        itr++)
-    {
-        if ( ! Util::isDirectory( (*itr).c_str() ) ) {
-            hidden->error = ENOTDIR;
-            hidden->err_msg = "Conf file " + file + " error: " + *itr +
-                " is not a valid backend directory.\n";
-        }
-    }
-
-    // if there is no map specified, make one automatically using the 
-    // mount_point and the backends (if there is a single backend)
-    if ( hidden->error == 0 && hidden->map.length() == 0 ) {
-        if ( hidden->backends.size() == 1 ) {
-            hidden->map = hidden->mnt_pt + "/:" + hidden->backends[0];
-        } else {
-            hidden->error = EINVAL;
-            hidden->err_msg = "Conf file " + file + " error: map not specified "
-                + "and can't be derived due to multiple backends.\n";
-        }
-    }
-    
-    // check whether the mount point matches the map
-    if ( hidden->error == 0 ) {
-        vector<string> map_tokens;
-        vector<string> map_tokens2;
-        vector<string> mnt_tokens;
-        tokenize(hidden->map,":",map_tokens2); // first get the part before ':'
-        tokenize(map_tokens2[0], "/",map_tokens); // then get btwn the /
-        tokenize(hidden->mnt_pt,"/",mnt_tokens);
-        for(size_t i=0 ; i < mnt_tokens.size(); i++){
-            string map_cmp = map_tokens[i];
-            string mnt_cmp = mnt_tokens[i];
-            if( strcmp(map_cmp.c_str(),mnt_cmp.c_str()) != 0 ){
-                hidden->error = EINVAL;
-                hidden->err_msg = "Conf file " + file + " error : map " +
-                hidden->map + " does not match mount " + hidden->mnt_pt + "\n";
-            } 
-        } 
-    }
-    if ( hidden->error ) return hidden;
-
-    pconf = hidden; // don't clear the NULL until fully populated
     return pconf;
 }
 
-int plfs_merge_indexes(Plfs_fd **pfd, char *index_streams, 
+int 
+plfs_merge_indexes(Plfs_fd **pfd, char *index_streams, 
                         int *index_sizes, int procs){
     int count;
     Index *root_index;
@@ -966,10 +1017,12 @@ int plfs_merge_indexes(Plfs_fd **pfd, char *index_streams,
         plfs_debug("Index stream free success\n");
     }
     plfs_debug("%s:Done merging indexes\n",__FUNCTION__);
+    return 0;
 }
 
 // Can't directly access the FD struct in ADIO 
-int plfs_index_stream(Plfs_fd **pfd, char ** buffer){
+int 
+plfs_index_stream(Plfs_fd **pfd, char ** buffer){
     size_t length;
     int ret;
     if ( (*pfd)->getIndex() !=  NULL ) {
@@ -1161,6 +1214,7 @@ plfs_symlink(const char *logical, const char *to) {
 int
 plfs_link(const char *logical, const char *to) {
     PLFS_ENTER;
+    ret = 0;    // suppress warning about unused variable
     plfs_debug( "Can't make a hard link to a container.\n" );
     PLFS_EXIT(-ENOSYS);
     /*
@@ -1633,7 +1687,7 @@ plfs_close( Plfs_fd *pfd, pid_t pid, int open_flags,
             size_t total_bytes;
             if(close_opt && pid==0){
                 if(close_opt->valid_meta) {
-                    plfs_debug("Grabbing meta data from info gathered in ADIO\n");
+                    plfs_debug("Grabbing meta from info gathered in ADIO\n");
                     last_offset=close_opt->last_offset;
                     total_bytes=close_opt->total_bytes;
                 } else {

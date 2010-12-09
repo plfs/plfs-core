@@ -77,7 +77,7 @@ class Plfs : public fusexx::fuse<Plfs> {
         static void findAllOpenFiles( string expanded, 
                             list<struct hash_element > &results);
         static const char *getPlfsArg( const char *, const char * );
-        static string confToString( PlfsConf * );
+        static string confToString( PlfsConf *, PlfsMount * );
         static string openFilesToString(bool);
         static mode_t getMode( string expanded );
         static int getattr_helper( const char *path, struct stat *, Plfs_fd *);
@@ -110,4 +110,5 @@ class Plfs : public fusexx::fuse<Plfs> {
         HASH_MAP<string, Plfs_fd *> open_files;
         string                      myhost;
         PlfsConf                    *pconf;
+        PlfsMount                   *pmnt;
 };

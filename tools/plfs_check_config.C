@@ -6,6 +6,6 @@
 #include "COPYRIGHT.h"
 
 int main (int argc, char **argv) {
-    int ret = 0; //plfs_dump_config();
+    int ret = plfs_dump_config();
     exit( ret );
 }

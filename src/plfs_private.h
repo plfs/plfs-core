@@ -6,6 +6,7 @@
 
 #include <vector>
 #include <string>
+#include <map>
 using namespace std;
 
 #define SVNVERS $Rev$
@@ -19,15 +20,20 @@ vector<string> &tokenize(const string& str,const string& delimiters,
         vector<string> &tokens);
 
 typedef struct {
+    string mnt_pt;  // the logical mount point
+    string map;     // how to convert to physical
+    vector<string> backends;    // a list of physical locations 
+    vector<string> expected_tokens;     // tokens matching the logical mount
+    vector<string> resolve_tokens;      // how to resolve to physical
+} PlfsMount;
+
+typedef struct {
+    string file;
     size_t num_hostdirs;
     size_t threadpool_size;
-    vector<string> backends;
-    string map;
+    map<string,PlfsMount*> mnt_pts;
     bool direct_io; // a flag FUSE needs.  Sorry ADIO and API for the wasted bit
-    string mnt_pt;  // something else FUSE needs, somewhat more than a bit
-    bool parsed;  // did we find a conf file, or just use defaults
-    int error;   // was there an error parsing the file
-    string err_msg;
+    string *err_msg;
 } PlfsConf;
 
 /* get_plfs_conf
@@ -36,7 +42,9 @@ typedef struct {
    if root, check /etc/plfsrc first and then if fail, then check $HOME/.plfsrc
    if not root, reverse order
 */
-PlfsConf* get_plfs_conf();  
+PlfsConf* get_plfs_conf( );  
+
+PlfsMount * find_mount_point(PlfsConf *pconf, string path, bool &found);
 
 /* plfs_init
     it just warms up the plfs structures used in expandPath

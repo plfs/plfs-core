@@ -492,7 +492,8 @@ int Container::aggregateIndices(const string &path, Index *index) {
             // shuffle might help for large parallel opens on a 
             // file w/ lots of index droppings
         random_shuffle(tasks.begin(),tasks.end()); 
-        if ( tasks.size() == 1 || get_plfs_conf()->threadpool_size <= 1 ) {
+        PlfsConf *pconf = get_plfs_conf();
+        if ( tasks.size() == 1 || pconf->threadpool_size <= 1 ) {
             while( ! tasks.empty() ) {
                 IndexerTask task = tasks.front();
                 tasks.pop_front();
@@ -505,7 +506,7 @@ int Container::aggregateIndices(const string &path, Index *index) {
             args.index = index;
             args.tasks = &tasks;
             pthread_mutex_init( &(args.mux), NULL );
-            size_t count = min(get_plfs_conf()->threadpool_size,tasks.size());
+            size_t count = min(pconf->threadpool_size,tasks.size());
             ThreadPool threadpool(count,indexer_thread, (void*)&args);
             plfs_debug("%d THREADS to create index of %s\n",count,path.c_str());
             ret = threadpool.threadError();    // returns errno
@@ -1122,7 +1123,8 @@ string Container::getHostDirPath( const string & expanded_path,
         const string & hostname )
 {
     ostringstream oss;
-    size_t host_value = (hashValue(hostname.c_str())%get_plfs_conf()->num_hostdirs) + 1;
+    PlfsConf *pconf = get_plfs_conf();    
+    size_t host_value = (hashValue(hostname.c_str())%pconf->num_hostdirs) + 1;
     oss << expanded_path << "/" << HOSTDIRPREFIX << host_value; 
     //plfs_debug("%s : %s %s -> %s\n", 
     //        __FUNCTION__, hostname, expanded_path, oss.str().c_str() );
