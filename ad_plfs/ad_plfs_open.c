@@ -204,12 +204,14 @@ int broadcast_index(Plfs_fd **pfd, ADIO_File fd,
             compr_index=malloc(index_size[0]);
             // Check the malloc
             if(!compr_index){
-                plfs_debug("Rank %d aborting because of a failed malloc\n",rank);
+                plfs_debug("Rank %d aborting because of failed malloc\n",rank);
                 MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
             }
             plfs_debug("About to compress the index\n");
             // Check the compress
-            if(compress(compr_index,&index_size[1],index_stream,index_size[0])!=Z_OK){
+            if(compress(compr_index,&index_size[1],index_stream,index_size[0])
+                    !=Z_OK)
+            {
                 plfs_debug("Compression of index has failed\n");
                 MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
             }
@@ -217,8 +219,9 @@ int broadcast_index(Plfs_fd **pfd, ADIO_File fd,
         }
     }
     // Original index stream size
-    if (!rank) plfs_debug("Broadcasting the sizes of the index:%d and compressed index%d\n"
-                            ,index_size[0],index_size[1]);
+    if (!rank) 
+        plfs_debug("Broadcasting the sizes of the index:%d "
+                "and compressed index%d\n" ,index_size[0],index_size[1]);
     
     MPIBCAST(index_size, 2, MPI_LONG, 0, MPI_COMM_WORLD);
     
@@ -227,11 +230,11 @@ int broadcast_index(Plfs_fd **pfd, ADIO_File fd,
         if(compress_flag) {
             compr_index = malloc(index_size[1]);
             if(!compr_index ){
-                plfs_debug("Rank %d aborting because of a failed malloc\n",rank);
+                plfs_debug("Rank %d aborting because of failed malloc\n",rank);
                 MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
             }
         }
-        // We need to check that the malloc succeeded or the broadcast is in vain
+        //We need to check that the malloc succeeded or the broadcast is in vain
         if(!index_stream ){
             plfs_debug("Rank %d aborting because of a failed malloc\n",rank);
             MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
@@ -250,7 +253,7 @@ int broadcast_index(Plfs_fd **pfd, ADIO_File fd,
         unsigned long uncompr_len=index_size[0];
         // Uncompress the index
         if(compress_flag) {
-            plfs_debug("Rank: %d, has compr_len of %d and expected expanded of %d\n"
+            plfs_debug("Rank: %d has compr_len %d and expected expanded of %d\n"
                     ,rank,index_size[1],uncompr_len);
             int ret=uncompress(index_stream, &uncompr_len,compr_index,index_size[1]);
         
