@@ -1,0 +1,83 @@
+# this has only been tested with PLFS_VERSION 1.1.0 and OMPI_VERSION 1.4.3
+PLFS_VERSION = 1.1.0
+OMPI_VERSION = 1.4.3
+PWD = $(shell pwd)
+
+# also need to set PATH and DYLD_LIBRARY_PATH in .cshrc
+# also need to create $HOME/.plfsrc
+
+ADIO_PATH = ompi/mca/io/romio/romio/adio
+PATCH_PATH = plfs-${PLFS_VERSION}/ad-patches/openmpi
+
+all: bin/m4 bin/autoconf bin/automake bin/libtool bin/plfs bin/mpicc
+
+libtool-2.2.6b.tar.gz:
+	wget http://ftp.gnu.org/gnu/libtool/$@
+
+bin/libtool: libtool-2.2.6b.tar.gz
+	tar xvfz $<
+	cd libtool-2.2.6b; ./configure --prefix=${PWD}; make install
+
+automake-1.10.1.tar.bz2:
+	wget http://ftp.gnu.org/gnu/automake/$@
+
+bin/automake: automake-1.10.1.tar.bz2
+	tar xvfj $<
+	cd automake-1.10.1; ./configure --prefix=${PWD}; make install
+
+
+autoconf-2.63.tar.bz2:
+	wget http://ftp.gnu.org/gnu/autoconf/$@
+
+bin/autoconf: autoconf-2.63.tar.bz2
+	tar xvfj $< 
+	cd autoconf-2.63; ./configure --prefix=${PWD}; make install
+
+m4-1.4.11.tar.bz2:
+	wget http://ftp.gnu.org/gnu/m4/$@
+
+bin/m4: m4-1.4.11.tar.bz2
+	tar xvfj $<
+	cd m4-1.4.11; ./configure --prefix=${PWD}; make install
+
+bin/mpicc: build_tools platform_file bin/plfs
+	cd openmpi-${OMPI_VERSION}; \
+	./configure --prefix ${PWD} --with-platform=../platform_file; \
+	make; make install
+
+build_tools: openmpi-${OMPI_VERSION}/${ADIO_PATH}/ad_plfs
+	@echo "Please ensure that m4 is version 1.4.11"
+	@echo "Please ensure that autoconf is version 2.63"
+	@echo "Please ensure that automake is version 1.10.1"
+	@echo "Please ensure that libtool is version 2.2.6b"
+	@echo "Then 'touch build_tools' to continue"
+	#exit -1
+		
+platform_file: 
+	@echo "You need to create ${PWD}/$@ by hand." 
+
+openmpi-${OMPI_VERSION}/${ADIO_PATH}/ad_plfs: openmpi-${OMPI_VERSION}/README 
+	cd openmpi-${OMPI_VERSION}; \
+	patch -p1 < ../${PATCH_PATH}/ompi-${OMPI_VERSION}-plfs-prep.patch; \
+	patch -p1 < ../${PATCH_PATH}/ompi-${OMPI_VERSION}-plfs.patch
+
+bin/plfs: plfs-${PLFS_VERSION} 
+	echo $@
+	cd $<; ./configure --prefix ${PWD}; make install
+
+plfs-${PLFS_VERSION}: plfs-${PLFS_VERSION}.tar.gz
+	tar xvfz $<
+	@touch $@
+
+plfs-${PLFS_VERSION}.tar.gz:
+	wget http://sourceforge.net/projects/plfs/files/$@/download
+
+openmpi-${OMPI_VERSION}/README: openmpi-${OMPI_VERSION}.tar.bz2
+	tar xvfj $<
+	@touch $@
+
+openmpi-${OMPI_VERSION}.tar.bz2:
+	wget http://www.open-mpi.org/software/ompi/v1.4/downloads/$@
+
+clean:
+	rm -rf plfs-${PLFS_VERSION}* openmpi-${OMPI_VERSION}* bin/*
