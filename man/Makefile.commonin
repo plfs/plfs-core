@@ -1,6 +1,5 @@
 # Comments
 
-
 # Common
 AUTHORSREP = \
 PLFS is developed at Los Alamos National Laboratory and is \
@@ -10,17 +9,23 @@ and more information is available at \
 .I http\:\/\/institue.lanl.gov\/plfs
 
 SEEALSOREP = \
-plfs(1)
+plfs(1) other pages
 
+SEEALSOREP3 = \
+plfs(3) other api pages
 
 .1in.1:
 	@ echo Creating $@ man page...
 	@ sed -e 's/#PACKAGE_STRING#/@PACKAGE_STRING@/g' \
+	  -e 's/#AUTHORS#/$(AUTHORSREP)/g' \
+	  -e 's/#SEEALSO#/$(SEEALSOREP)/g' \
 	  > $@ < $<
 
 .3in.3:
 	@ echo Creating $@ man page...
 	@ sed -e 's/#PACKAGE_STRING#/@PACKAGE_STRING@/g' \
+	  -e 's/#AUTHORS#/$(AUTHORSREP)/g' \
+	  -e 's/#SEEALSO3#/$(SEEALSOREP3)/g' \
 	  > $@ < $<
 
 .5in.5:

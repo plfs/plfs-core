@@ -2,26 +2,37 @@
 
 include Makefile.commonin
 
-#plfs_api_man_pages = \
-#	man3/plfs.3
+plfs_cmd_man_pages = \
+	man1/plfs.1
+
+plfs_api_man_pages = \
+	man3/plfs.3
 
 plfs_file_man_pages = \
 	man5/plfsrc.5
 
-nodist_man_MANS = $(plfs_file_man_pages)
-EXTRA_DIST = $(plfs_file_man_pages:.5=.5in)
+nodist_man_MANS = \
+	$(plfs_cmd_man_pages) \
+	$(plfs_api_man_pages) \
+	$(plfs_file_man_pages)
+
+EXTRA_DIST = \
+	$(plfs_cmd_man_pages=.1=.1in) \
+	$(plfs_api_man_pages:.3=.3in) \
+	$(plfs_file_man_pages:.5=.5in)
+
 
 # Remove the generated man pages
-distclean-local:
+distclean-local: \
+	rm man1/*.1
+	rm man3/*.3
+	rm man5/*.5
 
-# Ensure that the man page directory exists before we try to make man
-# page files (because man/man5 has no config.status-generated
-# Makefile)
-dir_stamp = $(top_builddir)/man/man5/.dir-stamp
+# Make sure man pages are rebuilt if configure was run
+dir_stamp = $(top_builddir)/man/.dir-stamp
 
 # Also ensure that the man pages are rebuilt if the Makefile.commonin file
-# changes (e.g., configure was run again, meaning that the release
-# date or version may have changed)
+# changes
 $(nodist_man_MANS): $(dir_stamp) $(top_builddir)/man/Makefile.commonin
 
 # was in dir_stamp rule $(mkdir_p) `dirname $@`
