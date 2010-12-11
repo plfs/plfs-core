@@ -23,10 +23,10 @@ EXTRA_DIST = \
 
 
 # Remove the generated man pages
-distclean-local: \
-	rm man1/*.1
-	rm man3/*.3
-	rm man5/*.5
+clean-local:
+	-rm man1/*.1
+	-rm man3/*.3
+	-rm man5/*.5
 
 # Make sure man pages are rebuilt if configure was run
 dir_stamp = $(top_builddir)/man/.dir-stamp

@@ -1,11 +1,12 @@
-./ Copyright?
+./#COPYRIGHT#
 .TH plfsrc 5 12/3/2010 "#PACKAGE_STRING#" 
+
 .SH NAME
 plfsrc \- the configuration file for PLFS (Parallel Log Structured File System)
+
 .SH DESCRIPTION
 This configuration file defines the mapping between logical and physical paths on the parallel filesystem.  It also has some configuration options that PLFS will use to try and optimize performance.  This file is never written by PLFS, it is only read and it is the duty of the systems administrator to properly create and maintain this file.
-./do I need something here about interpretation order, ie cmd line option, then user file, then system file?
-./ yes - the user overrides system
+
 .SH FILE FORMAT
 The file consists of one keyword argument pair per line.  Configuration options must be separated by whitespace, ie "keyword argument".  Any line with a # is not interpreted.  Path names must be fully qualified.  Note that all keywords should be in lower-case.
 The possible keywords and their meanings are as follows:
@@ -65,6 +66,8 @@ The system wide configuration file.
 .RS
 Per user configuration file.
 .RE
+
+The per user file options will override options in the system wide file.
 
 .SH AUTHORS
 #AUTHORS#
