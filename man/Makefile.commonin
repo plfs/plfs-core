@@ -4,9 +4,9 @@
 AUTHORSREP = \
 PLFS is developed at Los Alamos National Laboratory and is \
 available under LANL LA-CC-08-104. It is hosted at \
-.I http\:\/\/sourceforge.net\/projects\/plfs \
-and more information is available at \
-.I http\:\/\/institue.lanl.gov\/plfs
+MYNL.I http\:\/\/sourceforge.net\/projects\/plfs \
+MYNLand more information is available at \
+MYNL.I http\:\/\/institue.lanl.gov\/plfsMYNL
 
 SEEALSOREP = \
 plfs(1) other pages
@@ -16,18 +16,44 @@ plfs(3) other api pages
 
 COPYRIGHT = \
 Copyright (c) 2009, Los Alamos National Security, LLC All rights reserved. \
-Copyright 2009. Los Alamos National Security, LLC. This software was produced \
-under U.S. Government contract DE-AC52-06NA25396 for Los Alamos National \
-Laboratory (LANL), which is operated by Los Alamos National Security, LLC for \
-the U.S. Department of Energy. The U.S. Government has rights to use, \
-reproduce, and distribute this software.  NEITHER THE GOVERNMENT NOR LOS \
-ALAMOS NATIONAL SECURITY, LLC MAKES ANY WARRANTY, EXPRESS OR IMPLIED, OR \
-ASSUMES ANY LIABILITY FOR THE USE OF THIS SOFTWARE.  If software is \
-modified to produce derivative works, such modified software should be \
-clearly marked, so as not to confuse it with the version available from LANL. \
-\
-Additionally, redistribution and use in source and binary forms, with or
-
+MYNL\.\/Copyright 2009. Los Alamos National Security, LLC. This software was produced \
+MYNL\.\/under U.S. Government contract DE-AC52-06NA25396 for Los Alamos National \
+MYNL\.\/Laboratory (LANL), which is operated by Los Alamos National Security, LLC for \
+MYNL\.\/the U.S. Department of Energy. The U.S. Government has rights to use, \
+MYNL\.\/reproduce, and distribute this software.  NEITHER THE GOVERNMENT NOR LOS \
+MYNL\.\/ALAMOS NATIONAL SECURITY, LLC MAKES ANY WARRANTY, EXPRESS OR IMPLIED, OR \
+MYNL\.\/ASSUMES ANY LIABILITY FOR THE USE OF THIS SOFTWARE.  If software is \
+MYNL\.\/modified to produce derivative works, such modified software should be \
+MYNL\.\/clearly marked, so as not to confuse it with the version available from LANL. \
+MYNL\.\/\
+MYNL\.\/Additionally, redistribution and use in source and binary forms, with or \
+MYNL\.\/without modification, are permitted provided that the following conditions are \
+MYNL\.\/met: \
+MYNL\.\/ \
+MYNL\.\/Redistributions of source code must retain the above copyright notice, this \
+MYNL\.\/list of conditions and the following disclaimer. \
+MYNL\.\/ \
+MYNL\.\/Redistributions in binary form must reproduce the above copyright notice, \
+MYNL\.\/this list of conditions and the following disclaimer in the documentation \
+MYNL\.\/and\/or other materials provided with the distribution. \
+MYNL\.\/ \
+MYNL\.\/Neither the name of Los Alamos National Security, LLC, Los Alamos National \
+MYNL\.\/Laboratory, LANL, the U.S. Government, nor the names of its contributors may be \
+MYNL\.\/used to endorse or promote products derived from this software without specific \
+MYNL\.\/prior written permission. \
+MYNL\.\/ \
+MYNL\.\/THIS SOFTWARE IS PROVIDED BY LOS ALAMOS NATIONAL SECURITY, LLC AND CONTRIBUTORS \
+MYNL\.\/"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, \
+MYNL\.\/THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE \
+MYNL\.\/ARE DISCLAIMED. IN NO EVENT SHALL LOS ALAMOS NATIONAL SECURITY, LLC OR \
+MYNL\.\/CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, \
+MYNL\.\/EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT \
+MYNL\.\/OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS \
+MYNL\.\/INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN \
+MYNL\.\/CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING \
+MYNL\.\/IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY \
+MYNL\.\/OF SUCH DAMAGE. \
+MYNL\.\/
 
 .1in.1:
 	@ echo Creating $@ man page...
@@ -36,6 +62,8 @@ Additionally, redistribution and use in source and binary forms, with or
 	  -e 's/#SEEALSO#/$(SEEALSOREP)/g' \
 	  -e 's/#COPYRIGHT#/$(COPYRIGHT)/g' \
 	  > $@ < $<
+	@ perl -pi -e 's/MYNL/\n/g' $@
+
 
 .3in.3:
 	@ echo Creating $@ man page...
@@ -44,6 +72,7 @@ Additionally, redistribution and use in source and binary forms, with or
 	  -e 's/#SEEALSO3#/$(SEEALSOREP3)/g' \
 	  -e 's/#COPYRIGHT#/$(COPYRIGHT)/g' \
 	  > $@ < $<
+	@ perl -pi -e 's/MYNL/\n/g' $@
 
 .5in.5:
 	@ echo Creating $@ man page...
@@ -52,4 +81,5 @@ Additionally, redistribution and use in source and binary forms, with or
 	  -e 's/#SEEALSO#/$(SEEALSOREP)/g' \
 	  -e 's/#COPYRIGHT#/$(COPYRIGHT)/g' \
 	  > $@ < $<
+	@ perl -pi -e 's/MYNL/\n/g' $@
 
