@@ -1,4 +1,4 @@
-./#COPYRIGHT#
+#COPYRIGHT#
 .TH plfsrc 5 12/3/2010 "#PACKAGE_STRING#" 
 
 .SH NAME
@@ -73,5 +73,5 @@ The per user file options will override options in the system wide file.
 #AUTHORS#
 
 .SH SEE ALSO
-#SEEALSO#
+#SEEALSO5#
 
