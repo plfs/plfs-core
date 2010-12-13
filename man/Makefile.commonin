@@ -6,7 +6,7 @@ PLFS is developed at Los Alamos National Laboratory and is \
 available under LANL LA-CC-08-104. It is hosted at \
 MYNL.I http\:\/\/sourceforge.net\/projects\/plfs \
 MYNLand more information is available at \
-MYNL.I http\:\/\/institue.lanl.gov\/plfsMYNL
+MYNL.I http\:\/\/institute.lanl.gov\/plfsMYNL
 
 SEEALSOREP = \
 plfs(1), plfs(7), plfs_check_config(1), plfs_flatten_index(1), plfs_map(1)
