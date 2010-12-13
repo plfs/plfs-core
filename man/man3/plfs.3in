@@ -3,10 +3,30 @@
 .SH NAME
 PLFS \- General information for PLFS (Parallel Log Structured File System) API
 .SH DESCRIPTION
-PLFS API description
+This is the man page for using the PLFS-API method.  See
+.I plfs(7)
+for information on other ways to use PLFS.
+Using the PLFS-API method requires users to edit application code.  The user calls PLFS directly.
+.PP
+All PLFS functions are either approximations of POSIX file IO calls or
+utility functions.
+.PP
+Many of the utility functions are shared by the ADIO and the FUSE layers
+of PLFS.  Typical applications should try to use those layers.  However,
+it is also possible for an application to be ported to use the PLFS API
+directly.  In this case, at a minimum, the application can call
+plfs_open(), plfs_write(), plfs_read, plfs_close().
+.PP
+This code does allow for multiple threads to share a single Plfs_fd ptr
+To add more threads to a Plfs_fd ptr, just call plfs_open multiple times.
+The first time call it with a NULL ptr, then subsequent times call it
+with the original ptr.  Each function should
+specify itself whether it is thread safe..
 
-.SH ERROR CODES
-error codes
+.SH RETURN VALUES
+Most PLFS functions return 0 or -errno, except write and read which return
+the number of bytes or -errno
+
 
 .SH AUTHORS
 #AUTHORS#

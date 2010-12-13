@@ -1,12 +1,22 @@
 #COPYRIGHT#
 .TH plfs_serious_error 3 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
+plfs_serious_error 
 .SH SYNTAX
 #include <plfs.h>
+.PP
+void plfs_serious_error(const char *msg,pid_t pid );
 
 .SH DESCRIPTION
+Print error message using specified pid.
 
 .SH INPUT PARAMETERS
+.TP 1i
+msg
+Character message to print
+.TP 1i
+pid
+pid to print error
 
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read

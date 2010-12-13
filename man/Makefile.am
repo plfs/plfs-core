@@ -52,15 +52,21 @@ plfs_api_man_pages = \
 plfs_file_man_pages = \
 	man5/plfsrc.5
 
+plfs_project_man_pages = \
+	man7/plfs.7
+
 nodist_man_MANS = \
 	$(plfs_cmd_man_pages) \
 	$(plfs_api_man_pages) \
-	$(plfs_file_man_pages)
+	$(plfs_file_man_pages) \
+	$(plfs_project_man_pages)
+
 
 EXTRA_DIST = \
 	$(plfs_cmd_man_pages=.1=.1in) \
 	$(plfs_api_man_pages:.3=.3in) \
-	$(plfs_file_man_pages:.5=.5in)
+	$(plfs_file_man_pages:.5=.5in) \
+	$(plfs_project_man_pages:.7=.7in)
 
 
 # Remove the generated man pages
@@ -68,6 +74,7 @@ clean-local:
 	-rm man1/*.1
 	-rm man3/*.3
 	-rm man5/*.5
+	-rm man7/*.7
 
 # Make sure man pages are rebuilt if configure was run
 dir_stamp = $(top_builddir)/man/.dir-stamp

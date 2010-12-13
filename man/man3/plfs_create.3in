@@ -1,12 +1,28 @@
 #COPYRIGHT#
 .TH plfs_create 3 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
+plfs_create 
 .SH SYNTAX
 #include <plfs.h>
+.PP
+int plfs_create( const char *path, mode_t mode, int flags, pid_t pid );
 
 .SH DESCRIPTION
+Create the file.  Note you don't need to call this, you can also pass O_CREAT to plfs_open.
 
 .SH INPUT PARAMETERS
+.TP 1i
+path
+File to create
+.TP 1i
+mode
+Permissions to give file
+.TP 1i
+flags
+open flags
+.TP 1i
+pid
+
 
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read

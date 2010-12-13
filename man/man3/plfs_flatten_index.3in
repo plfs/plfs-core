@@ -1,12 +1,26 @@
 #COPYRIGHT#
 .TH plfs_flatten_index 3 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
+plfs_flatten_index 
 .SH SYNTAX
 #include <plfs.h>
+.PP
+int plfs_flatten_index( Plfs_fd *, const char *path );
 
 .SH DESCRIPTION
+Flatten the indexes for a file. By default, PLFS stores one index file
+per rank.  Flatteing changes this to one file per host.  When the index is 
+read in the rank that reads it will broadcast it to other ranks that didn't
+read it.  There is a small performance tradeoff for this but fewer files are opened at
+the same time.
 
 .SH INPUT PARAMETERS
+.TP 1i
+Plfs_fd
+File handler for file
+.TP 1i
+path
+path to file
 
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read

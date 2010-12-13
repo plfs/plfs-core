@@ -9,10 +9,11 @@ MYNLand more information is available at \
 MYNL.I http\:\/\/institue.lanl.gov\/plfsMYNL
 
 SEEALSOREP = \
-plfs(1), plfs_check_config(1), plfs_flatten_index(1), plfs_map(1)
+plfs(1), plfs(7), plfs_check_config(1), plfs_flatten_index(1), plfs_map(1)
 
 SEEALSOREP3 = \
 	plfs(3), \
+	plfs(7), \
 	is_plfs_file(3), \
 	plfs_access(3), \
 	plfs_buildtime(3), \
@@ -53,7 +54,7 @@ SEEALSOREP3 = \
 
 
 SEEALSOREP5 = \
-plfs(1), plfs_check_config(1), plfsrc(5) 
+plfs(1), plfs(7), plfs_check_config(1), plfsrc(5) 
 
 COPYRIGHT = \
 \.\/Copyright (c) 2009, Los Alamos National Security, LLC All rights reserved. \
@@ -124,3 +125,13 @@ MYNL\.\/
 	  > $@ < $<
 	@ perl -pi -e 's/MYNL/\n/g' $@
 
+.7in.7:
+	@ echo Creating $@ man page...
+	@ sed -e 's/#PACKAGE_STRING#/@PACKAGE_STRING@/g' \
+	  -e 's/#AUTHORS#/$(AUTHORSREP)/g' \
+	  -e 's/#SEEALSO#/$(SEEALSOREP)/g' \
+	  -e 's/#SEEALSO3#/$(SEEALSOREP3)/g' \
+	  -e 's/#SEEALSO5#/$(SEEALSOREP5)/g' \
+	  -e 's/#COPYRIGHT#/$(COPYRIGHT)/g' \
+	  > $@ < $<
+	@ perl -pi -e 's/MYNL/\n/g' $@

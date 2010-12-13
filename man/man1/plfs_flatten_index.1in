@@ -1,10 +1,22 @@
 #COPYRIGHT#
 .TH plfs_flatten_index 1 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
-PLFS (Parallel Log Structured File System) \- General Information
+plfs_flatten_index
 .SH SYNOPSIS
+.B ./plfs_flatten_index <
+.I file
+.B >
 
 .SH DESCRIPTION
+Flatten the index for 
+.I file
+.B .
+By default, PLFS stores one index file
+per rank.  Flatteing changes this to one file per host.  When the index is
+read in the rank that reads it will broadcast it to other ranks that didn't
+read it.  There is a small performance tradeoff for this but fewer files are opened at
+the same time.
+
 
 .SH AUTHORS
 #AUTHORS#

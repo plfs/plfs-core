@@ -1,12 +1,22 @@
 #COPYRIGHT#
 .TH plfs_mode 3 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
+plfs_mode 
 .SH SYNTAX
 #include <plfs.h>
+.PP
+int plfs_mode( const char *path, mode_t *mode );
 
 .SH DESCRIPTION
+Query the mode that was used to create the file.  This should only be called on a PLFS file.  
 
 .SH INPUT PARAMETERS
+.TP 1i
+path
+File to query mode for.  This must be a plfs file.
+.TP 1i
+mode
+permissions for file.
 
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read

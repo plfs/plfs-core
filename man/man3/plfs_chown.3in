@@ -1,12 +1,25 @@
 #COPYRIGHT#
 .TH plfs_chown 3 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
+plfs_chown 
 .SH SYNTAX
 #include <plfs.h>
+.PP
+int plfs_chown( const char *path, uid_t, gid_t );
 
 .SH DESCRIPTION
+Change ownership of a PLFS file.  See chown(2) for more details.
 
 .SH INPUT PARAMETERS
+.TP 1i
+path
+File to change ownership
+.TP 1i
+uid_t
+owner
+.TP 1i
+gid_t
+group
 
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read

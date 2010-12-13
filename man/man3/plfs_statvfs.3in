@@ -1,12 +1,24 @@
 #COPYRIGHT#
 .TH plfs_statvfs 3 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
+plfs_statvfs
 .SH SYNTAX
 #include <plfs.h>
+.PP
+int plfs_statvfs( const char *path, struct statvfs *stbuf );
 
 .SH DESCRIPTION
+Get filesystem statistics.  See
+.I statvfs(2)
+for more information.
 
 .SH INPUT PARAMETERS
+.TP 1i
+path
+path to filesystem
+.TP 1i
+stbuf
+pointer to statvfs sturcture
 
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read

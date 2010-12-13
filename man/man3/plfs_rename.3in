@@ -1,12 +1,24 @@
 #COPYRIGHT#
 .TH plfs_rename 3 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
+plfs_rename
 .SH SYNTAX
 #include <plfs.h>
+.PP
+int plfs_rename( const char *from, const char *to );
 
 .SH DESCRIPTION
+Renames a file, moving it between directories if required.  See
+.I rename(2) 
+for more information.
 
 .SH INPUT PARAMETERS
+.TP 1i
+from
+path to move file from
+.TP 1i
+to
+path to move file to
 
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read

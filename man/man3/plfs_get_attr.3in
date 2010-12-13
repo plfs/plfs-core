@@ -1,12 +1,29 @@
 #COPYRIGHT#
 .TH plfs_get_attr 3 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
+plfs_get_attr 
 .SH SYNTAX
 #include <plfs.h>
+.PP
+int plfs_getattr( Plfs_fd *, const char *path, struct stat *stbuf );
 
 .SH DESCRIPTION
+This function returns metadata concerning a file specified by 
+.I path 
+in a special 
+.I stat 
+structure.
 
 .SH INPUT PARAMETERS
+.TP 1i
+Plf_fd
+File handler
+.TP 1i
+path
+path of file to get attributes for
+.TP 1i
+stat
+Structure of metadata information
 
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read

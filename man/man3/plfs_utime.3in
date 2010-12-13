@@ -1,12 +1,24 @@
 #COPYRIGHT#
 .TH plfs_utime 3 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
+plfs_utime
 .SH SYNTAX
 #include <plfs.h>
+.PP
+int plfs_utime( const char *path, struct utimbuf *ut );
 
 .SH DESCRIPTION
+Change access and/or modification times of an inode.  See
+.I utime(2)
+for more information.
 
 .SH INPUT PARAMETERS
+.TP 1i
+path
+path to change time
+.TP 1i
+ut
+buffer with actime and modtime fields that times will be changed to
 
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read

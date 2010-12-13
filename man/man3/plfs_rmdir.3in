@@ -1,12 +1,21 @@
 #COPYRIGHT#
 .TH plfs_rmdir 3 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
+plfs_rmdir
 .SH SYNTAX
 #include <plfs.h>
+.PP
+int plfs_rmdir( const char *path );
 
 .SH DESCRIPTION
+Delete a directory.  See
+.I rmdir(2)
+for more information.
 
 .SH INPUT PARAMETERS
+.TP 1i
+path
+path and name of directory to remove
 
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read

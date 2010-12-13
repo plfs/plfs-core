@@ -1,12 +1,28 @@
 #COPYRIGHT#
 .TH plfs_trunc 3 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
+plfs_trunc
 .SH SYNTAX
 #include <plfs.h>
+.PP
+int plfs_trunc( Plfs_fd *, const char *path, off_t );
 
 .SH DESCRIPTION
+Truncate a file.  Cause the regular file named by path or referenced
+by Plfs_fd to be truncated to a size of precisely off_t bytes. See
+.I truncate(2)
+for more information.
 
 .SH INPUT PARAMETERS
+.TP 1i
+Plfs_fd
+File descriptor
+.TP 1i
+path
+path to file to truncate
+.TP 1i
+off_t
+bytes to truncate
 
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read

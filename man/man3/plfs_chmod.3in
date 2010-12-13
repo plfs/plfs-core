@@ -1,12 +1,22 @@
 #COPYRIGHT#
 .TH plfs_chmod 3 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
+plfs_chmod 
 .SH SYNTAX
 #include <plfs.h>
+.PP
+int plfs_chmod( const char *path, mode_t mode );
 
 .SH DESCRIPTION
+Change permissions of a PLFS file.  See chmod(2) for more details.
 
 .SH INPUT PARAMETERS
+.TP 1i
+path
+Path of file to change permissions.
+.TP 1i
+mode
+Permissions to change the file to.
 
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read

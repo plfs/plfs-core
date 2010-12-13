@@ -1,12 +1,19 @@
 #COPYRIGHT#
 .TH plfs_set_mpi 3 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
+plfs_set_mpi 
 .SH SYNTAX
 #include <plfs.h>
+.PP
+int plfs_set_mpi(Plfs_fd **pfd);
 
 .SH DESCRIPTION
+Have ADIO set a flag indicating that MPI is being used
 
 .SH INPUT PARAMETERS
+.TP 1i
+PLFS_fd
+File descriptor
 
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read

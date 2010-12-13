@@ -1,0 +1,68 @@
+#COPYRIGHT#
+.TH PLFS 7 12/3/2010 "#PACKAGE_STRING#" 
+.SH NAME
+PLFS (Parallel Log Structured File System) \- General Information
+.SH SYNOPSIS
+PLFS is a parallel virtual file system that rearranges random, concurrent writes into sequential writes to unique files (i.e. N-1 into N-N).
+
+.SH DESCRIPTION
+Parallel applications running across thousands of processors must protect themselves from inevitable system failures. Many applications insulate themselves from failures by checkpointing. For many applications, checkpointing into a shared single file is most convenient. With such an approach, the size of writes are often small and not aligned with file system boundaries. Unfortunately for these applications, this preferred data layout results in pathologically poor performance from the underlying file system which is optimized for large, aligned writes to non-shared files. To address this fundamental mismatch, we have developed a virtual parallel log structured file system, PLFS. PLFS remaps an application's preferred data layout into one which is optimized for the underlying file system. Through testing on PanFS, Lustre, and GPFS, we have seen that this layer of indirection and reorganization can reduce checkpoint time by an order of magnitude for several important benchmarks and real applications without any application modification.
+
+
+.SH USING PLFS
+There are three ways to use PLFS.
+.PP
+PLFS-MNT 
+.I plfs(1)
+.RS
+This option is the simplest option to use.  A user just needs to change their path for their restart files to the mount 
+point where PLFS has been mounted.  PLFS runs through fuse in the this case and there is a small performance impact.
+.RE
+.PP
+PLFS-ADIO
+.RS
+This is the best performing option for PLFS.  To use this option append plfs: to the restart checkpoint target.  For example, the path for restart could be 
+.I plfs:/scratch/user/restart_file
+This option requires use of an MPI that has been patched with PLFS.
+.RE
+.PP
+PLFS-API
+.I plfs(3)
+.RS
+In this method of using PLFS the application calls PLFS directly.
+This option requires edits to the user code and thus is not widely used.
+.RE
+.PP
+All PLFS functions are either approximations of POSIX file IO calls or
+utility functions.
+.PP
+Many of the utility functions are shared by the ADIO and the FUSE layers
+of PLFS.  Typical applications should try to use those layers.  However,
+it is also possible for an application to be ported to use the PLFS API
+directly.  In this case, at a minimum, the application can call
+plfs_open(), plfs_write(), plfs_read, plfs_close().
+
+
+
+.SH FILES
+One of these files is required for the PLFS-MNT and PLFS-ADIO methods.
+.PP
+.I /etc/.plfsrc
+.RS
+The system wide configuration file.  
+.RE
+.I ~/.plfsrc
+.RS
+Per user configuration file.
+.RE
+.P
+See
+.BR plfsrc(5) 
+for further details.
+
+.SH AUTHORS
+#AUTHORS#
+
+.SH SEE ALSO
+#SEEALSO# #SEEALSO3# #SEEALSO5#
+

@@ -1,10 +1,26 @@
 #COPYRIGHT#
 .TH plfs_check_config 1 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
-PLFS (Parallel Log Structured File System) \- General Information
+plfs_check_config
 .SH SYNOPSIS
+.B ./plfs_check_config
 
 .SH DESCRIPTION
+This command will check for a valid PLFS configuration file. If both the user
+and system file exist the user file will be the one parsed.  The output will 
+look something like this:
+.RS
+Config file correctly parsed:
+.br
+Num Hostdirs: 32
+.br
+Threadpool size: 16
+.br
+Num Mountpoints: 1
+.br
+.RE
+All zero values means the file could not be found or wasn't correctly parsed.
+
 
 .SH FILES
 .I /etc/.plfsrc

@@ -10,7 +10,11 @@ PLFS (Parallel Log Structured File System) \- General Information
 .B >
 
 .SH DESCRIPTION
-PLFS is an interposition layer. More here...
+PLFS  is  a  parallel  virtual  file  system  that rearranges random, concurrent writes into
+sequential writes to unique files (i.e. N-1 into N-N).
+This command is to mount PLFS to use the PLFS-MNT method.  See
+.I plfs(7)
+for more information on other ways to use PLFS.
 
 .SH FILES
 .I /etc/.plfsrc

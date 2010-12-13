@@ -1,17 +1,29 @@
 #COPYRIGHT#
 .TH is_plfs_file 3 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
+is_plfs_file
 .SH SYNTAX
 #include <plfs.h>
+.PP
+int is_plfs_file( const char *path, mode_t * );
 
 .SH DESCRIPTION
+Determine whether the file is a PLFS file or not.
 
 .SH INPUT PARAMETERS
+.TP 1i
+path 
+path to the file to be checked
+.TP 1i
+mode_t
+bitfield consisting of flags
 
 .SH RETURN VALUES
 returns bool.  Also if mode_t * is not NULL, leaves it 0 if the path
 doesn't exist, or if it does exist, it fills it in with S_IFDIR etc
-This allows multiple possible return values: yes, it is a plfs file,
+This allows multiple possible return values:
+.br
+yes, it is a plfs file,
 .br
 no: it is a directory
 .br

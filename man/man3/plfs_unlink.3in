@@ -1,12 +1,21 @@
 #COPYRIGHT#
 .TH plfs_unlink 3 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
+plfs_unlink
 .SH SYNTAX
 #include <plfs.h>
+.PP
+int plfs_unlink( const char *path );
 
 .SH DESCRIPTION
+Delete a name and possible the file it refers to. See
+.I unlink(2)
+for more information.
 
 .SH INPUT PARAMETERS
+.TP 1i
+path
+name to delete
 
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read

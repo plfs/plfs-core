@@ -1,12 +1,33 @@
 #COPYRIGHT#
 .TH plfs_write 3 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
+plfs_write
 .SH SYNTAX
 #include <plfs.h>
+.PP
+ssize_t plfs_write( Plfs_fd *, const char *, size_t, off_t, pid_t );
 
 .SH DESCRIPTION
+Write to a file descriptor.  See 
+.I write(2)
+for more information.
 
 .SH INPUT PARAMETERS
+.TP 1i
+Plfs_fd
+file descriptor
+.TP 1i
+char
+what to write
+.TP 1i
+size_t
+size of what to write
+.TP 1i
+off_t
+Offset to start writing
+.TP 1i
+pid_t
+pid of processr to write
 
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read

@@ -1,12 +1,25 @@
 #COPYRIGHT#
 .TH plfs_readdir 3 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
+plfs_readdir 
 .SH SYNTAX
 #include <plfs.h>
+.PP
+int plfs_readdir( const char *path, void * );
 
 .SH DESCRIPTION
+Read a directory.
+(is this like readdir(3)?  there's no dirent...)
 
 .SH INPUT PARAMETERS
+.TP 1i
+path
+path to read
+.TP 1i
+void *
+the void * needs to be a pointer to a vector<string> but void * is
+used here so it compiles with C code
+
 
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read

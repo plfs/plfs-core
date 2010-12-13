@@ -1,12 +1,30 @@
 #COPYRIGHT#
 .TH plfs_merge_indexes 3 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
+plfs_merge_indexes 
 .SH SYNTAX
 #include <plfs.h>
+.PP
+int plfs_merge_indexes(Plfs_fd **pfd, char *index_streams,
+                        int *index_sizes, int procs);
 
 .SH DESCRIPTION
+Merge index files.  (how does this differ from flatten?)
 
 .SH INPUT PARAMETERS
+.TP 1i
+Plfs_fd
+File handler
+.TP 1i
+index_streams
+something
+.TP 1i
+index_sizes
+something
+.TP 1i
+procs
+number of processors
+
 
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read

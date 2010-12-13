@@ -1,12 +1,27 @@
 #COPYRIGHT#
 .TH plfs_readlink 3 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
+plfs_readlink 
 .SH SYNTAX
 #include <plfs.h>
+.PP
+int plfs_readlink( const char *path, char *buf, size_t bufsize );
 
 .SH DESCRIPTION
+Read value of symbolic link.  See 
+.I readlink(2) 
+for more information.
 
 .SH INPUT PARAMETERS
+.TP 1i
+path
+path to symlink to read
+.TP 1i
+buf
+size of something
+.TP 1i
+bufsize
+size of something else
 
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read
