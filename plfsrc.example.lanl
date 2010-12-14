@@ -7,11 +7,11 @@ num_hostdirs 32
 # this should be related to how many threads you want running on a machine
 threadpool_size 16 
 
-# these must be full paths
-backends /panfs/scratch1/home/johnbent/.plfs_store,/panfs/scratch1/home/johnbent/.plfs_store2
-
 # this must match where FUSE is mounted and the logical paths passed to ADIO
 mount_point /var/tmp/plfs
+
+# these must be full paths
+backends /panfs/scratch1/home/johnbent/.plfs_store,/panfs/scratch1/home/johnbent/.plfs_store2
 
 # this shows how to read the logical, find the user name, hash it, and construct
 # the physical

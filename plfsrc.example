@@ -4,8 +4,8 @@ num_hostdirs 32
 # this should be related to how many threads you want running on a machine
 threadpool_size 16
 
-# these must be full paths, can be just a single one
-backends /tmp/.plfs_store
-
 # this must match where FUSE is mounted and the logical paths passed to ADIO
 mount_point /tmp/plfs
+
+# these must be full paths, can be just a single one
+backends /tmp/.plfs_store
