@@ -8,8 +8,7 @@ plfs_readdir
 int plfs_readdir( const char *path, void * );
 
 .SH DESCRIPTION
-Read a directory.
-(is this like readdir(3)?  there's no dirent...)
+Read a directory.  The void * must be a pointer to a C++ STL vector<string>.
 
 .SH INPUT PARAMETERS
 .TP 1i

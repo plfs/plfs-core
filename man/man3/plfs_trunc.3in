@@ -11,7 +11,9 @@ int plfs_trunc( Plfs_fd *, const char *path, off_t );
 Truncate a file.  Cause the regular file named by path or referenced
 by Plfs_fd to be truncated to a size of precisely off_t bytes. See
 .I truncate(2)
-for more information.
+for more information.  Truncating a PLFS file to size 0 is a very fast
+operation but truncating to trim only some of the contents can be slow
+for large files created by large numbers of writers.
 
 .SH INPUT PARAMETERS
 .TP 1i

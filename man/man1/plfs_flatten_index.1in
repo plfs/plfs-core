@@ -11,11 +11,12 @@ plfs_flatten_index
 Flatten the index for 
 .I file
 .B .
-By default, PLFS stores one index file
-per rank.  Flatteing changes this to one file per host.  When the index is
-read in the rank that reads it will broadcast it to other ranks that didn't
-read it.  There is a small performance tradeoff for this but fewer files are opened at
-the same time.
+This utility optimizes a PLFS file for subsequent reads.  For large files
+created by a large number of writers, the runtime of this utility can be
+quite large but it will be worth it for improved read performance.  Note
+that a better way to optimize PLFS files for subsequent reads is to
+write them using the PLFS-MPI-IO interface and set hint plfs_flatten_close to
+1.
 
 
 .SH AUTHORS

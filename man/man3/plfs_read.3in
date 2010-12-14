@@ -10,16 +10,16 @@ ssize_t plfs_read( Plfs_fd *, char *buf, size_t size, off_t offset );
 .SH DESCRIPTION
 Read up to 
 .I size 
-from a file descriptor 
+or EOF from file handle 
 .I Plfs_fd 
 into buffer. See 
 .I read(2) 
-for more information.
+for more information.  This call is thread-safe.
 
 .SH INPUT PARAMETERS
 .TP 1i
 Plfs_fd
-File descriptor
+File handle
 .TP 1i
 buf
 Buffer to read into

@@ -954,6 +954,7 @@ get_plfs_conf() {
     static PlfsConf *pconf = NULL;
     static bool init = false;
     if ( init ) return pconf; 
+    bool parsed = false;
     init = true;
     pconf = new PlfsConf;
 
@@ -985,8 +986,10 @@ get_plfs_conf() {
         if ( fp == NULL ) continue;
         pconf = parse_conf(fp,defaults,file);
         fclose(fp);
+        parsed = true;
         break;
     }
+    if ( !parsed) pconf->err_msg = new string("No plfsrc file found");
 
     return pconf;
 }

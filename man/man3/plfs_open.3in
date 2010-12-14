@@ -6,7 +6,7 @@ plfs_open
 #include <plfs.h>
 .PP
 int plfs_open( Plfs_fd **, const char *path,
-        int flags, pid_t pid, mode_t , Plfs_open_opt *open_opt);
+        int flags, pid_t pid, mode_t mode, Plfs_open_opt *open_opt);
 
 .SH DESCRIPTION
 Open a file. See
@@ -16,7 +16,11 @@ for more informtion.
 .SH INPUT PARAMETERS
 .TP 1i
 Plfs_fd
-File Handler
+The address to a file handle pointer.  On success, the address points
+to an instantiated file handle.  Note that the user should not themselves
+free this handle; rather it is freed by calling plfs_close().   Multiple
+threads can open on the same path and share a file handle; however this
+call is not thread-safe, the call must ensure serialization.  
 .TP 1i
 path
 path to open file
@@ -25,18 +29,21 @@ flags
 flag for access mode, one of O_RDONLY, O_WRONLY, or O_RDWR
 .TP 1i
 pid
-pid to open the file with
+A unique value to ensure that multiple writers will not
+interfere with each other.  If multiple processes from different nodes
+are sharing a file, the unique values must be unique only for each node
+(i.e. different nodes can use the same value safely).
 .TP 1i
 mode_t
 permission to open the file with
 .TP 1i
 Plfs_open_opt
-Options to open the file with.  Possible vales are (something)
+Advanced options for low-level developers.  Typically will be NULL.
 
 
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read
-which return the number of bytes or -errno
+which return the number of bytes or -errno.  This function 
 
 .SH ERRORS
 

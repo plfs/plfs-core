@@ -10,14 +10,14 @@ int plfs_getattr( Plfs_fd *, const char *path, struct stat *stbuf );
 .SH DESCRIPTION
 This function returns metadata concerning a file specified by 
 .I path 
-in a special 
+in a 
 .I stat 
 structure.
 
 .SH INPUT PARAMETERS
 .TP 1i
-Plf_fd
-File handler
+Plfs_fd
+File handler (can be NULL)
 .TP 1i
 path
 path of file to get attributes for

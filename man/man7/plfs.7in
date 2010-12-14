@@ -3,62 +3,51 @@
 .SH NAME
 PLFS (Parallel Log Structured File System) \- General Information
 .SH SYNOPSIS
-PLFS is a parallel virtual file system that rearranges random, concurrent writes into sequential writes to unique files (i.e. N-1 into N-N).
+PLFS is a parallel virtual file system that improves concurrent write 
+performance to a shared file.
 
 .SH DESCRIPTION
-Parallel applications running across thousands of processors must protect themselves from inevitable system failures. Many applications insulate themselves from failures by checkpointing. For many applications, checkpointing into a shared single file is most convenient. With such an approach, the size of writes are often small and not aligned with file system boundaries. Unfortunately for these applications, this preferred data layout results in pathologically poor performance from the underlying file system which is optimized for large, aligned writes to non-shared files. To address this fundamental mismatch, we have developed a virtual parallel log structured file system, PLFS. PLFS remaps an application's preferred data layout into one which is optimized for the underlying file system. Through testing on PanFS, Lustre, and GPFS, we have seen that this layer of indirection and reorganization can reduce checkpoint time by an order of magnitude for several important benchmarks and real applications without any application modification.
-
+In many parallel file systems such as Lustre, GPFS, and PanFS, concurrent
+writes from large numbers of processes to a shared file suffers poor 
+performance due to low-level serialization in the parallel file system.
+PLFS transparently rearranges concurrrent writes to avoid this serialization.
 
 .SH USING PLFS
 There are three ways to use PLFS.
 .PP
 PLFS-MNT 
-.I plfs(1)
+.I (see also plfs(1))
 .RS
-This option is the simplest option to use.  A user just needs to change their path for their restart files to the mount 
-point where PLFS has been mounted.  PLFS runs through fuse in the this case and there is a small performance impact.
+This interface provides the most transparency to the user.  PLFS is mounted
+as a file system and users simply perform normal file system operations.  
+This option requires FUSE.  Although this option gives improved performance,
+very large-scale parallel applications are encouraged to use the PLFS-MPI-IO
+interface which provides even larger improvements.
 .RE
 .PP
-PLFS-ADIO
+PLFS-MPI-IO
 .RS
-This is the best performing option for PLFS.  To use this option append plfs: to the restart checkpoint target.  For example, the path for restart could be 
+This is the highest performing interface for PLFS for very large-scale
+parallel applications.  To use this option, applications must use the
+MPI-IO interface and prepend plfs: to their paths.  For example, the path 
+for restart could be 
 .I plfs:/scratch/user/restart_file
 This option requires use of an MPI that has been patched with PLFS.
 .RE
 .PP
 PLFS-API
-.I plfs(3)
+.I (see also plfs(3))
 .RS
-In this method of using PLFS the application calls PLFS directly.
-This option requires edits to the user code and thus is not widely used.
-.RE
-.PP
+Finally, users can interface with PLFS directly by rewriting their applications
+to use the PLFS API.  Although this requires the most user effort,
+it is possible to use this interface by minimally
+using just plfs_open(), plfs_write(), plfs_read, and plfs_close().
 All PLFS functions are either approximations of POSIX file IO calls or
 utility functions.
-.PP
-Many of the utility functions are shared by the ADIO and the FUSE layers
-of PLFS.  Typical applications should try to use those layers.  However,
-it is also possible for an application to be ported to use the PLFS API
-directly.  In this case, at a minimum, the application can call
-plfs_open(), plfs_write(), plfs_read, plfs_close().
-
-
 
 .SH FILES
-One of these files is required for the PLFS-MNT and PLFS-ADIO methods.
-.PP
-.I /etc/.plfsrc
-.RS
-The system wide configuration file.  
-.RE
-.I ~/.plfsrc
-.RS
-Per user configuration file.
-.RE
-.P
-See
-.BR plfsrc(5) 
-for further details.
+In order to use any of these interfaces, a configuration file must be
+present on the system. (see plfsrc(5)).
 
 .SH AUTHORS
 #AUTHORS#

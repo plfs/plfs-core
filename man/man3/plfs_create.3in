@@ -21,7 +21,11 @@ Permissions to give file
 flags
 open flags
 .TP 1i
-pid
+pid 
+A unique value to ensure that multiple writers will not
+interfere with each other.  If multiple processes from different nodes
+are sharing a file, the unique values must be unique only for each node
+(i.e. different nodes can use the same value safely).
 
 
 .SH RETURN VALUES

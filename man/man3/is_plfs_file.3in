@@ -5,7 +5,7 @@ is_plfs_file
 .SH SYNTAX
 #include <plfs.h>
 .PP
-int is_plfs_file( const char *path, mode_t * );
+int is_plfs_file( const char *path, mode_t *mode );
 
 .SH DESCRIPTION
 Determine whether the file is a PLFS file or not.
@@ -15,25 +15,13 @@ Determine whether the file is a PLFS file or not.
 path 
 path to the file to be checked
 .TP 1i
-mode_t
-bitfield consisting of flags
+mode
+pointer to a bitfield which can be used to return additional information 
 
 .SH RETURN VALUES
-returns bool.  Also if mode_t * is not NULL, leaves it 0 if the path
-doesn't exist, or if it does exist, it fills it in with S_IFDIR etc
-This allows multiple possible return values:
-.br
-yes, it is a plfs file,
-.br
-no: it is a directory
-.br
-no: it is a normal flat file
-.br
-no: it is a symbolic link
-
-
-.SH ERRORS
-
+Returns 0 or 1.  If it returns 0 and mode is not NULL, mode will be
+filled to indicate whether the path does not exist, is a directory,
+is a non-PLFS normal file, or is a symbolic link.
 
 .SH AUTHORS
 #AUTHORS#

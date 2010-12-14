@@ -51,9 +51,10 @@ typedef struct{
    This code does allow for multiple threads to share a single Plfs_fd ptr
    To add more threads to a Plfs_fd ptr, just call plfs_open multiple times.
    The first time call it with a NULL ptr, then subsequent times call it
-   with the original ptr.  I'm not sure whether it's thread safe though or
-   whether the caller takes care of that.  I believe each function should
-   specify itself.
+   with the original ptr.  plfs_open and plfs_close are not thread safe;
+   when multiple treads share a Plfs_fd, the caller must ensure synchronization.
+   The other calls are thread safe.  The pid passed to the plfs_open and
+   the plfs_create must be unique on each node.
 */
 
 /* is_plfs_file

@@ -5,20 +5,26 @@ plfs_close
 .SH SYNTAX
 #include <plfs.h>
 .PP
-int plfs_close( Plfs_fd *, pid_t, int open_flags ,Plfs_close_opt *close_opt);
+int plfs_close( Plfs_fd *pfd, pid_t p, int open_flags ,Plfs_close_opt *close_opt);
 
 .SH DESCRIPTION
-Close a file descriptor.  See close(2) for more information.
+Close a file descriptor.  See close(2) for more information.  If multiple
+threads are sharing a file descriptor, the caller must ensure that all
+calls to plfs_close on a shared descriptor are serialized.
 
 .SH INPUT PARAMETERS
 .TP 1i
 Plfs_fd
+the file handle returned from plfs_open
 .TP 1i
-pid_t
+pid_t 
+the pid_t was passed to the plfs_open
 .TP 1i
 open_flags
+the open flags that were passed to the plfs_open
 .TP 1i
 Plfs_close_opt
+optional arguments to control low-level functionality 
 
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read

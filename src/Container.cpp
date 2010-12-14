@@ -117,7 +117,8 @@ bool Container::isContainer( const string &physical_path, mode_t *mode ) {
         if ( mode ) *mode = buf.st_mode;
         if ( Util::isDirectory(&buf) ) {
             // it's either a directory or a container.  check for access file
-            plfs_debug("%s %s is a directory\n", __FUNCTION__, physical_path.c_str());
+            plfs_debug("%s %s is a directory\n", __FUNCTION__, 
+                    physical_path.c_str());
             string accessfile = getAccessFilePath(physical_path); 
             ret = Util::Lstat( accessfile.c_str(), &buf );
             return ( ret == 0 ? true : false );    
