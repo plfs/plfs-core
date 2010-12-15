@@ -127,7 +127,13 @@ Util::Debug( const char *format, va_list args ) {
         }
     }
     if ( debugfile ) {
-        vfprintf(debugfile, format, args);
+        // not sure if this is a performance hit.  To remove
+        // the added header comment out the next three lines
+        // and restore the forth
+        ostringstream oss;
+        oss << "PDEBUG: pid (" << getpid() << ") " << format;
+        vfprintf(debugfile, oss.str().c_str(), args);
+        //vfprintf(debugfile, format, args);
         fflush(debugfile);
     }
 }

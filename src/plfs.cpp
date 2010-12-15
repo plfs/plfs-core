@@ -860,13 +860,19 @@ insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt) {
     return error;
 }
 
+// set defaults
 PlfsConf *
-parse_conf(FILE *fp, PlfsConf &defaults,string file) {
+parse_conf(FILE *fp, string file) {
     PlfsConf *pconf = new PlfsConf;
+    pconf->file = file;
+    pconf->num_hostdirs = 32;
+    pconf->threadpool_size = 8;
+    pconf->direct_io = 0;
+    pconf->err_msg = NULL;
+
     PlfsMount *pmnt = NULL;
     // copy over the defaults first
     //memcpy(pconf,&defaults,sizeof(PlfsConf));
-    pconf->file = file;
     plfs_debug("Parsing %s\n", pconf->file.c_str());
 
     char input[8192];
@@ -875,9 +881,9 @@ parse_conf(FILE *fp, PlfsConf &defaults,string file) {
     int line = 0;
     while(fgets(input,8192,fp)) {
         line++;
+        plfs_debug("Read %s %s (%d)\n", key, value,line);
         if (input[0]=='\n' || input[0] == '\r' || input[0]=='#') continue;
         sscanf(input, "%s %s\n", key, value);
-        plfs_debug("Read %s %s (%d %c)\n", key, value,strlen(input),input[0]);
         if( strstr(value,"//") != NULL ) {
             pconf->err_msg = new string("Double slashes '//' are bad");
             break;
@@ -913,6 +919,7 @@ parse_conf(FILE *fp, PlfsConf &defaults,string file) {
                 pconf->err_msg = new string("No mount point yet declared");
                 break;
             }
+            plfs_debug("Gonna tokenize %s\n", value);
             tokenize(value,",",pmnt->backends); 
         } else {
             ostringstream error_msg;
@@ -921,6 +928,7 @@ parse_conf(FILE *fp, PlfsConf &defaults,string file) {
             break;
         }
     }
+    plfs_debug("Got EOF from parsing conf\n");
 
     // save the current mount point
     if ( !pconf->err_msg ) {
@@ -931,14 +939,19 @@ parse_conf(FILE *fp, PlfsConf &defaults,string file) {
         }
     }
 
+    plfs_debug("BUG SEARCH %s %d\n",__FUNCTION__,__LINE__);
     if(pconf->err_msg) {
+        plfs_debug("Error in the conf file: %s\n", pconf->err_msg->c_str());
         ostringstream error_msg;
         error_msg << "Parse error in " << file << " line " << line << ": "
-            << *(pconf->err_msg) << endl;
+            << pconf->err_msg->c_str() << endl;
         delete pconf->err_msg;
         pconf->err_msg = new string(error_msg.str());
     }
 
+    plfs_debug("BUG SEARCH %s %d\n",__FUNCTION__,__LINE__);
+    assert(pconf);
+    plfs_debug("Successfully parsed conf file\n");
     return pconf;
 }
 
@@ -952,11 +965,7 @@ parse_conf(FILE *fp, PlfsConf &defaults,string file) {
 PlfsConf*
 get_plfs_conf() {
     static PlfsConf *pconf = NULL;
-    static bool init = false;
-    if ( init ) return pconf; 
-    bool parsed = false;
-    init = true;
-    pconf = new PlfsConf;
+    if (pconf ) return pconf;
 
     map<string,string> confs;
     vector<string> possible_files;
@@ -972,24 +981,21 @@ get_plfs_conf() {
     possible_files.push_back(home_file);
     possible_files.push_back(etc_file);
 
-    // set up defaults
-    PlfsConf defaults;
-    defaults.threadpool_size = 8;
-    defaults.num_hostdirs = 32; // ideal is sqrt of num nodes in typical job
-    defaults.err_msg = NULL;
-
     // try to parse each file until one works
     // the C++ way to parse like this is istringstream (bleh)
     for( size_t i = 0; i < possible_files.size(); i++ ) {
         string file = possible_files[i];
         FILE *fp = fopen(file.c_str(),"r");
         if ( fp == NULL ) continue;
-        pconf = parse_conf(fp,defaults,file);
+        PlfsConf *tmppconf = parse_conf(fp,file);
         fclose(fp);
+        if(tmppconf) {
+            if(tmppconf->err_msg) return tmppconf;
+            else pconf = tmppconf; 
+        }
         parsed = true;
         break;
     }
-    if ( !parsed) pconf->err_msg = new string("No plfsrc file found");
 
     return pconf;
 }
