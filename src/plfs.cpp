@@ -872,7 +872,7 @@ parse_conf(FILE *fp, string file) {
 
     PlfsMount *pmnt = NULL;
     // copy over the defaults first
-    //memcpy(pconf,&defaults,sizeof(PlfsConf));
+    //memcpy(pconf,&defaults,sizeof(PlfsConf));// this trashes the internal stl
     plfs_debug("Parsing %s\n", pconf->file.c_str());
 
     char input[8192];
