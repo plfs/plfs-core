@@ -993,7 +993,6 @@ get_plfs_conf() {
             if(tmppconf->err_msg) return tmppconf;
             else pconf = tmppconf; 
         }
-        parsed = true;
         break;
     }
 
