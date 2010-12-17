@@ -176,6 +176,7 @@ expandPath(string logical, bool *mount_point) {
 }
 
 // helper routine for plfs_dump_config
+// changes ret to -ENOENT or leaves it alone
 int
 plfs_check_dir(string type, string dir,int previous_ret) {
     if(!Util::isDirectory(dir.c_str())) {
@@ -187,7 +188,7 @@ plfs_check_dir(string type, string dir,int previous_ret) {
     }
 }
 
-// returns 0 or -EINVAL
+// returns 0 or -EINVAL or -ENOENT
 int
 plfs_dump_config(bool check_dirs) {
     PlfsConf *pconf = get_plfs_conf();
@@ -196,7 +197,7 @@ plfs_dump_config(bool check_dirs) {
         return -EINVAL;
     }
 
-    // if we make it here, we're all good
+    // if we make it here, we've parsed correctly
     int ret = 0;
     cout << "Config file correctly parsed:" << endl
         << "Num Hostdirs: " << pconf->num_hostdirs << endl
