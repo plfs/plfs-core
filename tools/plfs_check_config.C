@@ -6,6 +6,8 @@
 #include "COPYRIGHT.h"
 
 int main (int argc, char **argv) {
-    int ret = plfs_dump_config();
+    int ret = plfs_dump_config(true);
+    if ( ret == 0 ) printf("SUCCESS\n");
+    else            printf("ERROR\n");
     exit( ret );
 }

@@ -1,3 +1,18 @@
+~~~ Version 1.1.5
+Bug fix for symbolic links.  I swear this is the second time I fixed this bug
+
+~~~ Version 1.1.4
+Bug fix in the multiple mount point parsing (unitialized string pointer)
+
+~~~ Version 1.1.3
+Added the multiple mount point parsing in plfsrc
+
+~~~ Version 1.1.2
+Index flattening in ADIO close for write
+
+~~~ Version 1.1.1
+Index broadcast in ADIO open for read
+
 ~~~ Version 1.0.0.0pre.0.C
 
 No new features or performance engineering.  Just bug fixes.

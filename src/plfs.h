@@ -87,7 +87,7 @@ void plfs_debug( const char *format, ... );
 
 int plfs_dump_index( FILE *fp, const char *path, int compress );
 
-int plfs_dump_config();
+int plfs_dump_config(bool check_dirs);
 
 int plfs_flatten_index( Plfs_fd *, const char *path );
 

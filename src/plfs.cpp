@@ -175,9 +175,21 @@ expandPath(string logical, bool *mount_point) {
     return resolved;
 }
 
+// helper routine for plfs_dump_config
+int
+plfs_check_dir(string type, string dir,int previous_ret) {
+    if(!Util::isDirectory(dir.c_str())) {
+        cout << "Error: Needed " << type << " directory " << dir 
+            << " not found (ENOENT)" << endl;
+        return -ENOENT;
+    } else {
+        return previous_ret;
+    }
+}
+
 // returns 0 or -EINVAL
 int
-plfs_dump_config() {
+plfs_dump_config(bool check_dirs) {
     PlfsConf *pconf = get_plfs_conf();
     if ( pconf->err_msg ) {
         cerr << "FATAL conf file error: " << *(pconf->err_msg) << endl;
@@ -185,6 +197,7 @@ plfs_dump_config() {
     }
 
     // if we make it here, we're all good
+    int ret = 0;
     cout << "Config file correctly parsed:" << endl
         << "Num Hostdirs: " << pconf->num_hostdirs << endl
         << "Threadpool size: " << pconf->threadpool_size << endl
@@ -194,12 +207,14 @@ plfs_dump_config() {
     for(itr=pconf->mnt_pts.begin();itr!=pconf->mnt_pts.end();itr++) {
         PlfsMount *pmnt = itr->second; 
         cout << "Mount Point " << itr->first << ":" << endl;
+        if(check_dirs) ret = plfs_check_dir("mount_point",itr->first,ret);
         for(bitr = pmnt->backends.begin(); bitr != pmnt->backends.end();bitr++){
             cout << "\tBackend: " << *bitr << endl;
+            if(check_dirs) ret = plfs_check_dir("backend",*bitr,ret); 
         }
         cout << "\tMap: " << pmnt->map << endl;
     }
-    return 0;
+    return ret;
 }
 
 // returns 0 or -errno

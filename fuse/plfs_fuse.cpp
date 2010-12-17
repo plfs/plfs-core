@@ -198,7 +198,7 @@ int Plfs::init( int *argc, char **argv ) {
             if ( ! mnt_pt_found ) {
                 fprintf(stderr,"FATAL mount point mismatch: %s not found\n", 
                     argv[i] );
-                plfs_dump_config();
+                plfs_dump_config(false);
                 return -ECONNREFUSED;  
             }
             mnt_pt_found = true;
@@ -904,21 +904,24 @@ int Plfs::f_readlink (const char *path, char *buf, size_t bufsize) {
     PLFS_EXIT;
 }
 
+// see comments for f_symlink.  handled the same way
 int Plfs::f_link( const char *path, const char *to ) {
     PLFS_ENTER;
+    plfs_debug("%s: %s to %s\n", __FUNCTION__,path,to);
     string toPath = expandPath(to);
-    ret = plfs_link(strPath.c_str(),toPath.c_str());
+    ret = plfs_link(path,toPath.c_str());
     PLFS_EXIT;
 }
 
+// I think we don't want to expand the path here, but just want to pass it
+// unmodified since that's what should be in a symlink.  
+// we do need to expand the toPath though since that's the PLFS file being
+// created
 int Plfs::f_symlink( const char *path, const char *to ) {
     PLFS_ENTER;
+    plfs_debug("%s: %s to %s\n", __FUNCTION__,path,to);
     string toPath = expandPath(to);
-    // do we use the absolute expanded path or is it a relative one?
-    const char *src;
-    if ( path[0] == '/' ) src = strPath.c_str();
-    else src = path;
-    ret = plfs_symlink(src,toPath.c_str());
+    ret = plfs_symlink(path,toPath.c_str());
     PLFS_EXIT;
 }
 
