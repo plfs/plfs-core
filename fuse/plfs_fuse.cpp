@@ -925,6 +925,8 @@ int Plfs::f_symlink( const char *path, const char *to ) {
     PLFS_EXIT;
 }
 
+// forwards statfs to one of the backends
+// however, if statfs is defined in a plfsrc, then forward it there
 int Plfs::f_statfs(const char *path, struct statvfs *stbuf) {
     PLFS_ENTER;
     // tempting to stick some identifying info in here that we could
@@ -932,7 +934,20 @@ int Plfs::f_statfs(const char *path, struct statvfs *stbuf) {
     // identifying any optimizations we're trying.  but the statvfs struct
     // doesn't have anything good.  very sparse.  it does have an f_fsid flag.
     errno = 0;
-    ret = plfs_statvfs( strPath.c_str(), stbuf );
+
+    // problem here is that the statfs_path will be a physical path
+    // but FUSE only sees logical paths and all the plfs_* routines
+    // expect logical paths so how do we specify that it's a physical path?
+    // hmmm, I guess we can call Util:: and bypass plfs_ but that's a bit
+    // of a kludge since we try to make everything in FUSE go through plfs
+    if(self->pmnt->statfs) {
+        plfs_debug("Forwarding statfs to specified path %s\n",
+                self->pmnt->statfs->c_str());
+        ret = Util::Statvfs(self->pmnt->statfs->c_str(),stbuf);
+        ret = Util::retValue(ret);  // fix it up on error
+    } else {
+        ret = plfs_statvfs(strPath.c_str(), stbuf);
+    }
     PLFS_EXIT;
 }
 

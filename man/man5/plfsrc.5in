@@ -14,22 +14,33 @@ The possible keywords and their meanings are as follows:
 .B
 num_hostdirs
 .RS
-This should be the square root of the total number of compute nodes.
+This should be the square root of the total number of compute nodes typically expected to participate in a job.  Optional.  Default is 32.
 .RE
 .B
 threadpool_size
 .RS
-This value is set to the number of threads to run on a machine.
+This value is set to the number of threads to run on a machine; for machines used in large jobs, this value should probably be around 2; for machines used in small jobs (like file transfer nodes), this value should probably be around 16.  Optional.  Default is 8.
 .RE
 .B
 backends
 .RS
-The location where you want the physcial containers to reside.
+The location where you want the physcial containers to reside.  You can have a comma-separated list and then a mapping function which will distribute PLFS workload across multiple backend directories.  LANL uses this feature to assign different users to different metadata servers.  Required.
 .RE
 .B
 mount_point
 .RS
-Where FUSE is mounted, and the logical paths passed to ADIO
+The path which users use to access PLFS files.  Users should NEVER see the backends.  Required.
+.RE
+.B
+statfs
+.RS
+The path on which to resolve statfs calls received through FUSE.  Typically 
+this is not specified but LANL uses this to avoid hanging on mounts when 
+backend volumes are not specified.  This is because FUSE calls statfs when it
+mounts and PLFS by default forwards that to one of the backends and this can
+then hang.  But the LANL admins don't want anything in the boot cycle to hang
+so they can use this command to force PLFS to forward statfs to a path other
+than the backends which won't hang.  Optional.
 .RE
 .B
 map
@@ -37,7 +48,7 @@ map
 This is to hash by user name so directories may reside on multiple meatdata servers.  It reads the logical path, finds the user name, hashes it, and then constructs the physical path.  The beginning path must match the mount point given in the
 .B
 mount_point
-keyword.
+keyword.  Required if there are multiple backends.  Optional otherwise.
 .RE
 
 A tool for checking the plfsrc file for correct syntax is included in the plfs distribution.  See

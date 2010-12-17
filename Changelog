@@ -1,3 +1,7 @@
+~~~ Version 1.1.6
+Added support for a statfs override in the plfsrc file 
+in response to ticket 35609.
+
 ~~~ Version 1.1.5
 Bug fix for symbolic links.  I swear this is the second time I fixed this bug
 

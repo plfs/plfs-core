@@ -180,7 +180,7 @@ expandPath(string logical, bool *mount_point) {
 int
 plfs_check_dir(string type, string dir,int previous_ret) {
     if(!Util::isDirectory(dir.c_str())) {
-        cout << "Error: Needed " << type << " directory " << dir 
+        cout << "Error: Required " << type << " directory " << dir 
             << " not found (ENOENT)" << endl;
         return -ENOENT;
     } else {
@@ -212,6 +212,12 @@ plfs_dump_config(bool check_dirs) {
         for(bitr = pmnt->backends.begin(); bitr != pmnt->backends.end();bitr++){
             cout << "\tBackend: " << *bitr << endl;
             if(check_dirs) ret = plfs_check_dir("backend",*bitr,ret); 
+        }
+        if(pmnt->statfs) {
+            cout << "\tStatfs: " << pmnt->statfs->c_str() << endl;
+            if(check_dirs) {
+                ret = plfs_check_dir("statfs",pmnt->statfs->c_str(),ret); 
+            }
         }
         cout << "\tMap: " << pmnt->map << endl;
     }
@@ -924,6 +930,13 @@ parse_conf(FILE *fp, string file) {
             }
             pmnt = new PlfsMount;
             pmnt->mnt_pt = value;
+            pmnt->statfs = NULL;
+        } else if (strcmp(key,"statfs")==0) {
+            if( !pmnt ) {
+                pconf->err_msg = new string("No mount point yet declared");
+                break;
+            }
+            pmnt->statfs = new string(value);
         } else if (strcmp(key,"map")==0) {
             if( !pmnt ) {
                 pconf->err_msg = new string("No mount point yet declared");

@@ -22,6 +22,7 @@ vector<string> &tokenize(const string& str,const string& delimiters,
 typedef struct {
     string mnt_pt;  // the logical mount point
     string map;     // how to convert to physical
+    string *statfs; // where to resolve statfs calls
     vector<string> backends;    // a list of physical locations 
     vector<string> expected_tokens;     // tokens matching the logical mount
     vector<string> resolve_tokens;      // how to resolve to physical

@@ -1,3 +1,5 @@
+# also check man 5 plfsrc for more info about this file
+
 # this should be square root of total number of compute nodes
 num_hostdirs 32
 
