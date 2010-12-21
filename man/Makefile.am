@@ -12,7 +12,6 @@ plfs_cmd_man_pages = \
 plfs_api_man_pages = \
 	man3/plfs.3 \
         man3/is_plfs_file.3 \
-        man3/plfs.3 \
         man3/plfs_access.3 \
         man3/plfs_buildtime.3 \
         man3/plfs_chmod.3 \
