@@ -8,16 +8,17 @@ plfs_flatten_index
 int plfs_flatten_index( Plfs_fd *, const char *path );
 
 .SH DESCRIPTION
-Flatten the indexes for a file. By default, PLFS stores one index file
-per rank.  Flatteing changes this to one file per host.  When the index is 
-read in the rank that reads it will broadcast it to other ranks that didn't
-read it.  There is a small performance tradeoff for this but fewer files are opened at
-the same time.
+This call optimizes a PLFS file for subsequent reads.  For large files
+created by a large number of writers, the runtime of this call can be
+quite large but it will be worth it for improved read performance.  Note
+that the best way to optimize PLFS files for subsequent reads is to
+write them using the PLFS-MPI-IO interface and set hint plfs_flatten_close to
+1.
 
 .SH INPUT PARAMETERS
 .TP 1i
 Plfs_fd
-File handler for file
+the file handle returned from plfs_open
 .TP 1i
 path
 path to file
@@ -25,8 +26,6 @@ path to file
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read
 which return the number of bytes or -errno
-
-.SH ERRORS
 
 .SH AUTHORS
 #AUTHORS#

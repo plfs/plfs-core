@@ -18,23 +18,13 @@ Threadpool size: 16
 .br
 Num Mountpoints: 1
 .br
-.RE
-All zero values means the file could not be found or wasn't correctly parsed.
-
+Backend: /tmp/.plfs_store
 
 .SH FILES
-.I /etc/.plfsrc
-.RS
-The system wide configuration file.  
-.RE
-.I ~/.plfsrc
-.RS
-Per user configuration file.
-.RE
-.P
-See
-.BR plfsrc(5) 
-for further details.
+In order to use any of these interfaces, a configuration file must be
+present on the system. (see
+.I plfsrc(5)
+).
 
 .SH AUTHORS
 #AUTHORS#

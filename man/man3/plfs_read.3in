@@ -19,7 +19,7 @@ for more information.  This call is thread-safe.
 .SH INPUT PARAMETERS
 .TP 1i
 Plfs_fd
-File handle
+the file handle returned from plfs_open
 .TP 1i
 buf
 Buffer to read into
@@ -33,8 +33,6 @@ Offset to start with
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read
 which return the number of bytes or -errno
-
-.SH ERRORS
 
 .SH AUTHORS
 #AUTHORS#

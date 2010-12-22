@@ -1,7 +1,7 @@
 #COPYRIGHT#
 .TH PLFS 1 12/3/2010 "#PACKAGE_STRING#" 
 .SH NAME
-PLFS (Parallel Log Structured File System) \- General Information
+PLFS (Parallel Log Structured File System) \- PLFS-MNT information
 .SH SYNOPSIS
 .B ./plfs [
 .I fuse_options
@@ -10,25 +10,50 @@ PLFS (Parallel Log Structured File System) \- General Information
 .B >
 
 .SH DESCRIPTION
-PLFS  is  a  parallel  virtual  file  system  that rearranges random, concurrent writes into
-sequential writes to unique files (i.e. N-1 into N-N).
 This command is to mount PLFS to use the PLFS-MNT method.  See
 .I plfs(7)
 for more information on other ways to use PLFS.
+.PP
+In many parallel file systems such as Lustre, GPFS, and PanFS, concurrent
+writes from large numbers of processes to a shared file suffers poor
+performance due to low-level serialization in the parallel file system.
+PLFS transparently rearranges concurrrent writes to avoid this serialization.
+
+.PP
+In many parallel file systems such as Lustre, GPFS, and PanFS, concurrent
+writes from large numbers of processes to a shared file suffers poor
+performance due to low-level serialization in the parallel file system.
+PLFS transparently rearranges concurrrent writes to avoid this serialization.
+.PP
+This interface provides the most transparency to the user.  PLFS is mounted
+as a file system and users simply perform normal file system operations.
+This option requires FUSE.  Although this option gives improved performance,
+very large-scale parallel applications are encouraged to use the PLFS-MPI-IO
+interface which provides even larger improvements.
+
+
+.SH INPUTS
+fuse options
+.br
+See fuse documentation for possible options.  The most relevant to plfs are:
+.TP 1i
+direct_io
+Available for older versions of fuse.  This option doesn't allow executables to
+be run in the mount point but increases performance for PLFS.
+.TP 1i
+big_writes
+Available for newer versions of fuse.  Includes benefits of direct_io
+option and allows executables to be run in the mount point.
+
+.SH RETURN VALUE
+A 1 is returned on success and 0 or -errno is returned on failure.
 
 .SH FILES
-.I /etc/.plfsrc
-.RS
-The system wide configuration file.  
-.RE
-.I ~/.plfsrc
-.RS
-Per user configuration file.
-.RE
-.P
-See
-.BR plfsrc(5) 
-for further details.
+In order to use any of these interfaces, a configuration file must be
+present on the system. (see 
+.I plfsrc(5)
+).
+
 
 .SH AUTHORS
 #AUTHORS#

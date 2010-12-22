@@ -5,10 +5,11 @@
 plfsrc \- the configuration file for PLFS (Parallel Log Structured File System)
 
 .SH DESCRIPTION
-This configuration file defines the mapping between logical and physical paths on the parallel filesystem.  It also has some configuration options that PLFS will use to try and optimize performance.  This file is never written by PLFS, it is only read and it is the duty of the systems administrator to properly create and maintain this file.
+This configuration file defines the mapping between logical and physical paths on the parallel filesystem.  It also has some configuration options that PLFS will use to try and optimize performance.  This file is never written by PLFS, it is only read and it is the duty of the systems administrator or user to properly create and maintain this file.
 
 .SH FILE FORMAT
-The file consists of one keyword argument pair per line.  Configuration options must be separated by whitespace, ie "keyword argument".  Any line with a # is not interpreted.  Path names must be fully qualified.  Note that all keywords should be in lower-case.
+The file consists of one keyword argument pair per line.  Configuration options must be separated by whitespace, ie "keyword argument".  Any line with starting with a # is not interpreted.  
+Path names must be fully qualified.  Note that all keywords should be in lower-case.
 The possible keywords and their meanings are as follows:
 
 .B
@@ -22,15 +23,17 @@ threadpool_size
 This value is set to the number of threads to run on a machine; for machines used in large jobs, this value should probably be around 2; for machines used in small jobs (like file transfer nodes), this value should probably be around 16.  Optional.  Default is 8.
 .RE
 .B
-backends
-.RS
-The location where you want the physcial containers to reside.  You can have a comma-separated list and then a mapping function which will distribute PLFS workload across multiple backend directories.  LANL uses this feature to assign different users to different metadata servers.  Required.
-.RE
-.B
 mount_point
 .RS
-The path which users use to access PLFS files.  Users should NEVER see the backends.  Required.
+The path which users use to access PLFS files.  Users should NEVER see the backends.  Note this option must appear in the file before the backends keyword. Required.
+
 .RE
+.B
+backends
+.RS
+The location where you want the physcial containers to reside.  You can have a comma-separated list and then a mapping function which will distribute PLFS workload across multiple backend directories.  LANL uses this feature to assign different users to different metadata servers.  Note this option must appear after the mount_point keyword. Required.
+.RE
+
 .B
 statfs
 .RS
@@ -50,7 +53,8 @@ This is to hash by user name so directories may reside on multiple meatdata serv
 mount_point
 keyword.  Required if there are multiple backends.  Optional otherwise.
 .RE
-
+Note the mount_point, backend, and map may be specified multiple times in the same file.
+.br 
 A tool for checking the plfsrc file for correct syntax is included in the plfs distribution.  See
 .I plfs_check_config(1)
 for more details. 
@@ -62,9 +66,9 @@ num_hostdirs 32
 .br
 threadpool_size 16
 .br
-backends /tmp/.plfs_store
-.br
 mount_point /tmp/plfs
+.br
+backends /tmp/.plfs_store
 .br
 map /tmp/plfs/$1:HASH($1)/$1
 
@@ -78,7 +82,7 @@ The system wide configuration file.
 Per user configuration file.
 .RE
 
-The per user file options will override options in the system wide file.
+The per user file options will override options in the system wide file. Options in files cannot be combined, only one file will be used.
 
 .SH AUTHORS
 #AUTHORS#

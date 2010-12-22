@@ -18,7 +18,7 @@ for large files created by large numbers of writers.
 .SH INPUT PARAMETERS
 .TP 1i
 Plfs_fd
-File descriptor
+the file handle returned from plfs_open
 .TP 1i
 path
 path to file to truncate
@@ -29,8 +29,6 @@ bytes to truncate
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read
 which return the number of bytes or -errno
-
-.SH ERRORS
 
 .SH AUTHORS
 #AUTHORS#

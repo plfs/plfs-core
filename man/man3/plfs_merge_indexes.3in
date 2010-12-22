@@ -14,7 +14,7 @@ Merge index files.  (how does this differ from flatten?)
 .SH INPUT PARAMETERS
 .TP 1i
 Plfs_fd
-File handler
+the file handle returned from plfs_open
 .TP 1i
 index_streams
 something
@@ -29,8 +29,6 @@ number of processors
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read
 which return the number of bytes or -errno
-
-.SH ERRORS
 
 .SH AUTHORS
 #AUTHORS#
