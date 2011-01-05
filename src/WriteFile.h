@@ -26,7 +26,7 @@ OpenFd {
 
 class WriteFile : public Metadata {
     public:
-        WriteFile( string, string, mode_t ); 
+        WriteFile( string, string, mode_t, size_t index_buffer_mbs ); 
         ~WriteFile();
 
         int openIndex( pid_t );
@@ -48,8 +48,6 @@ class WriteFile : public Metadata {
         int restoreFds();
         Index * getIndex() {return index;}
 
-        void bufferIndex() {this->buffer_index = true; }
-        
     private:
         int openIndexFile( string path, string host, pid_t, mode_t 
                             , string* index_path);
@@ -67,7 +65,7 @@ class WriteFile : public Metadata {
         pthread_mutex_t    data_mux;   // to access our map of fds 
         bool has_been_renamed; // use this to guard against a truncate following
                                // a rename
-        bool buffer_index;  // whether to buffer the index
+        size_t index_buffer_mbs;
         Index *index;
         mode_t mode;
         double createtime;

@@ -202,6 +202,7 @@ plfs_dump_config(bool check_dirs) {
     cout << "Config file correctly parsed:" << endl
         << "Num Hostdirs: " << pconf->num_hostdirs << endl
         << "Threadpool size: " << pconf->threadpool_size << endl
+        << "Write index buffer size (mbs): " << pconf->buffer_mbs << endl
         << "Num Mountpoints: " << pconf->mnt_pts.size() << endl;
     map<string,PlfsMount*>::iterator itr; 
     vector<string>::iterator bitr;
@@ -882,19 +883,23 @@ insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt) {
     return error;
 }
 
-// set defaults
-PlfsConf *
-parse_conf(FILE *fp, string file) {
-    PlfsConf *pconf = new PlfsConf;
-    pconf->file = file;
+void
+set_default_confs(PlfsConf *pconf) {
     pconf->num_hostdirs = 32;
     pconf->threadpool_size = 8;
     pconf->direct_io = 0;
     pconf->err_msg = NULL;
+    pconf->buffer_mbs = 128;
+}
+
+// set defaults
+PlfsConf *
+parse_conf(FILE *fp, string file) {
+    PlfsConf *pconf = new PlfsConf;
+    set_default_confs(pconf);
+    pconf->file = file;
 
     PlfsMount *pmnt = NULL;
-    // copy over the defaults first
-    //memcpy(pconf,&defaults,sizeof(PlfsConf));// this trashes the internal stl
     plfs_debug("Parsing %s\n", pconf->file.c_str());
 
     char input[8192];
@@ -910,7 +915,13 @@ parse_conf(FILE *fp, string file) {
             pconf->err_msg = new string("Double slashes '//' are bad");
             break;
         }
-        if(strcmp(key,"threadpool_size")==0) {
+        if(strcmp(key,"buffer_mbs")==0) {
+            pconf->buffer_mbs = atoi(value);
+            if (pconf->threadpool_size <0) {
+                pconf->err_msg = new string("illegal negative value");
+                break;
+            }
+        } else if(strcmp(key,"threadpool_size")==0) {
             pconf->threadpool_size = atoi(value);
             if (pconf->threadpool_size <=0) {
                 pconf->err_msg = new string("illegal negative value");
@@ -1091,12 +1102,7 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode,
     bool new_writefile = false;
     bool new_index     = false;
     bool new_pfd       = false;
-    bool opt_pass      = false;
 
-    if(open_opt!=NULL){
-        opt_pass=true;
-    }
-     
     /*
     if ( pid == 0 ) { // this should be MPI rank 0
         // just one message per MPI open to make sure the version is right
@@ -1136,15 +1142,16 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode,
         } 
         if ( wf == NULL ) {
             // do we delete this on error?
-            wf = new WriteFile( path, Util::hostname(), mode ); 
+            size_t indx_sz = 0; 
+            if(open_opt && open_opt->buffer_index) {
+                // this probably means we're using MPI and it wants to flatten
+                // on close
+                indx_sz = get_plfs_conf()->buffer_mbs; 
+            }
+            wf = new WriteFile(path, Util::hostname(), mode, indx_sz); 
             new_writefile = true;
         }
-        ret = addWriter( wf, pid, path.c_str(), mode );
-        // We are using MPI and a flatten on close has been passed 
-        if(opt_pass && open_opt->buffer_index) {
-            plfs_debug("Buffer index is set to true from ADIO\n");
-            wf->bufferIndex();
-        }
+        ret = addWriter(wf, pid, path.c_str(), mode);
         plfs_debug("%s added writer: %d\n", __FUNCTION__, ret );
         if ( ret > 0 ) ret = 0; // add writer returns # of current writers
         EISDIR_DEBUG;
@@ -1164,7 +1171,7 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode,
             index = new Index( path );  
             new_index = true;
             // Did someone pass in an index stream
-            if ( opt_pass && open_opt->index_stream !=NULL){
+            if (open_opt && open_opt->index_stream !=NULL){
                  //Convert the index stream to a global index
                 index->global_from_stream(open_opt->index_stream);
             }else{
@@ -1195,7 +1202,7 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode,
         // we create one open record for all the pids using a file
         // only create the open record for files opened for writing
         if ( wf ) {
-            if(opt_pass && open_opt->mpi){
+            if(open_opt && open_opt->mpi){
                 if(pid==0){
                     ret = Container::addOpenrecord(path,
                             Util::hostname(),pid);
@@ -1528,7 +1535,7 @@ extendFile( Plfs_fd *of, string strPath, off_t offset ) {
     pid_t pid = ( of ? of->getPid() : 0 );
     if ( wf == NULL ) {
         mode_t mode = Container::getmode( strPath ); 
-        wf = new WriteFile( strPath.c_str(), Util::hostname(), mode );
+        wf = new WriteFile( strPath.c_str(), Util::hostname(), mode, 0 );
         ret = wf->openIndex( pid );
         newly_opened = true;
     }

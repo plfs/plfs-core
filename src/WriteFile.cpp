@@ -13,19 +13,16 @@
 using namespace std;
 
 WriteFile::WriteFile( string path, string hostname, 
-        mode_t mode ) : Metadata::Metadata() 
+        mode_t mode, size_t buffer_mbs ) : Metadata::Metadata() 
 {
     this->physical_path     = path;
     this->hostname          = hostname;
     this->index             = NULL;
     this->mode              = mode;
-    // if synchronous index is false, writes will work
-    // but O_RDWR reads won't work, and not sure about
-    // stat'ing an open file
     this->has_been_renamed  = false;
     this->createtime        = Util::getTime();
     this->write_count       = 0;
-    this->buffer_index      = false;
+    this->index_buffer_mbs  = buffer_mbs;
     pthread_mutex_init( &data_mux, NULL );
     pthread_mutex_init( &index_mux, NULL );
 }
@@ -242,18 +239,16 @@ ssize_t WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid){
         if ( ret >= 0 ) {
             Util::MutexLock(   &index_mux , __FUNCTION__);
             index->addWrite( offset, ret, pid, begin, end );
-            // Flush every 1024 writes, might want to 
-            // experiment with this value
+            // TODO: why is 1024 a magic number?
             if (write_count%1024==0 && write_count>0) {
                 ret = index->flush();
                 // Check if the index has grown too large stop buffering
-                if(write_count > 104857600 * 2 && !index->isBuffering()){
+                if(index->memoryFootprintMBs() > index_buffer_mbs) {
                     index->stopBuffering();
-                    plfs_debug("The index has grown over 100MB, "
-                            "buffering stopped\n");
+                    plfs_debug("The index grew too large, no longer buffering");
                 }
             }
-            if (ret >= 0) addWrite(offset, size); // metadata
+            if (ret >= 0) addWrite(offset, size); // track our own metadata
             Util::MutexUnlock( &index_mux, __FUNCTION__ );
         }
     }
@@ -276,7 +271,7 @@ int WriteFile::openIndex( pid_t pid ) {
         Util::MutexUnlock( &index_mux, __FUNCTION__ );
         plfs_debug("In open Index path is %s\n",index_path.c_str());
         index->index_path=index_path;
-        if(buffer_index) index->startBuffering();
+        if(index_buffer_mbs) index->startBuffering();
     }
     return ret;
 }

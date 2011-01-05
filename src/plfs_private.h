@@ -32,6 +32,7 @@ typedef struct {
     string file;
     size_t num_hostdirs;
     size_t threadpool_size;
+    size_t buffer_mbs;  // how many mbs to buffer for write indexing
     map<string,PlfsMount*> mnt_pts;
     bool direct_io; // a flag FUSE needs.  Sorry ADIO and API for the wasted bit
     string *err_msg;

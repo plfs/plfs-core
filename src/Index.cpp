@@ -934,6 +934,16 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
     return 0;
 }
 
+// we're just estimating the area of these stl containers which ignores overhead
+size_t Index::memoryFootprintMBs() {
+    double KBs = 0;
+    KBs += (hostIndex.size() * sizeof(HostEntry))/1024.0;
+    KBs += (global_index.size()*(sizeof(off_t)+sizeof(ContainerEntry)))/1024.0;
+    KBs += (chunk_map.size() * sizeof(ChunkFile))/1024.0;
+    KBs += (physical_offsets.size() * (sizeof(pid_t)+sizeof(off_t)))/1024.0;
+    return size_t(KBs/1024);
+}
+
 void Index::addWrite( off_t offset, size_t length, pid_t pid, 
         double begin_timestamp, double end_timestamp ) 
 {
