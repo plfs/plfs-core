@@ -253,7 +253,7 @@ ssize_t WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid){
                             "buffering stopped\n");
                 }
             }
-            if ( ret >= 0 )          addWrite( offset, size ); // metadata
+            if (ret >= 0) addWrite(offset, size); // metadata
             Util::MutexUnlock( &index_mux, __FUNCTION__ );
         }
     }
