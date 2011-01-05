@@ -889,7 +889,7 @@ set_default_confs(PlfsConf *pconf) {
     pconf->threadpool_size = 8;
     pconf->direct_io = 0;
     pconf->err_msg = NULL;
-    pconf->buffer_mbs = 128;
+    pconf->buffer_mbs = 64;
 }
 
 // set defaults
@@ -915,7 +915,7 @@ parse_conf(FILE *fp, string file) {
             pconf->err_msg = new string("Double slashes '//' are bad");
             break;
         }
-        if(strcmp(key,"buffer_mbs")==0) {
+        if(strcmp(key,"index_buffer_mbs")==0) {
             pconf->buffer_mbs = atoi(value);
             if (pconf->threadpool_size <0) {
                 pconf->err_msg = new string("illegal negative value");

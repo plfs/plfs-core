@@ -23,6 +23,12 @@ threadpool_size
 This value is set to the number of threads to run on a machine; for machines used in large jobs, this value should probably be around 2; for machines used in small jobs (like file transfer nodes), this value should probably be around 16.  Optional.  Default is 8.
 .RE
 .B
+index_buffer_mbs
+.RS
+This is the amount of memory (in megabytes) that PLFS can use to buffer indexing information while it is writing files.  This buffer, if sufficiently large, enables subsequent optimizations which improve read open times.  This behavior is only available through the MPI-IO interface and can be controlled by an optional
+hint of "plfs_flatten_close."  Optional.  Default is 64.
+.RE
+.B
 mount_point
 .RS
 The path which users use to access PLFS files.  Users should NEVER see the backends.  Note this option must appear in the file before the backends keyword. Required.

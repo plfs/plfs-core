@@ -6,6 +6,9 @@ num_hostdirs 32
 # this should be related to how many threads you want running on a machine
 threadpool_size 16
 
+# this is the amount of memory in megabytes available to use during writes
+index_buffer_mbs 64
+
 # this must match where FUSE is mounted and the logical paths passed to ADIO
 mount_point /tmp/plfs
 
