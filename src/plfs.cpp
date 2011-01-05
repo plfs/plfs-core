@@ -1143,7 +1143,7 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode,
         // We are using MPI and a flatten on close has been passed 
         if(opt_pass && open_opt->buffer_index) {
             plfs_debug("Buffer index is set to true from ADIO\n");
-            wf->setBuffer();
+            wf->bufferIndex();
         }
         plfs_debug("%s added writer: %d\n", __FUNCTION__, ret );
         if ( ret > 0 ) ret = 0; // add writer returns # of current writers

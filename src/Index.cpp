@@ -116,8 +116,7 @@ ostream& operator <<(ostream &os,const Index &ndx ) {
 void Index::init( string logical ) {
     logical_path    = logical;
     populated       = false;
-    buffer          = false;
-    stop_buffer     = false;
+    buffering       = false;
     chunk_id        = 0;
     last_offset     = 0;
     total_bytes     = 0;
@@ -504,7 +503,7 @@ int Index::global_to_stream(void **buffer,size_t *length) {
     size_t quant = global_index.size();
 
     //Check if we stopped buffering, if so return -1 and length of -1
-    if(stop_buffer){
+    if(!buffering){
         *length=-1;
         return -1;
     }
@@ -1005,7 +1004,7 @@ void Index::addWrite( off_t offset, size_t length, pid_t pid,
         c_entry.end_timestamp     = entry.end_timestamp;
 
         // Only buffer if we are using the ADIO layer
-        if (buffer) insertGlobal(&c_entry);
+        if(buffering) insertGlobal(&c_entry);
 
         // Make sure we have the chunk path
         if(chunk_map.size()==0){
@@ -1014,7 +1013,7 @@ void Index::addWrite( off_t offset, size_t length, pid_t pid,
             cf.path = Container::chunkPathFromIndexPath(index_path,entry.id);
             // No good we need the Index Path please be stashed somewhere
             //plfs_debug("The hostIndex logical path is: %s\n",cf.path.c_str());
-            plfs_debug("Using chunk path from index path: %s\n",cf.path.c_str());
+            plfs_debug("Use chunk path from index path: %s\n",cf.path.c_str());
             chunk_map.push_back( cf );
         }
     }

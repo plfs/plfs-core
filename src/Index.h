@@ -128,9 +128,9 @@ class Index : public Metadata {
 		friend ostream& operator <<(ostream &,const Index &);
         // Added to get chunk path on write
         string index_path;
-        void setBuffer(bool value) {this->buffer=value;}
-        void setStopBuffer(bool value) {this->stop_buffer=value;}
-        bool StopBuffer() {return this->stop_buffer;}
+        void startBuffering() {this->buffering=true;}
+        void stopBuffering()  {this->buffering=false;global_index.clear();}
+        bool isBuffering()    {return this->buffering;}
         
     private:
         void init( string );
@@ -171,8 +171,7 @@ class Index : public Metadata {
         off_t  last_offset;
         size_t total_bytes;
         int    fd;
-        bool buffer; // Are we buffering the index on write
-        bool stop_buffer; // Did our index get too large
+        bool buffering; // Are we buffering the index on write
         pthread_mutex_t    fd_mux;   // to allow thread safety
 
 };

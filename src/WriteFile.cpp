@@ -22,11 +22,10 @@ WriteFile::WriteFile( string path, string hostname,
     // if synchronous index is false, writes will work
     // but O_RDWR reads won't work, and not sure about
     // stat'ing an open file
-    this->synchronous_index = true;
     this->has_been_renamed  = false;
     this->createtime        = Util::getTime();
     this->write_count       = 0;
-    this->buffer            = false;
+    this->buffer_index      = false;
     pthread_mutex_init( &data_mux, NULL );
     pthread_mutex_init( &index_mux, NULL );
 }
@@ -210,11 +209,11 @@ int WriteFile::extend( off_t offset ) {
 
 // we are currently doing synchronous index writing.
 // this is where to change it to buffer if you'd like
-// returns bytes written or -errno
-
 // We were thinking about keeping the buffer around the
 // entire duration of the write, but that means our appended index will
-// have a lot duplicate information. Let's buffer the index and flush on the close
+// have a lot duplicate information. buffer the index and flush on the close
+//
+// returns bytes written or -errno
 ssize_t WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid){
     int ret = 0; 
     ssize_t written;
@@ -245,12 +244,13 @@ ssize_t WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid){
             index->addWrite( offset, ret, pid, begin, end );
             // Flush every 1024 writes, might want to 
             // experiment with this value
-            if ( synchronous_index && write_count%1024==0 && write_count>0) {
+            if (write_count%1024==0 && write_count>0) {
                 ret = index->flush();
                 // Check if the index has grown too large stop buffering
-                if(write_count > 104857600 * 2 && !index->StopBuffer()){
-                    index->setStopBuffer(true);
-                    plfs_debug("The index has grown over 100MB,buffering stopped\n");
+                if(write_count > 104857600 * 2 && !index->isBuffering()){
+                    index->stopBuffering();
+                    plfs_debug("The index has grown over 100MB, "
+                            "buffering stopped\n");
                 }
             }
             if ( ret >= 0 )          addWrite( offset, size ); // metadata
@@ -266,7 +266,8 @@ ssize_t WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid){
 int WriteFile::openIndex( pid_t pid ) {
     int ret = 0;
     string index_path;
-    int fd = openIndexFile( physical_path, hostname, pid, DROPPING_MODE ,&index_path);
+    int fd = openIndexFile( physical_path, hostname, pid, DROPPING_MODE ,
+            &index_path);
     if ( fd < 0 ) {
         ret = -errno;
     } else {
@@ -275,7 +276,7 @@ int WriteFile::openIndex( pid_t pid ) {
         Util::MutexUnlock( &index_mux, __FUNCTION__ );
         plfs_debug("In open Index path is %s\n",index_path.c_str());
         index->index_path=index_path;
-        index->setBuffer(buffer);
+        if(buffer_index) index->startBuffering();
     }
     return ret;
 }

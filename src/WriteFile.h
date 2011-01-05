@@ -44,10 +44,11 @@ class WriteFile : public Metadata {
         int sync( pid_t pid );
 
         void       setPath( string path ); 
-        void       setBuffer() {this->buffer=true;}
 
         int restoreFds();
         Index * getIndex() {return index;}
+
+        void bufferIndex() {this->buffer_index = true; }
         
     private:
         int openIndexFile( string path, string host, pid_t, mode_t 
@@ -64,15 +65,14 @@ class WriteFile : public Metadata {
         map< int, string > paths;      // need to remember fd paths to restore
         pthread_mutex_t    index_mux;  // to use the shared index 
         pthread_mutex_t    data_mux;   // to access our map of fds 
-        bool synchronous_index;
         bool has_been_renamed; // use this to guard against a truncate following
                                // a rename
+        bool buffer_index;  // whether to buffer the index
         Index *index;
         mode_t mode;
         double createtime;
         // Keeps track of writes for flush of index
         int write_count;
-        bool buffer;
 };
 
 #endif
