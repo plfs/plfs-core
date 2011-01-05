@@ -26,7 +26,7 @@ This value is set to the number of threads to run on a machine; for machines use
 index_buffer_mbs
 .RS
 This is the amount of memory (in megabytes) that PLFS can use to buffer indexing information while it is writing files.  This buffer, if sufficiently large, enables subsequent optimizations which improve read open times.  This behavior is only available through the MPI-IO interface and can be controlled by an optional
-hint of "plfs_flatten_close."  Optional.  Default is 64.
+hint of "plfs_flatten_close."  When setting this value, bear in mind that every open file handle can buffer this much memory so that total memory being used can be much larger than this value.  Optional.  Default is 64.
 .RE
 .B
 mount_point
