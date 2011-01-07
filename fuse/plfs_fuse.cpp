@@ -1142,7 +1142,7 @@ int Plfs::f_rename( const char *path, const char *to ) {
     //ret = plfs_access(path,W_OK);
 
     if ( ret == 0 ) {
-        ret = plfs_rename(path,toPath.c_str());
+        ret = plfs_rename(strPath.c_str(),toPath.c_str());
         // Updated this code to search for all open files because the open
         // files are now cached based on a uid and flags
         if ( ret == 0 ) {
