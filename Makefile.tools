@@ -1,0 +1,48 @@
+# this is a script that developers can use to help build plfs after checking 
+# it out from svn
+# it puts the build tools into a buildtools directory which must then be
+# in the path before any other versions of m4, autoconf, automake, and libtool
+
+TOP = $(shell pwd)/buildtools
+BIN = ${TOP}/bin
+MVERS = 1.4.14
+ACVERS = 2.65
+AMVERS = 1.11.1
+LVERS = 2.2.6b
+CLEAN = rm -rf m4* auto* libtool*
+BEGIN = cd ${TOP}
+FINI = ./configure --prefix ${TOP}; make install; cd ..; ${CLEAN}
+
+
+all: ${TOP} ${BIN}/m4 ${BIN}/autoconf ${BIN}/automake ${BIN}/libtool ${TOP}
+
+${TOP}:
+	mkdir -p $@
+
+${BIN}/m4: 
+	${BEGIN}; \
+	wget http://ftp.gnu.org/gnu/m4/m4-${MVERS}.tar.bz2; \
+	tar xvfj m4-${MVERS}.tar.bz2; \
+	cd m4-${MVERS}; \
+	${FINI}
+
+${BIN}/autoconf: 
+	${BEGIN}; \
+	wget http://ftp.gnu.org/gnu/autoconf/autoconf-${ACVERS}.tar.bz2; \
+	tar xvfj autoconf-${ACVERS}.tar.bz2; \
+	cd autoconf-${ACVERS}; \
+	${FINI}
+
+${BIN}/automake: 
+	${BEGIN}; \
+	wget http://ftp.gnu.org/gnu/automake/automake-${AMVERS}.tar.bz2; \
+	tar xvfj automake-${AMVERS}.tar.bz2; \
+	cd automake-${AMVERS}; \
+	${FINI}
+
+${BIN}/libtool: 
+	${BEGIN}; \
+	wget http://ftp.gnu.org/gnu/libtool/libtool-${LVERS}.tar.gz; \
+	tar xvfz libtool-${LVERS}.tar.gz; \
+	cd libtool-${LVERS}; \
+	${FINI}
