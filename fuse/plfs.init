@@ -18,7 +18,11 @@ RETVAL=0
 start() {
    if [ -x /usr/sbin/plfs ]; then
       echo -n $"Starting plfs: "
-      /usr/sbin/plfs $PLFS_MNT $PLFSOPTS >/dev/null
+      /sbin/modprobe fuse >/dev/null
+      sleep 2
+      for i in $PLFS_MNT; do
+        /usr/sbin/plfs $i $PLFSOPTS >/dev/null
+      done
       RETVAL=$?
       echo
    fi
@@ -26,7 +30,9 @@ start() {
 
 stop() {
    echo -n $"Shutting down plfs: "
-   /bin/fusermount -u $PLFS_MNT
+   for i in $PLFS_MNT; do
+     /bin/fusermount -u $i
+   done
    RETVAL=$?
    echo
 }
