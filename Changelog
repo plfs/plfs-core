@@ -1,3 +1,6 @@
+~~~ Version 1.1.7
+Fixed a bug in rename.
+
 ~~~ Version 1.1.6
 Added support for a statfs override in the plfsrc file 
 in response to ticket 35609.
