@@ -188,6 +188,12 @@ plfs_check_dir(string type, string dir,int previous_ret) {
     }
 }
 
+int
+plfs_dump_index_size() {
+    ContainerEntry e;
+    cout << "An index entry is size " << sizeof(e) << endl;
+}
+
 // returns 0 or -EINVAL or -ENOENT
 int
 plfs_dump_config(bool check_dirs) {

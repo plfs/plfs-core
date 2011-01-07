@@ -42,9 +42,9 @@ class HostEntry {
                                  // rewrite the index, then we break this 
                                  // assumption.  blech.
         size_t length;
-        pid_t  id;
         double begin_timestamp;
         double end_timestamp;
+        pid_t  id;      // needs to be last so no padding
 
     friend class Index;
 };
