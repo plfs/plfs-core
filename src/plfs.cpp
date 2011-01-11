@@ -196,7 +196,7 @@ plfs_dump_index_size() {
 
 // returns 0 or -EINVAL or -ENOENT
 int
-plfs_dump_config(bool check_dirs) {
+plfs_dump_config(int check_dirs) {
     PlfsConf *pconf = get_plfs_conf();
     if ( pconf->err_msg ) {
         cerr << "FATAL conf file error: " << *(pconf->err_msg) << endl;
