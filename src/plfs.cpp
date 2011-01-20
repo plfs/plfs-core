@@ -1081,6 +1081,8 @@ plfs_index_stream(Plfs_fd **pfd, char ** buffer){
     int ret;
     if ( (*pfd)->getIndex() !=  NULL ) {
         plfs_debug("Getting index stream from a reader\n");
+        // Wow we really need some regression testing
+        (*pfd)->getIndex()->startBuffering();
         ret = (*pfd)->getIndex()->global_to_stream((void **)buffer,&length);
     }else if( (*pfd)->getWritefile()->getIndex()!=NULL){
         plfs_debug("The write file has the index\n");
