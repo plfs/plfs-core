@@ -1,4 +1,4 @@
-dnl # Copyright (c) 2009-2010, Los Alamos National Security, LLC. All rights
+dnl # Copyright (c) 2009-2011, Los Alamos National Security, LLC. All rights
 dnl # reserved.
 dnl #
 dnl # This software was produced under U.S. Government contract DE-AC52-06NA25396
@@ -58,18 +58,18 @@ AC_DEFUN([AC_PKG_PLFS_COMPONENTS],
     AM_CONDITIONAL([PLFS_BUILD_FUSE],
                    [test "x$plfs_build_fuse" = "x1"])
 
-    # do we want to build ADIO support?
+    # do we want to build ADIO test support?
     # off by default
-    plfs_build_adio=0
-    AC_MSG_CHECKING([if want PLFS ADIO support])
-    AC_ARG_ENABLE(adio,
-        AC_HELP_STRING([--enable-adio],
-                       [enable PLFS ADIO support (default: disabled)]))
-    AS_IF([test "$enable_adio" = "yes"],
+    plfs_build_adio_test=0
+    AC_MSG_CHECKING([if want PLFS ADIO test support])
+    AC_ARG_ENABLE(adio-test,
+        AC_HELP_STRING([--enable-adio-test],
+                       [enable PLFS ADIO test support (default: disabled)]))
+    AS_IF([test "$enable_adio_test" = "yes"],
           [AC_MSG_RESULT([yes])
-           plfs_build_adio=1],
+           plfs_build_adio_test=1],
           [AC_MSG_RESULT([no])])
     AM_CONDITIONAL([PLFS_BUILD_ADIO],
-                   [test "x$plfs_build_adio" = "x1"])
+                   [test "x$plfs_build_adio_test" = "x1"])
 
 ])dnl

@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2010, Los Alamos National Security, LLC. All rights
+# Copyright (c) 2009-2011, Los Alamos National Security, LLC. All rights
 # reserved.
 #
 # This software was produced under U.S. Government contract DE-AC52-06NA25396
@@ -54,7 +54,7 @@ AC_INIT([PLFS],
         [plfs-devel@lists.sourceforge.net])
 
 AC_COPYRIGHT([
-[Copyright 2009-2010 Los Alamos National Security, LLC. All Rights Reserved.]
+[Copyright 2009-2011 Los Alamos National Security, LLC. All Rights Reserved.]
 ])
 
 AC_PATH_PROG([PKGCONFIG], [pkg-config])
@@ -80,7 +80,7 @@ AM_CONFIG_HEADER([config.h])
 
 AH_TOP([
 /*
-Copyright (c) 2009-2010, Los Alamos National Security, LLC All rights reserved.
+Copyright (c) 2009-2011, Los Alamos National Security, LLC All rights reserved.
 
 This software was produced under U.S. Government contract DE-AC52-06NA25396 for
 Los Alamos National Laboratory (LANL), which is operated by Los Alamos National
@@ -165,7 +165,7 @@ AC_PLFS_DEUBG_FLAG_CHECK
 AC_PKG_PLFS_COMPONENTS
 AS_IF([test "x$plfs_build_fuse" = "x1"], [AC_PKG_PLFS_FUSE])
 # check for mpi.h first because romio depends on it.  see: config/plfs_romio.m4
-AS_IF([test "x$plfs_build_adio" = "x1"],
+AS_IF([test "x$plfs_build_adio_test" = "x1"],
       [AC_PKG_PLFS_MPI
        AC_PKG_PLFS_ROMIO])
 

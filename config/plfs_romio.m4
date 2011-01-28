@@ -1,4 +1,4 @@
-dnl # Copyright (c) 2009-2010, Los Alamos National Security, LLC. All rights
+dnl # Copyright (c) 2009-2011, Los Alamos National Security, LLC. All rights
 dnl # reserved.
 dnl #
 dnl # This software was produced under U.S. Government contract DE-AC52-06NA25396
@@ -54,7 +54,7 @@ AC_DEFUN([AC_PKG_PLFS_ROMIO],
     plfs_romio_inc_dir=
     # adio include dir
     plfs_romio_adio_inc_dir=
-    plfs_build_adio=0
+    plfs_build_adio_test=0
 
     # romio dir
     AC_ARG_WITH(
@@ -105,7 +105,7 @@ AC_DEFUN([AC_PKG_PLFS_ROMIO],
                         [[;]]),
                         AC_MSG_RESULT([yes]), [
                         AC_MSG_RESULT([no])
-                        AS_IF([test "x$plfs_build_adio" = "x1"],
+                        AS_IF([test "x$plfs_build_adio_test" = "x1"],
                         AC_MSG_FAILURE([cannot locate ROMIO headers.]))]
     )
 

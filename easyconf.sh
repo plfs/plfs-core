@@ -40,8 +40,8 @@ if [[ "$PLFS_WANT_PLFS_DEBUG" != "" && "$PLFS_WANT_PLFS_DEBUG" != "0" ]]; then
     conf_cmd_str=$conf_cmd_str" --enable-plfs-debug-flags"
 fi
 
-if [[ "$PLFS_WANT_ADIO" != "" && "$PLFS_WANT_ADIO" != "0" ]]; then
-    conf_cmd_str=$conf_cmd_str" --enable-adio"
+if [[ "$PLFS_WANT_ADIO_TEST" != "" && "$PLFS_WANT_ADIO_TEST" != "0" ]]; then
+    conf_cmd_str=$conf_cmd_str" --enable-adio-test"
 fi
 
 if [[ "$PLFS_WANT_FUSE" != "" && "$PLFS_WANT_FUSE" == "0" ]]; then
