@@ -6,7 +6,7 @@ if ( ! -f ~/.plfsrc ) then
 endif
 
 set plfs   = $HOME/Testing/plfs/trunk/fuse/plfs
-set mnt_pt = `awk '/^mount_point/ {print $2}' ~/.plfsrc`
+set mnt_pt = `awk '/^mount_point/ {print $2}' ~/.plfsrc | tail -1`
 set mount  = "$plfs $mnt_pt -o direct_io" 
 set pexec  = $HOME/Testing/utilities/scripts/pexec
 

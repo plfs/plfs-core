@@ -417,6 +417,7 @@ int Container::flattenIndex( const string &path, Index *index ) {
     // compress adds overhead and no benefit if the writes weren't through FUSE
     //index->compress();  
     int ret = index->global_to_file(index_fd);
+    plfs_debug("index->global_to_file returned %d\n",ret);
     Util::Close(index_fd);
 
     if ( ret == 0 ) { // dump was successful so do the atomic rename
@@ -665,6 +666,7 @@ int Container::addMeta( off_t last_offset, size_t total_bytes,
 {
     string metafile;
     struct timeval time;
+    int ret = 0;
     if ( gettimeofday( &time, NULL ) != 0 ) {
         plfs_debug("WTF: gettimeofday in %s failed: %s\n",
                 __FUNCTION__, strerror(errno ) );
@@ -677,7 +679,22 @@ int Container::addMeta( off_t last_offset, size_t total_bytes,
         << host;
     metafile = oss.str();
     plfs_debug("Creating metafile %s\n", metafile.c_str() );
-    return ignoreNoEnt(Util::Creat( metafile.c_str(), DROPPING_MODE ));
+    ret = ignoreNoEnt(Util::Creat( metafile.c_str(), DROPPING_MODE ));
+
+    // now let's maybe make a global summary dropping
+    PlfsConf *pconf = get_plfs_conf();    
+    if (pconf->global_summary_dir) {
+        ostringstream oss_global;
+        oss_global << *(pconf->global_summary_dir) << "/" 
+            << last_offset << "." << total_bytes  << "."
+            << time.tv_sec << "." << time.tv_usec << "."
+            << host;
+        metafile = oss_global.str();
+        plfs_debug("Creating metafile %s\n", metafile.c_str() );
+        Util::Creat( metafile.c_str(), DROPPING_MODE);
+    }
+
+    return ret;
 }
 
 string Container::fetchMeta( const string &metafile_name, 

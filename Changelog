@@ -1,3 +1,15 @@
+~~~ Version 1.1.8rc
+* Fixed the getattr bug (we were just getting the attr from the openfile
+handle and not getting it from the Container as well).  This made the size
+reasonable but the permissions/ownership/everthing else were garbage).
+* fixed ADIO parse conf error.  Now a good error is reported when the 
+conf file is bad or the file path is bad.
+* added global_summary_dir to the plfsrc
+* fixed tools/plfs_flatten_index which broke due to the stop_buffering
+thing we put into the Index to stop buffering when memory is exhausted.
+the buffering is so everyone retains their write index in memory to do
+the flatten on close in ADIO
+
 ~~~ Version 1.1.7
 Fixed a bug in rename.
 

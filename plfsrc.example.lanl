@@ -16,3 +16,14 @@ backends /panfs/scratch1/home/johnbent/.plfs_store,/panfs/scratch1/home/johnbent
 # this shows how to read the logical, find the user name, hash it, and construct
 # the physical
 map /var/tmp/plfs/$1:HASH($1)/$1
+
+# this is a globally writable directory where summary info can be written
+# this info gets written on every close() for every proc using FUSE or
+# for every close() for every job using ADIO (i.e. just rank 0 does it)
+#
+# be careful because if you use this, this directory can get very full and
+# cause problems.  Also, it's not currently hashed so large jobs using FUSE
+# will have a parallel create storm here especially if there closes are 
+# synchronized
+#global_summary_dir /some/globally/writable/visable/directory
+

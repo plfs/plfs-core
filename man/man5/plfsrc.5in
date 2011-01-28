@@ -17,27 +17,43 @@ num_hostdirs
 .RS
 This should be the square root of the total number of compute nodes typically expected to participate in a job.  Optional.  Default is 32.
 .RE
+
 .B
 threadpool_size
 .RS
 This value is set to the number of threads to run on a machine; for machines used in large jobs, this value should probably be around 2; for machines used in small jobs (like file transfer nodes), this value should probably be around 16.  Optional.  Default is 8.
 .RE
+
 .B
 index_buffer_mbs
 .RS
 This is the amount of memory (in megabytes) that PLFS can use to buffer indexing information while it is writing files.  This buffer, if sufficiently large, enables subsequent optimizations which improve read open times.  This behavior is only available through the MPI-IO interface and can be controlled by an optional
 hint of "plfs_flatten_close."  When setting this value, bear in mind that every open file handle can buffer this much memory so that total memory being used can be much larger than this value.  Optional.  Default is 64.
 .RE
+
 .B
 mount_point
 .RS
 The path which users use to access PLFS files.  Users should NEVER see the backends.  Note this option must appear in the file before the backends keyword. Required.
-
 .RE
+
 .B
 backends
 .RS
 The location where you want the physcial containers to reside.  You can have a comma-separated list and then a mapping function which will distribute PLFS workload across multiple backend directories.  LANL uses this feature to assign different users to different metadata servers.  Note this option must appear after the mount_point keyword. Required.
+.RE
+
+.B
+global_summary_dir
+.RS
+The path into which to drop summary information.  Useful to determine how
+much PLFS is being used and a bit of information about how it is being
+used.  This must be set to a globally writable and globally visible path.
+When this is set, each close() will drop a file into this directory with
+some statistical information in the filename.  This will happen on every
+close() for every proc when using FUSE and just on rank 0's close() when
+using ADIO.  Be careful if you use this because this directory can get
+very full and can cause performance problems. Optional.
 .RE
 
 .B
@@ -51,6 +67,7 @@ then hang.  But the LANL admins don't want anything in the boot cycle to hang
 so they can use this command to force PLFS to forward statfs to a path other
 than the backends which won't hang.  Optional.
 .RE
+
 .B
 map
 .RS
@@ -59,7 +76,9 @@ This is to hash by user name so directories may reside on multiple meatdata serv
 mount_point
 keyword.  Required if there are multiple backends.  Optional otherwise.
 .RE
-Note the mount_point, backend, and map may be specified multiple times in the same file.
+
+Note that the mount_point, backend, and map may be specified multiple times in the same file.
+
 .br 
 A tool for checking the plfsrc file for correct syntax is included in the plfs distribution.  See
 .I plfs_check_config(1)

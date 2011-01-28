@@ -134,11 +134,11 @@ int open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
         MPIBCAST( &disabl_broadcast, 1, MPI_INT, 0, MPI_COMM_WORLD );
         MPIBCAST( &compress_flag, 1, MPI_INT, 0, MPI_COMM_WORLD);
     } else {
-        disabl_broadcast = 1; // we don't create an index unless we're in read mode
+        disabl_broadcast = 1; // we don't create an index unless in read mode
         compress_flag=0;
     }
 
-    // If we are read only and broadcast isn't disabled let's broadcast that index
+    // If we are read only and broadcast isn't disabled let's broadcast index
     if(!disabl_broadcast){
         err = broadcast_index(pfd,fd,error_code,perm,amode,rank,compress_flag);
     } else {

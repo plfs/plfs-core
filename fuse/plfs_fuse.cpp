@@ -473,7 +473,7 @@ int Plfs::f_chmod (const char *path, mode_t mode) {
     END_TIMES;
     
     if(ret == 0) {
-        ret = plfs_chmod_cleanup( path , mode );
+        ret = plfs_chmod_cleanup( strPath.c_str(), mode );
     }
     plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
     PLFS_EXIT; 

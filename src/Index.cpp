@@ -117,6 +117,7 @@ void Index::init( string logical ) {
     logical_path    = logical;
     populated       = false;
     buffering       = false;
+    buffer_filled   = false;
     chunk_id        = 0;
     last_offset     = 0;
     total_bytes     = 0;
@@ -183,6 +184,24 @@ Index::~Index() {
     */
 }
 
+void 
+Index::startBuffering() {
+    this->buffering=true; 
+    this->buffer_filled=false;
+}
+
+void 
+Index::stopBuffering() {
+    this->buffering=false;
+    this->buffer_filled=true;
+    global_index.clear();
+}
+
+bool 
+Index::isBuffering() {
+    return this->buffering;
+}
+     
 // this function makes a copy of the index
 // and then clears the existing one
 // walks the copy and merges where possible
@@ -503,7 +522,7 @@ int Index::global_to_stream(void **buffer,size_t *length) {
     size_t quant = global_index.size();
 
     //Check if we stopped buffering, if so return -1 and length of -1
-    if(!buffering){
+    if(buffering && buffer_filled){
         *length=-1;
         return -1;
     }
@@ -1014,7 +1033,7 @@ void Index::addWrite( off_t offset, size_t length, pid_t pid,
         c_entry.end_timestamp     = entry.end_timestamp;
 
         // Only buffer if we are using the ADIO layer
-        if(buffering) insertGlobal(&c_entry);
+        if(buffering && !buffer_filled) insertGlobal(&c_entry);
 
         // Make sure we have the chunk path
         if(chunk_map.size()==0){

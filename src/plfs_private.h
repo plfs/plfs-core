@@ -36,6 +36,7 @@ typedef struct {
     map<string,PlfsMount*> mnt_pts;
     bool direct_io; // a flag FUSE needs.  Sorry ADIO and API for the wasted bit
     string *err_msg;
+    string *global_summary_dir;
 } PlfsConf;
 
 /* get_plfs_conf

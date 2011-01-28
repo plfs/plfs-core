@@ -16,10 +16,22 @@
 #include <stdlib.h>
 using namespace std;
 
+// some functions require that the path passed be a PLFS path
+// some (like symlink) don't
+enum
+requirePlfsPath {
+    PLFS_PATH_REQUIRED,
+    PLFS_PATH_NOTREQUIRED,
+};
 
-#define PLFS_ENTER bool is_mnt_pt = false; int ret = 0;\
- string path = expandPath(logical,&is_mnt_pt); \
- plfs_debug("EXPAND in %s: %s->%s\n",__FUNCTION__,logical,path.c_str());
+#define PLFS_ENTER PLFS_ENTER2(PLFS_PATH_REQUIRED)
+
+#define PLFS_ENTER2(X) bool is_mnt_pt = false; int ret = 0;\
+ bool expand_error = false; \
+ string path = expandPath(logical,&is_mnt_pt,&expand_error); \
+ plfs_debug("EXPAND in %s: %s->%s\n",__FUNCTION__,logical,path.c_str()); \
+ if (expand_error && X==PLFS_PATH_REQUIRED) PLFS_EXIT(-ENOENT);
+
 #define PLFS_EXIT(X) return(X);
 
 // a struct for making reads be multi-threaded
@@ -81,10 +93,11 @@ find_mount_point(PlfsConf *pconf, string logical, bool &found) {
 // also returns whether the logical matches the mount point
 // readdir is the only caller that's interested in this....
 string
-expandPath(string logical, bool *mount_point) {
+expandPath(string logical, bool *mount_point, bool *expand_error) {
     static PlfsConf *pconf = NULL;
 
     if (mount_point) *mount_point = false;
+    if (expand_error) *expand_error = false;
     if ( ! pconf ) {
         pconf = get_plfs_conf();
         assert(pconf);
@@ -92,6 +105,7 @@ expandPath(string logical, bool *mount_point) {
 
     if ( pconf->err_msg ) {
       plfs_debug("PlfsConf error: %s\n", pconf->err_msg->c_str());
+      *expand_error = true;
       return "INVALID";
     }
 
@@ -101,6 +115,7 @@ expandPath(string logical, bool *mount_point) {
 
     if(!mnt_pt_found) {
         fprintf(stderr,"No mount point for %s\n", logical.c_str());
+        *expand_error = true;
         return "PLFS_NO_MOUNT_POINT_FOUND";
     }
 
@@ -210,6 +225,11 @@ plfs_dump_config(int check_dirs) {
         << "Threadpool size: " << pconf->threadpool_size << endl
         << "Write index buffer size (mbs): " << pconf->buffer_mbs << endl
         << "Num Mountpoints: " << pconf->mnt_pts.size() << endl;
+    if (pconf->global_summary_dir) {
+        cout << "Global summary dir: " << *(pconf->global_summary_dir) << endl;
+        if(check_dirs) ret = plfs_check_dir("global_summary_dir",
+                pconf->global_summary_dir->c_str(),ret);
+    }
     map<string,PlfsMount*>::iterator itr; 
     vector<string>::iterator bitr;
     for(itr=pconf->mnt_pts.begin();itr!=pconf->mnt_pts.end();itr++) {
@@ -840,8 +860,9 @@ bool
 plfs_init(PlfsConf *pconf) { 
     map<string,PlfsMount*>::iterator itr = pconf->mnt_pts.begin();
     if (itr==pconf->mnt_pts.end()) return false;
-    expandPath(itr->first,NULL);
-    return true;
+    bool expand_error = false;
+    expandPath(itr->first,NULL,&expand_error);
+    return(expand_error ? false : true);
 }
 
 // inserts a mount point into a plfs conf structure
@@ -896,6 +917,7 @@ set_default_confs(PlfsConf *pconf) {
     pconf->direct_io = 0;
     pconf->err_msg = NULL;
     pconf->buffer_mbs = 64;
+    pconf->global_summary_dir = NULL;
 }
 
 // set defaults
@@ -933,6 +955,8 @@ parse_conf(FILE *fp, string file) {
                 pconf->err_msg = new string("illegal negative value");
                 break;
             }
+        } else if (strcmp(key,"global_summary_dir")==0) {
+            pconf->global_summary_dir = new string(value); 
         } else if (strcmp(key,"num_hostdirs")==0) {
             pconf->num_hostdirs = atoi(value);
             if (pconf->num_hostdirs <= 0) {
@@ -1251,12 +1275,15 @@ plfs_symlink(const char *logical, const char *to) {
     // really we should probably make the link point to the backend
     // and then un-resolve it on the readlink...
     // ok, let's try that then.  no, let's try the first way
-    PLFS_ENTER;
-    string toPath = expandPath(to,NULL);
-    //ret = retValue(Util::Symlink(path.c_str(),toPath.c_str()));
-    ret = retValue(Util::Symlink(logical,toPath.c_str()));
+    PLFS_ENTER2(PLFS_PATH_NOTREQUIRED);
+
+    bool expand_error2 = false;
+    string topath = expandPath(to, NULL,&expand_error2);
+    if (expand_error2) PLFS_EXIT(-ENOENT);
+    
+    ret = retValue(Util::Symlink(logical,topath.c_str()));
     plfs_debug("%s: %s to %s: %d\n", __FUNCTION__, 
-            path.c_str(), toPath.c_str(),ret);
+            path.c_str(), topath.c_str(),ret);
     PLFS_EXIT(ret);
 }
 
@@ -1265,10 +1292,12 @@ plfs_symlink(const char *logical, const char *to) {
 // and plfs containers are physical directories
 int
 plfs_link(const char *logical, const char *to) {
-    PLFS_ENTER;
+    PLFS_ENTER2(PLFS_PATH_NOTREQUIRED);
+
     ret = 0;    // suppress warning about unused variable
     plfs_debug( "Can't make a hard link to a container.\n" );
     PLFS_EXIT(-ENOSYS);
+
     /*
     string toPath = expandPath(to);
     ret = retValue(Util::Link(logical,toPath.c_str()));
@@ -1293,7 +1322,9 @@ plfs_readlink(const char *logical, char *buf, size_t bufsize) {
 int
 plfs_rename( const char *logical, const char *to ) {
     PLFS_ENTER;
-    string topath = expandPath(to, NULL);
+    bool expand_error2 = false;
+    string topath = expandPath(to, NULL,&expand_error2);
+    //if (expand_error2) PLFS_EXIT(-ENOENT);
 
     if ( is_plfs_file( to, NULL ) ) {
         // we can't just call rename bec it won't trash a dir in the toPath
@@ -1488,30 +1519,47 @@ plfs_getattr( Plfs_fd *of, const char *logical, struct stat *stbuf ) {
             ret = retValue( Util::Lstat( path.c_str(), stbuf ) );        
         }
     } else {
-        // if it's open, just use the local info
-        // the upside is that it's fast.  the downside is that we
-        // just get info from one proc.....
-        stbuf->st_size = stbuf->st_blocks = 0;
-        WriteFile *wf=(of && of->getWritefile() ? of->getWritefile() :NULL);
-        if( wf ) {
-            size_t total_bytes;
-            wf->getMeta( &(stbuf->st_size), &total_bytes );
-                // if the index has already been flushed, then we might
-                // count it twice here.....
-            stbuf->st_blocks = Container::bytesToBlocks(total_bytes);
-            ret = 0;
-        } else {
-            ret = Container::getattr( path, stbuf );
-        }
-    }
+        ret = Container::getattr( path, stbuf );
+        // at one point, we tried to just use the info from the open
+        // file and not descend into the container but that wasn't 
+        // working (we might not be maintaining the openfile meta correctly)
+        if ( ret == 0 ) {                                               
+            // is it also open currently? 
+            // we might be reading from some other users writeFile but   
+            // we're only here if we had access to stat the container     
+            // commented out some stuff that I thought was maybe slow      
+            // this might not be necessary depending on how we did          
+            // the stat.  If we stat'ed data droppings then we don't         
+            // need to do this but it won't hurt.  
+            // If we were trying to read index droppings                       
+            // and they weren't available, then we should do this.            
+            WriteFile *wf=(of && of->getWritefile() ? of->getWritefile() :NULL);
+            if ( wf ) {
+                off_t  last_offset;
+                size_t total_bytes;
+                wf->getMeta( &last_offset, &total_bytes );
+                plfs_debug("Got meta from openfile: %ld last offset, "
+                           "%ld total bytes\n", last_offset, total_bytes);
+                if ( last_offset > stbuf->st_size ) {    
+                    stbuf->st_size = last_offset;       
+                }
+                    // if the index has already been flushed, then we might
+                    // count it twice here.....                           
+                stbuf->st_blocks += Container::bytesToBlocks(total_bytes);
+            }
+        }   
+    } 
     if ( ret != 0 ) {
         plfs_debug("logical %s,stashed %s,physical %s: %s\n",
             logical,of?of->getPath():"NULL",path.c_str(),
             strerror(errno));
     }
-    //cerr << __FUNCTION__ << " of " << path << "(" 
-    //     << (of == NULL ? "closed" : "open") 
-    //     << ") size is " << stbuf->st_size << endl;
+
+    ostringstream oss;
+    oss << __FUNCTION__ << " of " << path << "(" 
+        << (of == NULL ? "closed" : "open") 
+        << ") size is " << stbuf->st_size << endl;
+    plfs_debug("%s", oss.str().c_str());
 
     PLFS_EXIT(ret);
 }
@@ -1718,9 +1766,11 @@ ssize_t plfs_reference_count( Plfs_fd *pfd ) {
 }
 
 // returns number of open handles or -errno
+// the close_opt currently just means we're in ADIO mode
 int
 plfs_close( Plfs_fd *pfd, pid_t pid, int open_flags, 
-            Plfs_close_opt *close_opt ) {
+            Plfs_close_opt *close_opt ) 
+{
     int ret = 0;
     WriteFile *wf    = pfd->getWritefile();
     Index     *index = pfd->getIndex();
@@ -1737,27 +1787,29 @@ plfs_close( Plfs_fd *pfd, pid_t pid, int open_flags,
         if ( writers == 0 ) {
             off_t  last_offset;
             size_t total_bytes;
-            if(close_opt && pid==0){
-                if(close_opt->valid_meta) {
-                    plfs_debug("Grabbing meta from info gathered in ADIO\n");
-                    last_offset=close_opt->last_offset;
-                    total_bytes=close_opt->total_bytes;
+            bool drop_meta = true; // in ADIO, only 0; else, everyone
+            if(close_opt) {
+                if (pid==0) {
+                    if(close_opt->valid_meta) {
+                        plfs_debug("Grab meta from info gathered in ADIO\n");
+                        last_offset=close_opt->last_offset;
+                        total_bytes=close_opt->total_bytes;
+                    } else {
+                        plfs_debug("Grab info from globally merged index\n");
+                        last_offset=index->lastOffset();
+                        total_bytes=index->totalBytes();
+                    }
                 } else {
-                    plfs_debug("Grabbing info from the globally merged index\n");
-                    last_offset=index->lastOffset();
-                    total_bytes=index->totalBytes();
+                    drop_meta = false;
                 }
-
-                Container::addMeta( last_offset, total_bytes, pfd->getPath(), 
-                        Util::hostname() );
-                Container::removeOpenrecord( pfd->getPath(), Util::hostname(), 
-                        pfd->getPid() );
-            }else if(!close_opt){
+            } else {
                 wf->getMeta( &last_offset, &total_bytes );
-                Container::addMeta( last_offset, total_bytes, pfd->getPath(), 
-                        Util::hostname() );
+            }
+            if ( drop_meta ) {
+                Container::addMeta(last_offset, total_bytes, pfd->getPath(), 
+                        Util::hostname());
                 Container::removeOpenrecord( pfd->getPath(), Util::hostname(), 
-                        pfd->getPid() );
+                        pfd->getPid());
             }
             // the pfd remembers the first pid added which happens to be the
             // one we used to create the open-record
@@ -1773,6 +1825,7 @@ plfs_close( Plfs_fd *pfd, pid_t pid, int open_flags,
         ref_count = pfd->incrementOpens(-1);
       // Clean up reads moved fd reference count updates
     }   
+
     if (isReader(open_flags) && index){ // might have been O_RDWR so no index
         assert( index );
         readers = index->incrementOpens(-1);
