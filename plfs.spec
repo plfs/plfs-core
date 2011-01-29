@@ -3,7 +3,7 @@
 
 Name:		plfs
 Summary:	plfs - Parallel Log Structured File System
-Version:	1.1.7
+Version:	1.1.8
 Release:	%{_release}%{?dist}
 License:	LANS LLC
 Group:		System Environment/Filesystems
@@ -142,6 +142,12 @@ fi
 %{_mandir}/man3/plfs_wtime.3.gz
 
 %changelog
+* Sat Jan 29 2011 Ben McClelland <ben@lanl.gov>
+* Fixed the getattr bug 
+* fixed ADIO parse conf error
+* added global_summary_dir to the plfsrc
+* fixed tools/plfs_flatten_index 
+
 * Fri Jan 7 2011 Ben McClelland <ben@lanl.gov>
 - Fixed a bug in rename.
 - version 1.1.7
