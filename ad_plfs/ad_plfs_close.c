@@ -199,15 +199,15 @@ void reduce_meta(Plfs_fd *fd,const char * filename,Plfs_close_opt *close_opt){
     int BLKSIZE=512;
     struct stat buf;
     size_t glbl_tot_byt=0;
+    int size_only=1;    // lazy stat
     
-    plfs_getattr(fd,filename,&buf);
+    plfs_getattr(fd,filename,&buf,size_only);
     MPI_Reduce(&(buf.st_size),&(close_opt->last_offset),1,
             MPI_LONG_LONG,MPI_MAX,0,MPI_COMM_WORLD);
     MPI_Reduce(&(buf.st_blocks),&glbl_tot_byt,1,MPI_LONG_LONG,MPI_SUM,0,
             MPI_COMM_WORLD); 
     close_opt->total_bytes=glbl_tot_byt*BLKSIZE;
     close_opt->valid_meta=1;
-
 }
 
 void check_error(int err,int rank){

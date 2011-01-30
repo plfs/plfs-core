@@ -12,13 +12,13 @@ void ADIOI_PLFS_Fcntl(ADIO_File fd, int flag, ADIO_Fcntl_t *fcntl_struct,
 {
     static char myname[] = "ADIOI_PVFS_FCNTL";
     struct stat buf;
-    int ret;
+    int ret, size_only;
 
     plfs_debug( "%s: begin\n", myname );
 
     switch(flag) {
     case ADIO_FCNTL_GET_FSIZE:
-        bool size_only = true;  // like a lazy stat or stat-lite
+        size_only = 1;  // like a lazy stat or stat-lite
         ret = plfs_getattr( fd->fs_ptr, fd->filename, &buf, size_only );
         if ( ret == 0 ) {
             fcntl_struct->fsize = buf.st_size;
