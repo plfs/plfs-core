@@ -18,7 +18,8 @@ void ADIOI_PLFS_Fcntl(ADIO_File fd, int flag, ADIO_Fcntl_t *fcntl_struct,
 
     switch(flag) {
     case ADIO_FCNTL_GET_FSIZE:
-        ret = plfs_getattr( fd->fs_ptr, fd->filename, &buf );
+        bool size_only = true;  // like a lazy stat or stat-lite
+        ret = plfs_getattr( fd->fs_ptr, fd->filename, &buf, size_only );
         if ( ret == 0 ) {
             fcntl_struct->fsize = buf.st_size;
             *error_code = MPI_SUCCESS;

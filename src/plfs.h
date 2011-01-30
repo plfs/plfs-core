@@ -19,19 +19,24 @@
     typedef void * Plfs_fd;
 #endif
 
-
+typedef enum {
+    PLFS_API, PLFS_POSIX, PLFS_MPIIO
+} plfs_interface;
 
 typedef struct{
     char *index_stream; /* Index stream passed in from another proc */
     int  mpi;           /* Flag indicating that mpi is being used   */
     int  buffer_index;  /* Buffer index yes/no                      */
-}Plfs_open_opt;
+    plfs_interface pinter;
+} Plfs_open_opt;
 
 typedef struct{
     off_t last_offset;
     size_t total_bytes;
     int valid_meta;
-}Plfs_close_opt;
+    plfs_interface pinter;
+} Plfs_close_opt;
+
 /*
    All PLFS function declarations in this file are in alphabetical order.
    Please retain this as edits are made.
@@ -58,7 +63,7 @@ typedef struct{
 */
 
 /* is_plfs_file
-    returns bool.  Also if mode_t * is not NULL, leaves it 0 if the path
+    returns int.  Also if mode_t * is not NULL, leaves it 0 if the path
     doesn't exist, or if it does exist, it fills it in with S_IFDIR etc
     This allows multiple possible return values: yes, it is a plfs file,
     no: it is a directory
@@ -94,9 +99,11 @@ int plfs_dump_index_size();
 
 int plfs_flatten_index( Plfs_fd *, const char *path );
 
-/* Plfs_fd can be NULL */
-int plfs_getattr( Plfs_fd *, const char *path, struct stat *stbuf );
-
+/* Plfs_fd can be NULL 
+    int size_only is whether the only attribute of interest is
+    filesize.  This is sort of like stat-lite or lazy stat
+ */
+int plfs_getattr(Plfs_fd *, const char *path, struct stat *st, int size_only);
 
 /* Index stream related functions */
 int plfs_index_stream(Plfs_fd **pfd, char ** buffer);

@@ -207,6 +207,7 @@ int
 plfs_dump_index_size() {
     ContainerEntry e;
     cout << "An index entry is size " << sizeof(e) << endl;
+    return (int)sizeof(e);
 }
 
 // returns 0 or -EINVAL or -ENOENT
@@ -1136,7 +1137,7 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode,
     bool new_pfd       = false;
 
     /*
-    if ( pid == 0 ) { // this should be MPI rank 0
+    if ( pid == 0 && open_opt && open_opt->pinter == PLFS_MPIIO ) { 
         // just one message per MPI open to make sure the version is right
         fprintf(stderr, "PLFS version %s\n", plfs_version());
     }
@@ -1175,9 +1176,8 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode,
         if ( wf == NULL ) {
             // do we delete this on error?
             size_t indx_sz = 0; 
-            if(open_opt && open_opt->buffer_index) {
-                // this probably means we're using MPI and it wants to flatten
-                // on close
+            if(open_opt&&open_opt->pinter==PLFS_MPIIO &&open_opt->buffer_index){
+                // this means we want to flatten on close
                 indx_sz = get_plfs_conf()->buffer_mbs; 
             }
             wf = new WriteFile(path, Util::hostname(), mode, indx_sz); 
@@ -1202,7 +1202,7 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode,
             // do we delete this on error?
             index = new Index( path );  
             new_index = true;
-            // Did someone pass in an index stream
+            // Did someone pass in an already populated index stream? 
             if (open_opt && open_opt->index_stream !=NULL){
                  //Convert the index stream to a global index
                 index->global_from_stream(open_opt->index_stream);
@@ -1234,14 +1234,11 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode,
         // we create one open record for all the pids using a file
         // only create the open record for files opened for writing
         if ( wf ) {
-            if(open_opt && open_opt->mpi){
-                if(pid==0){
-                    ret = Container::addOpenrecord(path,
-                            Util::hostname(),pid);
-                }
-            }else{
-                ret = Container::addOpenrecord(path, 
-                    Util::hostname(), pid );
+            bool add_meta = true;
+            if (open_opt && open_opt->pinter==PLFS_MPIIO && pid != 0 ) 
+                add_meta = false;
+            if (add_meta) {
+                ret = Container::addOpenrecord(path, Util::hostname(),pid); 
             }
             EISDIR_DEBUG;
         }
@@ -1489,10 +1486,11 @@ removeDirectoryTree( const char *path, bool truncate_only ) {
 // Plfs_fd can be NULL
 // returns 0 or -errno
 int 
-plfs_getattr( Plfs_fd *of, const char *logical, struct stat *stbuf ) {
+plfs_getattr(Plfs_fd *of, const char *logical, struct stat *stbuf,int sz_only){
     // ok, this is hard
     // we have a logical path maybe passed in or a physical path
     // already stashed in the of
+    // this backward stuff might be deprecated.  We should check and remove.
     bool backwards = false;
     if ( logical == NULL ) {
         logical = of->getPath();    // this is the physical path
@@ -1503,49 +1501,46 @@ plfs_getattr( Plfs_fd *of, const char *logical, struct stat *stbuf ) {
         path = of->getPath();   // restore the stashed physical path
     }
     plfs_debug("%s on logical %s (%s)\n", __FUNCTION__, logical, path.c_str());
+    memset(stbuf,0,sizeof(struct stat));    // zero fill the stat buffer
+
     mode_t mode = 0;
     if ( ! is_plfs_file( logical, &mode ) ) {
-       /* if ( errno == EACCES ) {
-            ret = -errno;
-        } else {
-            ret = retValue( Util::Lstat( path.c_str(), stbuf ) );
-        }*/
-        // this is how a symlink is stat'd since it doesn't look like
-        // a plfs file
+        // this is how a symlink is stat'd bec it doesn't look like a plfs file
         if ( mode == 0 ) {
             ret = -ENOENT;
         } else {
             plfs_debug("%s on non plfs file %s\n", __FUNCTION__, path.c_str());
             ret = retValue( Util::Lstat( path.c_str(), stbuf ) );        
         }
-    } else {
-        ret = Container::getattr( path, stbuf );
-        // at one point, we tried to just use the info from the open
-        // file and not descend into the container but that wasn't 
-        // working (we might not be maintaining the openfile meta correctly)
-        if ( ret == 0 ) {                                               
-            // is it also open currently? 
-            // we might be reading from some other users writeFile but   
-            // we're only here if we had access to stat the container     
-            // commented out some stuff that I thought was maybe slow      
-            // this might not be necessary depending on how we did          
-            // the stat.  If we stat'ed data droppings then we don't         
-            // need to do this but it won't hurt.  
-            // If we were trying to read index droppings                       
-            // and they weren't available, then we should do this.            
-            WriteFile *wf=(of && of->getWritefile() ? of->getWritefile() :NULL);
-            if ( wf ) {
-                off_t  last_offset;
-                size_t total_bytes;
-                wf->getMeta( &last_offset, &total_bytes );
-                plfs_debug("Got meta from openfile: %ld last offset, "
-                           "%ld total bytes\n", last_offset, total_bytes);
-                if ( last_offset > stbuf->st_size ) {    
-                    stbuf->st_size = last_offset;       
-                }
-                    // if the index has already been flushed, then we might
-                    // count it twice here.....                           
-                stbuf->st_blocks += Container::bytesToBlocks(total_bytes);
+    } else {    // operating on a plfs file here
+        // there's a lazy stat flag, sz_only, which means all the caller 
+        // cares about is the size of the file.  If the file is currently
+        // open (i.e. we have a wf ptr, then the size info is stashed in
+        // there.  It might not be fully accurate since it just contains info
+        // for the writes of the current proc but it's a good-enough estimate
+        // however, if the caller hasn't passed lazy or if the wf isn't 
+        // available then we need to do a more expensive descent into
+        // the container.  This descent is especially expensive for an open
+        // file where we can't just used the cached meta info but have to
+        // actually fully populate an index structure and query it
+        WriteFile *wf=(of && of->getWritefile() ? of->getWritefile() :NULL);
+        bool descent_needed = ( !sz_only || !wf );
+        if (descent_needed) {  // do we need to descend and do the full?
+            ret = Container::getattr( path, stbuf );
+        }
+
+        if (ret == 0 && wf) {                                               
+            off_t  last_offset;
+            size_t total_bytes;
+            wf->getMeta( &last_offset, &total_bytes );
+            plfs_debug("Got meta from openfile: %ld last offset, "
+                       "%ld total bytes\n", last_offset, total_bytes);
+            if ( last_offset > stbuf->st_size ) {    
+                stbuf->st_size = last_offset;       
+            }
+            if ( ! descent_needed ) {   
+                // this is set on the descent so don't do it again if descended
+                stbuf->st_blocks = Container::bytesToBlocks(total_bytes);
             }
         }   
     } 
@@ -1643,7 +1638,8 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
     } else {
             // either at existing end, before it, or after it
         struct stat stbuf;
-        ret = plfs_getattr( of, logical, &stbuf );
+        bool sz_only = true; // we just need the size
+        ret = plfs_getattr( of, logical, &stbuf, sz_only );
         Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
         if ( ret == 0 ) {
             if ( stbuf.st_size == offset ) {
@@ -1788,7 +1784,7 @@ plfs_close( Plfs_fd *pfd, pid_t pid, int open_flags,
             off_t  last_offset;
             size_t total_bytes;
             bool drop_meta = true; // in ADIO, only 0; else, everyone
-            if(close_opt) {
+            if(close_opt && close_opt->pinter==PLFS_MPIIO) {
                 if (pid==0) {
                     if(close_opt->valid_meta) {
                         plfs_debug("Grab meta from info gathered in ADIO\n");

@@ -80,7 +80,7 @@ class Plfs : public fusexx::fuse<Plfs> {
         static string confToString( PlfsConf *, PlfsMount * );
         static string openFilesToString(bool);
         static mode_t getMode( string expanded );
-        static int getattr_helper( const char *path, struct stat *, Plfs_fd *);
+        static int getattr_helper(string,const char *,struct stat *,Plfs_fd *);
         static int get_groups( vector<gid_t> * );
         static int set_groups( uid_t );
             // is a set the best here?  doesn't need to be sorted.

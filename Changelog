@@ -2,6 +2,13 @@
 * Fixed the getattr bug (we were just getting the attr from the openfile
 handle and not getting it from the Container as well).  This made the size
 reasonable but the permissions/ownership/everthing else were garbage).
+This also required a bit of smarts.  This was really slowing things down
+in lanl's fs_test program which does a file stat before the close and this
+was making rank 0 descend the entire container structure and build an index
+in order to figure out the size.  Now we added a lazy flag and ad_plfs_fcntl
+passes the lazy flag and it gets the size from the open file handle (this
+won't be perfectly accurate but it will show incremental progress and won't
+be expensive to query).
 * fixed ADIO parse conf error.  Now a good error is reported when the 
 conf file is bad or the file path is bad.
 * added global_summary_dir to the plfsrc

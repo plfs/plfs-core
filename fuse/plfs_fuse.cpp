@@ -392,11 +392,11 @@ int Plfs::f_truncate( const char *path, off_t offset ) {
 }
 
 // a helper for f_getattr and f_fgetattr.  
-int Plfs::getattr_helper( const char *path, 
-        struct stat *stbuf, Plfs_fd *of )
+int Plfs::getattr_helper( string expanded, const char *path, 
+        struct stat *stbuf, Plfs_fd *of ) 
 {
-    string expanded = expandPath( path );
-    int ret = plfs_getattr( of, expanded.c_str(), stbuf );
+    bool sz_only = false;
+    int ret = plfs_getattr( of, expanded.c_str(), stbuf, sz_only );
     if ( ret == -ENOENT ) {
         if ( isdebugfile( path ) ) {
             stbuf->st_mode = S_IFREG | 0444;
@@ -439,13 +439,13 @@ int Plfs::f_fgetattr(const char *path, struct stat *stbuf,
         struct fuse_file_info *fi) 
 {
     PLFS_ENTER; GET_OPEN_FILE;
-    ret = getattr_helper( path, stbuf, of );
+    ret = getattr_helper( strPath, path, stbuf, of );
     PLFS_EXIT;
 }
 
 int Plfs::f_getattr(const char *path, struct stat *stbuf) {
     PLFS_ENTER;
-    ret = getattr_helper( path, stbuf, NULL );
+    ret = getattr_helper( strPath, path, stbuf, NULL );
     PLFS_EXIT;
 }
 

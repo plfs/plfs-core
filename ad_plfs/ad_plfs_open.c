@@ -143,7 +143,7 @@ int open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
         err = broadcast_index(pfd,fd,error_code,perm,amode,rank,compress_flag);
     } else {
         Plfs_open_opt open_opt;
-        open_opt.mpi=1;
+        open_opt.pinter = PLFS_MPIIO;
         open_opt.index_stream=NULL;
         open_opt.buffer_index=0;
         close_flatten = ad_plfs_hints(fd,rank,"plfs_flatten_close");
@@ -183,7 +183,7 @@ int broadcast_index(Plfs_fd **pfd, ADIO_File fd,
     // [0] is index stream size [1] is compressed size
     unsigned long index_size[2]={0};
     Plfs_open_opt open_opt;
-    open_opt.mpi=1; 
+    open_opt.pinter = PLFS_MPIIO;
     open_opt.index_stream=NULL;
     open_opt.buffer_index=0;
     if(rank==0){ 
@@ -253,13 +253,13 @@ int broadcast_index(Plfs_fd **pfd, ADIO_File fd,
         unsigned long uncompr_len=index_size[0];
         // Uncompress the index
         if(compress_flag) {
-            plfs_debug("Rank: %d has compr_len %d and expected expanded of %d\n"
-                    ,rank,index_size[1],uncompr_len);
-            int ret=uncompress(index_stream, &uncompr_len,compr_index,index_size[1]);
-        
+            plfs_debug("Rank: %d has compr_len %d: expected expanded of %d\n",
+                    rank,index_size[1],uncompr_len);
+            int ret=uncompress(index_stream, 
+                    &uncompr_len,compr_index,index_size[1]);
             if(ret!=Z_OK)
             {
-                plfs_debug("Rank %d aborting because of a failed uncompress\n",rank);
+                plfs_debug("Rank %d aborting bec failed uncompress\n",rank);
                 if(ret==Z_MEM_ERROR) plfs_debug("Mem error\n");
                 if(ret==Z_BUF_ERROR) plfs_debug("Buffer error\n");
                 if(ret==Z_DATA_ERROR) plfs_debug("Data error\n");
@@ -268,7 +268,7 @@ int broadcast_index(Plfs_fd **pfd, ADIO_File fd,
         
             // Error if the uncompressed length doesn't match original length 
             if(uncompr_len!=index_size[0]){
-                plfs_debug("Uncompressed length doesn't match original index size\n");
+                plfs_debug("Uncompressed len != original index size\n");
                 MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
             }
         }

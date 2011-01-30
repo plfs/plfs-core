@@ -23,6 +23,7 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
     int err, rank, amode,procs;
     static char myname[] = "ADIOI_PLFS_CLOSE";
     Plfs_close_opt close_opt;
+    close_opt.pinter=PLFS_MPIIO;
     int flatten=0;
     
     plfs_debug("%s: begin\n", myname );
@@ -55,7 +56,7 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
                 fd->filename);
     } else{
         // for ADIO, just 0 creates the openhosts and the meta dropping 
-        // Grab the last offset and total bytes from all ranks and reduce to the max
+        // Grab the last offset and total bytes from all ranks and reduce to max
         plfs_debug("Rank: %d in regular close\n",rank);
         reduce_meta(fd->fs_ptr,fd->filename,&close_opt);
         err = plfs_close(fd->fs_ptr, rank, amode,&close_opt);
@@ -75,9 +76,9 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
 }
 
 
-int flatten_then_close(Plfs_fd *fd,int rank,int amode,int procs,Plfs_close_opt *close_opt,
-        const char *filename){
-    
+int flatten_then_close(Plfs_fd *fd,int rank,int amode,int procs,
+        Plfs_close_opt *close_opt, const char *filename)
+{
     int index_size,err,index_total_size=0,streams_malloc=1,stop_buffer=0;
     int *index_sizes,*index_disp;
     char *index_stream,*index_streams;
@@ -126,10 +127,12 @@ int flatten_then_close(Plfs_fd *fd,int rank,int amode,int procs,Plfs_close_opt *
             }
         }
         plfs_debug("Total size of indexes %d\n",index_total_size);
-        if(!stop_buffer) index_streams=(char *)malloc((index_total_size*sizeof(char)));
-        if(!index_streams){
-            plfs_debug("Malloc failed:index streams\n");
-            streams_malloc=0;
+        if(!stop_buffer) {
+            index_streams=(char *)malloc((index_total_size*sizeof(char)));
+            if(!index_streams){
+                plfs_debug("Malloc failed:index streams\n");
+                streams_malloc=0;
+            }
         }
     }
     
@@ -198,8 +201,10 @@ void reduce_meta(Plfs_fd *fd,const char * filename,Plfs_close_opt *close_opt){
     size_t glbl_tot_byt=0;
     
     plfs_getattr(fd,filename,&buf);
-    MPI_Reduce(&(buf.st_size),&(close_opt->last_offset),1,MPI_LONG_LONG,MPI_MAX,0,MPI_COMM_WORLD);
-    MPI_Reduce(&(buf.st_blocks),&glbl_tot_byt,1,MPI_LONG_LONG,MPI_SUM,0,MPI_COMM_WORLD); 
+    MPI_Reduce(&(buf.st_size),&(close_opt->last_offset),1,
+            MPI_LONG_LONG,MPI_MAX,0,MPI_COMM_WORLD);
+    MPI_Reduce(&(buf.st_blocks),&glbl_tot_byt,1,MPI_LONG_LONG,MPI_SUM,0,
+            MPI_COMM_WORLD); 
     close_opt->total_bytes=glbl_tot_byt*BLKSIZE;
     close_opt->valid_meta=1;
 
