@@ -7,6 +7,7 @@
 #include <deque>
 #include <algorithm>
 #include <assert.h>
+#include <string>
 using namespace std;
 
 #include "Container.h"
@@ -662,7 +663,7 @@ string Container::hostFromChunk( string chunkpath, const char *type ) {
 // this function drops a file in the metadir which contains
 // stat info so that we can later satisfy stats using just readdir
 int Container::addMeta( off_t last_offset, size_t total_bytes, 
-        const string &path, const string &host ) 
+        const string &path, const string &host, uid_t uid ) 
 {
     string metafile;
     struct timeval time;
@@ -684,11 +685,17 @@ int Container::addMeta( off_t last_offset, size_t total_bytes,
     // now let's maybe make a global summary dropping
     PlfsConf *pconf = get_plfs_conf();    
     if (pconf->global_summary_dir) {
+        string path_without_slashes = path;
+        size_t pos = path_without_slashes.find("/");
+        while(pos!=string::npos) {
+            path_without_slashes.replace(pos,1,"_");
+            pos = path_without_slashes.find("/");
+        }
         ostringstream oss_global;
         oss_global << *(pconf->global_summary_dir) << "/" 
             << last_offset << "." << total_bytes  << "."
             << time.tv_sec << "." << time.tv_usec << "."
-            << host;
+            << host << "." << uid << "." << path_without_slashes;
         metafile = oss_global.str();
         plfs_debug("Creating metafile %s\n", metafile.c_str() );
         Util::Creat( metafile.c_str(), DROPPING_MODE);

@@ -13,7 +13,7 @@
 #include <unistd.h>
 
 int flatten_then_close(Plfs_fd *fd,int rank,int amode,int procs,
-            Plfs_close_opt *close_opt,const char *filename);
+            Plfs_close_opt *close_opt,const char *filename,uid_t);
 void check_error(int err,int rank);
 void reduce_meta(Plfs_fd *fd,const char * filename,Plfs_close_opt *close_opt);
 
@@ -22,6 +22,7 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
 {
     int err, rank, amode,procs;
     static char myname[] = "ADIOI_PLFS_CLOSE";
+    uid_t uid = geteuid();
     Plfs_close_opt close_opt;
     close_opt.pinter=PLFS_MPIIO;
     int flatten=0;
@@ -53,7 +54,7 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
         close_opt.valid_meta=0;
         plfs_debug("Rank: %d in flatten then close\n",rank);
         err = flatten_then_close(fd->fs_ptr, rank, amode, procs, &close_opt,
-                fd->filename);
+                fd->filename,uid);
     } else{
         // for ADIO, just 0 creates the openhosts and the meta dropping 
         // Grab the last offset and total bytes from all ranks and reduce to max
@@ -61,7 +62,7 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
         if(fd->access_mode!=ADIO_RDONLY){
             reduce_meta(fd->fs_ptr,fd->filename,&close_opt);
         }
-        err = plfs_close(fd->fs_ptr, rank, amode,&close_opt);
+        err = plfs_close(fd->fs_ptr, rank, uid,amode,&close_opt);
     }
     plfs_debug("%d: close time: %.2f\n", rank,MPI_Wtime()-start_time);
     
@@ -79,7 +80,7 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
 
 
 int flatten_then_close(Plfs_fd *fd,int rank,int amode,int procs,
-        Plfs_close_opt *close_opt, const char *filename)
+        Plfs_close_opt *close_opt, const char *filename,uid_t uid)
 {
     int index_size,err,index_total_size=0,streams_malloc=1,stop_buffer=0;
     int *index_sizes,*index_disp;
@@ -178,7 +179,7 @@ int flatten_then_close(Plfs_fd *fd,int rank,int amode,int procs,
     if(stop_buffer) reduce_meta(fd,filename,close_opt); 
     // Close normally
     // This should be fine before the previous if statement
-    err = plfs_close(fd, rank, amode,close_opt);
+    err = plfs_close(fd, rank, uid, amode,close_opt);
     
     if(index_size>0) free(index_stream);
     

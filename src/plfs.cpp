@@ -1764,7 +1764,7 @@ ssize_t plfs_reference_count( Plfs_fd *pfd ) {
 // returns number of open handles or -errno
 // the close_opt currently just means we're in ADIO mode
 int
-plfs_close( Plfs_fd *pfd, pid_t pid, int open_flags, 
+plfs_close( Plfs_fd *pfd, pid_t pid, uid_t uid, int open_flags, 
             Plfs_close_opt *close_opt ) 
 {
     int ret = 0;
@@ -1803,7 +1803,7 @@ plfs_close( Plfs_fd *pfd, pid_t pid, int open_flags,
             }
             if ( drop_meta ) {
                 Container::addMeta(last_offset, total_bytes, pfd->getPath(), 
-                        Util::hostname());
+                        Util::hostname(),uid);
                 Container::removeOpenrecord( pfd->getPath(), Util::hostname(), 
                         pfd->getPid());
             }

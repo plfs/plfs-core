@@ -49,11 +49,14 @@ class Container {
 
         static bool isContainer(const string &physical_path,mode_t*); 
 
-        static string getIndexPath( const string &, const string &, int pid,double);
-        static string getDataPath(  const string &, const string &, int pid,double);
+        static string getIndexPath( const string &, const string &, 
+                int pid,double);
+        static string getDataPath(  const string &, const string &, 
+                int pid,double);
 
-        static int addMeta( off_t, size_t, const string &, const string & );
-        static string fetchMeta( const string&, off_t *, size_t *, struct timespec * );
+        static int addMeta(off_t, size_t, const string &,const string &,uid_t );
+        static string fetchMeta( const string&, off_t *, size_t *, 
+                struct timespec * );
         static int addOpenrecord( const string &, const string &, pid_t );
         static int removeOpenrecord( const string &, const string &, pid_t );
 

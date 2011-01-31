@@ -81,7 +81,7 @@ int plfs_chmod( const char *path, mode_t mode );
 
 int plfs_chown( const char *path, uid_t, gid_t );
 
-int plfs_close( Plfs_fd *, pid_t, int open_flags ,Plfs_close_opt *close_opt);
+int plfs_close(Plfs_fd *,pid_t,uid_t,int open_flags,Plfs_close_opt *close_opt);
 
 /* plfs_create
    you don't need to call this, you can also pass O_CREAT to plfs_open
