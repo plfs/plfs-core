@@ -1,4 +1,4 @@
-~~~ Version 1.1.8rc
+~~~ Version 1.1.8
 * Fixed the getattr bug (we were just getting the attr from the openfile
 handle and not getting it from the Container as well).  This made the size
 reasonable but the permissions/ownership/everthing else were garbage).
