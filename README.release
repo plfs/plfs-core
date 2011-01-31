@@ -1,0 +1,14 @@
+Here's the checklist to release something:
+
+scripts/make_plfs_patch to get a new patch for the ad_plfs layer
+cp it over to ad-patches/openmpi/ompi-1.4.3-plfs.patch
+
+test
+
+bump VERSION
+edit ChangeLog
+edit plfs.spec
+autogen
+easyconf
+make dist
+email Trent
