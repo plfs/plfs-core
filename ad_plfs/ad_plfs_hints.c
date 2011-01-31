@@ -10,6 +10,7 @@ void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code) {
     int disable_broadcast = 1;
     int compress_index = 0;
     int flatten_close = 0;
+    int parindex_read = 0;
     int gen_error_code,rank;
 
     MPI_Comm_rank( fd->comm, &rank );
@@ -67,6 +68,21 @@ void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code) {
                     MPI_Abort(MPI_COMM_WORLD, 1);
                 }
 	            MPI_Info_set(fd->info, "plfs_flatten_close", value); 
+            }
+            /* Parallel Index Read  */
+            MPI_Info_get(users_info, "plfs_parindex_read", MPI_MAX_INFO_VAL,
+                            value, &flag);
+            if(flag){
+                parindex_read = atoi(value);
+                tmp_val = parindex_read;
+                MPI_Bcast(&tmp_val,1,MPI_INT,0,fd->comm);
+                if (tmp_val != parindex_read) {
+                    FPRINTF(stderr, "ADIOI_PLFS_SetInfo: "
+                            "the value for key \"plfs_parindex_read\" "
+                            "must be the same on all processes\n");
+                    MPI_Abort(MPI_COMM_WORLD, 1);
+                }
+	            MPI_Info_set(fd->info, "plfs_parindex_read", value); 
             }
 	        ADIOI_Free(value);
         }

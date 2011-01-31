@@ -5,12 +5,22 @@
  *   Copyright (C) 1997 University of Chicago. 
  *   See COPYRIGHT notice in top-level directory.
  */
-
-#include <string.h>
 #include "ad_plfs.h"
 #include "zlib.h"
+#include <dirent.h>
+#include <string.h>
 
 #define VERBOSE_DEBUG 0
+#define BIT_ARRAY_LENGTH 1024
+#define HOSTDIR_PREFIX "hostdir."
+#define HOSTDIR_PREFIX_LEN 8  
+
+// A bitmap to hold the number of and id of 
+// hostdirs inside of the container
+typedef struct {
+    unsigned int bit:1;
+}Bit;
+Bit bitmap[BIT_ARRAY_LENGTH]={0};
 
 // a bunch of helper macros we added when we had a really hard time debugging
 // this file.  We were confused by ADIO calling rank 0 initially on the create
@@ -37,7 +47,7 @@
 #define MPIBCAST(A,B,C,D,E) \
     POORMANS_GDB \
     { \
-        int ret = MPI_Bcast(A,B,C,D,E); \
+        ret = MPI_Bcast(A,B,C,D,E); \
         if(ret!=MPI_SUCCESS) { \
             int resultlen; \
             char err_buffer[MPI_MAX_ERROR_STRING]; \
@@ -48,9 +58,54 @@
     } \
     POORMANS_GDB
     
+#define MPIALLGATHER(A,B,C,D,E,F,G)\
+{\
+    ret = MPI_Allgather(A,B,C,D,E,F,G);\
+    if(ret!= MPI_SUCCESS){\
+        int resultlen; \
+        char err_buffer[MPI_MAX_ERROR_STRING]; \
+        MPI_Error_string(ret,err_buffer,&resultlen); \
+        printf("Error:%s | Rank:%d\n",err_buffer,rank); \
+        MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO); \
+    } \
+} \
 
-// I removed this from POORMANS_GDB
-// MPI_Barrier(MPI_COMM_WORLD);
+#define MPIALLGATHERV(A,B,C,D,E,F,G,H)\
+{\
+    ret = MPI_Allgatherv(A,B,C,D,E,F,G,H);\
+    if(ret!= MPI_SUCCESS){\
+        int resultlen; \
+        char err_buffer[MPI_MAX_ERROR_STRING]; \
+        MPI_Error_string(ret,err_buffer,&resultlen); \
+        printf("Error:%s | Rank:%d\n",err_buffer,rank); \
+        MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO); \
+    } \
+}  
+
+#define MPIGATHER(A,B,C,D,E,F,G,H)\
+{\
+    ret = MPI_Gather(A,B,C,D,E,F,G,H);\
+    if(ret!= MPI_SUCCESS){\
+        int resultlen; \
+        char err_buffer[MPI_MAX_ERROR_STRING]; \
+        MPI_Error_string(ret,err_buffer,&resultlen); \
+        printf("Error:%s | Rank:%d\n",err_buffer,rank); \
+        MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO); \
+    } \
+}
+
+#define MPIGATHERV(A,B,C,D,E,F,G,H,I)\
+{\
+    ret = MPI_Gatherv(A,B,C,D,E,F,G,H,I);\
+    if(ret!= MPI_SUCCESS){\
+        int resultlen; \
+        char err_buffer[MPI_MAX_ERROR_STRING]; \
+        MPI_Error_string(ret,err_buffer,&resultlen); \
+        printf("Error:%s | Rank:%d\n",err_buffer,rank); \
+        MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO); \
+    } \
+}
+
 
 int open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm, 
         int amode,int rank);
@@ -67,13 +122,42 @@ int getPerm(ADIO_File fd) {
     }
     return perm;
 }
-
+// Par index read stuff
+int par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
+        int amode,int rank, MPI_Comm openers_comm,void **global_index);
+// Fills in the bitmap structure
+int num_host_dirs(int *hostdir_count,char *target);
+// Printer for the bitmap struct
+void host_list_print(Bit *bitmap);
+// Function to calculate the extra ranks
+int extra_rank_calc(int np,int num_host_dir);
+// Number of ranks per comm
+int ranks_per_comm_calc(int np,int num_host_dir);
+// Based on my rank how many ranks are in my hostdir comm
+int rank_to_size(int rank,int ranks_per_comm,int extra_rank,
+                            int np,int group_index);
+// Index used for a color that determines my hostdir comm
+int rank_to_group_index(int rank,int ranks_per_comm,int extra_rank);
+// Converts bitmap position to a dirname
+char* bitmap_to_dirname(Bit *bitmap,int group_index,
+        char *target,int mult,int np);
+// Called when num procs >= num_host_dirs
+void split_and_merge(MPI_Comm openers_comm,int rank,int extra_rank,
+        int ranks_per_comm,int np,char *filename,void **global_index);
+// Called when num hostdirs > num procs
+void read_and_merge(MPI_Comm comm,int rank,
+        int np,int hostdir_per_rank,char *filename,void **global_index);
+// Added to handle the case where one rank must read more than one hostdir
+char *count_to_hostdir(Bit *bitmap,int stop_point,int *count,
+        int *hostdir_found,char *filename,char *target,int first);
+// Broadcast the bitmap to interested parties
+void bcast_bitmap(MPI_Comm comm,int rank);
 
 void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
 {
     Plfs_fd *pfd =NULL;
     // I think perm is the mode and amode is the flags
-    int err = 0,perm, amode, old_mask,rank;
+    int err = 0,perm, amode, old_mask,rank,ret;
  
     MPI_Comm_rank( MPI_COMM_WORLD, &rank );
     static char myname[] = "ADIOI_PLFS_OPEN";
@@ -115,42 +199,50 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
     return;
 }
 
-
 // a helper that determines whether 0 distributes the index to everyone else
 // or whether everyone just calls plfs_open directly
 int open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
         int amode,int rank)
 {
     int err = 0, disabl_broadcast=0, compress_flag=0,close_flatten=0;
+    int parallel_index_read=0;
     static char myname[] = "ADIOI_PLFS_OPENHELPER";
+    Plfs_open_opt open_opt;
     
     if (fd->access_mode==ADIO_RDONLY) {
-        if ( rank == 0 ) {
             disabl_broadcast = ad_plfs_hints(fd,rank,"plfs_disable_broadcast");
             compress_flag = ad_plfs_hints(fd,rank,"plfs_compress_index");
+            parallel_index_read = ad_plfs_hints(fd,rank,"plfs_parindex_read");
             plfs_debug("Disable_bcast:%d,compress_flag:%d\n",
                         disabl_broadcast,compress_flag);
-        }
-        MPIBCAST( &disabl_broadcast, 1, MPI_INT, 0, MPI_COMM_WORLD );
-        MPIBCAST( &compress_flag, 1, MPI_INT, 0, MPI_COMM_WORLD);
+            // I took out the extra broadcasts at this point. ad_plfs_hints 
+            // has code to make sure that all ranks have the same value
+            // for the hint
     } else {
-        disabl_broadcast = 1; // we don't create an index unless in read mode
+        disabl_broadcast = 1; // we don't create an index unless we're in read mode
         compress_flag=0;
     }
-
-    // If we are read only and broadcast isn't disabled let's broadcast index
-    if(!disabl_broadcast){
+    // This is new code added to handle the parallel_index_read case
+    if( (fd->access_mode==ADIO_RDONLY) && parallel_index_read){
+        void *global_index;
+        // Function to start the parallel index read
+        par_index_read(fd,pfd,error_code,perm,amode,rank,
+                MPI_COMM_WORLD,&global_index);
+        open_opt.pinter = PLFS_MPIIO;
+        open_opt.index_stream=global_index;
+        err = plfs_open(pfd,fd->filename,amode,rank,perm,&open_opt);
+        free(global_index);
+    }
+    // If we are read only and broadcast isn't disabled let's broadcast that index
+    else if(!disabl_broadcast){
         err = broadcast_index(pfd,fd,error_code,perm,amode,rank,compress_flag);
     } else {
-        Plfs_open_opt open_opt;
         open_opt.pinter = PLFS_MPIIO;
         open_opt.index_stream=NULL;
-        open_opt.buffer_index=0;
         close_flatten = ad_plfs_hints(fd,rank,"plfs_flatten_close");
         // Let's only buffer when the flatten on close hint is passed
         // and we are in WRONLY mode
         open_opt.buffer_index=close_flatten;
-        
         plfs_debug("Opening without a broadcast\n");
         // everyone opens themselves (write mode or read mode w/out broacast)
         err = plfs_open( pfd, fd->filename, amode, rank, perm ,&open_opt);
@@ -177,13 +269,13 @@ int open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
 int broadcast_index(Plfs_fd **pfd, ADIO_File fd, 
         int *error_code,int perm,int amode,int rank,int compress_flag) 
 {
-    int err = 0;
+    int err = 0,ret;
     char *index_stream;
     char *compr_index;
     // [0] is index stream size [1] is compressed size
     unsigned long index_size[2]={0};
     Plfs_open_opt open_opt;
-    open_opt.pinter = PLFS_MPIIO;
+    open_opt.pinter = PLFS_MPIIO; 
     open_opt.index_stream=NULL;
     open_opt.buffer_index=0;
     if(rank==0){ 
@@ -224,7 +316,7 @@ int broadcast_index(Plfs_fd **pfd, ADIO_File fd,
                 "and compressed index%d\n" ,index_size[0],index_size[1]);
     
     MPIBCAST(index_size, 2, MPI_LONG, 0, MPI_COMM_WORLD);
-    
+   
     if(rank!=0) {
         index_stream = malloc(index_size[0]);
         if(compress_flag) {
@@ -253,10 +345,11 @@ int broadcast_index(Plfs_fd **pfd, ADIO_File fd,
         unsigned long uncompr_len=index_size[0];
         // Uncompress the index
         if(compress_flag) {
-            plfs_debug("Rank: %d has compr_len %d: expected expanded of %d\n",
-                    rank,index_size[1],uncompr_len);
+            plfs_debug("Rank: %d has compr_len %d and expected expanded of %d\n"
+                    ,rank,index_size[1],uncompr_len);
             int ret=uncompress(index_stream, 
                     &uncompr_len,compr_index,index_size[1]);
+        
             if(ret!=Z_OK)
             {
                 plfs_debug("Rank %d aborting bec failed uncompress\n",rank);
@@ -279,4 +372,364 @@ int broadcast_index(Plfs_fd **pfd, ADIO_File fd,
     free(index_stream);
     return 0;
 } 
+
+int par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
+        int amode,int rank, MPI_Comm openers_comm,void **global_index){
+
+    // Each rank and the number of processes playing
+    int np,extra_rank,ret;
+    MPI_Comm_size(openers_comm, &np);
+    // Rank 0 reads the top level directory and sets the
+    // next two variables
+    int num_host_dir=0;
+
+    // Every other rank can figures this out using num_host_dir
+    int ranks_per_comm=0;
+    // Only used is ranks per comm equals zero
+    int hostdir_per_rank=0;
+    char * filename;
+
+
+    plfs_expand_path(fd->filename,&filename);
+    // Rank 0 only code
+    if(!rank){
+        // Find out how many hostdirs we currently have 
+        // and save info in a bitmap 
+        num_host_dirs(&num_host_dir,filename);
+    }
+    plfs_debug("Num of hostdirs calculated is |%d|\n",num_host_dir); 
+    // Bcast usage brought down by the MPI_Comm_split
+    // Was using MPI_Group_incl which needed an array of 
+    // all members of the group. Don't forget to plan and 
+    // look at available methods to get the job done
+    MPIBCAST(&num_host_dir,1,MPI_INT,0,openers_comm);
+    
+    // Get some information used to determine the group index 
+    ranks_per_comm=ranks_per_comm_calc(np,num_host_dir);
+    // Split based on the number of ranks per comm. If zero we 
+    // take another path and the extra_rank and hostdir_per_rank
+    // calculation are different
+    if(ranks_per_comm) extra_rank=extra_rank_calc(np,num_host_dir); 
+    if(!ranks_per_comm) {
+        extra_rank=num_host_dir-np;
+        hostdir_per_rank=num_host_dir/np;
+        int left_over=num_host_dir%np;
+        if(rank<left_over){
+            hostdir_per_rank++;
+        }
+    }
+    // Here we split on the ranks per comm. Should not be necessary
+    // to check return values. Functions will abort if an error is encountered
+    if(ranks_per_comm) split_and_merge(openers_comm,rank,extra_rank,
+            ranks_per_comm,np,filename,global_index);
+    if(!ranks_per_comm) read_and_merge(openers_comm,rank,np,hostdir_per_rank,
+            filename,global_index); 
+    return 0; 
+}
+
+// This is the case where a rank has to read more than one hostdir
+void read_and_merge(MPI_Comm comm,int rank,
+        int np,int hostdir_per_rank,char *filename,void **global_index)
+{
+    char *targets;
+    int index_sz,ret,count,*index_sizes,*index_disp,index_total_size=0;
+    int global_index_sz;
+    void *index_stream,*index_streams;
+
+    // Get the bitmap
+    bcast_bitmap(comm,rank);
+    // Figure out which hostdirs I have to read
+    targets=bitmap_to_dirname(bitmap,rank,filename,
+            hostdir_per_rank,np);
+    // Read the hostdirs and return an index stream
+    index_sz=plfs_hostdir_rddir(&index_stream,targets,rank,filename);
+    // Make sure it was malloced 
+    check_stream(index_sz,rank);
+    // Targets no longer needed
+    free(targets);
+    // Used to hold the sizes of indexes from all procs 
+    // needed for ALLGATHERV
+    index_sizes=malloc(sizeof(int)*np);
+    malloc_check((void *)index_sizes,rank);
+    // Gets the index sizes from all ranks
+    MPIALLGATHER(&index_sz,1,MPI_INT,index_sizes,
+            1,MPI_INT,comm);
+    // Set up displacements
+    index_disp=malloc(sizeof(int)*np);
+    malloc_check((void *)index_disp,rank);
+    for(count=0;count<np;count++){
+        index_disp[count]=index_total_size;
+        index_total_size+=index_sizes[count];
+    }
+    // Holds all of the index streams from all procs involved in the process
+    index_streams=malloc(sizeof(char)*index_total_size);
+    malloc_check(index_streams,rank);
+    // ALLGATHERV grabs all of the indexes from all the procs
+    MPIALLGATHERV(index_stream,index_sz,MPI_CHAR,index_streams,index_sizes,
+            index_disp,MPI_CHAR,comm);
+    // Merge all of the stream that we were passed to get a global index
+    global_index_sz=plfs_parindexread_merge(filename,index_streams,
+            index_sizes,np,global_index);
+    check_stream(global_index_sz,rank);
+    plfs_debug("Rank |%d| global size |%d|\n",rank,global_index_sz);
+    free(index_streams);
+}
+
+void bcast_bitmap(MPI_Comm comm, int rank){
+    int ret;
+    int bitmap_bcast_sz = BIT_ARRAY_LENGTH/sizeof(MPI_UNSIGNED_CHAR);
+    MPIBCAST(bitmap,bitmap_bcast_sz,MPI_UNSIGNED_CHAR,0,comm);
+}
+
+// If ranks > hostdirs we can split up our comm 
+void split_and_merge(MPI_Comm openers_comm,int rank,int extra_rank,
+        int ranks_per_comm,int np,char *filename,void **global_index)
+{
+    
+    int new_rank,color,group_index,hc_sz,ret,buf_sz=0;
+    int *index_sizes,*index_disp,count,index_total_size=0;
+    char *index_files, *index_streams;
+    void *index_stream;
+
+    MPI_Comm hostdir_comm,hostdir_zeros_comm;
+    // Group index is the color 
+    group_index = rank_to_group_index(rank,ranks_per_comm,extra_rank);
+    // Split the world communicator
+    MPI_Comm_split(openers_comm,group_index,rank,&hostdir_comm);
+    MPI_Comm_size(hostdir_comm,&hc_sz);
+    // Grab our rank within the hostdir communicator
+    MPI_Comm_rank (hostdir_comm, &new_rank);
+   
+    // Get a color for a communicator between all rank 0's in a hostdir comm
+    if(!new_rank) color = 1;
+    else color = MPI_UNDEFINED;
+    // The split for hostdir zeros comm
+    MPI_Comm_split(openers_comm,color,rank,&hostdir_zeros_comm);
+    // Hostdir zeros
+    if(!new_rank) {
+        char *fn_ptr;
+        // Broadcast the bitmap to the leaders
+        bcast_bitmap(hostdir_zeros_comm,rank);
+        // Convert my group index into the dir I should read
+        fn_ptr= bitmap_to_dirname(bitmap,group_index,filename,0,np);
+        // Hostdir zero reads the hostdir and converts into a list
+        buf_sz=plfs_hostdir_zero_rddir((void **)&index_files,fn_ptr,rank);
+        check_stream(buf_sz,rank);
+        free(fn_ptr);
+    }
+    // Send the size of the hostdir file list
+    MPIBCAST(&buf_sz,1,MPI_INT,0,hostdir_comm);
+    // Get space for the hostdir file list
+    if(new_rank){
+        index_files=malloc(sizeof(MPI_CHAR)*buf_sz);
+        malloc_check(index_files,rank);
+    }
+    // Get the hostdir file list
+    MPIBCAST(index_files,buf_sz,MPI_CHAR,0,hostdir_comm);
+    // Take the hostdir file list and convert to an index stream
+    buf_sz=plfs_parindex_read(new_rank,hc_sz,index_files,&index_stream,
+            filename);
+    check_stream(buf_sz,rank);
+    free(index_files);
+    if(!new_rank){
+        index_sizes=malloc(sizeof(int)*hc_sz);
+        malloc_check((void *)index_sizes,rank);
+    }
+    // Make sure hostdir rank 0 knows how much index data to expect
+    MPIGATHER(&buf_sz,1,MPI_INT,index_sizes,1,
+            MPI_INT,0,hostdir_comm);
+    // Set up displacements
+    if(!new_rank){
+        index_disp=malloc(sizeof(int)*hc_sz);
+        malloc_check((void *)index_disp,rank);
+        for(count=0;count<hc_sz;count++){
+            // Displacements
+            index_disp[count]=index_total_size;
+            index_total_size+=index_sizes[count];
+        }
+        // Space for the index streams from my hostdir comm
+        index_streams=malloc(sizeof(char)*index_total_size);
+        malloc_check(index_stream,rank);
+    }
+    // Gather the index streams from your hostdir
+    MPIGATHERV(index_stream,buf_sz,MPI_CHAR,index_streams,index_sizes,
+                index_disp,MPI_CHAR,0,hostdir_comm);
+    void *hostdir_index_stream;
+    int hostdir_index_sz;
+    // Hostdir leader
+    if(!new_rank){
+        // Merge the indexes that were gathered
+        hostdir_index_sz=plfs_parindexread_merge(filename,index_streams,
+            index_sizes,hc_sz,&hostdir_index_stream);
+        free(index_disp);
+        free(index_sizes);
+    }
+    // No longer need this information
+    free(index_stream);
+    int hzc_size,global_index_sz;
+    // Hostdir leader pass information to the other leaders
+    if(!new_rank) {
+        index_total_size=0;
+        MPI_Comm_size(hostdir_zeros_comm,&hzc_size);
+        // Store the sizes of all the leaders index streams
+        index_sizes=malloc(sizeof(int)*hzc_size);
+        malloc_check((void *)index_sizes,rank);
+        // Grab these sizes
+        MPIALLGATHER(&hostdir_index_sz,1,MPI_INT,index_sizes,
+            1,MPI_INT,hostdir_zeros_comm);
+        // Set up for GatherV
+        index_disp=malloc(sizeof(int)*hzc_size);
+        malloc_check((void *) index_disp,rank);
+        for(count=0;count<hzc_size;count++){
+            // Displacements
+            index_disp[count]=index_total_size;
+            index_total_size+=index_sizes[count];
+        }
+        index_streams=malloc(sizeof(char)*index_total_size);
+        malloc_check(index_streams,rank);
+        // Receive the index streams from all hotdir zeros
+        MPIALLGATHERV(hostdir_index_stream,hostdir_index_sz,MPI_CHAR,
+            index_streams,index_sizes,index_disp,MPI_CHAR,hostdir_zeros_comm);
+        // Merge these streams into a single global index
+        global_index_sz=plfs_parindexread_merge(filename,index_streams,
+                index_sizes,hzc_size,global_index);
+        check_stream(global_index_sz,rank);
+        // Free all of our malloced structures
+        free(index_streams);
+        free(hostdir_index_stream);
+        free(index_disp);
+        free(index_sizes);
+    }
+    // Get the size of the global index
+    MPIBCAST(&global_index_sz,1,MPI_INT,0,hostdir_comm);
+    // Malloc space if we are not hostdir leaders
+    if(new_rank) *global_index=malloc(sizeof(char)*global_index_sz);
+    malloc_check(global_index,rank);
+    //Hostdir leaders broadcast the global index
+    MPIBCAST(*global_index,global_index_sz,MPI_CHAR,0,hostdir_comm);
+    // Don't forget to  call Comm free  on created comms before MPI_Finalize 
+    // or you will encounter problems
+    MPI_Comm_free(&hostdir_comm);
+    if(!new_rank) {
+        MPI_Comm_free(&hostdir_zeros_comm);
+    }
+}
+
+// Simple print function
+void host_list_print(Bit* bitmap){
+    int count;
+    for(count=0;count<BIT_ARRAY_LENGTH;count++){
+        if(bitmap[count].bit==1) printf("Hostdir at position %d\n",count);
+    }
+}
+
+// Function that reads in the hostdirs and sets the bitmap 
+int num_host_dirs(int *hostdir_count,char *target){
+    // Directory reading variables
+    DIR *dirp;
+    struct dirent *dirent;
+
+    // Open the directory and check value
+    if((dirp=opendir(target)) == NULL){
+        plfs_debug("Num hostdir opendir error on %s\n",target);
+        return -1;
+    }
+
+    // Start reading the directory
+    while(dirent = readdir(dirp) ){
+        // Look for entries that beging with hostdir
+        if(strncmp("hostdir.",dirent->d_name,8)==0){
+            char * substr;
+            substr=strtok(dirent->d_name,".");
+            substr=strtok(NULL,".");
+            int index = atoi(substr);
+            bitmap[index].bit=1;
+            (*hostdir_count)++;
+        }
+    }
+    // Close the dir error out if we have a problem
+    if (closedir(dirp) == -1 ){
+        plfs_debug("Num hostdir closedir error on %s\n",target);
+        return -1;
+    }
+}
+
+// Calculates the number of ranks per communication group
+// Split comm makes this many subgroups
+int ranks_per_comm_calc(int np,int num_host_dir){
+    return np/num_host_dir;
+}
+
+// Get the amount of left over ranks, our values
+// are not going to divide evenly
+int extra_rank_calc(int np,int num_host_dir){
+    return  np%num_host_dir;
+}
+
+// Using the rank get the index/color that determines the 
+// subcommunication group that we belong in
+int rank_to_group_index(int rank,int ranks_per_comm,int extra_rank)
+{
+    int ret;
+
+    if (rank < (extra_rank*(ranks_per_comm+1))){
+        ret = rank / (ranks_per_comm+1);
+    }
+    else{
+        ret = (rank - extra_rank)/ranks_per_comm;
+    }
+
+    
+    return ret;
+}
+
+
+char *count_to_hostdir(Bit *bitmap,int stop_point,int *count,int *hostdir_found,
+        char *filename,char *target,int first){
+    
+    char hostdir_num[16];
+    
+    while((*hostdir_found)<stop_point){
+        if(bitmap[*count].bit==1) {
+            (*hostdir_found)++;
+        }
+        (*count)++;
+    }
+    if(!first) strcpy(filename,target);
+    if(first) strcat(filename,target);
+    strcat(filename,"/");
+    strcat(filename,HOSTDIR_PREFIX);
+    sprintf(hostdir_num,"%d",(*count)-1);
+    strcat(filename,hostdir_num);
+    return filename;
+}
+
+char* bitmap_to_dirname(Bit *bitmap,int group_index,
+        char *target,int mult,int np)
+{
+    char *path;
+    int count = 0;
+    int hostdir_found=0;
+    
+    if(mult==0){
+        path=malloc(sizeof(char)*4096);
+        path=count_to_hostdir(bitmap,group_index+1,&count,
+                &hostdir_found,path,target,0);        
+    }
+    else{
+        path=malloc(sizeof(char)*(mult*4096));
+        int dirs=0;
+        while(dirs<mult){
+            int stop_point;
+
+            stop_point=(group_index+1)+(dirs*np);
+            path = count_to_hostdir(bitmap,stop_point,&count,
+                        &hostdir_found,path,target,count);
+            strcat(path,"|");
+            dirs++;
+        }
+    }
+        
+    return path;
+}
 

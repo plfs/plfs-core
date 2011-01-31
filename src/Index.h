@@ -16,6 +16,16 @@ using namespace std;
 // on a write, every host has a host index
 // on a read, all the host index files get aggregated into one container index
 
+class IndexFileInfo{
+    public:
+        IndexFileInfo();
+        void* listToStream(vector<IndexFileInfo> &list,int *bytes);
+        vector<IndexFileInfo> streamToList(void * addr);
+        //bool operator<(IndexFileInfo d1);
+        double timestamp;
+        string hostname;
+        pid_t  id;
+};
 
 // this is the class that represents the records that get written into the
 // index file for each host.
@@ -149,9 +159,6 @@ class Index : public Metadata {
         size_t splitEntry(ContainerEntry*,set<off_t> &,
                 multimap<off_t,ContainerEntry> &);
         void findSplits(ContainerEntry&,set<off_t> &);
-
-        char *memcpy_helper(char *dst, void *src, size_t len);
-
             // where we buffer the host index (i.e. write)
         vector< HostEntry > hostIndex;
 

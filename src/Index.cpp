@@ -54,6 +54,113 @@ off_t HostEntry::logical_tail() const {
     return logical_offset + (off_t)length - 1;
 }
 
+// a helper routine for global_to_stream: copies to a pointer and advances it
+char *memcpy_helper(char *dst, void *src, size_t len) {
+    char *ret = (char*)memcpy((void*)dst,src,len);
+    ret += len;
+    return ret;
+}
+
+// Addedd these next set of function for par index read
+// might want to use the constructor for something useful
+IndexFileInfo::IndexFileInfo(){
+}
+
+void * IndexFileInfo::listToStream(vector<IndexFileInfo> &list,int *bytes)
+{
+
+    char *buffer;
+    char *buf_pos;
+    int size;
+    vector<IndexFileInfo>::iterator itr;
+
+    for(itr=list.begin();itr!=list.end();itr++){
+        (*bytes)+=sizeof(double);
+        (*bytes)+=sizeof(pid_t);
+        (*bytes)+=sizeof(int);
+        // Null terminating char
+        (*bytes)+=(*itr).hostname.size()+1;
+    }
+    // Make room for number of Index File Info
+    (*bytes)+=sizeof(int);
+    
+    // This has to be freed somewhere
+    buffer=(char *)malloc(*bytes);
+    if(!buffer){
+        *bytes=-1;
+        return (void*)buffer;
+    }
+    buf_pos=buffer;
+
+    size=list.size();
+    buf_pos=memcpy_helper(buf_pos,&size,sizeof(int));
+
+    for(itr=list.begin();itr!=list.end();itr++){
+        double timestamp = (*itr).timestamp;
+        pid_t  id = (*itr).id;
+        // Putting the plus one for the null terminating  char
+        // Try using the strcpy function
+        int len =(*itr).hostname.size()+1;
+        plfs_debug("Size of hostname is %d\n",len);
+        char * hostname = strdup((*itr).hostname.c_str());
+        buf_pos=memcpy_helper(buf_pos,&timestamp,sizeof(double));
+        buf_pos=memcpy_helper(buf_pos,&id,sizeof(pid_t));
+        buf_pos=memcpy_helper(buf_pos,&len,sizeof(int));
+        buf_pos=memcpy_helper(buf_pos,(void *)hostname,len);
+        free(hostname);
+     }
+
+    return (void *)buffer;
+}
+
+vector<IndexFileInfo> IndexFileInfo::streamToList(void * addr){
+
+    vector<IndexFileInfo> list;
+
+    int * sz_ptr;
+    int size,count;
+
+    sz_ptr = (int *)addr;
+    size = sz_ptr[0];
+    // Skip past the count
+    addr = (void *)&sz_ptr[1];
+
+    for(count=0;count<size;count++){
+        int hn_sz;
+        double * ts_ptr;
+        pid_t* id_ptr;
+        int *hnamesz_ptr;
+        char *hname_ptr;
+        string hostname;
+        
+        IndexFileInfo index_dropping;
+        ts_ptr=(double *)addr;
+        index_dropping.timestamp=ts_ptr[0];
+        addr = (void *)&ts_ptr[1];
+        id_ptr=(pid_t *)addr;
+        index_dropping.id=id_ptr[0];
+        addr = (void*)&id_ptr[1];
+        hnamesz_ptr=(int *)addr;
+        hn_sz=hnamesz_ptr[0];
+        addr= (void*)&hnamesz_ptr[1];
+        hname_ptr=(char *)addr;
+        hostname.append(hname_ptr);
+        index_dropping.hostname=hostname;
+        addr=(void *)&hname_ptr[hn_sz];
+
+        list.push_back(index_dropping);
+        /*if(count==0 || count ==1){
+            printf("stream to list size:%d \n",size);
+            printf("TS :%f |",index_dropping.getTimeStamp());
+            printf(" ID: %d |\n",index_dropping.getId());
+            printf("HOSTNAME: %s\n",index_dropping.getHostname().c_str());
+        }
+        */
+    }
+    
+    return list;
+}
+
 // for dealing with partial overwrites, we split entries in half on split
 // points.  copy *this into new entry and adjust new entry and *this
 // accordingly.  new entry gets the front part, and this is the back.
@@ -503,13 +610,6 @@ int Index::global_to_file(int fd){
         ret = ( (size_t)ret == length ? 0 : -errno );
         free(buffer); 
     }
-    return ret;
-}
-
-// a helper routine for global_to_stream: copies to a pointer and advances it
-char *Index::memcpy_helper(char *dst, void *src, size_t len) {
-    char *ret = (char*)memcpy((void*)dst,src,len);
-    ret += len;
     return ret;
 }
 

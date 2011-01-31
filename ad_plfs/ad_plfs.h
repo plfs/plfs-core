@@ -54,8 +54,8 @@ void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code);
 void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code);
 
 int ad_plfs_amode( int access_mode );
-
-
+void malloc_check(void *test_me,int rank);
+void check_stream(int size,int rank);
 /* Check for hints passed from the command line
  * Current hints
  * plfs_enable_broadcast : Turn broadcast of index from root on

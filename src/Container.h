@@ -17,6 +17,7 @@
 #include <sys/statvfs.h>
 #include <time.h>
 #include <map>
+#include <deque>
 using namespace std;
 
 #define DEFAULT_MODE (S_IRUSR|S_IWUSR|S_IXUSR|S_IXGRP|S_IXOTH)
@@ -39,6 +40,12 @@ DirectoryOperation {
         CHMOD, CHOWN, UTIME, RMDIR, MKDIR
 };
 
+// the particular index file for each indexer task
+typedef struct {
+    string path;
+} IndexerTask;
+
+
 #include "Index.h"
 
 class Container {
@@ -48,12 +55,12 @@ class Container {
                 mode_t mode, int flags, int *extra_attempts,pid_t );
 
         static bool isContainer(const string &physical_path,mode_t*); 
-
         static string getIndexPath( const string &, const string &, 
                 int pid,double);
         static string getDataPath(  const string &, const string &, 
-                int pid,double);
-
+                int pid, double);
+        static string getIndexHostPath(const string &path,
+                const string &host,int pid,double ts);
         static int addMeta(off_t, size_t, const string &,const string &,uid_t );
         static string fetchMeta( const string&, off_t *, size_t *, 
                 struct timespec * );
@@ -65,7 +72,8 @@ class Container {
         static string getVersionDir( const string& path );
         static string getAccessFilePath( const string& path );
         static string getCreatorFilePath( const string& path );
-        static string chunkPathFromIndexPath( const string& hostindex, pid_t pid );
+        static string chunkPathFromIndexPath( const string& hostindex, 
+                pid_t pid );
         static string getGlobalChunkPath(const string&);
         static string getGlobalIndexPath(const string&);
         static string makeUniquePath(const string&);
@@ -73,7 +81,8 @@ class Container {
         static mode_t fileMode( mode_t );
         static mode_t dirMode(  mode_t );
         static mode_t containerMode(  mode_t );
-        static int makeHostDir(const string &path, const string &host, mode_t mode);
+        static int makeHostDir(const string &path, const string &host, 
+                mode_t mode);
 
         static int getattr( const string &, struct stat * );
 
@@ -101,8 +110,12 @@ class Container {
             mode_t mode , int top, uid_t uid , gid_t gid );
         static int cleanupChown( const string &path, uid_t uid, gid_t gid); 
 	    static int truncateMeta(const string &path, off_t offset);
-       
-
+        // Added for par read index
+        static Index parAggregateIndices(vector<IndexFileInfo>& index_list,
+                                 int rank, int ranks_per_comm,string path);
+        static int indexTaskManager(deque<IndexerTask> &tasks,
+                                        Index *index,string path);
+        static vector<IndexFileInfo> hostdir_index_read(const char *path);
     private:
             // static stuff
         static int Modify(DirectoryOperation,const string &,uid_t,gid_t,

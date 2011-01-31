@@ -74,3 +74,18 @@ int ad_plfs_hints(ADIO_File fd, int rank, char * hint){
     return hint_value;
 }
 
+void malloc_check(void *test_me,int rank){
+
+    if(!test_me){
+        plfs_debug("Rank %d failed a malloc check\n");
+        MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
+    }
+}
+
+void check_stream(int size,int rank){
+    
+    if(size<0){
+        plfs_debug("Rank %d had a stream with a negative return size\n");
+        MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
+    }
+}

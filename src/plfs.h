@@ -174,6 +174,18 @@ ssize_t plfs_write( Plfs_fd *, const char *, size_t, off_t, pid_t );
 
 double plfs_wtime();
 
+// parindex read functions
+int plfs_partition_hostdir(void * entries, int rank,
+                                    int group_size,char **buffer);
+int plfs_hostdir_zero_rddir(void **entries,const char* path,int rank);
+int plfs_hostdir_rddir(void **index_stream,char *targets,
+        int rank,char * top_level);
+int plfs_parindex_read(int rank, int ranks_per_comm,void *index_files,
+        void **index_stream,char *top_level);
+int plfs_parindexread_merge(const char *path,char *index_streams,
+    int *index_sizes, int procs, void **index_stream);
+int plfs_expand_path(char *logical,char **physical);
+
 #ifdef __cplusplus 
     }
 #endif

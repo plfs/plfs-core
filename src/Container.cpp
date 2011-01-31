@@ -4,7 +4,6 @@
 #include <math.h>
 #include <sstream>
 #include <queue>
-#include <deque>
 #include <algorithm>
 #include <assert.h>
 #include <string>
@@ -353,11 +352,6 @@ int Container::Modify( DirectoryOperation type,
     return ret;
 }
 
-// the particular index file for each indexer task
-typedef struct {
-    string path;
-} IndexerTask;
-
 // the shared arguments passed to all of the indexer threads
 typedef struct {
     Index *index;
@@ -465,28 +459,9 @@ int Container::populateIndex(const string &path, Index *index,bool use_global) {
     return ret;
 }
 
-// this function traverses the container, finds all the index droppings,
-// and aggregates them into a global in-memory index structure
-// returns 0 or -errno
-int Container::aggregateIndices(const string &path, Index *index) {
-    string hostindex;
-    IndexerTask task;
-    deque<IndexerTask> tasks;
-    int ret = 0;
-
-    plfs_debug("In %s\n", __FUNCTION__);
+int Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index,string path){
     
-    // create the list of tasks
-    DIR *td = NULL, *hd = NULL; struct dirent *tent = NULL;
-    while((ret = nextdropping(path,&hostindex,INDEXPREFIX, &td,&hd,&tent))== 1){
-        task.path = hostindex;
-        tasks.push_back(task);  // makes a copy and pushes it
-    }
-    // -ERRNO Needs to be returned
-    if(ret < 0) {
-        return ret;
-    }
-    
+    int ret=0;
     if ( tasks.empty() ) {
         ret = 0;    // easy, 0 length file
         plfs_debug("No THREADS needed to create index for empty %s\n", 
@@ -529,12 +504,119 @@ int Container::aggregateIndices(const string &path, Index *index) {
                 }
             }
         }
-    }   
-    /*
-    if ( ret == 0 ) {
-        cerr << "Done " << __FUNCTION__ << " DUMP Index: " << (*index) << endl;
     }
-    */
+    return ret;
+}
+
+vector<IndexFileInfo> Container::hostdir_index_read(const char *path){
+    
+    DIR *dirp;
+    struct dirent *dirent;
+
+    // Open the directory and check value
+    if((dirp=opendir(path)) == NULL) {
+        plfs_debug("opendir error in hostdir zero directory reader");
+        // Return some sort of error
+    }
+
+    vector<IndexFileInfo> index_droppings;
+    // I need the path so I am going to try this out
+    // Should always be the first element
+    IndexFileInfo path_holder;
+    path_holder.timestamp=-1;
+    path_holder.hostname=path;
+    path_holder.id=-1;
+
+    index_droppings.push_back(path_holder);
+     // Start reading the directory
+    while(dirent = readdir(dirp) ){
+        // Get rid of these hardcoded values ASAP
+        if(strncmp(INDEXPREFIX,dirent->d_name,12)==0){
+            double time_stamp;
+            string str_time_stamp;
+            int frac_len;
+            int frac;
+            
+            vector<string> tokens;
+            IndexFileInfo index_dropping;
+            
+            tokenize(dirent->d_name,".",tokens);
+            str_time_stamp+=tokens[2];
+            str_time_stamp+=".";
+            str_time_stamp+=tokens[3];
+            time_stamp = strtod(str_time_stamp.c_str(),NULL);
+            
+            int left_over = (tokens.size()-1)-5;
+            
+            // Hostname can contain "."
+            int count;
+            for(count=0;count<=left_over;count++){
+                index_dropping.hostname+=tokens[4+count];
+                if(count!=left_over) index_dropping.hostname+=".";
+            }
+            index_dropping.id=atoi(tokens[5+left_over].c_str());
+            index_dropping.timestamp=time_stamp;
+            plfs_debug("Pushing path %s into index list\n",
+                    index_dropping.hostname.c_str());
+            index_droppings.push_back(index_dropping);
+        }
+    }
+    return index_droppings;
+}
+
+Index Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
+                                int rank, int ranks_per_comm,string path)
+{
+    Index index(path);
+    IndexerTask task;
+    deque<IndexerTask> tasks;
+    int count=0,ret;
+    string exp_path;
+    vector<string> path_pieces;
+
+    plfs_debug("In parAgg indices before for loop\n");
+    plfs_debug("Rank |%d| indexListSize |%d| ranksRerComm |%d|\n",rank,
+            index_list.size(),ranks_per_comm);
+    for(count=rank;count<index_list.size();count+=ranks_per_comm){
+        // Used this pointer to make the next function call cleaner
+        IndexFileInfo *current;
+        current=&(index_list[count]);
+        // get Index Path doesn't work for because we use the hostname
+        // for a hash to hostdir. We already have the hostdir
+        string index_path = getIndexHostPath(path,current->hostname,
+                                    current->id,current->timestamp);
+        task.path = index_path;
+        plfs_debug("Task push path %s\n",index_path.c_str());
+        tasks.push_back(task);
+    }
+    
+    plfs_debug("Par agg indices path %s\n",path.c_str());
+    ret=indexTaskManager(tasks,&index,path);
+       
+    return index;
+
+
+}
+
+// this function traverses the container, finds all the index droppings,
+// and aggregates them into a global in-memory index structure
+// returns 0 or -errno
+int Container::aggregateIndices(const string &path, Index *index) {
+    string hostindex;
+    IndexerTask task;
+    deque<IndexerTask> tasks;
+    int ret = 0;
+
+    plfs_debug("In %s\n", __FUNCTION__);
+    
+    // create the list of tasks
+    DIR *td = NULL, *hd = NULL; struct dirent *tent = NULL;
+    while((ret = nextdropping(path,&hostindex,INDEXPREFIX, &td,&hd,&tent))== 1){
+        task.path = hostindex;
+        tasks.push_back(task);  // makes a copy and pushes it
+        plfs_debug("Ag indices path is %s\n",path.c_str());
+    }
+    ret=indexTaskManager(tasks,index,path);
     return ret;
 }
 
@@ -542,6 +624,17 @@ string Container::getDataPath(const string &path, const string &host, int pid,
         double ts) 
 {
     return getChunkPath( path, host, pid, DATAPREFIX, ts );
+}
+
+string Container::getIndexHostPath(const string &path,const string &host, int pid,
+        double ts)
+{
+
+    ostringstream oss;
+    oss.setf(ios::fixed,ios::floatfield);
+    oss << path << "/" << INDEXPREFIX;  
+    oss << ts << "." << host << "." << pid;
+    return oss.str();
 }
 
 string Container::getIndexPath(const string &path, const string &host, int pid,

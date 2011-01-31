@@ -115,13 +115,7 @@ int flatten_then_close(Plfs_fd *fd,int rank,int amode,int procs,
             MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
         }
         for(count=0;count<procs;count++){
-            // Set up displacements 
-            if(count==0){
-                index_disp[count]=0;
-            }else{
-                // Displacements 
-                index_disp[count]=index_total_size-(count);
-            }
+            index_disp[count]=index_total_size; 
             // Calculate the size of the index
             index_total_size+=index_sizes[count];
             if(index_sizes[count]==-1) {

@@ -1070,6 +1070,85 @@ get_plfs_conf() {
     return pconf;
 }
 
+// Here are all of the parindex read functions
+int plfs_expand_path(char *logical,char **physical){
+    PLFS_ENTER;
+    *physical = (char *)malloc(sizeof(char)*path.size()+1);
+    strcpy(*physical,path.c_str());
+    return 0;
+}
+
+// Function used when #hostdirs>#procs
+int plfs_hostdir_rddir(void **index_stream,char *targets,int rank,
+        char *top_level){
+    size_t stream_sz;
+    string path;
+    vector<string> directories;
+    vector<IndexFileInfo> index_droppings;
+
+    plfs_debug("Rank |%d| targets %s\n",rank,targets);
+    tokenize(targets,"|",directories);
+
+    // Path is extremely important when converting to stream
+    Index global(top_level);
+    int count=0;
+    while(count<directories.size()){
+        path=directories[count];
+        index_droppings=Container::hostdir_index_read(path.c_str());
+        index_droppings.erase(index_droppings.begin());
+        Index tmp(top_level);
+        tmp=Container::parAggregateIndices(index_droppings,0,1,path);
+        global.merge(&tmp);
+        count++;
+    }
+    global.startBuffering();
+    global.global_to_stream(index_stream,&stream_sz);
+    return (int)stream_sz;
+}
+
+// Returns size of the hostdir stream entries
+int plfs_hostdir_zero_rddir(void **entries,const char* path,int rank){
+    vector<IndexFileInfo> index_droppings;
+    int size;
+    IndexFileInfo converter;
+    
+    index_droppings=Container::hostdir_index_read(path);
+    plfs_debug("Found [%d] index droppings in %s\n",
+                index_droppings.size(),path);
+    *entries=converter.listToStream(index_droppings,&size);
+    return size;
+}
+
+// Returns size of the index
+int plfs_parindex_read(int rank,int ranks_per_comm,void *index_files,
+        void **index_stream,char *top_level){
+
+    size_t index_stream_sz;
+    vector<IndexFileInfo> cvt_list;
+    IndexFileInfo converter;
+    string path,index_path;
+    
+    cvt_list = converter.streamToList(index_files);
+
+    // Get out the path and clear the path holder
+    path=cvt_list[0].hostname;
+    plfs_debug("Hostdir path pushed on the list %s\n",path.c_str());
+    plfs_debug("Path: %s used for Index file in parindex read\n",top_level);
+    Index index(top_level);
+    cvt_list.erase(cvt_list.begin());
+    //Everything seems fine at this point
+    plfs_debug("Rank |%d| List Size|%d|\n",rank,cvt_list.size());
+    index=Container::parAggregateIndices(cvt_list,rank,ranks_per_comm,path);
+    plfs_debug("Ranks |%d| About to convert global to stream\n",rank);
+    // Don't forget to trick global to stream
+    index_path=top_level;
+    index.setPath(index_path);
+    index.startBuffering();
+    // Index should be populated now
+    index.global_to_stream(index_stream,&index_stream_sz);
+    return (int)index_stream_sz;
+}
+
 int 
 plfs_merge_indexes(Plfs_fd **pfd, char *index_streams, 
                         int *index_sizes, int procs){
@@ -1085,7 +1164,7 @@ plfs_merge_indexes(Plfs_fd **pfd, char *index_streams,
     for(count=1;count<procs;count++){
         char *index_stream;
         // Skip to the next index 
-        index_streams+=(index_sizes[count-1]-1);
+        index_streams+=(index_sizes[count-1]);
         index_stream=index_streams;
         // Turn the stream into an index
         plfs_debug("Merging the stream into one Index\n");
@@ -1097,6 +1176,35 @@ plfs_merge_indexes(Plfs_fd **pfd, char *index_streams,
     }
     plfs_debug("%s:Done merging indexes\n",__FUNCTION__);
     return 0;
+}
+
+int plfs_parindexread_merge(const char *path,char *index_streams,
+                            int *index_sizes, int procs, void **index_stream)
+{
+    int count;
+    size_t size;
+    Index merger(path);
+
+    // Merge all of the indices that were passed in
+    for(count=0;count<procs;count++){
+        char *index_stream;
+        if(count>0) {
+            int index_inc=index_sizes[count-1];
+            plfs_debug("Incrementing the index by %d\n",index_inc);
+            index_streams+=index_inc;
+        }
+        Index *tmp = new Index(path);
+        index_stream=index_streams;
+        tmp->global_from_stream(index_stream);
+        merger.merge(tmp);
+    }
+    // Almost forgot to fake the buffering
+    // Deprecated test me out
+    merger.startBuffering();
+    // Convert into a stream
+    merger.global_to_stream(index_stream,&size);
+    plfs_debug("Inside parindexread merge stream size %d\n",size);
+    return (int)size;
 }
 
 // Can't directly access the FD struct in ADIO 
