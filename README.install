@@ -1,41 +1,37 @@
-To install PLFS as a FUSE filesystem.
+1) To install PLFS as a FUSE filesystem.
 
-  1) First do a make in this directory.  Make sure everything builds OK.
+  0) you'll need to have fuse installed and have /dev/libfuse loaded
+  1) ./configure ; make
+  2) then create a $HOME/.plfsrc or /etc/plfsrc file.  Check the examples. 
+  3) check your .plfsrc file with tools/plfs_check_config
+  4) launch your plfs executable (e.g. plfs -obig_writes /mnt/plfs)
+  5) cat /mnt/plfs/.plfsdebug to see if it's working
+  6) use /mnt/plfs as you would any posix file system
 
-  2) Then go into the fuse directory.
+2) To install PLFS as a ROMIO ADIO layer for MPI-IO.
 
-  3) set the following environment variables:
+  This should be straight-forward for openmpi-1.4.3.  For other mpi's, you'll
+  need to adjust accordingly.
+  > make install (plfs)
+  > get openmpi-1.4.3
+  > cd openmpi-1.4.3
+  > patch -pl < /path/to/plfs/ad-patches/openmpi/ompi-1.4.3-plfs-prep.patch
+  > patch -p1 < /path/to/plfs/ad-patches/openmpi/ompi-1.4.3-plfs.patch
+  > ./configure; make
 
-  PLFS_MNT    # where the users access PLFS (e.g. /mnt/plfs)
+  One tricky bit is that you have to make sure that your mpi build knows 
+  how to find your plfs.h and your libplfs files.  We do that with a 
+  platform file that has lines like this in it:
+    with_io_romio_flags=--with-file-system=ufs+nfs+panfs+plfs
+    LDFLAGS="-m64 -L/users/johnbent/plfs/lib -lz -lpthread -lplfs -lstdc++ "
+    CFLAGS="-I/opt/panfs/include -m64 -I/users/johnbent/plfs/include "
+    CXXFLAGS="-I/opt/panfs/include -m64 -I/users/johnbent/plfs/include "
+    CCASFLAGS="-I/opt/panfs/include -m64 -I/users/johnbent/plfs/include " 
+  Then your configure line is like this: ./configure --with-platform=./platform 
 
-  PLFS_DEBUG  # a file to write debug info if desired
+3) To build the PLFS library and link apps against it.
 
-  4) create an /etc/plfsrc or a $HOME/.plfsrc file that must have
-    backends a[,b]
-  where backends are a list (or just a single one) of paths where plfs can 
-  store it's physical containers
-  you can also have these optionally
-    num_hostdirs 32
-    threadpool_size 16
-  obviously set 32 and 16 to be whatever you want.  num_hostdirs should be
-  around the sqrt of the number of compute nodes in the system
- 
-  5) then in the fuse directory, do a make mount to run it in the foreground or 
-  a make smount to run it as a daemon.
-
-To install PLFS as a ROMIO ADIO layer for MPI-IO.
-
-  That's harder.  Look at the README in the ad-patches directory and good luck.
-  If you get it working, you still have to pass 'plfs:' as a preface to the 
-  path you provide MPI-IO because ROMIO doesn't know how to identify a FUSE
-  based filesystem.  Basically, it's not too bad.  You apply the two patches
-  and and after you do the two patches, you then go into the romio/adio/ad_plfs
-  directory and replace all the .c and .h files with the .c and .h files in
-  the plfs/ad_plfs/ directory.  Then build MPI as you normally would.
-
-To build the PLFS library and link apps against it.
-
-  Follow step 1) above.  Then look at plfs.h and figure out how to use it.
+  Build and install PLFS.  Then look at plfs.h and figure out how to use it.
   Basically you just change your opens to plfs_opens and etc. 
 
 Email plfs-users@lists.sourceforge.net with any questions.
