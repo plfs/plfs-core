@@ -28,7 +28,10 @@ To install PLFS as a ROMIO ADIO layer for MPI-IO.
   That's harder.  Look at the README in the ad-patches directory and good luck.
   If you get it working, you still have to pass 'plfs:' as a preface to the 
   path you provide MPI-IO because ROMIO doesn't know how to identify a FUSE
-  based filesystem 
+  based filesystem.  Basically, it's not too bad.  You apply the two patches
+  and and after you do the two patches, you then go into the romio/adio/ad_plfs
+  directory and replace all the .c and .h files with the .c and .h files in
+  the plfs/ad_plfs/ directory.  Then build MPI as you normally would.
 
 To build the PLFS library and link apps against it.
 
