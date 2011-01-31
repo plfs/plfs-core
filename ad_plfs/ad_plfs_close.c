@@ -58,7 +58,9 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
         // for ADIO, just 0 creates the openhosts and the meta dropping 
         // Grab the last offset and total bytes from all ranks and reduce to max
         plfs_debug("Rank: %d in regular close\n",rank);
-        reduce_meta(fd->fs_ptr,fd->filename,&close_opt);
+        if(fd->access_mode!=ADIO_RDONLY){
+            reduce_meta(fd->fs_ptr,fd->filename,&close_opt);
+        }
         err = plfs_close(fd->fs_ptr, rank, amode,&close_opt);
     }
     plfs_debug("%d: close time: %.2f\n", rank,MPI_Wtime()-start_time);
