@@ -1,29 +1,17 @@
 #! /bin/tcsh
 
 set OMPI_VERSION = 1.4.3
-set adio_path = ompi-${OMPI_VERSION}/ompi/mca/io/romio/romio/adio
+set adio_path = /tmp/ompi-${OMPI_VERSION}/ompi/mca/io/romio/romio/adio
+set patch = ad-patches/openmpi/ompi-1.4.3-plfs.patch
 
-set ts = `date +%s`
-set tmp_files = ()
 mkdir -p $adio_path
-set tmp_files = ($tmp_files $adio_path:e ompi) 
 cp -rf ad_plfs $adio_path
 cp -f ad_plfs/Makefile.am.ompi $adio_path/ad_plfs/Makefile.am
 
-wget http://www.open-mpi.org/software/ompi/v1.4/downloads/openmpi-${OMPI_VERSION}.tar.bz2
-tar  xvfj /Users/johnbent/openmpi-${OMPI_VERSION}.tar.bz2 -C /tmp/
-set tmp_files = ( $tmp_files openmpi-${OMPI_VERSION}.tar.bz2 /tmp/openmpi-${OMPI_VERSION})
-
-touch patch.$ts
+rm -f $patch; touch $patch
 foreach file ( ad_plfs/*.[ch] ad_plfs/Makefile.am )
   echo "Creating patch for $file"
-  diff -Naur /tmp/openmpi-1.4.3/ompi/mca/io/romio/romio/adio/$file $adio_path/$file >> patch.$ts
+  diff -Naur openmpi-1.4.3/ompi/mca/io/romio/romio/adio/$file $adio_path/$file >> $patch
 end
 
-# remove temporary files
-foreach tmp ( $tmp_files ) 
-  echo "Removing temporary file $tmp"
-  /bin/rm -rf $tmp
-end
-
-echo "Your patchfile is patch.$ts"
+echo "Your patchfile is $patch" 

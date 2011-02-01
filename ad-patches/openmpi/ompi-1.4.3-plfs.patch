@@ -1,5 +1,5 @@
---- /tmp/openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs.c	1969-12-31 17:00:00.000000000 -0700
-+++ ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs.c	2011-01-31 16:39:35.000000000 -0700
+--- openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs.c	1969-12-31 17:00:00.000000000 -0700
++++ /tmp/ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs.c	2011-01-31 17:27:22.000000000 -0700
 @@ -0,0 +1,91 @@
 +/* -*- Mode: C; c-basic-offset:4 ; -*- */
 +/* 
@@ -92,8 +92,8 @@
 +        MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
 +    }
 +}
---- /tmp/openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs.h	1969-12-31 17:00:00.000000000 -0700
-+++ ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs.h	2011-01-31 16:39:35.000000000 -0700
+--- openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs.h	1969-12-31 17:00:00.000000000 -0700
++++ /tmp/ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs.h	2011-01-31 17:27:22.000000000 -0700
 @@ -0,0 +1,68 @@
 +/* -*- Mode: C; c-basic-offset:4 ; -*- */
 +/* 
@@ -163,8 +163,8 @@
 + */    
 +int ad_plfs_hints(ADIO_File fd, int rank, char *hint);
 +#endif
---- /tmp/openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_close.c	1969-12-31 17:00:00.000000000 -0700
-+++ ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_close.c	2011-01-31 16:39:35.000000000 -0700
+--- openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_close.c	1969-12-31 17:00:00.000000000 -0700
++++ /tmp/ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_close.c	2011-01-31 17:27:22.000000000 -0700
 @@ -0,0 +1,220 @@
 +/* -*- Mode: C; c-basic-offset:4 ; -*- */
 +/* 
@@ -386,8 +386,8 @@
 +    }
 +
 +}
---- /tmp/openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_delete.c	1969-12-31 17:00:00.000000000 -0700
-+++ ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_delete.c	2011-01-31 16:39:35.000000000 -0700
+--- openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_delete.c	1969-12-31 17:00:00.000000000 -0700
++++ /tmp/ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_delete.c	2011-01-31 17:27:22.000000000 -0700
 @@ -0,0 +1,26 @@
 +/* -*- Mode: C; c-basic-offset:4 ; -*- */
 +/* 
@@ -415,8 +415,8 @@
 +    }
 +    else *error_code = MPI_SUCCESS;
 +}
---- /tmp/openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_fcntl.c	1969-12-31 17:00:00.000000000 -0700
-+++ ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_fcntl.c	2011-01-31 16:39:35.000000000 -0700
+--- openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_fcntl.c	1969-12-31 17:00:00.000000000 -0700
++++ /tmp/ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_fcntl.c	2011-01-31 17:27:22.000000000 -0700
 @@ -0,0 +1,49 @@
 +/* -*- Mode: C; c-basic-offset:4 ; -*- */
 +/* 
@@ -467,8 +467,8 @@
 +	/* --END ERROR HANDLING-- */
 +    }
 +}
---- /tmp/openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_flush.c	1969-12-31 17:00:00.000000000 -0700
-+++ ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_flush.c	2011-01-31 16:39:35.000000000 -0700
+--- openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_flush.c	1969-12-31 17:00:00.000000000 -0700
++++ /tmp/ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_flush.c	2011-01-31 17:27:22.000000000 -0700
 @@ -0,0 +1,31 @@
 +/* -*- Mode: C; c-basic-offset:4 ; -*- */
 +/* 
@@ -501,8 +501,8 @@
 +         *error_code = MPI_SUCCESS;
 +    }
 +}
---- /tmp/openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_hints.c	1969-12-31 17:00:00.000000000 -0700
-+++ ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_hints.c	2011-01-31 16:39:35.000000000 -0700
+--- openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_hints.c	1969-12-31 17:00:00.000000000 -0700
++++ /tmp/ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_hints.c	2011-01-31 17:27:22.000000000 -0700
 @@ -0,0 +1,97 @@
 +#include "ad_plfs.h"
 +
@@ -601,8 +601,8 @@
 +     */
 +    if(*error_code == MPI_SUCCESS) *error_code = gen_error_code;
 +}
---- /tmp/openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_open.c	1969-12-31 17:00:00.000000000 -0700
-+++ ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_open.c	2011-01-31 16:39:35.000000000 -0700
+--- openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_open.c	1969-12-31 17:00:00.000000000 -0700
++++ /tmp/ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_open.c	2011-01-31 17:27:22.000000000 -0700
 @@ -0,0 +1,735 @@
 +/* -*- Mode: C; c-basic-offset:4 ; -*- */
 +/* 
@@ -1339,8 +1339,8 @@
 +    return path;
 +}
 +
---- /tmp/openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_read.c	1969-12-31 17:00:00.000000000 -0700
-+++ ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_read.c	2011-01-31 16:39:35.000000000 -0700
+--- openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_read.c	1969-12-31 17:00:00.000000000 -0700
++++ /tmp/ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_read.c	2011-01-31 17:27:22.000000000 -0700
 @@ -0,0 +1,50 @@
 +/* -*- Mode: C; c-basic-offset:4 ; -*- */
 +/* 
@@ -1392,8 +1392,8 @@
 +        *error_code = MPI_SUCCESS;
 +    }
 +}
---- /tmp/openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_resize.c	1969-12-31 17:00:00.000000000 -0700
-+++ ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_resize.c	2011-01-31 16:39:35.000000000 -0700
+--- openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_resize.c	1969-12-31 17:00:00.000000000 -0700
++++ /tmp/ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_resize.c	2011-01-31 17:27:22.000000000 -0700
 @@ -0,0 +1,34 @@
 +/* -*- Mode: C; c-basic-offset:4 ; -*- */
 +/* 
@@ -1429,8 +1429,8 @@
 +    }
 +    else *error_code = MPI_SUCCESS;
 +}
---- /tmp/openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_write.c	1969-12-31 17:00:00.000000000 -0700
-+++ ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_write.c	2011-01-31 16:39:35.000000000 -0700
+--- openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_write.c	1969-12-31 17:00:00.000000000 -0700
++++ /tmp/ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/ad_plfs_write.c	2011-01-31 17:27:22.000000000 -0700
 @@ -0,0 +1,50 @@
 +/* -*- Mode: C; c-basic-offset:4 ; -*- */
 +/* 
@@ -1482,8 +1482,8 @@
 +    }
 +}
 +
---- /tmp/openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/Makefile.am	1969-12-31 17:00:00.000000000 -0700
-+++ ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/Makefile.am	2011-01-31 16:39:35.000000000 -0700
+--- openmpi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/Makefile.am	1969-12-31 17:00:00.000000000 -0700
++++ /tmp/ompi-1.4.3/ompi/mca/io/romio/romio/adio/ad_plfs/Makefile.am	2011-01-31 17:27:22.000000000 -0700
 @@ -0,0 +1,34 @@
 +#
 +# Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
