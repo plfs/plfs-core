@@ -70,3 +70,7 @@ man
 
 ACLOCAL_AMFLAGS = -I config
 
+dist-hook:
+	pushd $(distdir) && \
+	scripts/make_plfs_patch && \
+	popd
