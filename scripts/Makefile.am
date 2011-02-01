@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2010, Los Alamos National Security, LLC. All rights
+# Copyright (c) 2009-2011, Los Alamos National Security, LLC. All rights
 # reserved.
 #
 # This software was produced under U.S. Government contract DE-AC52-06NA25396
@@ -48,7 +48,8 @@ bin_SCRIPTS =
 scripts = \
 plfs_index_parser.py \
 plfs_pbs_launch \
-plfs_randomize_plfsrc.py
+plfs_randomize_plfsrc.py \
+make_plfs_patch
 
 EXTRA_DIST = \
 $(scripts)
