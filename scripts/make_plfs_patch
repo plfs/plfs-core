@@ -4,6 +4,7 @@ set OMPI_VERSION = 1.4.3
 set adio_path = /tmp/ompi-${OMPI_VERSION}/ompi/mca/io/romio/romio/adio
 set patch = ad-patches/openmpi/ompi-1.4.3-plfs.patch
 
+\rm -rf $adio_path
 mkdir -p $adio_path
 cp -rf ad_plfs $adio_path
 cp -f ad_plfs/Makefile.am.ompi $adio_path/ad_plfs/Makefile.am
