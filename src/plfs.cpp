@@ -1101,7 +1101,6 @@ int plfs_hostdir_rddir(void **index_stream,char *targets,int rank,
         global.merge(&tmp);
         count++;
     }
-    global.startBuffering();
     global.global_to_stream(index_stream,&stream_sz);
     return (int)stream_sz;
 }
@@ -1143,7 +1142,6 @@ int plfs_parindex_read(int rank,int ranks_per_comm,void *index_files,
     // Don't forget to trick global to stream
     index_path=top_level;
     index.setPath(index_path);
-    index.startBuffering();
     // Index should be populated now
     index.global_to_stream(index_stream,&index_stream_sz);
     return (int)index_stream_sz;
@@ -1198,9 +1196,6 @@ int plfs_parindexread_merge(const char *path,char *index_streams,
         tmp->global_from_stream(index_stream);
         merger.merge(tmp);
     }
-    // Almost forgot to fake the buffering
-    // Deprecated test me out
-    merger.startBuffering();
     // Convert into a stream
     merger.global_to_stream(index_stream,&size);
     plfs_debug("Inside parindexread merge stream size %d\n",size);
@@ -1214,8 +1209,6 @@ plfs_index_stream(Plfs_fd **pfd, char ** buffer){
     int ret;
     if ( (*pfd)->getIndex() !=  NULL ) {
         plfs_debug("Getting index stream from a reader\n");
-        // Wow we really need some regression testing
-        (*pfd)->getIndex()->startBuffering();
         ret = (*pfd)->getIndex()->global_to_stream((void **)buffer,&length);
     }else if( (*pfd)->getWritefile()->getIndex()!=NULL){
         plfs_debug("The write file has the index\n");
