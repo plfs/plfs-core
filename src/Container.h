@@ -40,6 +40,11 @@ DirectoryOperation {
         CHMOD, CHOWN, UTIME, RMDIR, MKDIR
 };
 
+enum 
+parentStatus {
+    PARENT_CREATED,PARENT_ABSENT    
+};
+
 // the particular index file for each indexer task
 typedef struct {
     string path;
@@ -82,7 +87,7 @@ class Container {
         static mode_t dirMode(  mode_t );
         static mode_t containerMode(  mode_t );
         static int makeHostDir(const string &path, const string &host, 
-                mode_t mode);
+                mode_t mode, parentStatus);
 
         static int getattr( const string &, struct stat * );
 

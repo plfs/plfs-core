@@ -23,6 +23,7 @@
 #include <time.h>
 #include <pwd.h>
 #include <grp.h>
+#include <map>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -637,7 +638,7 @@ int Plfs::removeWriteFile( WriteFile *of, string strPath ) {
 // returns 0 or -errno
 int Plfs::f_opendir( const char *path, struct fuse_file_info *fi ) {
     PLFS_ENTER;
-    vector<string> *dirents = new vector<string>;
+    set<string> *dirents = new set<string>;
     ret = plfs_readdir(strPath.c_str(),(void*)dirents);
     if (ret == 0) fi->fh = (uint64_t)dirents;
     else delete dirents;
@@ -657,20 +658,30 @@ int Plfs::f_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     // then FUSE should empty the buffer and call this again at the
     // correct offset
 
-    vector<string> *dirents = NULL;
+    set<string> *dirents = NULL;
     if ( fi->fh ) {
-        dirents = new vector<string>;
+        dirents = new set<string>;
         ret = plfs_readdir(strPath.c_str(),(void*)dirents);
         if (ret == 0) fi->fh = (uint64_t)dirents;
         else delete dirents;
     } else {
-        dirents = (vector<string>*)fi->fh;
+        dirents = (set<string>*)fi->fh;
     }
+
+    // the dirents used to be a vector which was indexable.  But now
+    // we make them a set so that each entry is unique.  But this means
+    // when this is called multiple times, on subsequent calls, we'll have
+    // to iterate past entries that were previously returned...
     if ( ret == 0 ) {   // we have a valid entry
-        for( size_t i = offset; i < dirents->size(); i++ ) {
-            plfs_debug("Returned dirent %s (index %d)\n",(*dirents)[i].c_str(),i);
-            if ( 0 != filler(buf,(*dirents)[i].c_str(),NULL,i+1) ) {
-                break;
+        set<string>::iterator itr;
+        int i = 0;
+        for(itr=dirents->begin();itr!=dirents->end();itr++,i++) {
+            plfs_debug("Returned dirent %s\n",
+                    (*itr).c_str());
+            if ( i >= offset ) {
+                if ( 0 != filler(buf,(*itr).c_str(),NULL,i+1) ) {
+                    break;
+                }
             }
         }
         // if we make it here, we went through the full dir.  
@@ -682,7 +693,7 @@ int Plfs::f_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         // getattr entry
         // ENOENT
         // so if we go thru the whole thing, delete it so we don't reuse stale
-        delete (vector<string>*)fi->fh;
+        delete (set<string>*)fi->fh;
         fi->fh = (uint64_t)NULL;
     }
     PLFS_EXIT;
@@ -690,7 +701,7 @@ int Plfs::f_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
 int Plfs::f_releasedir( const char *path, struct fuse_file_info *fi ) {
     PLFS_ENTER;
-    if ( fi->fh ) delete (vector<string>*)fi->fh;
+    if ( fi->fh ) delete (set<string>*)fi->fh;
     PLFS_EXIT;
 }
 

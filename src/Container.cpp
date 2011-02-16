@@ -1187,8 +1187,17 @@ int Container::makeDropping(const string &path) {
     return ret;
 }
 // returns 0 or -errno
-int Container::makeHostDir(const string &path, const string &host, mode_t mode){
-    int ret = makeSubdir( getHostDirPath(path,host), mode );
+int Container::makeHostDir(const string &path,
+        const string &host, mode_t mode, parentStatus pstat)
+{
+    int ret = 0;
+    if (pstat == PARENT_ABSENT) {
+        plfs_debug("Making absent parent %s\n", path.c_str());
+        ret = makeSubdir(path.c_str(),mode);
+    }
+    if (ret == 0) {
+        ret = makeSubdir(getHostDirPath(path,host), mode);
+    }
     return ( ret == 0 ? ret : -errno );
 }
 
@@ -1304,7 +1313,7 @@ int Container::createHelper(const string &expanded_path, const string &hostname,
 
         // then the host dir
     if ( res == 0 ) {
-        res = makeHostDir( expanded_path, hostname, mode ); 
+        res = makeHostDir( expanded_path, hostname, mode, PARENT_CREATED ); 
     }
     return res;
 }

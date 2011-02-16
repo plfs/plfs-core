@@ -363,25 +363,46 @@ plfs_create( const char *logical, mode_t mode, int flags, pid_t pid ) {
             &attempt,pid);
 }
 
+// returns number of current writers sharing the WriteFile *
 int
 addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode, 
         string logical ) 
 {
     int ret = -ENOENT;
-    for( int attempts = 0; attempts < 2 && ret == -ENOENT; attempts++ ) {
-        ret = wf->addWriter( pid, false ); 
-        if ( ret == -ENOENT ) {
-            // maybe the hostdir doesn't exist
-            // here is a super simple place to add the distributed metadata
-            // stuff.  Hash the hostdir by node, then link it in to the
-            // container which was already hashed by filename
-            plfs_debug("Making hostdir for %s at %s\n",logical.c_str(),
-                    path);
-            string hash_by_node = 
-                expandPath(logical,NULL,NULL,HASH_BY_NODE,-1); 
-            Container::makeHostDir( path, Util::hostname(), mode );
+    int writers = 0;
+
+    // just loop a second time in order to deal with ENOENT
+    for( int attempts = 0; attempts < 2; attempts++ ) {
+        writers = ret = wf->addWriter( pid, false ); 
+        if ( ret != -ENOENT ) break;
+        
+        // if we get here, the hostdir doesn't exist 
+        // here is a super simple place to add the distributed metadata
+        // stuff.  Hash the hostdir by node, then link it in to the
+        // container which was already hashed by filename
+        char *hostname = Util::hostname();
+        string hash_by_node = 
+            expandPath(logical,NULL,NULL,HASH_BY_NODE,-1); 
+        plfs_debug("Making hostdir for %s at %s\n",logical.c_str(),
+                hash_by_node.c_str());
+        ret = Container::makeHostDir(hash_by_node, 
+                hostname, mode, PARENT_ABSENT);
+        string hostdir_full = 
+            Container::getHostDirPath(hash_by_node,hostname);
+        string hostdir_after_container = 
+            hostdir_full.substr(hash_by_node.size(),string::npos);
+        string hash_by_path = 
+            expandPath(logical,NULL,NULL,HASH_BY_PATH,-1);
+        hash_by_path +=  "/";
+        hash_by_path += hostdir_after_container;
+        plfs_debug("Need to link %s into %s (hostdir ret %d)\n", 
+                hostdir_full.c_str(), hash_by_path.c_str(),ret);
+        if ( hostdir_full != hash_by_path && ret == 0 ) {
+            ret = Util::Symlink(hostdir_full.c_str(),hash_by_path.c_str());
+            plfs_debug("Symlink: %d\n", ret);
         }
     }
+    if ( ret == 0 ) ret = writers;
     PLFS_EXIT(ret);
 }
 
@@ -488,14 +509,14 @@ plfs_stats( void *vptr ) {
 
 int
 plfs_readdir_helper( const char *physical, void *vptr ) {
-    vector<string> *dents = (vector<string> *)vptr;
+    set<string> *dents = (set<string> *)vptr;
     DIR *dp;
     int ret = Util::Opendir( physical, &dp );
     if ( ret == 0 && dp ) {
         struct dirent *de;
         while ((de = readdir(dp)) != NULL) {
             plfs_debug("Pushing %s into readdir for %s\n",de->d_name,physical);
-            dents->push_back(de->d_name);
+            dents->insert(de->d_name);
         }
     } else {
         ret = -errno;
@@ -535,8 +556,13 @@ plfs_mkdir( const char *logical, mode_t mode ) {
 int
 plfs_rmdir( const char *logical ) {
     PLFS_ENTER;
-    plfs_debug("%s on %s as %d:%d\n",__FUNCTION__,logical,getuid(),geteuid());
-    ret = retValue(Util::Rmdir(path.c_str()));
+    bool mnt_pt;
+    PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
+    for(int i = 0; i < pm->backends.size(); i++) {
+        path = expandPath(logical,NULL,NULL,NO_HASH,i);
+        ret = retValue(Util::Rmdir(path.c_str()));
+        if(ret==ENOENT) ret = 0;
+    }
     PLFS_EXIT(ret);
 }
 
@@ -1842,19 +1868,42 @@ getAtomicUnlinkPath(string path) {
     return atomicpath;
 }
 
+int
+plfs_remove_container(const string &path) {
+    // first atomically remove the canonical location
+    string atomicpath = getAtomicUnlinkPath(path);
+    int ret = retValue(Util::Rename(path.c_str(), atomicpath.c_str()));
+    if ( ret == 0 ) {
+        plfs_debug("Converted %s to %s for atomic unlink\n",
+                path.c_str(), atomicpath.c_str());
+        ret = removeDirectoryTree( atomicpath.c_str(), false );  
+        plfs_debug("Removed plfs container %s: %d\n",path.c_str(),ret);
+    }
+    return ret;
+}
+
 int 
 plfs_unlink( const char *logical ) {
     PLFS_ENTER;
     mode_t mode =0;
     if ( is_plfs_file( logical, &mode ) ) {
-        // make this more atomic
-        string atomicpath = getAtomicUnlinkPath(path);
-        ret = retValue( Util::Rename(path.c_str(), atomicpath.c_str()));
-        if ( ret == 0 ) {
-            plfs_debug("Converted %s to %s for atomic unlink\n",
-                    path.c_str(), atomicpath.c_str());
-            ret = removeDirectoryTree( atomicpath.c_str(), false );  
-            plfs_debug("Removed plfs container %s: %d\n",path.c_str(),ret);
+        // first remove the canonical
+        string canonical = path; // it's already expanded 
+        ret = plfs_remove_container(canonical);
+        plfs_debug("Remove canonical container %s: %d\n",canonical.c_str(),ret);
+ 
+        if(ret==0) { // then all the copies spread across backends
+            bool mnt_pt;
+            PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
+            for(int i = 0; i < pm->backends.size(); i++) {
+                path = expandPath(logical,NULL,NULL,NO_HASH,i);
+                if (path!=canonical) { // don't bother removing twice
+                    ret = plfs_remove_container(path);
+                    plfs_debug("Removed non-canonical container %s: %d\n",
+                            path.c_str(),ret);
+                    if(ret==-ENOENT) ret = 0;
+                }
+            }
         }
     } else {
         if ( mode == 0 ) ret = -ENOENT;
