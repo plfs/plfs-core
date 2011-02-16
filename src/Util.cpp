@@ -687,10 +687,12 @@ int Util::retValue( int res ) {
 }
 
 char *Util::hostname() {
+    static bool init = false;
     static char hname[128];
-    if ( gethostname(hname, sizeof(hname)) < 0) {
+    if ( !init && gethostname(hname, sizeof(hname)) < 0) {
         return NULL;
     }
+    init = true;
     return hname;
 }
 

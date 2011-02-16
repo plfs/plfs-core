@@ -24,11 +24,18 @@ requirePlfsPath {
     PLFS_PATH_NOTREQUIRED,
 };
 
+enum
+hashMethod {
+    HASH_BY_PATH,
+    HASH_BY_NODE,
+    NO_HASH,
+};
+
 #define PLFS_ENTER PLFS_ENTER2(PLFS_PATH_REQUIRED)
 
 #define PLFS_ENTER2(X) bool is_mnt_pt = false; int ret = 0;\
  bool expand_error = false; \
- string path = expandPath(logical,&is_mnt_pt,&expand_error); \
+ string path = expandPath(logical,&is_mnt_pt,&expand_error,HASH_BY_PATH,-1); \
  plfs_debug("EXPAND in %s: %s->%s\n",__FUNCTION__,logical,path.c_str()); \
  if (expand_error && X==PLFS_PATH_REQUIRED) PLFS_EXIT(-ENOENT);
 
@@ -93,7 +100,9 @@ find_mount_point(PlfsConf *pconf, string logical, bool &found) {
 // also returns whether the logical matches the mount point
 // readdir is the only caller that's interested in this....
 string
-expandPath(string logical, bool *mount_point, bool *expand_error) {
+expandPath(string logical, bool *mount_point, bool *expand_error, 
+        hashMethod hash_method, int which_backend ) 
+{
     static PlfsConf *pconf = NULL;
 
     if (mount_point) *mount_point = false;
@@ -105,7 +114,7 @@ expandPath(string logical, bool *mount_point, bool *expand_error) {
 
     if ( pconf->err_msg ) {
       plfs_debug("PlfsConf error: %s\n", pconf->err_msg->c_str());
-      *expand_error = true;
+      if (expand_error) *expand_error = true;
       return "INVALID";
     }
 
@@ -134,11 +143,32 @@ expandPath(string logical, bool *mount_point, bool *expand_error) {
 
     if ( remaining_tokens.empty() ) {
         // load balance requests for the root dir 
-        // this is a problem right here.  When we do a readdir on the
+        // this is a bit tricky right here.  When we do a readdir on the
         // root, we need to actually aggregate across all backends.
         if (mount_point) *mount_point = true;
         return pm->backends[rand()%pm->backends.size()];
     }
+
+    // choose a backend unless the caller explicitly requested one
+    switch(hash_method) {
+    case HASH_BY_PATH:
+        which_backend = Container::hashValue(remaining.c_str());
+        break;
+    case HASH_BY_NODE:
+        which_backend = Container::hashValue(Util::hostname());
+        break;
+    case NO_HASH:
+        which_backend = which_backend; // user specified
+        break;
+    default:
+        which_backend = -1;
+        assert(0);
+        break;
+    }
+    return pm->backends[which_backend%pm->backends.size()] + "/" + remaining;
+
+    // this new code won't do the hashing explicitly as commanded in the plfsrc
+    // instead it just hashes to figure out where to put things
 
     // let's go through the expected tokens and map them
     // however, if the map is bad in the plfsrc file, then
@@ -334,12 +364,21 @@ plfs_create( const char *logical, mode_t mode, int flags, pid_t pid ) {
 }
 
 int
-addWriter( WriteFile *wf, pid_t pid, const char *path, mode_t mode ) {
+addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode, 
+        string logical ) 
+{
     int ret = -ENOENT;
     for( int attempts = 0; attempts < 2 && ret == -ENOENT; attempts++ ) {
         ret = wf->addWriter( pid, false ); 
         if ( ret == -ENOENT ) {
             // maybe the hostdir doesn't exist
+            // here is a super simple place to add the distributed metadata
+            // stuff.  Hash the hostdir by node, then link it in to the
+            // container which was already hashed by filename
+            plfs_debug("Making hostdir for %s at %s\n",logical.c_str(),
+                    path);
+            string hash_by_node = 
+                expandPath(logical,NULL,NULL,HASH_BY_NODE,-1); 
             Container::makeHostDir( path, Util::hostname(), mode );
         }
     }
@@ -466,38 +505,33 @@ plfs_readdir_helper( const char *physical, void *vptr ) {
 }
 
 // returns 0 or -errno
+// needs to aggregate over backends
 int 
 plfs_readdir( const char *logical, void *vptr ) {
     PLFS_ENTER;
-    if ( is_mnt_pt ) {
-        // this is sort of weird and this will be unnecessary
-        // once we do the full distribution in V2 but right now
-        // the only time we need to aggregate across backends
-        // is when we do a readdir on the root....
-        PlfsConf *pconf = get_plfs_conf();
-        vector<string>::iterator itr;
-        bool found = false;
-        PlfsMount *pmnt = find_mount_point(pconf,logical,found);
-        assert(found);
-        for(itr = pmnt->backends.begin(); 
-            itr != pmnt->backends.end() && ret == 0; 
-            itr++)
-        {
-            ret = plfs_readdir_helper((*itr).c_str(),vptr);
-        }
-    } else {
+    bool mnt_pt;
+    PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
+    for(int i = 0; i < pm->backends.size(); i++) {
+        path = expandPath(logical,NULL,NULL,NO_HASH,i);
         ret = plfs_readdir_helper(path.c_str(),vptr);
     }
     PLFS_EXIT(ret);
 }
 
+// this has to iterate over the backends and make it everywhere
 int
 plfs_mkdir( const char *logical, mode_t mode ) {
     PLFS_ENTER;
-    ret = retValue(Util::Mkdir(path.c_str(),mode));
+    bool mnt_pt;
+    PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
+    for(int i = 0; i < pm->backends.size(); i++) {
+        path = expandPath(logical,NULL,NULL,NO_HASH,i);
+        ret = retValue(Util::Mkdir(path.c_str(),mode));
+    }
     PLFS_EXIT(ret);
 }
 
+// this has to iterate over the backends and remove it everywhere
 int
 plfs_rmdir( const char *logical ) {
     PLFS_ENTER;
@@ -862,7 +896,7 @@ plfs_init(PlfsConf *pconf) {
     map<string,PlfsMount*>::iterator itr = pconf->mnt_pts.begin();
     if (itr==pconf->mnt_pts.end()) return false;
     bool expand_error = false;
-    expandPath(itr->first,NULL,&expand_error);
+    expandPath(itr->first,NULL,&expand_error,HASH_BY_PATH,-1);
     return(expand_error ? false : true);
 }
 
@@ -1284,7 +1318,7 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode,
             wf = new WriteFile(path, Util::hostname(), mode, indx_sz); 
             new_writefile = true;
         }
-        ret = addWriter(wf, pid, path.c_str(), mode);
+        ret = addWriter(wf, pid, path.c_str(), mode,logical);
         plfs_debug("%s added writer: %d\n", __FUNCTION__, ret );
         if ( ret > 0 ) ret = 0; // add writer returns # of current writers
         EISDIR_DEBUG;
@@ -1376,7 +1410,7 @@ plfs_symlink(const char *logical, const char *to) {
     PLFS_ENTER2(PLFS_PATH_NOTREQUIRED);
 
     bool expand_error2 = false;
-    string topath = expandPath(to, NULL,&expand_error2);
+    string topath = expandPath(to, NULL,&expand_error2,HASH_BY_PATH,-1);
     if (expand_error2) PLFS_EXIT(-ENOENT);
     
     ret = retValue(Util::Symlink(logical,topath.c_str()));
@@ -1421,7 +1455,7 @@ int
 plfs_rename( const char *logical, const char *to ) {
     PLFS_ENTER;
     bool expand_error2 = false;
-    string topath = expandPath(to, NULL,&expand_error2);
+    string topath = expandPath(to, NULL,&expand_error2,HASH_BY_PATH,-1);
     //if (expand_error2) PLFS_EXIT(-ENOENT);
 
     if ( is_plfs_file( to, NULL ) ) {

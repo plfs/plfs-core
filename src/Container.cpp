@@ -1187,7 +1187,7 @@ int Container::makeDropping(const string &path) {
     return ret;
 }
 // returns 0 or -errno
-int Container::makeHostDir( const string &path, const string &host, mode_t mode ) {
+int Container::makeHostDir(const string &path, const string &host, mode_t mode){
     int ret = makeSubdir( getHostDirPath(path,host), mode );
     return ( ret == 0 ? ret : -errno );
 }
@@ -1273,7 +1273,7 @@ mode_t Container::containerMode( mode_t mode ) {
     return dirMode(mode);
 }
 
-int Container::createHelper( const string &expanded_path, const string &hostname, 
+int Container::createHelper(const string &expanded_path, const string &hostname,
         mode_t mode, int flags, int *extra_attempts, pid_t pid ) 
 {
     // TODO we're in a mutex here so only one thread will
@@ -1286,7 +1286,8 @@ int Container::createHelper( const string &expanded_path, const string &hostname
     double begin_time, end_time;
     int res = 0;
     if ( ! isContainer( expanded_path.c_str(), NULL ) ) {
-        plfs_debug("Making top level container %s %x\n", expanded_path.c_str(),mode);
+        plfs_debug("Making top level container %s %x\n", 
+                expanded_path.c_str(),mode);
         begin_time = time(NULL);
         res = makeTopLevel( expanded_path, hostname, mode, pid );
         end_time = time(NULL);
