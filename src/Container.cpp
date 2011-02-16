@@ -1201,6 +1201,7 @@ int Container::makeHostDir(const string &path,
     return ( ret == 0 ? ret : -errno );
 }
 
+// returns 0 or -1
 int Container::makeSubdir( const string &path, mode_t mode ) {
     int ret;
     //mode = mode | S_IXUSR | S_IXGRP | S_IXOTH;
@@ -1312,8 +1313,9 @@ int Container::createHelper(const string &expanded_path, const string &hostname,
     }
 
         // then the host dir
+        // TODO: temporarily don't make hostdir here to test distributed hashing
     if ( res == 0 ) {
-        res = makeHostDir( expanded_path, hostname, mode, PARENT_CREATED ); 
+        //res = makeHostDir( expanded_path, hostname, mode, PARENT_CREATED ); 
     }
     return res;
 }

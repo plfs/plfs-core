@@ -387,6 +387,10 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
                 hash_by_node.c_str());
         ret = Container::makeHostDir(hash_by_node, 
                 hostname, mode, PARENT_ABSENT);
+        if (ret==-EISDIR||ret==-EEXIST) {
+            // a sibling beat us to it (this shouldn't happen in ADIO)
+            ret = 0;
+        }
         string hostdir_full = 
             Container::getHostDirPath(hash_by_node,hostname);
         string hostdir_after_container = 

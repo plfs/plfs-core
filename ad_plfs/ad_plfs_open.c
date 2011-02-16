@@ -219,7 +219,7 @@ int open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
             // has code to make sure that all ranks have the same value
             // for the hint
     } else {
-        disabl_broadcast = 1; // we don't create an index unless we're in read mode
+        disabl_broadcast = 1; // don't create an index unless we're in read mode
         compress_flag=0;
     }
     // This is new code added to handle the parallel_index_read case
@@ -233,7 +233,7 @@ int open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
         err = plfs_open(pfd,fd->filename,amode,rank,perm,&open_opt);
         free(global_index);
     }
-    // If we are read only and broadcast isn't disabled let's broadcast that index
+    // If we are RDONLY and broadcast isn't disabled let's broadcast that index
     else if(!disabl_broadcast){
         err = broadcast_index(pfd,fd,error_code,perm,amode,rank,compress_flag);
     } else {
