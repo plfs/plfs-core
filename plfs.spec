@@ -143,10 +143,10 @@ fi
 
 %changelog
 * Sat Jan 29 2011 Ben McClelland <ben@lanl.gov>
-* Fixed the getattr bug 
-* fixed ADIO parse conf error
-* added global_summary_dir to the plfsrc
-* fixed tools/plfs_flatten_index 
+- Fixed the getattr bug 
+- fixed ADIO parse conf error
+- added global_summary_dir to the plfsrc
+- fixed tools/plfs_flatten_index 
 
 * Fri Jan 7 2011 Ben McClelland <ben@lanl.gov>
 - Fixed a bug in rename.
