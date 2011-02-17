@@ -1317,9 +1317,13 @@ int Container::createHelper(const string &expanded_path, const string &hostname,
     }
 
         // then the host dir
-        // TODO: temporarily don't make hostdir here to test distributed hashing
+        // this is an interesting dilemna here.
+        // if we don't make the hostdir here, then N-1 through FUSE
+        // will distribute itself across backends 
+        // but N-N through ADIO will make extra containers (one hashed
+        // by name and one hashed by node)
     if ( res == 0 ) {
-        //res = makeHostDir( expanded_path, hostname, mode, PARENT_CREATED ); 
+        res = makeHostDir( expanded_path, hostname, mode, PARENT_CREATED ); 
     }
     return res;
 }
