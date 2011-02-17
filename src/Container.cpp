@@ -1247,12 +1247,16 @@ string Container::getCreatorFilePath( const string& path ) {
     return creatorfile;
 }
 
+size_t Container::getHostDirId( const string &hostname ) {
+    PlfsConf *pconf = get_plfs_conf();    
+    return (hashValue(hostname.c_str())%pconf->num_hostdirs) + 1;
+}
+
 string Container::getHostDirPath( const string & expanded_path, 
         const string & hostname )
 {
     ostringstream oss;
-    PlfsConf *pconf = get_plfs_conf();    
-    size_t host_value = (hashValue(hostname.c_str())%pconf->num_hostdirs) + 1;
+    size_t host_value = getHostDirId(hostname); 
     oss << expanded_path << "/" << HOSTDIRPREFIX << host_value; 
     //plfs_debug("%s : %s %s -> %s\n", 
     //        __FUNCTION__, hostname, expanded_path, oss.str().c_str() );

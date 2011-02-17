@@ -105,6 +105,9 @@ int plfs_flatten_index( Plfs_fd *, const char *path );
  */
 int plfs_getattr(Plfs_fd *, const char *path, struct stat *st, int size_only);
 
+char *plfs_gethostname();
+size_t plfs_gethostdir_id(char*);
+
 /* Index stream related functions */
 int plfs_index_stream(Plfs_fd **pfd, char ** buffer);
 

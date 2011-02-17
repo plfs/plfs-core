@@ -83,6 +83,14 @@ vector<string> &tokenize(const string& str,const string& delimiters,
 	return tokens;
 }
 
+char *plfs_gethostname() {
+    return Util::hostname();
+}
+
+size_t plfs_gethostdir_id(char *hostname) {
+    return Container::getHostDirId(hostname);
+}
+
 PlfsMount *
 find_mount_point(PlfsConf *pconf, string logical, bool &found) {
     map<string,PlfsMount*>::iterator itr; 

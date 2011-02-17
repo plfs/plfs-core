@@ -72,6 +72,7 @@ class Container {
         static int addOpenrecord( const string &, const string &, pid_t );
         static int removeOpenrecord( const string &, const string &, pid_t );
 
+        static size_t getHostDirId( const string & );
         static string getHostDirPath( const string &, const string & );
         static string getMetaDirPath( const string& );
         static string getVersionDir( const string& path );

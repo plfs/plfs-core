@@ -108,7 +108,7 @@ Bit bitmap[BIT_ARRAY_LENGTH]={0};
 
 
 int open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm, 
-        int amode,int rank);
+        int amode,int rank,MPI_Comm openers);
 int broadcast_index(Plfs_fd **pfd, ADIO_File fd, 
         int *error_code,int perm,int amode,int rank,int compress_flag);
 int getPerm(ADIO_File);
@@ -183,7 +183,7 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
     }
     
     // if we make it here, we're doing RDONLY, WRONLY, or RDWR
-    err=open_helper(fd,&pfd,error_code,perm,amode,rank);
+    err=open_helper(fd,&pfd,error_code,perm,amode,rank,MPI_COMM_WORLD);
     MPIBCAST( &err, 1, MPI_INT, 0, MPI_COMM_WORLD );
     if ( err != 0 ) {
         *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
@@ -202,12 +202,23 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
 // a helper that determines whether 0 distributes the index to everyone else
 // or whether everyone just calls plfs_open directly
 int open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
-        int amode,int rank)
+        int amode,int rank,MPI_Comm openers)
 {
     int err = 0, disabl_broadcast=0, compress_flag=0,close_flatten=0;
     int parallel_index_read=0;
     static char myname[] = "ADIOI_PLFS_OPENHELPER";
     Plfs_open_opt open_opt;
+    MPI_Comm hostdir_comm;
+    int hostdir_rank, write_mode;
+
+    // get a hostdir comm to use to serialize write a bit
+    write_mode = (fd->access_mode==ADIO_RDONLY?0:1);
+    if (write_mode) {
+        size_t color = plfs_gethostdir_id(plfs_gethostname());
+        err = MPI_Comm_split(openers,color,rank,&hostdir_comm);
+        if(err!=MPI_SUCCESS) return err;
+        MPI_Comm_rank(hostdir_comm,&hostdir_rank);
+    }
     
     if (fd->access_mode==ADIO_RDONLY) {
             disabl_broadcast = ad_plfs_hints(fd,rank,"plfs_disable_broadcast");
@@ -244,9 +255,16 @@ int open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
         // and we are in WRONLY mode
         open_opt.buffer_index=close_flatten;
         plfs_debug("Opening without a broadcast\n");
-        // everyone opens themselves (write mode or read mode w/out broacast)
+        // everyone opens themselves (write mode or independent read mode)
+
+        // hostdir_rank zeros do the open first on the write
+        if (write_mode && hostdir_rank)  MPI_Barrier(hostdir_comm);
         err = plfs_open( pfd, fd->filename, amode, rank, perm ,&open_opt);
+        if (write_mode && !hostdir_rank) MPI_Barrier(hostdir_comm);
     }
+
+    // clean up the communicator we used
+    if (write_mode) MPI_Comm_free(&hostdir_comm);
     
     if ( err < 0 ) {
         *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
