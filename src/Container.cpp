@@ -1322,6 +1322,7 @@ int Container::createHelper(const string &expanded_path, const string &hostname,
         // will distribute itself across backends 
         // but N-N through ADIO will make extra containers (one hashed
         // by name and one hashed by node)
+        // is the performance for ADIO N-1 better with this removed?
     if ( res == 0 ) {
         res = makeHostDir( expanded_path, hostname, mode, PARENT_CREATED ); 
     }
