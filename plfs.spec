@@ -12,7 +12,7 @@ URL:		http://institutes.lanl.gov/plfs
 BuildRoot:	%{_tmppath}/plfs-%{version}-root
 Requires:       fuse, fuse-libs
 Requires:       plfs-lib
-BuildRequires:  fuse-devel, pkgconfig, subversion
+BuildRequires:  fuse-devel, pkgconfig
 
 %description
 Parallel Log Structured File System 
