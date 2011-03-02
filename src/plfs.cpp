@@ -1043,12 +1043,19 @@ get_plfs_conf() {
 
     // find which file to open (if there's no home, just use /etc/plfsrc)
     // check home file first, then etc if not found
-    string home_file,etc_file;
+    string home_file,etc_file,env_file;
     home_file = etc_file = "/etc/plfsrc";
     if ( getenv("HOME") ) {
         home_file = getenv("HOME");
         home_file.append("/.plfsrc");
     }
+    // If there's no environmentally set value,use whatever
+    // home is.
+    env_file = home_file;
+    if ( getenv("PLFSRC") ) {
+        env_file = getenv("PLFSRC");
+    }
+    possible_files.push_back(env_file);
     possible_files.push_back(home_file);
     possible_files.push_back(etc_file);
 
