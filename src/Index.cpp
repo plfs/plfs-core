@@ -212,6 +212,7 @@ ostream& operator <<(ostream &os,const Index &ndx ) {
         os << "# " << i << " " << ndx.chunk_map[i].path << endl;
     }
     map<off_t,ContainerEntry>::const_iterator itr;
+    os << "# Entry Count: " << ndx.global_index.size() << "endl";
     os << "# ID Logical_offset Length Begin_timestamp End_timestamp "
        << " Logical_tail ID.Chunk_offset " << endl;
     for(itr = ndx.global_index.begin();itr != ndx.global_index.end();itr++){

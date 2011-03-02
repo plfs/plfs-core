@@ -1323,6 +1323,10 @@ int Container::createHelper(const string &expanded_path, const string &hostname,
         // but N-N through ADIO will make extra containers (one hashed
         // by name and one hashed by node)
         // is the performance for ADIO N-1 better with this removed?
+        // currently, the LANL main target is ADIO so let's leave this
+        // optimized for ADIO.  Later, we can augment the args to take the
+        // open opts which specify whether we're in ADIO or FUSE so we could
+        // optimize accordingly
     if ( res == 0 ) {
         res = makeHostDir( expanded_path, hostname, mode, PARENT_CREATED ); 
     }

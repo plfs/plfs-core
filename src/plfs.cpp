@@ -371,6 +371,11 @@ plfs_create( const char *logical, mode_t mode, int flags, pid_t pid ) {
             &attempt,pid);
 }
 
+// this code is where the magic lives to get the distributed hashing
+// each proc just tries to create their data and index files in the
+// canonical_container/hostdir but if that hostdir doesn't exist,
+// then the proc creates a shadow_container/hostdir and links that
+// into the canonical_container
 // returns number of current writers sharing the WriteFile *
 int
 addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode, 
