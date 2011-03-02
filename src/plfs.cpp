@@ -1041,23 +1041,18 @@ get_plfs_conf() {
     map<string,string> confs;
     vector<string> possible_files;
 
-    // find which file to open (if there's no home, just use /etc/plfsrc)
-    // check home file first, then etc if not found
-    string home_file,etc_file,env_file;
-    home_file = etc_file = "/etc/plfsrc";
-    if ( getenv("HOME") ) {
-        home_file = getenv("HOME");
-        home_file.append("/.plfsrc");
-    }
-    // If there's no environmentally set value,use whatever
-    // home is.
-    env_file = home_file;
+    // three possible plfsrc locations:
+    // first, env PLFSRC, 2nd $HOME/.plfsrc, 3rd /etc/plfsrc
     if ( getenv("PLFSRC") ) {
-        env_file = getenv("PLFSRC");
+        string env_file = getenv("PLFSRC");
+        possible_files.push_back(env_file);
     }
-    possible_files.push_back(env_file);
-    possible_files.push_back(home_file);
-    possible_files.push_back(etc_file);
+    if ( getenv("HOME") ) {
+        string home_file = getenv("HOME");
+        home_file.append("/.plfsrc");
+        possible_files.push_back(home_file);
+    }
+    possible_files.push_back("/etc/plfsrc");
 
     // try to parse each file until one works
     // the C++ way to parse like this is istringstream (bleh)
