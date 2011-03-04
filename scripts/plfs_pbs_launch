@@ -5,10 +5,11 @@ if ( ! -f ~/.plfsrc ) then
   exit 1 
 endif
 
-set plfs   = $HOME/Testing/plfs/trunk/fuse/plfs
+set plfs   = $HOME/plfs/bin/plfs
 set mnt_pt = `awk '/^mount_point/ {print $2}' ~/.plfsrc | tail -1`
 set mount  = "$plfs $mnt_pt -o direct_io" 
 set pexec  = $HOME/Testing/utilities/scripts/pexec
+echo "Launching $plfs"
 
 if ( -x $pexec ) then
     echo "Using pexec"
@@ -21,7 +22,7 @@ if ( -x $pexec ) then
       $pexec mkdir -p $mnt_pt 
       $pexec $mount |& grep -v tput
     endif
-    $pexec grep -a Uptime $mnt_pt/.plfsdebug 
+    $pexec grep -a Uptime $mnt_pt/.plfsdebug | grep -v Tput
 else 
     echo "No pexec executable found"
 endif

@@ -1187,11 +1187,21 @@ int Container::makeDropping(const string &path) {
     return ret;
 }
 // returns 0 or -errno
-int Container::makeHostDir( const string &path, const string &host, mode_t mode ) {
-    int ret = makeSubdir( getHostDirPath(path,host), mode );
+int Container::makeHostDir(const string &path,
+        const string &host, mode_t mode, parentStatus pstat)
+{
+    int ret = 0;
+    if (pstat == PARENT_ABSENT) {
+        plfs_debug("Making absent parent %s\n", path.c_str());
+        ret = makeSubdir(path.c_str(),mode);
+    }
+    if (ret == 0) {
+        ret = makeSubdir(getHostDirPath(path,host), mode);
+    }
     return ( ret == 0 ? ret : -errno );
 }
 
+// returns 0 or -1
 int Container::makeSubdir( const string &path, mode_t mode ) {
     int ret;
     //mode = mode | S_IXUSR | S_IXGRP | S_IXOTH;
@@ -1237,12 +1247,16 @@ string Container::getCreatorFilePath( const string& path ) {
     return creatorfile;
 }
 
+size_t Container::getHostDirId( const string &hostname ) {
+    PlfsConf *pconf = get_plfs_conf();    
+    return (hashValue(hostname.c_str())%pconf->num_hostdirs) + 1;
+}
+
 string Container::getHostDirPath( const string & expanded_path, 
         const string & hostname )
 {
     ostringstream oss;
-    PlfsConf *pconf = get_plfs_conf();    
-    size_t host_value = (hashValue(hostname.c_str())%pconf->num_hostdirs) + 1;
+    size_t host_value = getHostDirId(hostname); 
     oss << expanded_path << "/" << HOSTDIRPREFIX << host_value; 
     //plfs_debug("%s : %s %s -> %s\n", 
     //        __FUNCTION__, hostname, expanded_path, oss.str().c_str() );
@@ -1273,7 +1287,7 @@ mode_t Container::containerMode( mode_t mode ) {
     return dirMode(mode);
 }
 
-int Container::createHelper( const string &expanded_path, const string &hostname, 
+int Container::createHelper(const string &expanded_path, const string &hostname,
         mode_t mode, int flags, int *extra_attempts, pid_t pid ) 
 {
     // TODO we're in a mutex here so only one thread will
@@ -1286,7 +1300,8 @@ int Container::createHelper( const string &expanded_path, const string &hostname
     double begin_time, end_time;
     int res = 0;
     if ( ! isContainer( expanded_path.c_str(), NULL ) ) {
-        plfs_debug("Making top level container %s %x\n", expanded_path.c_str(),mode);
+        plfs_debug("Making top level container %s %x\n", 
+                expanded_path.c_str(),mode);
         begin_time = time(NULL);
         res = makeTopLevel( expanded_path, hostname, mode, pid );
         end_time = time(NULL);
@@ -1302,8 +1317,18 @@ int Container::createHelper( const string &expanded_path, const string &hostname
     }
 
         // then the host dir
+        // this is an interesting dilemna here.
+        // if we don't make the hostdir here, then N-1 through FUSE
+        // will distribute itself across backends 
+        // but N-N through ADIO will make extra containers (one hashed
+        // by name and one hashed by node)
+        // is the performance for ADIO N-1 better with this removed?
+        // currently, the LANL main target is ADIO so let's leave this
+        // optimized for ADIO.  Later, we can augment the args to take the
+        // open opts which specify whether we're in ADIO or FUSE so we could
+        // optimize accordingly
     if ( res == 0 ) {
-        res = makeHostDir( expanded_path, hostname, mode ); 
+        res = makeHostDir( expanded_path, hostname, mode, PARENT_CREATED ); 
     }
     return res;
 }
