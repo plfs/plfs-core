@@ -33,7 +33,7 @@ Bit bitmap[BIT_ARRAY_LENGTH]={0};
     {\
         int test = -X;\
         if(rank==0) test = X; \
-        MPIBCAST( &test, 1, MPI_INT, 0, MPI_COMM_WORLD );\
+        MPIBCAST( &test, 1, MPI_INT, 0, fd->comm );\
         fprintf(stderr,"rank %d got test %d\n",rank,test);\
         if(test!=X){ \
             MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);\
@@ -108,7 +108,7 @@ Bit bitmap[BIT_ARRAY_LENGTH]={0};
 
 
 int open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm, 
-        int amode,int rank,MPI_Comm openers);
+        int amode,int rank);
 int broadcast_index(Plfs_fd **pfd, ADIO_File fd, 
         int *error_code,int perm,int amode,int rank,int compress_flag);
 int getPerm(ADIO_File);
@@ -124,7 +124,7 @@ int getPerm(ADIO_File fd) {
 }
 // Par index read stuff
 int par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
-        int amode,int rank, MPI_Comm openers_comm,void **global_index);
+        int amode,int rank, void **global_index);
 // Fills in the bitmap structure
 int num_host_dirs(int *hostdir_count,char *target);
 // Printer for the bitmap struct
@@ -142,10 +142,10 @@ int rank_to_group_index(int rank,int ranks_per_comm,int extra_rank);
 char* bitmap_to_dirname(Bit *bitmap,int group_index,
         char *target,int mult,int np);
 // Called when num procs >= num_host_dirs
-void split_and_merge(MPI_Comm openers_comm,int rank,int extra_rank,
+void split_and_merge(ADIO_File fd,int rank,int extra_rank,
         int ranks_per_comm,int np,char *filename,void **global_index);
 // Called when num hostdirs > num procs
-void read_and_merge(MPI_Comm comm,int rank,
+void read_and_merge(ADIO_File fd,int rank,
         int np,int hostdir_per_rank,char *filename,void **global_index);
 // Added to handle the case where one rank must read more than one hostdir
 char *count_to_hostdir(Bit *bitmap,int stop_point,int *count,
@@ -159,7 +159,7 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
     // I think perm is the mode and amode is the flags
     int err = 0,perm, amode, old_mask,rank,ret;
  
-    MPI_Comm_rank( MPI_COMM_WORLD, &rank );
+    MPI_Comm_rank( fd->comm, &rank );
     static char myname[] = "ADIOI_PLFS_OPEN";
 
     perm = getPerm(fd);
@@ -183,8 +183,8 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
     }
     
     // if we make it here, we're doing RDONLY, WRONLY, or RDWR
-    err=open_helper(fd,&pfd,error_code,perm,amode,rank,MPI_COMM_WORLD);
-    MPIBCAST( &err, 1, MPI_INT, 0, MPI_COMM_WORLD );
+    err=open_helper(fd,&pfd,error_code,perm,amode,rank);
+    MPIBCAST( &err, 1, MPI_INT, 0, fd->comm );
     if ( err != 0 ) {
         *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
 					   myname, __LINE__, MPI_ERR_IO,
@@ -202,7 +202,7 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
 // a helper that determines whether 0 distributes the index to everyone else
 // or whether everyone just calls plfs_open directly
 int open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
-        int amode,int rank,MPI_Comm openers)
+        int amode,int rank)
 {
     int err = 0, disabl_broadcast=0, compress_flag=0,close_flatten=0;
     int parallel_index_read=1;
@@ -215,7 +215,7 @@ int open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     write_mode = (fd->access_mode==ADIO_RDONLY?0:1);
     if (write_mode) {
         size_t color = plfs_gethostdir_id(plfs_gethostname());
-        err = MPI_Comm_split(openers,color,rank,&hostdir_comm);
+        err = MPI_Comm_split(fd->comm,color,rank,&hostdir_comm);
         if(err!=MPI_SUCCESS) return err;
         MPI_Comm_rank(hostdir_comm,&hostdir_rank);
     }
@@ -238,7 +238,7 @@ int open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
         void *global_index;
         // Function to start the parallel index read
         par_index_read(fd,pfd,error_code,perm,amode,rank,
-                MPI_COMM_WORLD,&global_index);
+                &global_index);
         open_opt.pinter = PLFS_MPIIO;
         open_opt.index_stream=global_index;
         err = plfs_open(pfd,fd->filename,amode,rank,perm,&open_opt);
@@ -299,7 +299,7 @@ int broadcast_index(Plfs_fd **pfd, ADIO_File fd,
     if(rank==0){ 
         err = plfs_open(pfd, fd->filename, amode, rank, perm , &open_opt);
     }
-    MPIBCAST(&err,1,MPI_INT,0,MPI_COMM_WORLD);   // was 0's open successful?
+    MPIBCAST(&err,1,MPI_INT,0,fd->comm);   // was 0's open successful?
     if(err !=0 ) return err;
 
 
@@ -333,7 +333,7 @@ int broadcast_index(Plfs_fd **pfd, ADIO_File fd,
         plfs_debug("Broadcasting the sizes of the index:%d "
                 "and compressed index%d\n" ,index_size[0],index_size[1]);
     
-    MPIBCAST(index_size, 2, MPI_LONG, 0, MPI_COMM_WORLD);
+    MPIBCAST(index_size, 2, MPI_LONG, 0, fd->comm);
    
     if(rank!=0) {
         index_stream = malloc(index_size[0]);
@@ -353,10 +353,10 @@ int broadcast_index(Plfs_fd **pfd, ADIO_File fd,
     
     if (compress_flag) {
         if(!rank) plfs_debug("Broadcasting compressed index\n");
-        MPIBCAST(compr_index,index_size[1],MPI_CHAR,0,MPI_COMM_WORLD);
+        MPIBCAST(compr_index,index_size[1],MPI_CHAR,0,fd->comm);
     }else{
         if(!rank) plfs_debug("Broadcasting full index\n");
-        MPIBCAST(index_stream,index_size[0],MPI_CHAR,0,MPI_COMM_WORLD);
+        MPIBCAST(index_stream,index_size[0],MPI_CHAR,0,fd->comm);
     }
     // Broadcast compressed index
     if(rank!=0) {
@@ -392,11 +392,11 @@ int broadcast_index(Plfs_fd **pfd, ADIO_File fd,
 } 
 
 int par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
-        int amode,int rank, MPI_Comm openers_comm,void **global_index){
+        int amode,int rank, void **global_index){
 
     // Each rank and the number of processes playing
     int np,extra_rank,ret;
-    MPI_Comm_size(openers_comm, &np);
+    MPI_Comm_size(fd->comm, &np);
     // Rank 0 reads the top level directory and sets the
     // next two variables
     int num_host_dir=0;
@@ -420,7 +420,7 @@ int par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     // Was using MPI_Group_incl which needed an array of 
     // all members of the group. Don't forget to plan and 
     // look at available methods to get the job done
-    MPIBCAST(&num_host_dir,1,MPI_INT,0,openers_comm);
+    MPIBCAST(&num_host_dir,1,MPI_INT,0,fd->comm);
     
     // Get some information used to determine the group index 
     ranks_per_comm=ranks_per_comm_calc(np,num_host_dir);
@@ -438,15 +438,15 @@ int par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     }
     // Here we split on the ranks per comm. Should not be necessary
     // to check return values. Functions will abort if an error is encountered
-    if(ranks_per_comm) split_and_merge(openers_comm,rank,extra_rank,
+    if(ranks_per_comm) split_and_merge(fd,rank,extra_rank,
             ranks_per_comm,np,filename,global_index);
-    if(!ranks_per_comm) read_and_merge(openers_comm,rank,np,hostdir_per_rank,
+    if(!ranks_per_comm) read_and_merge(fd,rank,np,hostdir_per_rank,
             filename,global_index); 
     return 0; 
 }
 
 // This is the case where a rank has to read more than one hostdir
-void read_and_merge(MPI_Comm comm,int rank,
+void read_and_merge(ADIO_File fd,int rank,
         int np,int hostdir_per_rank,char *filename,void **global_index)
 {
     char *targets;
@@ -455,7 +455,7 @@ void read_and_merge(MPI_Comm comm,int rank,
     void *index_stream,*index_streams;
 
     // Get the bitmap
-    bcast_bitmap(comm,rank);
+    bcast_bitmap(fd->comm,rank);
     // Figure out which hostdirs I have to read
     targets=bitmap_to_dirname(bitmap,rank,filename,
             hostdir_per_rank,np);
@@ -471,7 +471,7 @@ void read_and_merge(MPI_Comm comm,int rank,
     malloc_check((void *)index_sizes,rank);
     // Gets the index sizes from all ranks
     MPIALLGATHER(&index_sz,1,MPI_INT,index_sizes,
-            1,MPI_INT,comm);
+            1,MPI_INT,fd->comm);
     // Set up displacements
     index_disp=malloc(sizeof(int)*np);
     malloc_check((void *)index_disp,rank);
@@ -484,7 +484,7 @@ void read_and_merge(MPI_Comm comm,int rank,
     malloc_check(index_streams,rank);
     // ALLGATHERV grabs all of the indexes from all the procs
     MPIALLGATHERV(index_stream,index_sz,MPI_CHAR,index_streams,index_sizes,
-            index_disp,MPI_CHAR,comm);
+            index_disp,MPI_CHAR,fd->comm);
     // Merge all of the stream that we were passed to get a global index
     global_index_sz=plfs_parindexread_merge(filename,index_streams,
             index_sizes,np,global_index);
@@ -500,7 +500,7 @@ void bcast_bitmap(MPI_Comm comm, int rank){
 }
 
 // If ranks > hostdirs we can split up our comm 
-void split_and_merge(MPI_Comm openers_comm,int rank,int extra_rank,
+void split_and_merge(ADIO_File fd,int rank,int extra_rank,
         int ranks_per_comm,int np,char *filename,void **global_index)
 {
     
@@ -513,7 +513,7 @@ void split_and_merge(MPI_Comm openers_comm,int rank,int extra_rank,
     // Group index is the color 
     group_index = rank_to_group_index(rank,ranks_per_comm,extra_rank);
     // Split the world communicator
-    MPI_Comm_split(openers_comm,group_index,rank,&hostdir_comm);
+    MPI_Comm_split(fd->comm,group_index,rank,&hostdir_comm);
     MPI_Comm_size(hostdir_comm,&hc_sz);
     // Grab our rank within the hostdir communicator
     MPI_Comm_rank (hostdir_comm, &new_rank);
@@ -522,7 +522,7 @@ void split_and_merge(MPI_Comm openers_comm,int rank,int extra_rank,
     if(!new_rank) color = 1;
     else color = MPI_UNDEFINED;
     // The split for hostdir zeros comm
-    MPI_Comm_split(openers_comm,color,rank,&hostdir_zeros_comm);
+    MPI_Comm_split(fd->comm,color,rank,&hostdir_zeros_comm);
     // Hostdir zeros
     if(!new_rank) {
         char *fn_ptr;

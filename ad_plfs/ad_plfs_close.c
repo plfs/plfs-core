@@ -12,10 +12,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-int flatten_then_close(Plfs_fd *fd,int rank,int amode,int procs,
+int flatten_then_close(ADIO_File, Plfs_fd *fd,int rank,int amode,int procs,
             Plfs_close_opt *close_opt,const char *filename,uid_t);
 void check_error(int err,int rank);
-void reduce_meta(Plfs_fd *fd,const char * filename,Plfs_close_opt *close_opt);
+void reduce_meta(ADIO_File, Plfs_fd *fd,const char * filename,
+        Plfs_close_opt *close_opt);
 
 
 void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
@@ -29,8 +30,8 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
     
     plfs_debug("%s: begin\n", myname );
 
-    MPI_Comm_rank( MPI_COMM_WORLD, &rank );
-    MPI_Comm_size( MPI_COMM_WORLD, &procs);
+    MPI_Comm_rank( fd->comm, &rank );
+    MPI_Comm_size( fd->comm, &procs);
 
     amode = ad_plfs_amode( fd->access_mode );
 
@@ -53,14 +54,14 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
         // up the close_opt
         close_opt.valid_meta=0;
         plfs_debug("Rank: %d in flatten then close\n",rank);
-        err = flatten_then_close(fd->fs_ptr, rank, amode, procs, &close_opt,
+        err = flatten_then_close(fd, fd->fs_ptr, rank, amode, procs, &close_opt,
                 fd->filename,uid);
     } else{
         // for ADIO, just 0 creates the openhosts and the meta dropping 
         // Grab the last offset and total bytes from all ranks and reduce to max
         plfs_debug("Rank: %d in regular close\n",rank);
         if(fd->access_mode!=ADIO_RDONLY){
-            reduce_meta(fd->fs_ptr,fd->filename,&close_opt);
+            reduce_meta(fd,fd->fs_ptr,fd->filename,&close_opt);
         }
         err = plfs_close(fd->fs_ptr, rank, uid,amode,&close_opt);
     }
@@ -79,7 +80,7 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
 }
 
 
-int flatten_then_close(Plfs_fd *fd,int rank,int amode,int procs,
+int flatten_then_close(ADIO_File afd, Plfs_fd *fd,int rank,int amode,int procs,
         Plfs_close_opt *close_opt, const char *filename,uid_t uid)
 {
     int index_size,err,index_total_size=0,streams_malloc=1,stop_buffer=0;
@@ -101,7 +102,7 @@ int flatten_then_close(Plfs_fd *fd,int rank,int amode,int procs,
 
     if(!rank) start_time=MPI_Wtime();
     // Perform the gather of all index sizes to set up our vector call
-    MPI_Gather(&index_size,1,MPI_INT,index_sizes,1,MPI_INT,0,MPI_COMM_WORLD);
+    MPI_Gather(&index_size,1,MPI_INT,index_sizes,1,MPI_INT,0,afd->comm);
     // Figure out how much space we need and then malloc if we are root
     if(!rank){
         end_time=MPI_Wtime();
@@ -133,10 +134,10 @@ int flatten_then_close(Plfs_fd *fd,int rank,int amode,int procs,
         }
     }
     
-    err=MPI_Bcast(&streams_malloc,1,MPI_INT,0,MPI_COMM_WORLD);
+    err=MPI_Bcast(&streams_malloc,1,MPI_INT,0,afd->comm);
     check_error(err,rank);
 
-    err=MPI_Bcast(&stop_buffer,1,MPI_INT,0,MPI_COMM_WORLD);
+    err=MPI_Bcast(&stop_buffer,1,MPI_INT,0,afd->comm);
     check_error(err,rank);
     
     
@@ -146,7 +147,7 @@ int flatten_then_close(Plfs_fd *fd,int rank,int amode,int procs,
     // and no one stopped buffering
     if( streams_malloc && !stop_buffer){
         MPI_Gatherv(index_stream,index_size,MPI_CHAR,index_streams,
-                    index_sizes,index_disp,MPI_CHAR,0,MPI_COMM_WORLD);
+                    index_sizes,index_disp,MPI_CHAR,0,afd->comm);
     }
 
     if(!rank) {
@@ -170,7 +171,7 @@ int flatten_then_close(Plfs_fd *fd,int rank,int amode,int procs,
                     ,end_time-start_time);
     }
     
-    if(stop_buffer) reduce_meta(fd,filename,close_opt); 
+    if(stop_buffer) reduce_meta(afd,fd,filename,close_opt); 
     // Close normally
     // This should be fine before the previous if statement
     err = plfs_close(fd, rank, uid, amode,close_opt);
@@ -191,8 +192,9 @@ int flatten_then_close(Plfs_fd *fd,int rank,int amode,int procs,
     return err;
 }
 
-void reduce_meta(Plfs_fd *fd,const char * filename,Plfs_close_opt *close_opt){
-    
+void reduce_meta(ADIO_File afd, Plfs_fd *fd,const char * filename,
+        Plfs_close_opt *close_opt)
+{
     int BLKSIZE=512;
     struct stat buf;
     size_t glbl_tot_byt=0;
@@ -200,9 +202,9 @@ void reduce_meta(Plfs_fd *fd,const char * filename,Plfs_close_opt *close_opt){
     
     plfs_getattr(fd,filename,&buf,size_only);
     MPI_Reduce(&(buf.st_size),&(close_opt->last_offset),1,
-            MPI_LONG_LONG,MPI_MAX,0,MPI_COMM_WORLD);
+            MPI_LONG_LONG,MPI_MAX,0,afd->comm);
     MPI_Reduce(&(buf.st_blocks),&glbl_tot_byt,1,MPI_LONG_LONG,MPI_SUM,0,
-            MPI_COMM_WORLD); 
+            afd->comm); 
     close_opt->total_bytes=glbl_tot_byt*BLKSIZE;
     close_opt->valid_meta=1;
 }
