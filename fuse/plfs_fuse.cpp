@@ -1075,7 +1075,6 @@ int Plfs::writeDebug( char *buf, size_t size, off_t offset, const char *path ) {
 string Plfs::confToString( PlfsConf *p, PlfsMount *pmnt ) {
     ostringstream oss;
     oss << "Mount point: "      << pmnt->mnt_pt << endl  
-        << "Map function: "     << pmnt->map << endl
         << "Direct IO: "        << p->direct_io << endl
         << "Executable bit: "   << ! p->direct_io << endl
         << "Backends: "

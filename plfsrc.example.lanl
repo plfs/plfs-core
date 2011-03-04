@@ -13,10 +13,6 @@ mount_point /var/tmp/plfs
 # these must be full paths
 backends /panfs/scratch1/home/johnbent/.plfs_store,/panfs/scratch1/home/johnbent/.plfs_store2
 
-# this shows how to read the logical, find the user name, hash it, and construct
-# the physical
-map /var/tmp/plfs/$1:HASH($1)/$1
-
 # this is a globally writable directory where summary info can be written
 # this info gets written on every close() for every proc using FUSE or
 # for every close() for every job using ADIO (i.e. just rank 0 does it)

@@ -105,57 +105,36 @@ find_mount_point(PlfsConf *pconf, string logical, bool &found) {
 }
 
 // takes a logical path and returns a physical one
-// also returns whether the logical matches the mount point
-// readdir is the only caller that's interested in this....
 string
 expandPath(string logical, bool *mount_point, bool *expand_error, 
         hashMethod hash_method, int which_backend ) 
 {
+    // get our initial conf
     static PlfsConf *pconf = NULL;
-
-    if (mount_point) *mount_point = false;
-    if (expand_error) *expand_error = false;
-    if ( ! pconf ) {
-        pconf = get_plfs_conf();
-        assert(pconf);
-    }
-
+    if (!pconf) { pconf = get_plfs_conf(); assert(pconf); }
     if ( pconf->err_msg ) {
       plfs_debug("PlfsConf error: %s\n", pconf->err_msg->c_str());
       if (expand_error) *expand_error = true;
       return "INVALID";
     }
 
+    // initialize our return parameters
+    if (mount_point)  *mount_point  = false;
+    if (expand_error) *expand_error = false;
+
     // find the appropriate PlfsMount from the PlfsConf
     bool mnt_pt_found = false;
     PlfsMount *pm = find_mount_point(pconf,logical,mnt_pt_found);
-
     if(!mnt_pt_found) {
         fprintf(stderr,"No mount point for %s\n", logical.c_str());
-        *expand_error = true;
+        if(expand_error) *expand_error = true;
         return "PLFS_NO_MOUNT_POINT_FOUND";
     }
 
-    // set remaining to the part of logical after the mnt_pt and tokenize it
+    // set remaining to the part of logical after the mnt_pt 
     string remaining;
-    vector<string>remaining_tokens;
     plfs_debug("Trim mnt %s from path %s\n",pm->mnt_pt.c_str(),logical.c_str());
-    if (strncmp(logical.c_str(),pm->mnt_pt.c_str(),pm->mnt_pt.size())==0) {
-        remaining = logical.substr(pm->mnt_pt.size());
-    } else {
-        remaining = logical;
-    }
-    plfs_debug("Tokenizing the remaining logical path after the mount pt: %s\n",
-            remaining.c_str());
-    tokenize(remaining,"/",remaining_tokens);
-
-    if ( remaining_tokens.empty() ) {
-        // load balance requests for the root dir 
-        // this is a bit tricky right here.  When we do a readdir on the
-        // root, we need to actually aggregate across all backends.
-        if (mount_point) *mount_point = true;
-        return pm->backends[rand()%pm->backends.size()];
-    }
+    remaining = logical.substr(pm->mnt_pt.size());
 
     // choose a backend unless the caller explicitly requested one
     switch(hash_method) {
@@ -174,58 +153,6 @@ expandPath(string logical, bool *mount_point, bool *expand_error,
         break;
     }
     return pm->backends[which_backend%pm->backends.size()] + "/" + remaining;
-
-    // this new code won't do the hashing explicitly as commanded in the plfsrc
-    // instead it just hashes to figure out where to put things
-
-    // let's go through the expected tokens and map them
-    // however, if the map is bad in the plfsrc file, then
-    // this might not work, so let's check to make sure the
-    // map is correct
-    if(remaining_tokens.size()<pm->expected_tokens.size()) {
-        fprintf(stderr,"FATAL in %s:%d for path %s\n",
-                __FUNCTION__,__LINE__,logical.c_str());
-        assert(remaining_tokens.size()>=pm->expected_tokens.size());
-    }
-    map<string,string> expected_map;
-    for(size_t i = 0; i < pm->expected_tokens.size(); i++) {
-        expected_map[pm->expected_tokens[i]] = remaining_tokens[i];
-    }
-
-    // so now all of the vars in expected are mapped to what they received
-    // in remaining
-
-    // so now go through resolve_tokens and build up the physical path
-    string resolved;
-    for(size_t j = 0; j < pm->resolve_tokens.size(); j++) {
-        string tok = pm->resolve_tokens[j];
-        if ( tok.c_str()[0] == '$' ) {
-            resolved += '/';
-            // if it's a var, replace it with the var we discovered
-            resolved += expected_map[tok];  // assumes valid plfsrc map
-        } else if ( strncmp(tok.c_str(),"HASH",4)==0 ) {
-            // need to figure out which var they're asking for
-            // assumes plfsrc is valid
-            size_t start = tok.find("(") + 1;
-            size_t end = tok.find(")");
-            string var = tok.substr(start,end-start);
-            int total = 0;
-            for(size_t i = 0; i < expected_map[var].size(); i++) {
-                total+=(int)expected_map[var][i];
-            }
-            total %= pm->backends.size();
-            resolved += pm->backends[total];
-        } else {
-            resolved += '/';
-            resolved += tok;
-        }
-    }
-    
-    // now throw on all of the remaining that weren't expected
-    for(size_t k = pm->expected_tokens.size();k<remaining_tokens.size();k++){
-        resolved += "/" + remaining_tokens[k];
-    }
-    return resolved;
 }
 
 // helper routine for plfs_dump_config
@@ -285,7 +212,6 @@ plfs_dump_config(int check_dirs) {
                 ret = plfs_check_dir("statfs",pmnt->statfs->c_str(),ret); 
             }
         }
-        cout << "\tMap: " << pmnt->map << endl;
     }
     return ret;
 }
@@ -528,6 +454,7 @@ int
 plfs_readdir_helper( const char *physical, void *vptr ) {
     set<string> *dents = (set<string> *)vptr;
     DIR *dp;
+    plfs_debug("%s: opendir physical %s\n",__FUNCTION__, physical);
     int ret = Util::Opendir( physical, &dp );
     if ( ret == 0 && dp ) {
         struct dirent *de;
@@ -950,40 +877,12 @@ plfs_init(PlfsConf *pconf) {
 string *
 insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt) {
     string *error = NULL;
-    if( pmnt->map.length() == 0 ) {
-        if ( pmnt->backends.size() == 1 ) {
-            pmnt->map = pmnt->mnt_pt + "/:" + pmnt->backends[0];
-        } else {
-            error = new string("No map specified for mount point");
-        }
-    }
     if( pmnt->backends.size() == 0 ) {
         error = new string("No backends specified for mount point");
-    }
-    if(!error) {
-        // set up the structures we need for path resolution
-        vector<string> map_tokens;
-        string expected;
-        string resolve;
-        const string &mnt_pt = pmnt->mnt_pt;   // shortcut
-        tokenize(pmnt->map,":",map_tokens);
-        if(map_tokens.size() != 2 ) {
-            error = new string("Bad map value");
-            return error;
-        }
-        expected = map_tokens[0];
-        resolve = map_tokens[1];
-
-        // remove the mnt_point from the expected string (if there) 
-        // and then tokenize the rest of it as well as tokenizing resolve
-        if (strncmp(expected.c_str(),mnt_pt.c_str(),mnt_pt.size())==0) {
-            expected = expected.substr(mnt_pt.size());
-        }
-        tokenize(expected,"/",pmnt->expected_tokens);
-        tokenize(resolve,"/",pmnt->resolve_tokens);
+    } else {
         plfs_debug("Inserting mount point %s as discovered in %s\n",
                 pmnt->mnt_pt.c_str(),pconf->file.c_str());
-        pconf->mnt_pts[mnt_pt] = pmnt;
+        pconf->mnt_pts[pmnt->mnt_pt] = pmnt;
     }
     return error;
 }
@@ -1056,12 +955,6 @@ parse_conf(FILE *fp, string file) {
                 break;
             }
             pmnt->statfs = new string(value);
-        } else if (strcmp(key,"map")==0) {
-            if( !pmnt ) {
-                pconf->err_msg = new string("No mount point yet declared");
-                break;
-            }
-            pmnt->map = value;
         } else if (strcmp(key,"backends")==0) {
             if( !pmnt ) {
                 pconf->err_msg = new string("No mount point yet declared");
