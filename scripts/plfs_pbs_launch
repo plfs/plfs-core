@@ -17,12 +17,12 @@ if ( -x $pexec ) then
     echo $nodes
     set pexec = "$pexec -pP 32 -m $nodes --all --ssh"
       # always try to unmount first
-    $pexec fusermount -u $mnt_pt
+    $pexec fusermount -u $mnt_pt |& grep -vi tput
     if ( $1 != "umount" ) then
-      $pexec mkdir -p $mnt_pt 
-      $pexec $mount |& grep -v tput
+      $pexec mkdir -p $mnt_pt |& grep -vi tput 
+      $pexec $mount |& grep -vi tput
     endif
-    $pexec grep -a Uptime $mnt_pt/.plfsdebug | grep -v Tput
+    $pexec grep -a Uptime $mnt_pt/.plfsdebug | grep -vi Tput
 else 
     echo "No pexec executable found"
 endif
