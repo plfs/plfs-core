@@ -7,10 +7,11 @@ void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code) {
     static char myname[] = "ADIOI_PLFS_SETINFO";
     char* value;
     int flag, tmp_val = -1;
-    int disable_broadcast = 1;
+    // The initial values make a difference.
+    int disable_broadcast = 0;  
     int compress_index = 0;
     int flatten_close = 0;
-    int parindex_read = 0;
+    int disable_parindex_read = 0;  
     int gen_error_code,rank;
 
     MPI_Comm_rank( fd->comm, &rank );
@@ -70,19 +71,19 @@ void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code) {
 	            MPI_Info_set(fd->info, "plfs_flatten_close", value); 
             }
             /* Parallel Index Read  */
-            MPI_Info_get(users_info, "plfs_parindex_read", MPI_MAX_INFO_VAL,
+            MPI_Info_get(users_info, "plfs_disable_paropen", MPI_MAX_INFO_VAL,
                             value, &flag);
             if(flag){
-                parindex_read = atoi(value);
-                tmp_val = parindex_read;
+                disable_parindex_read = atoi(value);
+                tmp_val = disable_parindex_read;
                 MPI_Bcast(&tmp_val,1,MPI_INT,0,fd->comm);
-                if (tmp_val != parindex_read) {
+                if (tmp_val != disable_parindex_read) {
                     FPRINTF(stderr, "ADIOI_PLFS_SetInfo: "
-                            "the value for key \"plfs_parindex_read\" "
+                            "the value for key \"plfs_disable_paropen\" "
                             "must be the same on all processes\n");
                     MPI_Abort(MPI_COMM_WORLD, 1);
                 }
-	            MPI_Info_set(fd->info, "plfs_parindex_read", value); 
+	            MPI_Info_set(fd->info, "plfs_disable_paropen", value); 
             }
 	        ADIOI_Free(value);
         }
