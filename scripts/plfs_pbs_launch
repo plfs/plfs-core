@@ -5,10 +5,58 @@ if ( ! -f ~/.plfsrc ) then
   exit 1 
 endif
 
+# Defaults
 set plfs   = $HOME/plfs/bin/plfs
+set pexec  = $HOME/Testing/utilities/scripts/pexec
+set umount = 0
+
+# Catch whatever command line parameters there may be
+foreach i ($argv)
+  switch ($i)
+    case --plfs=*:
+      set plfs = `echo $i | sed 's/[-a-zA-Z0-9]*=//'`
+      echo "Using $plfs"
+      breaksw
+    case --pexec=*:
+      set pexec = `echo $i | sed 's/[-a-zA-Z0-9]*=//'`
+      echo "Using $pexec"
+      breaksw
+    case umount:
+      set umount = 1
+      breaksw
+    case -h:
+    case --help:
+      echo "plfs_pbs_launch: mount plfs mount points on compute nodes associated"
+      echo "with a running job."
+      echo ""
+      echo "Usage:"
+      echo "plfs_pbs_launch [OPTION ...]"
+      echo ""
+      echo "With no options, this script will attempt to mount plfs mount points"
+      echo "on all hosts that are attached to a Moab job (uses PBS_NODEFILE)."
+      echo "OPTIONS:"
+      echo "\t--umount"
+      echo "\t\tUnmount the plfs mount points"
+      echo "\t--plfs=FILE"
+      echo "\t\tSet the location of the plfs executable to FILE. Default is"
+      echo "\t\t"'$HOME/plfs/bin/plfs'
+      echo "\t--pexec=FILE"
+      echo "\t\tSet the location of the pexe executable to FILE. Default is"
+      echo "\t\t"'$HOME/Testing/utilities/scripts/pexec'
+      echo "\t--help"
+      echo "\t\tDisplay this message"
+      exit 0
+      breaksw
+    default:
+      echo "Unknown command line parameter $i. Type --help for usage information."
+      exit 1
+      breaksw
+  endsw
+end
+
 set mnt_pt = `awk '/^mount_point/ {print $2}' ~/.plfsrc | tail -1`
 set mount  = "$plfs $mnt_pt -o direct_io" 
-set pexec  = $HOME/Testing/utilities/scripts/pexec
+
 echo "Launching $plfs"
 
 if ( -x $pexec ) then
@@ -18,11 +66,16 @@ if ( -x $pexec ) then
     set pexec = "$pexec -pP 32 -m $nodes --all --ssh"
       # always try to unmount first
     $pexec fusermount -u $mnt_pt |& grep -vi tput
-    if ( $1 != "umount" ) then
+    if ( $umount == 0 ) then
       $pexec mkdir -p $mnt_pt |& grep -vi tput 
       $pexec $mount |& grep -vi tput
     endif
     $pexec grep -a Uptime $mnt_pt/.plfsdebug | grep -vi Tput
+    if (( $status != 0 ) && ( $umount == 0 )) then
+      exit 1
+    endif
 else 
     echo "No pexec executable found"
+    exit 1
 endif
+exit 0
