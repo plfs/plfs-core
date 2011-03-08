@@ -179,6 +179,10 @@ plfs_dump_index_size() {
 int
 plfs_dump_config(int check_dirs) {
     PlfsConf *pconf = get_plfs_conf();
+    if ( ! pconf ) {
+        cerr << "FATAL no plfsrc file found.\n" << endl;
+        return -ENOENT;
+    }
     if ( pconf->err_msg ) {
         cerr << "FATAL conf file error: " << *(pconf->err_msg) << endl;
         return -EINVAL;

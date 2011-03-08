@@ -17,6 +17,7 @@ int main (int argc, char **argv) {
 			compress = false;
 		} else if (!found_target) {
 			target = argv[i];
+            found_target = true;
 		} else {
 			// Found more than one target. This is an error.
 			show_usage(argv[0]);

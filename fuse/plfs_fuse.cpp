@@ -175,9 +175,11 @@ int Plfs::init( int *argc, char **argv ) {
 
     // ask the library to read in our configuration parameters
     pconf = get_plfs_conf();
-    if (pconf->err_msg) {
-        fprintf(stderr,"FATAL: %s", pconf->err_msg->c_str());
-        return -EINVAL;  
+    if (!pconf || pconf->err_msg) {
+        fprintf(stderr,"FATAL: %s", 
+                pconf ?  pconf->err_msg->c_str()
+                : "no plfsrc file found.\n");
+        return pconf ? -EINVAL : -ENOENT;  
     }
     plfs_init(pconf); // warm up the path resolution cache
 
