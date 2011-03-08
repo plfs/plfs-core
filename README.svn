@@ -9,7 +9,7 @@ To merge the branch into the trunk:
 
 Old way to merge a branch that worked horribly.  Although I did use this 
 to merge the trunk into the branch and that worked OK.  The above command
-is what worked much better.
+is what worked much better.  This method below always caused lots of conflicts.
 To diff/merge a branch:
 > svn log --verbose --stop-on-copy https://plfs.svn.sourceforge.net/svnroot/plfs/branches/mybranch
 The last entry is when the branch was made (e.g. r348)
