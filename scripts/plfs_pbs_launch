@@ -6,7 +6,7 @@ if ( ! -f ~/.plfsrc ) then
 endif
 
 # Defaults
-set plfs   = $HOME/plfs/bin/plfs
+set plfs   = "" 
 set pexec  = $HOME/Testing/utilities/scripts/pexec
 set umount = 0
 
@@ -56,6 +56,21 @@ end
 
 set mnt_pt = `awk '/^mount_point/ {print $2}' ~/.plfsrc | tail -1`
 set mount  = "$plfs $mnt_pt -o direct_io" 
+
+if ( "X$plfs" == "X" ) then
+  echo "plfs not specified.  Searching path"
+  foreach dir ( $path )
+    if ( -x $dir/plfs ) then
+      set plfs = "$dir/plfs"
+      break
+    endif
+  end
+endif
+
+if (! -x $plfs ) then
+  echo "No plfs executable found."  
+  exit 1
+endif
 
 echo "Launching $plfs"
 
