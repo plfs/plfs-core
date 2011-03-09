@@ -53,12 +53,7 @@ foreach i ($argv)
       breaksw
   endsw
 end
-
-set mnt_pt = `awk '/^mount_point/ {print $2}' ~/.plfsrc | tail -1`
-set mount  = "$plfs $mnt_pt -o direct_io" 
-
 if ( "X$plfs" == "X" ) then
-  echo "plfs not specified.  Searching path"
   foreach dir ( $path )
     if ( -x $dir/plfs ) then
       set plfs = "$dir/plfs"
@@ -72,19 +67,30 @@ if (! -x $plfs ) then
   exit 1
 endif
 
-echo "Launching $plfs"
+set mnt_pt = `awk '/^mount_point/ {print $2}' ~/.plfsrc | tail -1`
+set mount  = "$plfs $mnt_pt -o direct_io" 
 
 if ( -x $pexec ) then
-    echo "Using pexec"
+    if ( ! -f $PBS_NODEFILE ) then
+      echo "Error: No PBS_NODEFILE defined in environment."
+      exit 1
+    endif
     set nodes = `uniq $PBS_NODEFILE | tr '\n' ','`
-    echo $nodes
+    echo "# pexec : $pexec"
     set pexec = "$pexec -pP 32 -m $nodes --all --ssh"
+    echo "# mnt_pt : $mnt_pt"
+    echo "# plfs : $plfs"
+    echo "# mount : $mount"
+    echo "# nodes : $nodes"
       # always try to unmount first
+    echo "# unmount any existing mount points"
     $pexec fusermount -u $mnt_pt |& grep -vi tput
     if ( $umount == 0 ) then
       $pexec mkdir -p $mnt_pt |& grep -vi tput 
+      echo "# mounting plfs"
       $pexec $mount |& grep -vi tput
     endif
+    echo "# checking plfs"
     $pexec grep -a Uptime $mnt_pt/.plfsdebug | grep -vi Tput
     if (( $status != 0 ) && ( $umount == 0 )) then
       exit 1
