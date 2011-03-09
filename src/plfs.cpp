@@ -926,7 +926,7 @@ parse_conf(FILE *fp, string file) {
         }
         if(strcmp(key,"index_buffer_mbs")==0) {
             pconf->buffer_mbs = atoi(value);
-            if (pconf->threadpool_size <0) {
+            if (pconf->buffer_mbs <0) {
                 pconf->err_msg = new string("illegal negative value");
                 break;
             }
