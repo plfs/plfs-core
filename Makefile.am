@@ -71,6 +71,7 @@ man
 ACLOCAL_AMFLAGS = -I config
 
 dist-hook:
+	cp -f ad_plfs/Makefile.am.ompi /tmp/ 
 	pushd $(distdir) && \
 	scripts/make_plfs_patch && \
 	popd

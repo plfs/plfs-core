@@ -17,6 +17,7 @@
   > cd openmpi-1.4.3
   > patch -pl < /path/to/plfs/ad-patches/openmpi/ompi-1.4.3-plfs-prep.patch
   > patch -p1 < /path/to/plfs/ad-patches/openmpi/ompi-1.4.3-plfs.patch
+  > autogen.sh since we patched a Makefile.am
   > ./configure; make
 
   One tricky bit is that you have to make sure that your mpi build knows 
