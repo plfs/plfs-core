@@ -211,9 +211,7 @@ int Container::cleanupChmod( const string &path, mode_t mode , int top ,
     struct stat creator_info;   
     
     if ( top == 1 ) {
-        string creator_path ( path );
-        creator_path += "/";
-        creator_path += CREATORFILE;
+        string creator_path = getCreatorFilePath(path); 
         // Stat the creator file for the uid and gid 
         ret = Util::Stat( creator_path.c_str() , &creator_info );
         if (ret == 0 ) {
@@ -231,7 +229,6 @@ int Container::cleanupChmod( const string &path, mode_t mode , int top ,
     while( ret == 0 && (dent = readdir( dir )) != NULL ) {
         string full_path( path ); full_path += "/"; full_path += dent->d_name;
         if (!strcmp(dent->d_name,".")||!strcmp(dent->d_name,"..")
-                ||!strcmp(dent->d_name, CREATORFILE ) 
                 ||!strcmp(dent->d_name, ACCESSFILE )) continue;
         if (!strncmp( dent->d_name , HOSTDIRPREFIX, strlen(HOSTDIRPREFIX)) ||
             !strncmp( dent->d_name , DROPPINGPREFIX , strlen(DROPPINGPREFIX)) ||
@@ -531,7 +528,7 @@ vector<IndexFileInfo> Container::hostdir_index_read(const char *path){
      // Start reading the directory
     while(dirent = readdir(dirp) ){
         // Get rid of these hardcoded values ASAP
-        if(strncmp(INDEXPREFIX,dirent->d_name,12)==0){
+        if(strncmp(INDEXPREFIX,dirent->d_name,strlen(INDEXPREFIX))==0){
             double time_stamp;
             string str_time_stamp;
             int frac_len;
@@ -556,6 +553,8 @@ vector<IndexFileInfo> Container::hostdir_index_read(const char *path){
             }
             index_dropping.id=atoi(tokens[5+left_over].c_str());
             index_dropping.timestamp=time_stamp;
+            cerr << "Pushing path " << index_dropping.hostname
+                 << " into index list" << endl;
             plfs_debug("Pushing path %s into index list\n",
                     index_dropping.hostname.c_str());
             index_droppings.push_back(index_dropping);
@@ -814,34 +813,32 @@ string Container::fetchMeta( const string &metafile_name,
 string Container::getOpenHostsDir( const string &path ) {
     string openhostsdir( path );
     openhostsdir += "/";
-    openhostsdir += OPENHOSTDIR;
+    openhostsdir += METADIR; // OPENHOSTDIR;
     return openhostsdir;
 }
 
 // a function that reads the open hosts dir to discover which hosts currently
 // have the file open
 // now the open hosts file has a pid in it so we need to separate this out
-int Container::discoverOpenHosts( const string &path, set<string> *openhosts ) {
+int Container::discoverOpenHosts( DIR *openhostsdir, set<string> *openhosts ) {
     struct dirent *dent = NULL;
-    DIR *openhostsdir   = NULL; 
-    Util::Opendir( (getOpenHostsDir(path)).c_str(), &openhostsdir );
-    if ( openhostsdir == NULL ) return 0;
     while( (dent = readdir( openhostsdir )) != NULL ) {
         string host;
         if ( ! strncmp( dent->d_name, ".", 1 ) ) continue;  // skip . and ..
+        // also skip anything that isn't an opendropping
+        if ( strncmp( dent->d_name, OPENPREFIX, strlen(OPENPREFIX))) continue;
         host = dent->d_name;
+        host.erase(0,strlen(OPENPREFIX));
         host.erase( host.rfind("."), host.size() );
-        plfs_debug("Host %s has open handle on %s\n", 
-                dent->d_name, path.c_str() );
+        plfs_debug("Host %s (%s) has open handle\n", dent->d_name,host.c_str());
         openhosts->insert( host );
     }
-    Util::Closedir( openhostsdir );
     return 0;
 }
 
 string Container::getOpenrecord( const string &path, const string &host, pid_t pid){
     ostringstream oss;
-    oss << getOpenHostsDir( path ) << "/" << host << "." << pid;
+    oss << getOpenHostsDir( path ) << "/" << OPENPREFIX << host << "." << pid;
     plfs_debug("created open record path %s\n", oss.str().c_str() );
     return oss.str();
 }
@@ -921,17 +918,21 @@ int Container::getattr( const string &path, struct stat *stbuf ) {
         // meta than we need to pull the info from
         // the hostdir by stating the data files and
         // maybe even actually reading the index files!
-    set< string > openHosts;
-    set< string > validMeta;
-    discoverOpenHosts( path, &openHosts );
-    time_t most_recent_mod = 0;
-
     DIR *metadir;
     Util::Opendir( (getMetaDirPath(path)).c_str(), &metadir );
-    struct dirent *dent = NULL;
+    time_t most_recent_mod = 0;
+    set< string > openHosts;
+    set< string > validMeta;
     if ( metadir != NULL ) {
+        discoverOpenHosts( metadir, &openHosts );
+
+        rewinddir(metadir);
+        struct dirent *dent = NULL;
         while( (dent = readdir( metadir )) != NULL ) {
             if ( ! strncmp( dent->d_name, ".", 1 ) ) continue;  // . and ..
+            if ( ! strncmp( dent->d_name, OPENPREFIX, strlen(OPENPREFIX)))
+                continue; // now we place openhosts in same dir as meta
+                          // so skip them here
             off_t last_offset;
             size_t total_bytes;
             struct timespec time;
@@ -1121,7 +1122,8 @@ int Container::makeTopLevel( const string &expanded_path,
             if ( saveerrno != EEXIST && saveerrno != ENOTEMPTY 
                     && saveerrno != EISDIR ) {
                 plfs_debug("rename %s to %s failed: %s\n",
-                        tmpName.c_str(), expanded_path.c_str(), strerror(saveerrno) );
+                        tmpName.c_str(), expanded_path.c_str(), strerror
+                        (saveerrno) );
                 return -saveerrno;
             }
             break;
@@ -1144,27 +1146,24 @@ int Container::makeTopLevel( const string &expanded_path,
                 // possible for someone to find a container without the
                 // version stuff in it.  In that case, just assume
                 // compatible?  move this up above?
-            string versiondir = getVersionDir(expanded_path);
-            if ( makeSubdir( versiondir, mode ) ) {
+            ostringstream oss2;
+            oss2 << expanded_path << "/" << VERSIONPREFIX
+                 << "-tag." << STR(TAG_VERSION)
+                 << "-svn." << STR(SVN_VERSION)
+                 << "-dat." << STR(DATA_VERSION);
+            if (makeDropping(oss2.str()) < 0) {
                 return -errno;
             }
 
-            map <string,string> version_files;
-            version_files["tag"]  = STR(TAG_VERSION);
-            version_files["svn"]  = STR(SVN_VERSION);
-            version_files["data"] = STR(DATA_VERSION);
-            map<string,string>::iterator itr = version_files.begin();
-            for (itr = version_files.begin(); itr!=version_files.end(); itr++){
-                string versionfile(versiondir+"/"+itr->first+"."+itr->second);
-                if ( makeDropping( versionfile ) < 0 ) {
-                    return -errno;
-                }
-            }
+            /*
+               // we don't need to make this creator file separately.
+               // just use the accessfile for the creator
             if ( makeCreator( getCreatorFilePath(expanded_path) ) < 0 ) {
                 plfs_debug("create access file int %s failed\n", 
                                 expanded_path.c_str() );
                 return -errno;
             }
+            */
             break;
         }
     }
@@ -1232,19 +1231,18 @@ string Container::getMetaDirPath( const string& strPath ) {
     return metadir;
 }
 
-string Container::getVersionDir( const string& path ) {
-    string versiondir( path + "/" + VERSIONDIR );
-    return versiondir;
-}
-
 string Container::getAccessFilePath( const string& path ) {
     string accessfile( path + "/" + ACCESSFILE );
     return accessfile;
 }
 
+// there is no longer a special creator file.  Just use the access file
 string Container::getCreatorFilePath( const string& path ) {
+    return getAccessFilePath(path);
+    /*
     string creatorfile( path + "/" + CREATORFILE );
     return creatorfile;
+    */
 }
 
 size_t Container::getHostDirId( const string &hostname ) {
@@ -1526,6 +1524,9 @@ Container::truncateMeta(const string &path, off_t offset){
 		if ( !strcmp( ".", dent->d_name ) || !strcmp( "..", dent->d_name ) ) {
 			continue;
 		}
+        if ( !strncmp( OPENPREFIX, dent->d_name, strlen(OPENPREFIX))) {
+            continue;   // skip open droppings
+        }
 		string full_path( meta_path ); full_path += "/"; 
 		full_path += dent->d_name;
    	

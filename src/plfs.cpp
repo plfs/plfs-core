@@ -1483,13 +1483,23 @@ removeDirectoryTree( const char *path, bool truncate_only ) {
         if ( ! strcmp(ent->d_name, ACCESSFILE ) && truncate_only ) {
             continue;   // don't remove our accessfile!
         }
+        // no separate openhostdir anymore.  same as metadir
+        // no separate creator file anymore.  same as accessfile
+        /*
         if ( ! strcmp( ent->d_name, OPENHOSTDIR ) && truncate_only ) {
             continue;   // don't remove open hosts
         }
         if ( ! strcmp( ent->d_name, CREATORFILE ) && truncate_only ) {
                        continue;   // don't remove the creator file
         }
+        */
 
+        // don't remove open droppings on a truncate
+        if (! strncmp(ent->d_name, OPENPREFIX, strlen(OPENPREFIX))
+                && is_meta_dir && truncate_only)
+        {
+            continue;
+        }
         
         string child( path );
         child += "/";

@@ -27,11 +27,13 @@ using namespace std;
 #define DATAPREFIX     DROPPINGPREFIX"data."
 #define INDEXPREFIX    DROPPINGPREFIX"index."
 #define METADIR        "meta"         // where to stash shortcut metadata
-#define VERSIONDIR     "version"      // where to stash the version info 
-#define OPENHOSTDIR    "openhosts"    // where to stash whether file open
+#define VERSIONPREFIX  "version"      // where to stash the version info 
+// OPENHOSTDIR is now the same as METADIR
+//#define OPENHOSTDIR    "openhosts"    // where to stash whether file open
     // where to stash the chmods and chowns, and identify containers
+#define OPENPREFIX     "open."
 #define ACCESSFILE     ".plfsaccess113918400"  
-#define CREATORFILE    "creator"
+//#define CREATORFILE    "creator" // no separate creator anymore:use accessfile
 #define GLOBALINDEX    "global.index"
 #define GLOBALCHUNK    "global.chunk"
 
@@ -137,7 +139,7 @@ class Container {
                 const string &host, int pid, const string &ts );
         static string getOpenrecord( const string &, const string &, pid_t );
         static string getOpenHostsDir( const string &);
-        static int discoverOpenHosts( const string &, set<string> * );
+        static int discoverOpenHosts( DIR *, set<string> * );
         static string hostFromChunk( string datapath, const char *type );
         static string hostdirFromChunk( string chunkpath, const char *type );
         static string timestampFromChunk(string hostindex, const char *type);
