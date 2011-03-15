@@ -1,3 +1,7 @@
+0) All PLFS installations need a valid plfsrc file.  Check examples to
+   create one either in $HOME/.plfsrc or in /etc/plfsrc.  Check it with
+   tools/plfs_check_config after building PLFS.
+
 1) To install PLFS as a FUSE filesystem.
 
   0) you'll need to have fuse installed and have /dev/libfuse loaded
