@@ -160,6 +160,8 @@ AC_FUNC_GETGROUPS
 AC_FUNC_CHOWN
 AC_CHECK_MEMBERS([struct stat.st_blksize])
 
+AC_SEARCH_LIBS([gzseek], [z])
+
 AC_PLFS_DEUBG_FLAG_CHECK
 # first see what needs to be built - XXX ugly (update later)
 AC_PKG_PLFS_COMPONENTS
