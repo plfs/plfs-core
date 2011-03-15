@@ -31,6 +31,9 @@ hashMethod {
     NO_HASH,
 };
 
+#define MAX_HOSTDIRS 1024   // ad_plfs_open relies on this.  if change here,
+                            // must change there as well
+
 #define PLFS_ENTER PLFS_ENTER2(PLFS_PATH_REQUIRED)
 
 #define PLFS_ENTER2(X) bool is_mnt_pt = false; int ret = 0;\
@@ -944,6 +947,8 @@ parse_conf(FILE *fp, string file) {
                 pconf->err_msg = new string("illegal negative value");
                 break;
             }
+            if (pconf->num_hostdirs > MAX_HOSTDIRS) 
+                pconf->num_hostdirs = MAX_HOSTDIRS;
         } else if (strcmp(key,"mount_point")==0) {
             // clear and save the previous one
             if (pmnt) {

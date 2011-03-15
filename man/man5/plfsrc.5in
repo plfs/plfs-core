@@ -15,7 +15,7 @@ The possible keywords and their meanings are as follows:
 .B
 num_hostdirs
 .RS
-This should be the square root of the total number of compute nodes typically expected to participate in a job.  Optional.  Default is 32.
+This should be the square root of the total number of compute nodes typically expected to participate in a job.  Optional.  Default is 32.  Max is 1024.
 .RE
 
 .B
