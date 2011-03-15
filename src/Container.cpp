@@ -509,14 +509,17 @@ vector<IndexFileInfo> Container::hostdir_index_read(const char *path){
     
     DIR *dirp;
     struct dirent *dirent;
+    vector<IndexFileInfo> index_droppings;
 
     // Open the directory and check value
+    plfs_debug("%s on %s\n", __FUNCTION__, path);
     if((dirp=opendir(path)) == NULL) {
-        plfs_debug("opendir error in hostdir zero directory reader");
+        plfs_debug("opendir error in hostdir %s directory reader\n",path);
         // Return some sort of error
+        cerr << "opendir " << path << " error: " << strerror(errno) << endl;
+        return index_droppings;
     }
 
-    vector<IndexFileInfo> index_droppings;
     // I need the path so I am going to try this out
     // Should always be the first element
     IndexFileInfo path_holder;
@@ -553,10 +556,8 @@ vector<IndexFileInfo> Container::hostdir_index_read(const char *path){
             }
             index_dropping.id=atoi(tokens[5+left_over].c_str());
             index_dropping.timestamp=time_stamp;
-            cerr << "Pushing path " << index_dropping.hostname
-                 << " into index list" << endl;
-            plfs_debug("Pushing path %s into index list\n",
-                    index_dropping.hostname.c_str());
+            plfs_debug("Pushing path %s into index list from %s\n",
+                    index_dropping.hostname.c_str(), dirent->d_name);
             index_droppings.push_back(index_dropping);
         }
     }

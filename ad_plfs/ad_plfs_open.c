@@ -9,23 +9,59 @@
 #include "zlib.h"
 #include <dirent.h>
 #include <string.h>
+#include <limits.h>    
+
 
 #define VERBOSE_DEBUG 0
-#define BIT_ARRAY_LENGTH 1024
+#define BIT_ARRAY_LENGTH 1024   // this means max hostdir = 1024
 #define HOSTDIR_PREFIX "hostdir."
-#define HOSTDIR_PREFIX_LEN 8  
+
+typedef char Bitmap;
+Bitmap bitmap[BIT_ARRAY_LENGTH/8];
+
+// check whether bit is set in our bitmap
+int
+bitIsSet( long n, char * bitmap ) { 
+    long whichByte = n / 8;
+    int  whichBit  = n % 8;
+    return ((bitmap[whichByte] << whichBit) & 0x80) != 0;
+}
+
+// set a bit in a bitmap 
+void
+setBit( long n, char * bitmap ) {
+    long whichByte = n / 8;
+    int  whichBit  = n % 8;
+
+    char temp = bitmap[whichByte];
+    bitmap[whichByte] = (char)(temp | (0x80 >> whichBit));
+}
+
+// clear a bit in a bitmap
+void
+clearBit( long n, char * bitmap ) {
+    long whichByte = n / 8;
+    int  whichBit  = n % 8;
+    
+    char temp = bitmap[whichByte];
+    bitmap[whichByte] = (char)(temp & ~(0x80 >> whichBit));
+}
 
 // A bitmap to hold the number of and id of 
 // hostdirs inside of the container
+/*
 typedef struct {
     unsigned int bit:1;
 }Bit;
 Bit bitmap[BIT_ARRAY_LENGTH]={0};
+*/
 
 // a bunch of helper macros we added when we had a really hard time debugging
 // this file.  We were confused by ADIO calling rank 0 initially on the create
 // and then again on the open (and a bunch of other stuff)
 #if VERBOSE_DEBUG == 1
+    #define BITMAP_PRINT host_list_print(__LINE__,bitmap);
+
     #define POORMANS_GDB \
         fprintf(stderr,"%d in %s:%d\n", rank, __FUNCTION__,__LINE__);
 
@@ -40,6 +76,7 @@ Bit bitmap[BIT_ARRAY_LENGTH]={0};
         }\
     }
 #else
+    #define BITMAP_PRINT {}
     #define POORMANS_GDB {}
     #define TEST_BCAST(X) {}
 #endif
@@ -128,7 +165,7 @@ int par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
 // Fills in the bitmap structure
 int num_host_dirs(int *hostdir_count,char *target);
 // Printer for the bitmap struct
-void host_list_print(Bit *bitmap);
+void host_list_print(int line, Bitmap *bitmap);
 // Function to calculate the extra ranks
 int extra_rank_calc(int np,int num_host_dir);
 // Number of ranks per comm
@@ -139,7 +176,7 @@ int rank_to_size(int rank,int ranks_per_comm,int extra_rank,
 // Index used for a color that determines my hostdir comm
 int rank_to_group_index(int rank,int ranks_per_comm,int extra_rank);
 // Converts bitmap position to a dirname
-char* bitmap_to_dirname(Bit *bitmap,int group_index,
+char* bitmap_to_dirname(Bitmap *bitmap,int group_index,
         char *target,int mult,int np);
 // Called when num procs >= num_host_dirs
 void split_and_merge(ADIO_File fd,int rank,int extra_rank,
@@ -148,7 +185,7 @@ void split_and_merge(ADIO_File fd,int rank,int extra_rank,
 void read_and_merge(ADIO_File fd,int rank,
         int np,int hostdir_per_rank,char *filename,void **global_index);
 // Added to handle the case where one rank must read more than one hostdir
-char *count_to_hostdir(Bit *bitmap,int stop_point,int *count,
+char *count_to_hostdir(Bitmap *bitmap,int stop_point,int *count,
         int *hostdir_found,char *filename,char *target,int first);
 // Broadcast the bitmap to interested parties
 void bcast_bitmap(MPI_Comm comm,int rank);
@@ -410,20 +447,24 @@ int par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
 
     plfs_expand_path(fd->filename,&filename);
     // Rank 0 only code
+    int bitmap_bcast_sz = (BIT_ARRAY_LENGTH/8)/sizeof(MPI_CHAR);
+    memset(bitmap,0,bitmap_bcast_sz);
     if(!rank){
         // Find out how many hostdirs we currently have 
         // and save info in a bitmap 
         num_host_dirs(&num_host_dir,filename);
+        plfs_debug("Num of hostdirs calculated is |%d|\n",num_host_dir); 
     }
-    plfs_debug("Num of hostdirs calculated is |%d|\n",num_host_dir); 
     // Bcast usage brought down by the MPI_Comm_split
     // Was using MPI_Group_incl which needed an array of 
     // all members of the group. Don't forget to plan and 
     // look at available methods to get the job done
     MPIBCAST(&num_host_dir,1,MPI_INT,0,fd->comm);
+    BITMAP_PRINT;
     
     // Get some information used to determine the group index 
     ranks_per_comm=ranks_per_comm_calc(np,num_host_dir);
+    plfs_debug("%d ranks per comm\n", ranks_per_comm);
     // Split based on the number of ranks per comm. If zero we 
     // take another path and the extra_rank and hostdir_per_rank
     // calculation are different
@@ -436,6 +477,8 @@ int par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
             hostdir_per_rank++;
         }
     }
+    plfs_debug("ranks_per_comm=%d,hostdir_per_rank=%d\n",ranks_per_comm,
+            hostdir_per_rank);
     // Here we split on the ranks per comm. Should not be necessary
     // to check return values. Functions will abort if an error is encountered
     if(ranks_per_comm) split_and_merge(fd,rank,extra_rank,
@@ -495,8 +538,10 @@ void read_and_merge(ADIO_File fd,int rank,
 
 void bcast_bitmap(MPI_Comm comm, int rank){
     int ret;
-    int bitmap_bcast_sz = BIT_ARRAY_LENGTH/sizeof(MPI_UNSIGNED_CHAR);
+    int bitmap_bcast_sz = (BIT_ARRAY_LENGTH/8)/sizeof(MPI_UNSIGNED_CHAR);
+    BITMAP_PRINT;
     MPIBCAST(bitmap,bitmap_bcast_sz,MPI_UNSIGNED_CHAR,0,comm);
+    BITMAP_PRINT;
 }
 
 // If ranks > hostdirs we can split up our comm 
@@ -527,7 +572,9 @@ void split_and_merge(ADIO_File fd,int rank,int extra_rank,
     if(!new_rank) {
         char *fn_ptr;
         // Broadcast the bitmap to the leaders
+        BITMAP_PRINT;
         bcast_bitmap(hostdir_zeros_comm,rank);
+        BITMAP_PRINT;
         // Convert my group index into the dir I should read
         fn_ptr= bitmap_to_dirname(bitmap,group_index,filename,0,np);
         // Hostdir zero reads the hostdir and converts into a list
@@ -634,10 +681,11 @@ void split_and_merge(ADIO_File fd,int rank,int extra_rank,
 }
 
 // Simple print function
-void host_list_print(Bit* bitmap){
+void host_list_print(int line, Bitmap* bitmap){
     int count;
+    plfs_debug("printing hostdir bitmap from %d:\n", line);
     for(count=0;count<BIT_ARRAY_LENGTH;count++){
-        if(bitmap[count].bit==1) printf("Hostdir at position %d\n",count);
+        if(bitIsSet(count,bitmap)) plfs_debug("Hostdir at position %d\n",count);
     }
 }
 
@@ -656,13 +704,14 @@ int num_host_dirs(int *hostdir_count,char *target){
     // Start reading the directory
     while(dirent = readdir(dirp) ){
         // Look for entries that beging with hostdir
-        if(strncmp("hostdir.",dirent->d_name,8)==0){
+        if(strncmp(HOSTDIR_PREFIX,dirent->d_name,strlen(HOSTDIR_PREFIX))==0){
             char * substr;
             substr=strtok(dirent->d_name,".");
             substr=strtok(NULL,".");
             int index = atoi(substr);
-            bitmap[index].bit=1;
+            plfs_debug("Added a hostdir for %d\n", index);
             (*hostdir_count)++;
+            setBit(index,bitmap);
         }
     }
     // Close the dir error out if we have a problem
@@ -670,6 +719,8 @@ int num_host_dirs(int *hostdir_count,char *target){
         plfs_debug("Num hostdir closedir error on %s\n",target);
         return -1;
     }
+    BITMAP_PRINT;
+    return *hostdir_count;
 }
 
 // Calculates the number of ranks per communication group
@@ -702,13 +753,14 @@ int rank_to_group_index(int rank,int ranks_per_comm,int extra_rank)
 }
 
 
-char *count_to_hostdir(Bit *bitmap,int stop_point,int *count,int *hostdir_found,
-        char *filename,char *target,int first){
-    
+char *count_to_hostdir(Bitmap *bitmap,int stop_point,int *count,
+        int *hostdir_found, char *filename,char *target,int first)
+{
     char hostdir_num[16];
     
+    plfs_debug("Searching bitmap from %d to %d\n",*count,stop_point);
     while((*hostdir_found)<stop_point){
-        if(bitmap[*count].bit==1) {
+        if(bitIsSet(*count,bitmap)) {
             (*hostdir_found)++;
         }
         (*count)++;
@@ -722,12 +774,14 @@ char *count_to_hostdir(Bit *bitmap,int stop_point,int *count,int *hostdir_found,
     return filename;
 }
 
-char* bitmap_to_dirname(Bit *bitmap,int group_index,
+char* bitmap_to_dirname(Bitmap *bitmap,int group_index,
         char *target,int mult,int np)
 {
     char *path;
     int count = 0;
     int hostdir_found=0;
+
+    BITMAP_PRINT;
     
     if(mult==0){
         path=malloc(sizeof(char)*4096);
@@ -747,6 +801,9 @@ char* bitmap_to_dirname(Bit *bitmap,int group_index,
             dirs++;
         }
     }
+    BITMAP_PRINT;
+
+    plfs_debug("%s returning %s (mult %d)\n", __FUNCTION__, path,mult);
         
     return path;
 }
