@@ -95,13 +95,28 @@ size_t plfs_gethostdir_id(char *hostname) {
 }
 
 PlfsMount *
-find_mount_point(PlfsConf *pconf, string logical, bool &found) {
+find_mount_point(PlfsConf *pconf, const string &logical, bool &found) {
+    vector<string> logical_tokens;
+    tokenize(logical,"/",logical_tokens);
+    return find_mount_point_using_tokens(pconf,logical_tokens,found);
+}
+
+PlfsMount *
+find_mount_point_using_tokens(PlfsConf *pconf, 
+        vector<string> &logical_tokens, bool &found) 
+{
     map<string,PlfsMount*>::iterator itr; 
     for(itr=pconf->mnt_pts.begin(); itr!=pconf->mnt_pts.end(); itr++) {
-        if(strncmp(itr->first.c_str(),logical.c_str(),itr->first.length())==0) {
-            found = true;
-            return itr->second;
+        if (itr->second->mnt_tokens.size() > logical_tokens.size() ) continue;
+        for(int i = 0; i < itr->second->mnt_tokens.size(); i++) {
+            plfs_debug("%s: %s =?= %s\n", __FUNCTION__,
+                    itr->second->mnt_tokens[i].c_str(),logical_tokens[i].c_str());
+            if (itr->second->mnt_tokens[i] != logical_tokens[i]) continue;
         }
+        // if we make it here, every token in the mount point matches the
+        // corresponding token in the incoming logical path
+        found = true;
+        return itr->second;
     }
     found = false;
     return NULL;
@@ -127,7 +142,10 @@ expandPath(string logical, bool *mount_point, bool *expand_error,
 
     // find the appropriate PlfsMount from the PlfsConf
     bool mnt_pt_found = false;
-    PlfsMount *pm = find_mount_point(pconf,logical,mnt_pt_found);
+    vector<string> logical_tokens;
+    tokenize(logical,"/",logical_tokens);
+    PlfsMount *pm = find_mount_point_using_tokens(pconf,logical_tokens,
+            mnt_pt_found);
     if(!mnt_pt_found) {
         fprintf(stderr,"No mount point for %s\n", logical.c_str());
         if(expand_error) *expand_error = true;
@@ -135,9 +153,14 @@ expandPath(string logical, bool *mount_point, bool *expand_error,
     }
 
     // set remaining to the part of logical after the mnt_pt 
-    string remaining;
+    string remaining = "/";
     plfs_debug("Trim mnt %s from path %s\n",pm->mnt_pt.c_str(),logical.c_str());
-    remaining = logical.substr(pm->mnt_pt.size());
+    for(int i = pm->mnt_tokens.size(); i < logical_tokens.size(); i++ ) {
+        remaining += "/";
+        remaining += logical_tokens[i]; 
+    }
+    plfs_debug("Remaining path is %s\n", remaining.c_str());
+    //remaining = logical.substr(pm->mnt_pt.size());
 
     // choose a backend unless the caller explicitly requested one
     switch(hash_method) {
@@ -483,6 +506,7 @@ plfs_readdir( const char *logical, void *vptr ) {
     PLFS_ENTER;
     bool mnt_pt;
     PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
+    if(!mnt_pt) PLFS_EXIT(-ENOENT);
     for(int i = 0; i < pm->backends.size(); i++) {
         path = expandPath(logical,NULL,NULL,NO_HASH,i);
         ret = plfs_readdir_helper(path.c_str(),vptr);
@@ -496,6 +520,7 @@ plfs_mkdir( const char *logical, mode_t mode ) {
     PLFS_ENTER;
     bool mnt_pt;
     PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
+    if(!mnt_pt) PLFS_EXIT(-ENOENT);
     for(int i = 0; i < pm->backends.size(); i++) {
         path = expandPath(logical,NULL,NULL,NO_HASH,i);
         ret = retValue(Util::Mkdir(path.c_str(),mode));
@@ -509,6 +534,7 @@ plfs_rmdir( const char *logical ) {
     PLFS_ENTER;
     bool mnt_pt;
     PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
+    if(!mnt_pt) PLFS_EXIT(-ENOENT);
     for(int i = 0; i < pm->backends.size(); i++) {
         path = expandPath(logical,NULL,NULL,NO_HASH,i);
         ret = retValue(Util::Rmdir(path.c_str()));
@@ -878,8 +904,7 @@ plfs_init(PlfsConf *pconf) {
 }
 
 // inserts a mount point into a plfs conf structure
-// also creates a map if one wasn't provided if possible
-// also tokenizes the expected paths
+// also tokenizes the mount point to set up find_mount_point 
 // returns an error string if there's any problems
 string *
 insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt) {
@@ -958,6 +983,7 @@ parse_conf(FILE *fp, string file) {
             pmnt = new PlfsMount;
             pmnt->mnt_pt = value;
             pmnt->statfs = NULL;
+            tokenize(pmnt->mnt_pt,"/",pmnt->mnt_tokens);
         } else if (strcmp(key,"statfs")==0) {
             if( !pmnt ) {
                 pconf->err_msg = new string("No mount point yet declared");
@@ -1826,6 +1852,7 @@ plfs_unlink( const char *logical ) {
         if(ret==0) { // then all the copies spread across backends
             bool mnt_pt;
             PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
+            if(!mnt_pt) PLFS_EXIT(-ENOENT);
             for(int i = 0; i < pm->backends.size(); i++) {
                 path = expandPath(logical,NULL,NULL,NO_HASH,i);
                 if (path!=canonical) { // don't bother removing twice

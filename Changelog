@@ -1,3 +1,11 @@
+~~~ Version 2.0.2
+* Fixed the bug where multiple slashes (e.g. /mnt///plfs) were not working
+in the ADIO path.  They were fine in the FUSE path because FUSE cleans up
+paths for us but in the ADIO path, they were failing because we were just
+using strcmp to test the path against the possible mount points.  Now we
+tokenize and compare each token one by one.  Extra dots in a path 
+(e.g. /mnt/./plfs) still won't work in ADIO.
+
 ~~~ Version 2.0.1
 * Reduced container overhead by 4 files and 2 directories: combined access
 and creator, removed version dir and combined all 3 version files into one,

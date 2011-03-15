@@ -23,6 +23,7 @@ typedef struct {
     string mnt_pt;  // the logical mount point
     string *statfs; // where to resolve statfs calls
     vector<string> backends;    // a list of physical locations 
+    vector<string> mnt_tokens;
 } PlfsMount;
 
 typedef struct {
@@ -44,7 +45,8 @@ typedef struct {
 */
 PlfsConf* get_plfs_conf( );  
 
-PlfsMount * find_mount_point(PlfsConf *pconf, string path, bool &found);
+PlfsMount * find_mount_point(PlfsConf *pconf, const string &path, bool &found);
+PlfsMount * find_mount_point_using_tokens(PlfsConf *, vector <string> &, bool&);
 
 /* plfs_init
     it just warms up the plfs structures used in expandPath

@@ -197,7 +197,8 @@ int Plfs::init( int *argc, char **argv ) {
             pconf->direct_io = 1;
         }
         if ( argv[i][0] != '-' && ! mnt_pt_found ) {
-            pmnt = find_mount_point(pconf,argv[i],mnt_pt_found);
+            string mnt_pt = argv[i];
+            pmnt = find_mount_point(pconf,mnt_pt,mnt_pt_found);
             if ( ! mnt_pt_found ) {
                 fprintf(stderr,"FATAL mount point mismatch: %s not found\n", 
                     argv[i] );
