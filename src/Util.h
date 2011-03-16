@@ -24,6 +24,7 @@
 #include <sys/statvfs.h>
 #include <sys/time.h>
 #include <time.h>
+#include <pthread.h>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
