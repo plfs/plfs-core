@@ -43,6 +43,7 @@
 # autoconf
 ################################################################################
 
+#get some plfs version information
 define([PLFS_VERSION],
        [esyscmd([cat ./VERSION])])
 
@@ -70,7 +71,8 @@ AC_CONFIG_AUX_DIR([config])
 AC_CONFIG_MACRO_DIR([config])
 AC_CONFIG_SRCDIR([src])
 
-AM_INIT_AUTOMAKE([foreign])
+# note: -Wall -Werror are automake options.  they are NOT compiler flags
+AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 
 # check if am_silent_rules rule are supported
 # if so, build using am_silent_rules
@@ -120,7 +122,9 @@ OF SUCH DAMAGE.
 */
 ])
 
+# determine a c compiler to use
 AC_PROG_CC
+AM_PROG_CC_C_O
 AC_PROG_CXX
 AC_PROG_CPP
 AC_PROG_CXXCPP
@@ -131,7 +135,7 @@ AC_PROG_LIBTOOL
 
 AC_CHECK_HEADERS([\
 sys/types.h sys/statvfs.h fcntl.h sys/fsuid.h \
-utime.h sys/time.h sys/param.h sys/mount.h])
+utime.h sys/time.h sys/param.h sys/mount.h limits.h])
 
 # check for some functions that plfs uses
 
@@ -158,6 +162,7 @@ AC_HEADER_STDBOOL
 AC_FUNC_LSTAT_FOLLOWS_SLASHED_SYMLINK
 AC_FUNC_GETGROUPS
 AC_FUNC_CHOWN
+AC_FUNC_STRTOD
 AC_CHECK_MEMBERS([struct stat.st_blksize])
 
 AC_SEARCH_LIBS([gzseek], [z])
