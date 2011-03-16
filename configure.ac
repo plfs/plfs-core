@@ -54,6 +54,9 @@ AC_INIT([PLFS],
         [m4_normalize(esyscmd([echo PLFS_VERSION]))],
         [plfs-devel@lists.sourceforge.net])
 
+# we are using features in 2.60
+AC_PREREQ(2.60)
+
 AC_COPYRIGHT([
 [Copyright 2009-2011 Los Alamos National Security, LLC. All Rights Reserved.]
 ])
@@ -121,6 +124,13 @@ IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
 OF SUCH DAMAGE.
 */
 ])
+
+# This macro was introduced in Autoconf 2.60. If possible, enable extensions to
+# C or Posix on hosts that normally disable the extensions, typically due to
+# standards-conformance namespace issues. This should be called before any
+# macros that run the C compiler. The following preprocessor macros are defined
+# where appropriate:
+AC_USE_SYSTEM_EXTENSIONS
 
 # determine a c compiler to use
 AC_PROG_CC
