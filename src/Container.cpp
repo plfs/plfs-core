@@ -505,6 +505,24 @@ int Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index,string pa
     return ret;
 }
 
+char *Container::version(const string &path) {
+    DIR *dirp;
+    struct dirent *dirent;
+    static char version[1024];
+    int ret = Util::Opendir( path.c_str(), &dirp );
+    if ( dirent == NULL || ret != 0 ) return NULL;
+    while(dirent = readdir(dirp)){
+        if(strncmp(VERSIONPREFIX,dirent->d_name,strlen(VERSIONPREFIX))==0){
+            snprintf(version, 1024, "%s",
+                    &(dirent->d_name)[strlen(VERSIONPREFIX)+1]);
+            break;
+        }
+    }
+    Util::Closedir(dirp);
+
+    return version;
+}
+
 vector<IndexFileInfo> Container::hostdir_index_read(const char *path){
     
     DIR *dirp;

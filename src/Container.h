@@ -124,6 +124,7 @@ class Container {
         static int indexTaskManager(deque<IndexerTask> &tasks,
                                         Index *index,string path);
         static vector<IndexFileInfo> hostdir_index_read(const char *path);
+        static char *version(const string &path);
     private:
             // static stuff
         static int Modify(DirectoryOperation,const string &,uid_t,gid_t,
@@ -132,7 +133,7 @@ class Container {
         static int chownModify(const string &path,uid_t uid,gid_t gid );
         static int createHelper( const string &, const string &, 
                 mode_t mode, int flags, int *extra_attempts, pid_t );
-        static int makeTopLevel( const string &, const string &, mode_t, pid_t );
+        static int makeTopLevel(const string &, const string &, mode_t, pid_t );
         static string getChunkPath( const string &, const string &, 
                 int pid, const char *, double );
         static string chunkPath( const string &hostdir, const char *type, 

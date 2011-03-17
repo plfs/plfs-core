@@ -1716,10 +1716,26 @@ extendFile( Plfs_fd *of, string strPath, off_t offset ) {
     PLFS_EXIT(ret);
 }
 
+int plfs_file_version(const char *logical, char **version) {
+    PLFS_ENTER;
+    mode_t mode;
+    if (!is_plfs_file(logical, &mode)) {
+        return -ENOENT;
+    }
+    *version = Container::version(path);
+    return (*version ? 0 : -ENOENT);
+}
+
 const char *
 plfs_version( ) {
     return STR(SVN_VERSION);
 }
+
+const char *
+plfs_tag() {
+    return STR(TAG_VERSION);
+}
+
 const char *
 plfs_buildtime( ) {
     return __DATE__; 

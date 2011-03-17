@@ -42,6 +42,7 @@
 bin_PROGRAMS = \
 plfs_check_config \
 plfs_map \
+plfs_version \
 plfs_flatten_index
 
 ################################################################################
@@ -72,6 +73,19 @@ plfs_flatten_index_LDFLAGS = \
 -L../src -lplfs \
 @PTHREAD_LIBS@
 
+################################################################################
+# plfs_version
+################################################################################
+plfs_version_SOURCES = \
+plfs_version.C
+
+plfs_version_CXXFLAGS = \
+-I$(top_srcdir)/src \
+@PLFS_DEBUG_CFLAGS@
+
+plfs_version_LDFLAGS = \
+-L../src -lplfs \
+@PTHREAD_LIBS@
 
 ################################################################################
 # plfs_check_config
