@@ -9,7 +9,7 @@ MYNLand more information is available at \
 MYNL.I http\:\/\/institute.lanl.gov\/plfsMYNL
 
 SEEALSOREP = \
-plfs(1), plfs(7), plfs_check_config(1), plfs_flatten_index(1), plfs_map(1)
+plfs(1), plfs(7), plfs_check_config(1), plfs_flatten_index(1), plfs_map(1),plfs_version(1)
 
 SEEALSOREP3 = \
 	plfs(3), \

@@ -509,10 +509,13 @@ char *Container::version(const string &path) {
     DIR *dirp;
     struct dirent *dirent;
     static char version[1024];
+    plfs_debug("%s checking %s\n", __FUNCTION__, path.c_str());
     int ret = Util::Opendir( path.c_str(), &dirp );
-    if ( dirent == NULL || ret != 0 ) return NULL;
+    if ( dirp == NULL || ret != 0 ) return NULL;
     while(dirent = readdir(dirp)){
+        plfs_debug("%s checking %s\n", __FUNCTION__, dirent->d_name);
         if(strncmp(VERSIONPREFIX,dirent->d_name,strlen(VERSIONPREFIX))==0){
+            plfs_debug("%s found %s\n", __FUNCTION__, dirent->d_name);
             snprintf(version, 1024, "%s",
                     &(dirent->d_name)[strlen(VERSIONPREFIX)+1]);
             break;
