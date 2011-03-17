@@ -505,24 +505,48 @@ int Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index,string pa
     return ret;
 }
 
+#define VERSION_LEN 1024
 char *Container::version(const string &path) {
     DIR *dirp;
     struct dirent *dirent;
-    static char version[1024];
+    static char version[VERSION_LEN];
+    version[0] = '\0';
     plfs_debug("%s checking %s\n", __FUNCTION__, path.c_str());
+
+    // first look for the version file idea that we started in 2.0.1
+    bool found = false;
     int ret = Util::Opendir( path.c_str(), &dirp );
     if ( dirp == NULL || ret != 0 ) return NULL;
     while(dirent = readdir(dirp)){
         plfs_debug("%s checking %s\n", __FUNCTION__, dirent->d_name);
         if(strncmp(VERSIONPREFIX,dirent->d_name,strlen(VERSIONPREFIX))==0){
             plfs_debug("%s found %s\n", __FUNCTION__, dirent->d_name);
-            snprintf(version, 1024, "%s",
+            if (strlen(dirent->d_name) == strlen(VERSIONPREFIX)) {
+                // this is the pre 2.0.1 style of multiple files in version dir
+                DIR *dirp2;
+                struct dirent *dirent2;
+                string versiondir = path; 
+                versiondir += "/"; 
+                versiondir += dirent->d_name;
+                ret = Util::Opendir(versiondir.c_str(), &dirp2);
+                if ( ret != 0 ) return NULL;
+                while(dirent2 = readdir(dirp2)){
+                    if ((dirent2->d_name)[0] == '.') continue;
+                    snprintf(&(version[strlen(version)]),
+                        VERSION_LEN-strlen(version), "%s ", dirent2->d_name);
+                }
+                Util::Closedir(dirp2);
+            } else {
+                snprintf(version, VERSION_LEN, "%s",
                     &(dirent->d_name)[strlen(VERSIONPREFIX)+1]);
+            }
+            found = true;
             break;
         }
     }
     Util::Closedir(dirp);
 
+    if( !found ) snprintf(version, VERSION_LEN, "0.1.6");
     return version;
 }
 

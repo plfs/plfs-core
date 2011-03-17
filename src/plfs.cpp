@@ -96,6 +96,7 @@ size_t plfs_gethostdir_id(char *hostname) {
 
 PlfsMount *
 find_mount_point(PlfsConf *pconf, const string &logical, bool &found) {
+    plfs_debug("Searching for mount point matching %s\n", logical.c_str());
     vector<string> logical_tokens;
     tokenize(logical,"/",logical_tokens);
     return find_mount_point_using_tokens(pconf,logical_tokens,found);
@@ -111,12 +112,16 @@ find_mount_point_using_tokens(PlfsConf *pconf,
         for(int i = 0; i < itr->second->mnt_tokens.size(); i++) {
             plfs_debug("%s: %s =?= %s\n", __FUNCTION__,
                     itr->second->mnt_tokens[i].c_str(),logical_tokens[i].c_str());
-            if (itr->second->mnt_tokens[i] != logical_tokens[i]) continue;
+            if (itr->second->mnt_tokens[i] != logical_tokens[i]) {
+                found = false;
+                break;  // return to outer loop, try a different mount point
+            } else {
+                found = true; // so far so good
+            }
         }
         // if we make it here, every token in the mount point matches the
         // corresponding token in the incoming logical path
-        found = true;
-        return itr->second;
+        if (found) return itr->second;
     }
     found = false;
     return NULL;
