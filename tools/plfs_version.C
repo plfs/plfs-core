@@ -6,16 +6,18 @@
 #include "Container.h"
 
 int main (int argc, char **argv) {
-    if (argc>=2 && !strcmp(argv[1],"--help")||!strcmp(argv[1],"-h")) {
-        printf("Usage: %s [filepath]\n", argv[0]);
-        exit(0);
+    if (argc>=2) {
+        if(!strcmp(argv[1],"--help")||!strcmp(argv[1],"-h")) {
+            printf("Usage: %s [filepath]\n", argv[0]);
+            exit(0);
+        }
     }
         // print version that was used to build this
     printf("PLFS library:\n\t%s (SVN %s, Built %s)\n", 
             plfs_tag(), plfs_version(), plfs_buildtime());
 
         // check version of a particular file
-    if (argv[1]) {
+    if (argc>=2 && argv[1]) {
         printf("file: %s\n\t", argv[1]);
         char *version;
         int ret = plfs_file_version(argv[1], &version);
