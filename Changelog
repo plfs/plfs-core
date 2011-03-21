@@ -1,4 +1,7 @@
 ~~~ Version 2.0.2
+* added tools/plfs_version which queries all plfs mountpoints and reports
+their versions.  It also digs into a container and reports the version that
+created a particular plfs file if a target is passed on the command line
 * Fixed the bug where multiple slashes (e.g. /mnt///plfs) were not working
 in the ADIO path.  They were fine in the FUSE path because FUSE cleans up
 paths for us but in the ADIO path, they were failing because we were just
