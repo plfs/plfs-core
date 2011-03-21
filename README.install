@@ -1,6 +1,10 @@
 0) All PLFS installations need a valid plfsrc file.  Check examples to
    create one either in $HOME/.plfsrc or in /etc/plfsrc.  Check it with
-   tools/plfs_check_config after building PLFS.
+   tools/plfs_check_config after building PLFS.  Please note that the
+   'map' directive has been deprecated and is not included in plfsrc's
+   even since 2.0.  All of the documentation should be updated to reflect
+   this.  Any old plfsrc's containing this directive need to be edited
+   beforing updating to 2.0 or above.
 
 1) To install PLFS as a FUSE filesystem.
 
@@ -15,7 +19,8 @@
 2) To install PLFS as a ROMIO ADIO layer for MPI-IO.
 
   This should be straight-forward for openmpi-1.4.3.  For other mpi's, you'll
-  need to adjust accordingly.
+  need to adjust accordingly.  Please note that all other patch files have 
+  been deprecated.  You must use the two patch files below.
   > make install (plfs)
   > get openmpi-1.4.3
   > cd openmpi-1.4.3

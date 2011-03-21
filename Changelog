@@ -16,6 +16,23 @@ do bit's.  Now we do bitmaps ourselves instead of relying on the compiler.
 ~~~ Version 2.0
 * Got the distributed metadata hashing working.  Removed map from plfsrc
 
+~~~ Version 1.1.9
+* got the addMeta to drop a better summary file in global_summary_dir
+* added parallel index read for read open() through ADIO.  This avoids
+the horrible N^2 index read problem that we encounter through FUSE.
+We might eventually need to figure out how to address this in FUSE, but
+for the time being, our current usage model only does parallel IO through
+ADIO so this is sufficient.  Rank 0 reads the subdirs, and farms them
+out to subdir leaders.  Each of those reads the subdirs, and farms out 
+the individual index files to their subdir workers.  Then all the 
+individual index files are read in parallel, compressed up through
+subdir leaders, compressed again to rank 0 who then broadcasts it out
+to all.  This removes ALL redundant activity at the file system by
+transferring a bit more work to the much faster interconnect network.
+* improved the documentation a bit about building plfs-patched MPI's 
+* automated the patch generation for one of our two patches
+* removed a few deprecated calls deep within the Index class (startBuffering)
+
 ~~~ Version 1.1.8
 * Fixed the getattr bug (we were just getting the attr from the openfile
 handle and not getting it from the Container as well).  This made the size
