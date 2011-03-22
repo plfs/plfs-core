@@ -11,12 +11,12 @@ int main (int argc, char **argv) {
         fprintf(stderr, "Usage: %s filename\n", argv[0]);
         exit(-1);
     }
-    int ret = plfs_flatten_index(NULL,target);
+    int ret = plfs_recover(target);
     if ( ret != 0 ) {
-        fprintf( stderr, "Couldn't read index from %s: %s\n", 
+        fprintf( stderr, "Couldn't recover %s: %s\n", 
                 target, strerror(-ret));
     } else {
-        printf("Successfully flattened index of %s\n",target);
+        printf("Successfully recovered %s\n",target);
     }
     exit( ret );
 }

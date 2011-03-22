@@ -549,9 +549,14 @@ plfs_rmdir( const char *logical ) {
     for(unsigned i = 0; i < pm->backends.size(); i++) {
         path = expandPath(logical,NULL,NULL,NO_HASH,i,0);
         ret = retValue(Util::Rmdir(path.c_str()));
-        if(ret==ENOENT) ret = 0;
+        if(ret==ENOENT||ret==-ENOENT) ret = 0;
     }
     PLFS_EXIT(ret);
+}
+
+int
+plfs_recover( const char *logical ) {
+    return -ENOENT;
 }
 
 int

@@ -145,6 +145,12 @@ int plfs_readdir( const char *path, void * );
 
 int plfs_readlink( const char *path, char *buf, size_t bufsize );
 
+/* 
+   recover a lost plfs file (which can happen if plfsrc is ever improperly
+   modified
+*/
+int plfs_recover( const char *path );
+
 int plfs_rename( const char *from, const char *to );
 
 int plfs_rmdir( const char *path );
