@@ -43,6 +43,7 @@ bin_PROGRAMS = \
 plfs_check_config \
 plfs_map \
 plfs_version \
+plfs_recover \
 plfs_flatten_index
 
 ################################################################################
@@ -70,6 +71,20 @@ plfs_flatten_index_CXXFLAGS = \
 @PLFS_DEBUG_CFLAGS@
 
 plfs_flatten_index_LDFLAGS = \
+-L../src -lplfs \
+@PTHREAD_LIBS@
+
+################################################################################
+# plfs_recover
+################################################################################
+plfs_recover_SOURCES = \
+plfs_recover.C
+
+plfs_recover_CXXFLAGS = \
+-I$(top_srcdir)/src \
+@PLFS_DEBUG_CFLAGS@
+
+plfs_recover_LDFLAGS = \
 -L../src -lplfs \
 @PTHREAD_LIBS@
 

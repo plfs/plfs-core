@@ -37,8 +37,10 @@ hashMethod {
 #define PLFS_ENTER PLFS_ENTER2(PLFS_PATH_REQUIRED)
 
 #define PLFS_ENTER2(X) bool is_mnt_pt = false; int ret = 0;\
+ unsigned mnt_pt_cksum = -1; \
  bool expand_error = false; \
- string path = expandPath(logical,&is_mnt_pt,&expand_error,HASH_BY_PATH,-1); \
+ string path = expandPath(logical,&is_mnt_pt,&expand_error,HASH_BY_PATH,-1,\
+         &mnt_pt_cksum); \
  plfs_debug("EXPAND in %s: %s->%s\n",__FUNCTION__,logical,path.c_str()); \
  if (expand_error && X==PLFS_PATH_REQUIRED) PLFS_EXIT(-ENOENT);
 
@@ -109,9 +111,9 @@ find_mount_point_using_tokens(PlfsConf *pconf,
     map<string,PlfsMount*>::iterator itr; 
     for(itr=pconf->mnt_pts.begin(); itr!=pconf->mnt_pts.end(); itr++) {
         if (itr->second->mnt_tokens.size() > logical_tokens.size() ) continue;
-        for(int i = 0; i < itr->second->mnt_tokens.size(); i++) {
+        for(unsigned i = 0; i < itr->second->mnt_tokens.size(); i++) {
             plfs_debug("%s: %s =?= %s\n", __FUNCTION__,
-                    itr->second->mnt_tokens[i].c_str(),logical_tokens[i].c_str());
+                  itr->second->mnt_tokens[i].c_str(),logical_tokens[i].c_str());
             if (itr->second->mnt_tokens[i] != logical_tokens[i]) {
                 found = false;
                 break;  // return to outer loop, try a different mount point
@@ -130,7 +132,7 @@ find_mount_point_using_tokens(PlfsConf *pconf,
 // takes a logical path and returns a physical one
 string
 expandPath(string logical, bool *mount_point, bool *expand_error, 
-        hashMethod hash_method, int which_backend ) 
+        hashMethod hash_method, int which_backend, unsigned *mnt_pt_cksum ) 
 {
     // get our initial conf
     static PlfsConf *pconf = NULL;
@@ -157,10 +159,13 @@ expandPath(string logical, bool *mount_point, bool *expand_error,
         return "PLFS_NO_MOUNT_POINT_FOUND";
     }
 
+    // remember the checksum
+    if(mnt_pt_cksum) *mnt_pt_cksum = pm->checksum;
+
     // set remaining to the part of logical after the mnt_pt 
     string remaining = "/";
     plfs_debug("Trim mnt %s from path %s\n",pm->mnt_pt.c_str(),logical.c_str());
-    for(int i = pm->mnt_tokens.size(); i < logical_tokens.size(); i++ ) {
+    for(unsigned i = pm->mnt_tokens.size(); i < logical_tokens.size(); i++ ) {
         remaining += "/";
         remaining += logical_tokens[i]; 
     }
@@ -247,6 +252,7 @@ plfs_dump_config(int check_dirs) {
                 ret = plfs_check_dir("statfs",pmnt->statfs->c_str(),ret); 
             }
         }
+        cout << "\tChecksum: " << pmnt->checksum << endl;
     }
     return ret;
 }
@@ -329,7 +335,7 @@ plfs_create( const char *logical, mode_t mode, int flags, pid_t pid ) {
     int attempt = 0;
     ret = 0; // suppress compiler warning
     return Container::create(path,Util::hostname(),mode,flags,
-            &attempt,pid);
+            &attempt,pid,mnt_pt_cksum);
 }
 
 // this code is where the magic lives to get the distributed hashing
@@ -356,7 +362,7 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
         // container which was already hashed by filename
         char *hostname = Util::hostname();
         string hash_by_node = 
-            expandPath(logical,NULL,NULL,HASH_BY_NODE,-1); 
+            expandPath(logical,NULL,NULL,HASH_BY_NODE,-1,0); 
         plfs_debug("Making hostdir for %s at %s\n",logical.c_str(),
                 hash_by_node.c_str());
         ret = Container::makeHostDir(hash_by_node, 
@@ -370,7 +376,7 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
         string hostdir_after_container = 
             hostdir_full.substr(hash_by_node.size(),string::npos);
         string hash_by_path = 
-            expandPath(logical,NULL,NULL,HASH_BY_PATH,-1);
+            expandPath(logical,NULL,NULL,HASH_BY_PATH,-1,0);
         hash_by_path +=  "/";
         hash_by_path += hostdir_after_container;
         plfs_debug("Need to link %s into %s (hostdir ret %d)\n", 
@@ -512,8 +518,8 @@ plfs_readdir( const char *logical, void *vptr ) {
     bool mnt_pt;
     PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
     if(!mnt_pt) PLFS_EXIT(-ENOENT);
-    for(int i = 0; i < pm->backends.size(); i++) {
-        path = expandPath(logical,NULL,NULL,NO_HASH,i);
+    for(unsigned i = 0; i < pm->backends.size(); i++) {
+        path = expandPath(logical,NULL,NULL,NO_HASH,i,0);
         ret = plfs_readdir_helper(path.c_str(),vptr);
     }
     PLFS_EXIT(ret);
@@ -526,8 +532,8 @@ plfs_mkdir( const char *logical, mode_t mode ) {
     bool mnt_pt;
     PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
     if(!mnt_pt) PLFS_EXIT(-ENOENT);
-    for(int i = 0; i < pm->backends.size(); i++) {
-        path = expandPath(logical,NULL,NULL,NO_HASH,i);
+    for(unsigned i = 0; i < pm->backends.size(); i++) {
+        path = expandPath(logical,NULL,NULL,NO_HASH,i,0);
         ret = retValue(Util::Mkdir(path.c_str(),mode));
     }
     PLFS_EXIT(ret);
@@ -540,8 +546,8 @@ plfs_rmdir( const char *logical ) {
     bool mnt_pt;
     PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
     if(!mnt_pt) PLFS_EXIT(-ENOENT);
-    for(int i = 0; i < pm->backends.size(); i++) {
-        path = expandPath(logical,NULL,NULL,NO_HASH,i);
+    for(unsigned i = 0; i < pm->backends.size(); i++) {
+        path = expandPath(logical,NULL,NULL,NO_HASH,i,0);
         ret = retValue(Util::Rmdir(path.c_str()));
         if(ret==ENOENT) ret = 0;
     }
@@ -904,7 +910,7 @@ plfs_init(PlfsConf *pconf) {
     map<string,PlfsMount*>::iterator itr = pconf->mnt_pts.begin();
     if (itr==pconf->mnt_pts.end()) return false;
     bool expand_error = false;
-    expandPath(itr->first,NULL,&expand_error,HASH_BY_PATH,-1);
+    expandPath(itr->first,NULL,&expand_error,HASH_BY_PATH,-1,0);
     return(expand_error ? false : true);
 }
 
@@ -1002,6 +1008,7 @@ parse_conf(FILE *fp, string file) {
             }
             plfs_debug("Gonna tokenize %s\n", value);
             tokenize(value,",",pmnt->backends); 
+            pmnt->checksum = (unsigned)Container::hashValue(value);
         } else {
             ostringstream error_msg;
             error_msg << "Unknown key " << key;
@@ -1084,7 +1091,7 @@ get_plfs_conf() {
 
 // Here are all of the parindex read functions
 int plfs_expand_path(char *logical,char **physical){
-    PLFS_ENTER;
+    PLFS_ENTER; (void)ret; // suppress compiler warning
     *physical = (char *)malloc(sizeof(char)*path.size()+1);
     strcpy(*physical,path.c_str());
     return 0;
@@ -1103,8 +1110,8 @@ int plfs_hostdir_rddir(void **index_stream,char *targets,int rank,
 
     // Path is extremely important when converting to stream
     Index global(top_level);
-    int count=0;
-    while(count<directories.size()){
+    unsigned count=0;
+    while(count<directories.size()){  // why isn't this a for loop?
         path=directories[count];
         index_droppings=Container::hostdir_index_read(path.c_str());
         index_droppings.erase(index_droppings.begin());
@@ -1388,7 +1395,7 @@ plfs_symlink(const char *logical, const char *to) {
     PLFS_ENTER2(PLFS_PATH_NOTREQUIRED);
 
     bool expand_error2 = false;
-    string topath = expandPath(to, NULL,&expand_error2,HASH_BY_PATH,-1);
+    string topath = expandPath(to, NULL,&expand_error2,HASH_BY_PATH,-1,0);
     if (expand_error2) PLFS_EXIT(-ENOENT);
     
     ret = retValue(Util::Symlink(logical,topath.c_str()));
@@ -1433,7 +1440,7 @@ int
 plfs_rename( const char *logical, const char *to ) {
     PLFS_ENTER;
     bool expand_error2 = false;
-    string topath = expandPath(to, NULL,&expand_error2,HASH_BY_PATH,-1);
+    string topath = expandPath(to, NULL,&expand_error2,HASH_BY_PATH,-1,0);
     //if (expand_error2) PLFS_EXIT(-ENOENT);
 
     if ( is_plfs_file( to, NULL ) ) {
@@ -1722,7 +1729,7 @@ extendFile( Plfs_fd *of, string strPath, off_t offset ) {
 }
 
 int plfs_file_version(const char *logical, char **version) {
-    PLFS_ENTER;
+    PLFS_ENTER; (void)ret; // suppress compiler warning
     mode_t mode;
     if (!is_plfs_file(logical, &mode)) {
         return -ENOENT;
@@ -1874,8 +1881,8 @@ plfs_unlink( const char *logical ) {
             bool mnt_pt;
             PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
             if(!mnt_pt) PLFS_EXIT(-ENOENT);
-            for(int i = 0; i < pm->backends.size(); i++) {
-                path = expandPath(logical,NULL,NULL,NO_HASH,i);
+            for(unsigned i = 0; i < pm->backends.size(); i++) {
+                path = expandPath(logical,NULL,NULL,NO_HASH,i,0);
                 if (path!=canonical) { // don't bother removing twice
                     ret = plfs_remove_container(path);
                     plfs_debug("Removed non-canonical container %s: %d\n",

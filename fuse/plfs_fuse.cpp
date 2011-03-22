@@ -1086,8 +1086,9 @@ string Plfs::confToString( PlfsConf *p, PlfsMount *pmnt ) {
     for ( itr = pmnt->backends.begin(); itr != pmnt->backends.end(); itr++ ) {
         oss << *itr << ",";
     }
-    oss << endl;
-    oss << "Threadpool size: " << p->threadpool_size << endl
+    oss << endl
+        << "Backend checksum: " << pmnt->checksum << endl
+        << "Threadpool size: " << p->threadpool_size << endl
         << "Max hostdirs per container: " << p->num_hostdirs << endl;
     return oss.str();
 }

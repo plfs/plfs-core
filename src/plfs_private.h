@@ -24,6 +24,7 @@ typedef struct {
     string *statfs; // where to resolve statfs calls
     vector<string> backends;    // a list of physical locations 
     vector<string> mnt_tokens;
+    unsigned checksum;
 } PlfsMount;
 
 typedef struct {

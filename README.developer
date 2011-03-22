@@ -1,0 +1,26 @@
+0) CODING STYLE
+4 space wide soft tabs
+don't go over 80 chars wide on a line
+never cut and paste more than 2 lines of code.  use a function.
+good use of whitespace
+good comments.  don't comment obvious stuff, explain complicated stuff
+
+1) AUTOGEN
+./autogen.sh is not your friend.  Very strict requirements.  Makefile.tools
+is your friend.  Do 'make -f Makefile.tools' to install all the necessary
+build tools into ./buildtools/bin.  Then prepend that to your PATH and
+then ./autogen.sh will just work.
+
+2) CONFIGURE
+./easyconf.sh is your friend.  Here are the environment variables I set:
+
+setenv PLFS_WANT_ALL_DEBUG 1
+setenv PLFS_WANT_DEBUG_FLAGS 1
+setenv PLFS_WANT_VERBOSE_CONF_OUT 1 
+setenv PLFS_WANT_ADIO 0
+# treat all build warnings as errors.  No build warnings!
+setenv CFLAGS '-Wall -Werror'
+setenv CXXFLAGS '-Wall -Werror'
+
+Notice especially the bottom two.  We want warning free code so print out
+all warnings and treat them as errors.

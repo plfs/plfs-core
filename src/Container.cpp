@@ -1078,7 +1078,8 @@ int Container::getattr( const string &path, struct stat *stbuf ) {
 // the existence of the access file
 // returns -errno or 0
 int Container::makeTopLevel( const string &expanded_path,  
-        const string &hostname, mode_t mode, pid_t pid )
+        const string &hostname, mode_t mode, pid_t pid, 
+        unsigned mnt_pt_checksum )
 {
     /*
         // ok, instead of mkdir tmp ; chmod tmp ; rename tmp top
@@ -1196,7 +1197,8 @@ int Container::makeTopLevel( const string &expanded_path,
             oss2 << expanded_path << "/" << VERSIONPREFIX
                  << "-tag." << STR(TAG_VERSION)
                  << "-svn." << STR(SVN_VERSION)
-                 << "-dat." << STR(DATA_VERSION);
+                 << "-dat." << STR(DATA_VERSION)
+                 << "-chk." << mnt_pt_checksum;
             if (makeDropping(oss2.str()) < 0) {
                 return -errno;
             }
@@ -1332,7 +1334,8 @@ mode_t Container::containerMode( mode_t mode ) {
 }
 
 int Container::createHelper(const string &expanded_path, const string &hostname,
-        mode_t mode, int flags, int *extra_attempts, pid_t pid ) 
+        mode_t mode, int flags, int *extra_attempts, pid_t pid, 
+        unsigned mnt_pt_cksum ) 
 {
     // TODO we're in a mutex here so only one thread will
     // make the dir, and the others will stat it
@@ -1347,7 +1350,7 @@ int Container::createHelper(const string &expanded_path, const string &hostname,
         plfs_debug("Making top level container %s %x\n", 
                 expanded_path.c_str(),mode);
         begin_time = time(NULL);
-        res = makeTopLevel( expanded_path, hostname, mode, pid );
+        res = makeTopLevel( expanded_path, hostname, mode, pid, mnt_pt_cksum );
         end_time = time(NULL);
         if ( end_time - begin_time > 2 ) {
             plfs_debug("WTF: TopLevel create of %s took %.2f\n", 
@@ -1380,12 +1383,13 @@ int Container::createHelper(const string &expanded_path, const string &hostname,
 // This should be in a mutex if multiple procs on the same node try to create
 // it at the same time
 int Container::create( const string &expanded_path, const string &hostname,
-        mode_t mode, int flags, int *extra_attempts, pid_t pid ) 
+        mode_t mode, int flags, int *extra_attempts, pid_t pid,
+        unsigned mnt_pt_cksum ) 
 {
     int res = 0;
     do {
         res = createHelper(expanded_path, hostname, mode,flags,extra_attempts,
-                pid);
+                pid, mnt_pt_cksum);
         if ( res != 0 ) {
             if ( errno != EEXIST && errno != ENOENT && errno != EISDIR
                     && errno != ENOTEMPTY ) 

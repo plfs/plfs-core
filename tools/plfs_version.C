@@ -30,7 +30,7 @@ int main (int argc, char **argv) {
 
         // search each mountpoint
     FILE *fpipe;
-    char *command="mount";
+    const char *command="mount";
     char line[256];
     if ( !(fpipe = (FILE*)popen(command,"r")) ) {
         perror("Problems with pipe");
@@ -51,7 +51,10 @@ int main (int argc, char **argv) {
                     exit(1);
                 } 
                 while( fgets(line2, sizeof line2, fpipe2) ) {
-                    if(strstr(line2,"Version")||strstr(line2,"Build")) {
+                    if(strstr(line2,"Version")
+                            ||strstr(line2,"Build")
+                            ||strstr(line2,"checksum"))
+                    {
                         printf("\t%s",line2);
                     }
                 }

@@ -6,6 +6,7 @@ plfs_cmd_man_pages = \
 	man1/plfs.1 \
 	man1/plfs_check_config.1 \
 	man1/plfs_flatten_index.1 \
+	man1/plfs_recover.1 \
 	man1/plfs_version.1 \
 	man1/plfs_map.1
 

@@ -1,0 +1,21 @@
+#COPYRIGHT#
+.TH plfs_map 1 12/3/2010 "#PACKAGE_STRING#" 
+.SH NAME
+plfs_recover
+.SH SYNOPSIS
+.B ./plfs_recover <
+.I file
+.B .
+
+.SH DESCRIPTION
+This utility attempts to recover a lost PLFS file.  PLFS files shouldn't be
+lost but if the set of backends for an existing mount point is ever modified
+in the plfsrc, then PLFS files can be lost.  They will show up in a readdir()
+but will return ENOENT on a stat().  This utility will recover the file. 
+
+.SH AUTHORS
+#AUTHORS#
+
+.SH SEE ALSO
+#SEEALSO#
+
