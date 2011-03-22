@@ -310,7 +310,8 @@ plfs_chmod_cleanup(const char *logical,mode_t mode ) {
     PLFS_EXIT( ret );
 }
 
-int plfs_chown_cleanup (const char *logical,uid_t uid,gid_t gid ) {
+int 
+plfs_chown_cleanup (const char *logical,uid_t uid,gid_t gid ) {
     PLFS_ENTER;
     if ( is_plfs_file( logical, NULL )) {
         ret = Container::cleanupChown( path, uid, gid);
@@ -554,9 +555,139 @@ plfs_rmdir( const char *logical ) {
     PLFS_EXIT(ret);
 }
 
+// this is a bit of a crazy function.  Basically, it's for the case where
+// someone changed the set of backends for an existing mount point.  They
+// shouldn't ever do this!  But if they do, what will happen is that they
+// will see their file on a readdir() but on a stat() they'll either get
+// ENOENT because there is nothing at the new canonical location, or they'll
+// see the shadow container which looks like a directory to them.  So this
+// function makes it so that a plfs file that had a different previous 
+// canonical location is now recovered to the new canonical location.  
+// hopefully it always works but it won't currently work across different
+// file systems because it uses rename()
 int
 plfs_recover( const char *logical ) {
-    return -ENOENT;
+    PLFS_ENTER;
+    string canonical = path;
+    string former;
+    mode_t canonical_mode = 0, former_mode = 0;
+
+    // first check whether the thing is already at the correct
+    // canonical location
+    plfs_debug("%s Canonical location should be %s\n", __FUNCTION__,
+            canonical.c_str());
+    ret = (int) Container::isContainer(path,&canonical_mode); 
+    if ( ret ) {
+        plfs_debug("%s %s is already in canonical location\n",__FUNCTION__,
+                canonical.c_str());
+        PLFS_EXIT(0);
+    }
+    plfs_debug("%s %s is not in canonical location\n",__FUNCTION__,logical);
+
+    // ok, it's not at the canonical location
+    // check all the other backends to see if they have the plfs file
+    // after first making sure we can find a mount point for this path
+    bool mnt_pt;
+    PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
+    if(!mnt_pt) PLFS_EXIT(-ENOENT);
+
+    ret = 0; // assume we don't find it
+    for(unsigned i = 0; i < pm->backends.size(); i++) {
+        path = expandPath(logical,NULL,NULL,NO_HASH,i,0);
+        plfs_debug("%s Does canonical exist at %s?\n", __FUNCTION__, 
+                path.c_str());
+        ret = (int) Container::isContainer(path,&former_mode);
+        if ( ret ) {
+            former = path;
+            plfs_debug("%s %s is location of old canonical\n", __FUNCTION__,
+                    __FUNCTION__, former.c_str());
+            break;
+        }
+    }
+    if ( ! ret ) { // someone passed in a bogus path.  
+        PLFS_EXIT(-ENOENT);
+    }
+
+    // if we make it here, we found a plfs container for this file but
+    // not at the proper canonical location.  First of all make sure the
+    // directory hierarchy is in place at the canonical location (if 
+    // the plfsrc was modified by adding backends, it's possible that the
+    // directory hierarchy is not present on the new backends)
+    plfs_debug("%s need to transfer %s from %s into %s\n",
+            __FUNCTION__, logical, former.c_str(), canonical.c_str());
+
+    // ok, this is a bit nasty.  It's possible that the path to the damn
+    // thing isn't instantiated.  If they did mkdir() with the old plfsrc
+    // and then added backends, some of the backends won't have the full
+    // directory hierarchy in place.  Let's make them now.  Go ahead and
+    // make everything up to and including the container.  This simplifies
+    // the code below.
+    string recover_path; 
+    vector<string> canonical_tokens;
+    tokenize(canonical,"/",canonical_tokens);
+    for(size_t i=0 ; i < canonical_tokens.size(); i++){
+        recover_path += "/";
+        recover_path += canonical_tokens[i];
+        ret = Util::Mkdir(recover_path.c_str(),DEFAULT_MODE);
+        if ( ret != 0 && errno != EEXIST ) { // some other error
+            PLFS_EXIT(-errno);
+        }
+    }
+
+    // there are two possibilities here.  One is that the correct canonical
+    // location already contains a shadow container.  Or it was empty.  But
+    // up above, we did mkdir's all the way up to and including the correct
+    // canonical location.  This means that at this point there is a directory
+    // at the canonical location.  So all we have to do is a readdir on the
+    // former and rename everything into canonical.  This won't work when 
+    // the backends are on different filesystems.  Blech.  Deal with that later.
+    DIR *dir;
+    struct dirent *ent;
+    ret = Util::Opendir( former.c_str(), &dir );
+    if ( dir == NULL ) PLFS_EXIT(-errno); 
+
+    while( (ent = readdir( dir ) ) != NULL ) {
+        if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, "..")) continue;
+            //plfs_debug("skipping %s\n", ent->d_name );
+        string new_path, old_path;
+        old_path = former;    old_path += "/"; old_path += ent->d_name;
+        new_path = canonical; new_path += "/"; new_path += ent->d_name;
+        ret = Util::Rename(old_path.c_str(),new_path.c_str());
+        if (ret != 0) {
+            if ( errno == EEXIST ) {
+                // ignore any renames that fail due to EEXIST.  This probably
+                // means that there was a symlink in the former pointing to
+                // a physical hostdir in the canonical.  That's fine.  It will
+                // be restored without moving this symlink since the physical
+                // is just as good.
+                // however, there is some really crazy pathological case where
+                // a plfs file is recovered multiple times and renamed back and
+                // forth where old symlinks are gonna break things.  So if
+                // the rename fails, try to unlink this entry so that if the
+                // file is ever recovered back to the former (ugh) that old
+                // symlinks won't be problematic.  If it's actually a physical
+                // hostdir, the unlink will (and should fail) and hopefully
+                // the reason that the rename failed is that there is a symlink
+                // at canonical pointing here.....
+                ret = 0;
+                Util::Unlink(old_path.c_str());
+            } else {
+                ret = -errno;
+                break;
+            }
+        }
+    }
+    if ( Util::Closedir( dir ) != 0 ) {
+        ret = -errno;
+    }
+
+    if ( ret != 0 ) {
+        printf("Unable to recover %s.\nYou may be able to recover the file"
+                " by manually moving %s to %s\n", logical, 
+                former.c_str(),
+                canonical.c_str());
+    }
+    PLFS_EXIT(ret);
 }
 
 int
@@ -1588,7 +1719,7 @@ removeDirectoryTree( const char *path, bool truncate_only ) {
             }
         }
     }
-    if ( closedir( dir ) != 0 ) {
+    if ( Util::Closedir( dir ) != 0 ) {
         ret = -errno;
     }
 
