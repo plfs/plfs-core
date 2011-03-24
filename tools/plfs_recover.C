@@ -12,11 +12,19 @@ int main (int argc, char **argv) {
         exit(-1);
     }
     int ret = plfs_recover(target);
-    if ( ret != 0 ) {
-        fprintf( stderr, "Couldn't recover %s: %s\n", 
-                target, strerror(-ret));
-    } else {
-        printf("Successfully recovered %s\n",target);
+    switch(ret) {
+        case 0:
+            printf("Successfully recovered %s\n",target);
+            break;
+        case -EEXIST:
+            printf("%s already exists.\n",target);
+            ret = 0;
+            break;
+        default:
+            fprintf(stderr, "Couldn't recover %s: %s\n"
+                "If it's a file, you might need to first %s its parent dir.\n",
+                target,strerror(-ret),argv[0],argv[0]);
+            break;
     }
     exit( ret );
 }

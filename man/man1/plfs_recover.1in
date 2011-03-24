@@ -8,10 +8,13 @@ plfs_recover
 .B .
 
 .SH DESCRIPTION
-This utility attempts to recover a lost PLFS file.  PLFS files shouldn't be
-lost but if the set of backends for an existing mount point is ever modified
-in the plfsrc, then PLFS files can be lost.  They will show up in a readdir()
-but will return ENOENT on a stat().  This utility will recover the file. 
+This utility attempts to recover a lost PLFS file or directory.  PLFS files
+shouldn't be lost but if the set of backends for an existing mount point is
+ever modified in the plfsrc, then PLFS files can be lost.  They will show up in
+a readdir() but will return ENOENT on a stat().  This utility will recover the
+file.  If plfs_recover ever successfully reports that a file was recovered but
+the file remains invisible, then plfs_recover should be used to recover every
+directory component of the file starting at the plfs mount point.
 
 .SH AUTHORS
 #AUTHORS#

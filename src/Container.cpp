@@ -121,6 +121,7 @@ bool Container::isContainer( const string &physical_path, mode_t *mode ) {
                     physical_path.c_str());
             string accessfile = getAccessFilePath(physical_path); 
             ret = Util::Lstat( accessfile.c_str(), &buf );
+            if ( ret == 0 && mode ) *mode = S_IFREG; 
             return ( ret == 0 ? true : false );    
         } else {
             // it's a regular file, or a link, or something

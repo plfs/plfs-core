@@ -154,7 +154,7 @@ expandPath(string logical, bool *mount_point, bool *expand_error,
     PlfsMount *pm = find_mount_point_using_tokens(pconf,logical_tokens,
             mnt_pt_found);
     if(!mnt_pt_found) {
-        fprintf(stderr,"No mount point for %s\n", logical.c_str());
+        fprintf(stderr,"ERROR: %s is not on a PLFS mount.\n", logical.c_str());
         if(expand_error) *expand_error = true;
         return "PLFS_NO_MOUNT_POINT_FOUND";
     }
@@ -452,7 +452,7 @@ plfs_access( const char *logical, int mask ) {
     mode_t mode = 0;
     if ( is_plfs_file( logical, &mode ) ) {
         ret = retValue( Container::Access( path, mask ) );
-        assert(ret!=-20);
+        assert(ret!=-20);   // wtf is this?
     } else {
         if ( mode == 0 ) ret = -ENOENT;
         else ret = retValue( Util::Access( path.c_str(), mask ) );
@@ -504,10 +504,10 @@ plfs_readdir_helper( const char *physical, void *vptr ) {
             plfs_debug("Pushing %s into readdir for %s\n",de->d_name,physical);
             dents->insert(de->d_name);
         }
+        Util::Closedir( dp );
     } else {
         ret = -errno;
     }
-    Util::Closedir( dp );
     return ret;
 }
 
@@ -517,12 +517,19 @@ int
 plfs_readdir( const char *logical, void *vptr ) {
     PLFS_ENTER;
     bool mnt_pt;
+    bool found = false;
     PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
     if(!mnt_pt) PLFS_EXIT(-ENOENT);
     for(unsigned i = 0; i < pm->backends.size(); i++) {
         path = expandPath(logical,NULL,NULL,NO_HASH,i,0);
         ret = plfs_readdir_helper(path.c_str(),vptr);
+        if ( ret == 0 ) found = true;
     }
+    if ( ret == -ENOENT && found ) ret = 0; // one backend didn't exist
+                                            // this is a bit weird but
+                                            // possible if backends are modified
+                                            // which they NEVER should be
+                                            // but just in case
     PLFS_EXIT(ret);
 }
 
@@ -531,16 +538,26 @@ int
 plfs_mkdir( const char *logical, mode_t mode ) {
     PLFS_ENTER;
     bool mnt_pt;
+    bool success = false;
     PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
     if(!mnt_pt) PLFS_EXIT(-ENOENT);
     for(unsigned i = 0; i < pm->backends.size(); i++) {
         path = expandPath(logical,NULL,NULL,NO_HASH,i,0);
         ret = retValue(Util::Mkdir(path.c_str(),mode));
+        if ( ret == 0 ) success = true;
     }
+    // it's possible that multiple backends get inconsistent
+    // it SHOULDN'T happen but maybe users break rules by mucking with
+    // backends or by editing the set of backends for an existing mount
+    // in the plfsrc
+    if (success = true) ret = 0;
     PLFS_EXIT(ret);
 }
 
 // this has to iterate over the backends and remove it everywhere
+// possible with multiple backends that some are empty and some aren't
+// so if we delete some and then later discover that some aren't empty
+// we need to restore them all
 int
 plfs_rmdir( const char *logical ) {
     PLFS_ENTER;
@@ -551,25 +568,80 @@ plfs_rmdir( const char *logical ) {
         path = expandPath(logical,NULL,NULL,NO_HASH,i,0);
         ret = retValue(Util::Rmdir(path.c_str()));
         if(ret==ENOENT||ret==-ENOENT) ret = 0;
+        if(ret==ENOTEMPTY||ret==-ENOTEMPTY) {
+            if (i>0) { // ugh, deleted some and discovered some weren't empty
+                mode_t mode = Container::getmode(path); // get mode 
+                plfs_debug("Incorrectly began removing a non-empty directory "
+                        "%s.  Will now restore.\n",logical);
+                plfs_mkdir(logical,mode); // restore them all
+                PLFS_EXIT(-ENOTEMPTY);
+            }
+        }
     }
     PLFS_EXIT(ret);
 }
 
+// this code just iterates up a path and makes sure all the component 
+// directories exist.  It's not particularly efficient since it starts
+// at the beginning and works up and many of the dirs probably already 
+// do exist
+// currently this function is just used by plfs_recover
+// returns 0 or -errno
+int
+mkdir_dash_p(const string &path) {
+    // ok, this is a bit nasty.  It's possible that the path to the damn
+    // thing isn't instantiated.  If they did mkdir() with the old plfsrc
+    // and then added backends, some of the backends won't have the full
+    // directory hierarchy in place.  Let's make them now.  Go ahead and
+    // make everything up to and including the container.  This simplifies
+    // the code below.
+    string recover_path; 
+    vector<string> canonical_tokens;
+    plfs_debug("%s on %s\n",__FUNCTION__,path.c_str());
+    tokenize(path,"/",canonical_tokens);
+    for(size_t i=0 ; i < canonical_tokens.size(); i++){
+        recover_path += "/";
+        recover_path += canonical_tokens[i];
+        int ret = Util::Mkdir(recover_path.c_str(),DEFAULT_MODE);
+        if ( ret != 0 && errno != EEXIST ) { // some other error
+            return -errno;
+        }
+    }
+    return 0;
+}
+
+// restores a lost directory hierarchy
+// currently just used in plfs_recover.  See more comments there
+// returns 0 or -errno
+int
+recover_directory(const char *logical) {
+    bool mnt_pt;
+    int ret = 0;
+    PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
+    if(!mnt_pt) PLFS_EXIT(-ENOENT);
+
+    // now we need to do mkdir_dash_p for each backend
+    for(unsigned i = 0; i < pm->backends.size(); i++) {
+        ret = mkdir_dash_p(expandPath(logical,NULL,NULL,NO_HASH,i,0));
+    }
+    return ret;    
+}
+
 // this is a bit of a crazy function.  Basically, it's for the case where
 // someone changed the set of backends for an existing mount point.  They
-// shouldn't ever do this!  But if they do, what will happen is that they
-// will see their file on a readdir() but on a stat() they'll either get
-// ENOENT because there is nothing at the new canonical location, or they'll
-// see the shadow container which looks like a directory to them.  So this
-// function makes it so that a plfs file that had a different previous 
-// canonical location is now recovered to the new canonical location.  
-// hopefully it always works but it won't currently work across different
-// file systems because it uses rename()
-int
-plfs_recover( const char *logical ) {
-    PLFS_ENTER;
+// shouldn't ever do this, so hopefully this code is never used!  But if they
+// do, what will happen is that they will see their file on a readdir() but on
+// a stat() they'll either get ENOENT because there is nothing at the new
+// canonical location, or they'll see the shadow container which looks like a
+// directory to them.  So this function makes it so that a plfs file that had a
+// different previous canonical location is now recovered to the new canonical
+// location.  hopefully it always works but it won't currently work across
+// different file systems because it uses rename()
+// returns 0 or -errno (-EEXIST means it didn't need to be recovered)
+int plfs_recover( const char *logical ) { 
+    PLFS_ENTER; 
     string canonical = path;
-    string former;
+    string former; 
     mode_t canonical_mode = 0, former_mode = 0;
 
     // first check whether the thing is already at the correct
@@ -577,10 +649,15 @@ plfs_recover( const char *logical ) {
     plfs_debug("%s Canonical location should be %s\n", __FUNCTION__,
             canonical.c_str());
     ret = (int) Container::isContainer(path,&canonical_mode); 
-    if ( ret ) {
+    if ( ret || S_ISDIR(canonical_mode)) {
         plfs_debug("%s %s is already in canonical location\n",__FUNCTION__,
                 canonical.c_str());
-        PLFS_EXIT(0);
+        if (S_ISDIR(canonical_mode)) {
+            // it might be at canonical location but it needs to be at all
+            // locations as well
+            recover_directory(logical);    
+        }
+        PLFS_EXIT(-EEXIST);
     }
     plfs_debug("%s %s is not in canonical location\n",__FUNCTION__,logical);
 
@@ -591,49 +668,35 @@ plfs_recover( const char *logical ) {
     PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
     if(!mnt_pt) PLFS_EXIT(-ENOENT);
 
-    ret = 0; // assume we don't find it
+    bool isdir = false;  // possible we find it and it's a directory
+    bool isfile = false; // possible we find it and it's a container
+    bool found = false;  // possible it doesn't exist
     for(unsigned i = 0; i < pm->backends.size(); i++) {
         path = expandPath(logical,NULL,NULL,NO_HASH,i,0);
         plfs_debug("%s Does canonical exist at %s?\n", __FUNCTION__, 
                 path.c_str());
         ret = (int) Container::isContainer(path,&former_mode);
+        if ( S_ISDIR(former_mode) ) isdir = found = true;
         if ( ret ) {
+            isfile = found = true;
             former = path;
             plfs_debug("%s %s is location of old canonical\n", __FUNCTION__,
-                    __FUNCTION__, former.c_str());
+                    former.c_str());
             break;
         }
     }
-    if ( ! ret ) { // someone passed in a bogus path.  
+    if ( ! found ) { // someone passed in a bogus path
         PLFS_EXIT(-ENOENT);
     }
 
-    // if we make it here, we found a plfs container for this file but
-    // not at the proper canonical location.  First of all make sure the
-    // directory hierarchy is in place at the canonical location (if 
-    // the plfsrc was modified by adding backends, it's possible that the
-    // directory hierarchy is not present on the new backends)
-    plfs_debug("%s need to transfer %s from %s into %s\n",
-            __FUNCTION__, logical, former.c_str(), canonical.c_str());
-
-    // ok, this is a bit nasty.  It's possible that the path to the damn
-    // thing isn't instantiated.  If they did mkdir() with the old plfsrc
-    // and then added backends, some of the backends won't have the full
-    // directory hierarchy in place.  Let's make them now.  Go ahead and
-    // make everything up to and including the container.  This simplifies
-    // the code below.
-    string recover_path; 
-    vector<string> canonical_tokens;
-    tokenize(canonical,"/",canonical_tokens);
-    for(size_t i=0 ; i < canonical_tokens.size(); i++){
-        recover_path += "/";
-        recover_path += canonical_tokens[i];
-        ret = Util::Mkdir(recover_path.c_str(),DEFAULT_MODE);
-        if ( ret != 0 && errno != EEXIST ) { // some other error
-            PLFS_EXIT(-errno);
-        }
-    }
-
+    // if we make it here, we found a plfs container for this file or a
+    // directory but not at the proper canonical location.  First of all make
+    // sure the directory hierarchy is in place at the canonical location. 
+    // If we're just recovering a logical directory, just make sure it exists
+    // everywhere
+    if ( (ret = mkdir_dash_p(canonical)) != 0 ) PLFS_EXIT(ret);
+    if (isdir && !isfile) PLFS_EXIT(recover_directory(logical));
+        
     // there are two possibilities here.  One is that the correct canonical
     // location already contains a shadow container.  Or it was empty.  But
     // up above, we did mkdir's all the way up to and including the correct
@@ -641,6 +704,8 @@ plfs_recover( const char *logical ) {
     // at the canonical location.  So all we have to do is a readdir on the
     // former and rename everything into canonical.  This won't work when 
     // the backends are on different filesystems.  Blech.  Deal with that later.
+    plfs_debug("%s need to transfer %s from %s into %s\n",
+            __FUNCTION__, logical, former.c_str(), canonical.c_str());
     DIR *dir;
     struct dirent *ent;
     ret = Util::Opendir( former.c_str(), &dir );
