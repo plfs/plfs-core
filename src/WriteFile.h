@@ -35,6 +35,7 @@ class WriteFile : public Metadata {
         int addWriter( pid_t, bool child );
         int removeWriter( pid_t );
         size_t numWriters();
+        size_t maxWriters() {return max_writers;}
 
         int truncate( off_t offset );
         int extend( off_t offset );
@@ -47,6 +48,8 @@ class WriteFile : public Metadata {
 
         int restoreFds();
         Index * getIndex() {return index;}
+
+        double createTime() {return createtime;}
 
     private:
         int openIndexFile( string path, string host, pid_t, mode_t 
@@ -69,6 +72,7 @@ class WriteFile : public Metadata {
         Index *index;
         mode_t mode;
         double createtime;
+        size_t max_writers;
         // Keeps track of writes for flush of index
         int write_count;
 };

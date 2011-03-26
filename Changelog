@@ -1,4 +1,13 @@
 ~~~ Version 2.0.2
+* addressed 41492.  Now 'plfs:' prefix can be passed to all plfs functions.
+It is used to direct MPIIO to use plfs and MPIIO in that case strips it
+off.  But users might get used to using it so if they ever do use it, then
+it will work.  Brett or someone commented that this might help prevent
+confusion so give it a try.  I hope it doesn't add a lot of overhead.  It's
+just one extra strncmp in the normal case where prefix isn't present 
+* put better info (job size, BW) into the global_summary_dir droppings
+* added tools/plfs_query which is just a tool for developers.
+* fixed 40866.  missing plfsrc was assert(0).  Now it's a bit more elegant
 * added tools/plfs_version which queries all plfs mountpoints and reports
 their versions.  It also digs into a container and reports the version that
 created a particular plfs file if a target is passed on the command line
@@ -15,8 +24,8 @@ will see their file on a readdir() but on a stat() they'll either get ENOENT
 because there is nothing at the new canonical location, or they'll see a
 shadow container which looks like a directory to them.  So this function makes
 it so that a plfs file that had a different previous canonical location is now
-recovered to the new canonical location.  hopefully it always works but it
-won't currently work across different file systems because it uses rename()
+recovered to the new canonical location.  It also works on directories.  It
+also works across file systems (i.e. it doesn't use rename).
 
 ~~~ Version 2.0.1
 * Reduced container overhead by 4 files and 2 directories: combined access

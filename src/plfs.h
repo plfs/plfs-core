@@ -35,6 +35,7 @@ typedef struct{
     size_t total_bytes;
     int valid_meta;
     plfs_interface pinter;
+    size_t num_procs;
 } Plfs_close_opt;
 
 /*
@@ -119,6 +120,10 @@ int plfs_merge_indexes(Plfs_fd **pfd, char *index_streams,
 int plfs_set_mpi(Plfs_fd **pfd);
 
 int plfs_link( const char *path, const char *to );
+
+/* the void * should be a string */
+int plfs_locate(const char *path, void *);
+
 /* 
    query the mode that was used to create the file
    this should only be called on a plfs file

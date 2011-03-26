@@ -21,9 +21,7 @@ int main (int argc, char **argv) {
             ret = 0;
             break;
         default:
-            fprintf(stderr, "Couldn't recover %s: %s\n"
-                "If it's a file, you might need to first %s its parent dir.\n",
-                target,strerror(-ret),argv[0],argv[0]);
+            fprintf(stderr,"Couldn't recover %s: %s\n",target,strerror(-ret));
             break;
     }
     exit( ret );

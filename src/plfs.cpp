@@ -39,10 +39,13 @@ hashMethod {
 #define PLFS_ENTER2(X) bool is_mnt_pt = false; int ret = 0;\
  unsigned mnt_pt_cksum = -1; \
  bool expand_error = false; \
+ int error = 0; \
  string path = expandPath(logical,&is_mnt_pt,&expand_error,HASH_BY_PATH,-1,\
-         &mnt_pt_cksum); \
+         &mnt_pt_cksum,&error); \
  plfs_debug("EXPAND in %s: %s->%s\n",__FUNCTION__,logical,path.c_str()); \
- if (expand_error && X==PLFS_PATH_REQUIRED) PLFS_EXIT(-ENOENT);
+ if ((expand_error && X==PLFS_PATH_REQUIRED)||error!=0) { \
+     PLFS_EXIT(error==0?-ENOENT:error); \
+ }
 
 #define PLFS_EXIT(X) return(X);
 
@@ -132,20 +135,45 @@ find_mount_point_using_tokens(PlfsConf *pconf,
 // takes a logical path and returns a physical one
 string
 expandPath(string logical, bool *mount_point, bool *expand_error, 
-        hashMethod hash_method, int which_backend, unsigned *mnt_pt_cksum ) 
+        hashMethod hash_method, int which_backend, unsigned *mnt_pt_cksum,
+        int *error) 
 {
     // get our initial conf
     static PlfsConf *pconf = NULL;
-    if (!pconf) { pconf = get_plfs_conf(); assert(pconf); }
+    static char *adio_prefix = "plfs:";
+    static int prefix_length = -1;
+    if (!pconf) { 
+        pconf = get_plfs_conf(); 
+        if (!pconf) {
+            if (mount_point) *mount_point   = false;
+            if (expand_error) *expand_error = true;
+            if (mnt_pt_cksum) *mnt_pt_cksum = (unsigned)-1;
+            fprintf(stderr,"Missing required /etc/plfsrc file\n");
+            if (error) *error = -ENOATTR;
+            return "MISSING PLFSRC";    // ugh, this is much less than elegant
+            //assert(pconf); 
+        }
+    }
     if ( pconf->err_msg ) {
       plfs_debug("PlfsConf error: %s\n", pconf->err_msg->c_str());
       if (expand_error) *expand_error = true;
+      if (error) *error = -ENOPOLICY;
       return "INVALID";
     }
 
     // initialize our return parameters
     if (mount_point)  *mount_point  = false;
     if (expand_error) *expand_error = false;
+
+    // rip off an adio prefix if passed.  Not sure how important this is
+    // and not sure how much overhead it adds nor efficiency of implementation
+    // am currently using C-style strncmp instead of C++ string stuff bec
+    // I coded this on plane w/out access to internet
+    if (prefix_length==-1) prefix_length = strlen(adio_prefix);
+    if (logical.compare(0,prefix_length,adio_prefix)==0) {
+        logical = logical.substr(prefix_length,logical.size());
+        plfs_debug("Ripping %s -> %s\n", adio_prefix,logical.c_str());
+    }
 
     // find the appropriate PlfsMount from the PlfsConf
     bool mnt_pt_found = false;
@@ -156,6 +184,7 @@ expandPath(string logical, bool *mount_point, bool *expand_error,
     if(!mnt_pt_found) {
         fprintf(stderr,"ERROR: %s is not on a PLFS mount.\n", logical.c_str());
         if(expand_error) *expand_error = true;
+        if(*error) *error = -EPROTOTYPE;
         return "PLFS_NO_MOUNT_POINT_FOUND";
     }
 
@@ -363,7 +392,7 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
         // container which was already hashed by filename
         char *hostname = Util::hostname();
         string hash_by_node = 
-            expandPath(logical,NULL,NULL,HASH_BY_NODE,-1,0); 
+            expandPath(logical,NULL,NULL,HASH_BY_NODE,-1,0,0); 
         plfs_debug("Making hostdir for %s at %s\n",logical.c_str(),
                 hash_by_node.c_str());
         ret = Container::makeHostDir(hash_by_node, 
@@ -377,7 +406,7 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
         string hostdir_after_container = 
             hostdir_full.substr(hash_by_node.size(),string::npos);
         string hash_by_path = 
-            expandPath(logical,NULL,NULL,HASH_BY_PATH,-1,0);
+            expandPath(logical,NULL,NULL,HASH_BY_PATH,-1,0,0);
         hash_by_path +=  "/";
         hash_by_path += hostdir_after_container;
         plfs_debug("Need to link %s into %s (hostdir ret %d)\n", 
@@ -521,7 +550,7 @@ plfs_readdir( const char *logical, void *vptr ) {
     PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
     if(!mnt_pt) PLFS_EXIT(-ENOENT);
     for(unsigned i = 0; i < pm->backends.size(); i++) {
-        path = expandPath(logical,NULL,NULL,NO_HASH,i,0);
+        path = expandPath(logical,NULL,NULL,NO_HASH,i,0,0);
         ret = plfs_readdir_helper(path.c_str(),vptr);
         if ( ret == 0 ) found = true;
     }
@@ -542,7 +571,7 @@ plfs_mkdir( const char *logical, mode_t mode ) {
     PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
     if(!mnt_pt) PLFS_EXIT(-ENOENT);
     for(unsigned i = 0; i < pm->backends.size(); i++) {
-        path = expandPath(logical,NULL,NULL,NO_HASH,i,0);
+        path = expandPath(logical,NULL,NULL,NO_HASH,i,0,0);
         ret = retValue(Util::Mkdir(path.c_str(),mode));
         if ( ret == 0 ) success = true;
     }
@@ -565,7 +594,7 @@ plfs_rmdir( const char *logical ) {
     PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
     if(!mnt_pt) PLFS_EXIT(-ENOENT);
     for(unsigned i = 0; i < pm->backends.size(); i++) {
-        path = expandPath(logical,NULL,NULL,NO_HASH,i,0);
+        path = expandPath(logical,NULL,NULL,NO_HASH,i,0,0);
         ret = retValue(Util::Rmdir(path.c_str()));
         if(ret==ENOENT||ret==-ENOENT) ret = 0;
         if(ret==ENOTEMPTY||ret==-ENOTEMPTY) {
@@ -587,19 +616,16 @@ plfs_rmdir( const char *logical ) {
 // do exist
 // currently this function is just used by plfs_recover
 // returns 0 or -errno
+// if it sees EEXIST, it silently ignores it and returns 0
 int
-mkdir_dash_p(const string &path) {
-    // ok, this is a bit nasty.  It's possible that the path to the damn
-    // thing isn't instantiated.  If they did mkdir() with the old plfsrc
-    // and then added backends, some of the backends won't have the full
-    // directory hierarchy in place.  Let's make them now.  Go ahead and
-    // make everything up to and including the container.  This simplifies
-    // the code below.
+mkdir_dash_p(const string &path, bool parent_only) {
     string recover_path; 
     vector<string> canonical_tokens;
     plfs_debug("%s on %s\n",__FUNCTION__,path.c_str());
     tokenize(path,"/",canonical_tokens);
-    for(size_t i=0 ; i < canonical_tokens.size(); i++){
+    size_t last = canonical_tokens.size();
+    if (parent_only) last--;
+    for(size_t i=0 ; i < last; i++){
         recover_path += "/";
         recover_path += canonical_tokens[i];
         int ret = Util::Mkdir(recover_path.c_str(),DEFAULT_MODE);
@@ -613,8 +639,9 @@ mkdir_dash_p(const string &path) {
 // restores a lost directory hierarchy
 // currently just used in plfs_recover.  See more comments there
 // returns 0 or -errno
+// if directories already exist, it returns 0
 int
-recover_directory(const char *logical) {
+recover_directory(const char *logical, bool parent_only) {
     bool mnt_pt;
     int ret = 0;
     PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
@@ -622,9 +649,33 @@ recover_directory(const char *logical) {
 
     // now we need to do mkdir_dash_p for each backend
     for(unsigned i = 0; i < pm->backends.size(); i++) {
-        ret = mkdir_dash_p(expandPath(logical,NULL,NULL,NO_HASH,i,0));
+        ret = mkdir_dash_p(expandPath(logical,NULL,NULL,NO_HASH,i,0,0),
+                parent_only);
     }
     return ret;    
+}
+
+// this function does a readlink of an existing symlink
+// and creates an identical symlink at a new location
+// returns 0 or -errno
+int
+recover_link(const string &existing, const string &new_path) {
+    static char buf[PATH_MAX];
+    ssize_t len = Util::Readlink(existing.c_str(), buf, PATH_MAX);
+    if (len==-1) return -errno;
+    buf[len] = '\0'; // null term.  stupid readlink
+    return retValue(Util::Symlink(buf,new_path.c_str()));
+}
+
+int
+remove_all(vector<string> &unlinks) {
+    vector<string>::iterator itr;
+    int ret;
+    for(itr = unlinks.begin(); itr != unlinks.end(); itr++) {
+        ret = retValue(Util::Unlink((*itr).c_str()));
+        if(ret!=0) break;
+    }
+    return ret;
 }
 
 // this is a bit of a crazy function.  Basically, it's for the case where
@@ -638,117 +689,129 @@ recover_directory(const char *logical) {
 // location.  hopefully it always works but it won't currently work across
 // different file systems because it uses rename()
 // returns 0 or -errno (-EEXIST means it didn't need to be recovered)
-int plfs_recover( const char *logical ) { 
+int 
+plfs_recover( const char *logical ) { 
     PLFS_ENTER; 
-    string canonical = path;
-    string former; 
+    string former, canonical; 
+    bool found, isdir, isfile;
     mode_t canonical_mode = 0, former_mode = 0;
 
-    // first check whether the thing is already at the correct
-    // canonical location
+    // first make sure we can find a mount point for this path
+    PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,found);
+    if(!found) PLFS_EXIT(-ENOENT);
+
+    // then check whether it's is already at the correct canonical location
+    canonical = path;
     plfs_debug("%s Canonical location should be %s\n", __FUNCTION__,
             canonical.c_str());
-    ret = (int) Container::isContainer(path,&canonical_mode); 
-    if ( ret || S_ISDIR(canonical_mode)) {
+    isfile = (int) Container::isContainer(path,&canonical_mode); 
+    if (isfile || S_ISDIR(canonical_mode)) {
         plfs_debug("%s %s is already in canonical location\n",__FUNCTION__,
                 canonical.c_str());
-        if (S_ISDIR(canonical_mode)) {
-            // it might be at canonical location but it needs to be at all
-            // locations as well
-            recover_directory(logical);    
+        if (S_ISDIR(canonical_mode)) {  // dirs need to be on all backends
+            ret = recover_directory(logical,false);
         }
-        PLFS_EXIT(-EEXIST);
+        PLFS_EXIT((ret==0?-EEXIST:ret));
     }
     plfs_debug("%s %s is not in canonical location\n",__FUNCTION__,logical);
 
     // ok, it's not at the canonical location
-    // check all the other backends to see if they have the plfs file
-    // after first making sure we can find a mount point for this path
-    bool mnt_pt;
-    PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
-    if(!mnt_pt) PLFS_EXIT(-ENOENT);
-
-    bool isdir = false;  // possible we find it and it's a directory
-    bool isfile = false; // possible we find it and it's a container
-    bool found = false;  // possible it doesn't exist
+    // check all the other backends to see if they have it 
+    isdir = false;  // possible we find it and it's a directory
+    isfile = false; // possible we find it and it's a container
+    found = false;  // possible it doesn't exist (ENOENT)
     for(unsigned i = 0; i < pm->backends.size(); i++) {
-        path = expandPath(logical,NULL,NULL,NO_HASH,i,0);
-        plfs_debug("%s Does canonical exist at %s?\n", __FUNCTION__, 
-                path.c_str());
+        path = expandPath(logical,NULL,NULL,NO_HASH,i,0,0);
+        plfs_debug("%s query canonical at %s?\n", __FUNCTION__, path.c_str());
         ret = (int) Container::isContainer(path,&former_mode);
-        if ( S_ISDIR(former_mode) ) isdir = found = true;
-        if ( ret ) {
+        if (S_ISDIR(former_mode)) isdir = found = true;
+        if (ret) {
             isfile = found = true;
             former = path;
-            plfs_debug("%s %s is location of old canonical\n", __FUNCTION__,
-                    former.c_str());
+            plfs_debug("%s old canonical at %s", __FUNCTION__, former.c_str());
             break;
         }
     }
-    if ( ! found ) { // someone passed in a bogus path
-        PLFS_EXIT(-ENOENT);
-    }
+    if (!found) PLFS_EXIT(-ENOENT);
 
-    // if we make it here, we found a plfs container for this file or a
-    // directory but not at the proper canonical location.  First of all make
-    // sure the directory hierarchy is in place at the canonical location. 
-    // If we're just recovering a logical directory, just make sure it exists
-    // everywhere
-    if ( (ret = mkdir_dash_p(canonical)) != 0 ) PLFS_EXIT(ret);
-    if (isdir && !isfile) PLFS_EXIT(recover_directory(logical));
-        
-    // there are two possibilities here.  One is that the correct canonical
-    // location already contains a shadow container.  Or it was empty.  But
-    // up above, we did mkdir's all the way up to and including the correct
-    // canonical location.  This means that at this point there is a directory
-    // at the canonical location.  So all we have to do is a readdir on the
-    // former and rename everything into canonical.  This won't work when 
-    // the backends are on different filesystems.  Blech.  Deal with that later.
+    // if we make it here, we found a file or a dir at the wrong location 
+    
+    // dirs are easy
+    if (isdir && !isfile) PLFS_EXIT(recover_directory(logical,false));
+    
+    // if we make it here, it's a file 
+    // first recover the parent directory, then ensure a container directory 
+    if ((ret = recover_directory(logical,true)) != 0) PLFS_EXIT(ret);
+    ret = mkdir_dash_p(canonical,false);
+    if (ret != 0 && ret != EEXIST) PLFS_EXIT(ret);   // some bad error
+
+    // at this point there is a plfs container at the former position
+    // there is a directory at the canonical position
+    // it might have already been there bec it was a shadow container
+    // or we just created it above
+    // recreate the container as discovered at former into canonical as so:
+    //  foreach entry in former:
+    //    if empty file: create file w/ same name in canonical; remove
+    //    if symlink: create identical symlink in canonical; remove
+    //    if directory: create symlink in canonical to it
+    //    else assert(0): there should be nothing else
     plfs_debug("%s need to transfer %s from %s into %s\n",
             __FUNCTION__, logical, former.c_str(), canonical.c_str());
     DIR *dir;
     struct dirent *ent;
     ret = Util::Opendir( former.c_str(), &dir );
+    vector<string> unlinks;
     if ( dir == NULL ) PLFS_EXIT(-errno); 
 
+    // is it safe to do an unlink() in the middle of a readdir() ??
+    // assume no so save the things to unlink and then unlink them at end
     while( (ent = readdir( dir ) ) != NULL ) {
         if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, "..")) continue;
-            //plfs_debug("skipping %s\n", ent->d_name );
         string new_path, old_path;
+        struct stat stbuf;
         old_path = former;    old_path += "/"; old_path += ent->d_name;
         new_path = canonical; new_path += "/"; new_path += ent->d_name;
-        ret = Util::Rename(old_path.c_str(),new_path.c_str());
-        if (ret != 0) {
-            if ( errno == EEXIST ) {
-                // ignore any renames that fail due to EEXIST.  This probably
-                // means that there was a symlink in the former pointing to
-                // a physical hostdir in the canonical.  That's fine.  It will
-                // be restored without moving this symlink since the physical
-                // is just as good.
-                // however, there is some really crazy pathological case where
-                // a plfs file is recovered multiple times and renamed back and
-                // forth where old symlinks are gonna break things.  So if
-                // the rename fails, try to unlink this entry so that if the
-                // file is ever recovered back to the former (ugh) that old
-                // symlinks won't be problematic.  If it's actually a physical
-                // hostdir, the unlink will (and should fail) and hopefully
-                // the reason that the rename failed is that there is a symlink
-                // at canonical pointing here.....
-                ret = 0;
-                Util::Unlink(old_path.c_str());
-            } else {
-                ret = -errno;
+        switch(ent->d_type){
+            case DT_REG:
+                // first check to make sure it's zero length
+                // currently all files at top-level are zero length
+                // but if we ever change this and forget to change this
+                // code, let's at least detect this here and error out
+                ret = retValue(Util::Stat(old_path.c_str(),&stbuf));
+                if (ret != 0) PLFS_EXIT(ret);
+                if (stbuf.st_size != 0) {
+                    fprintf(stderr,"%s needs to deal with non-empty files.\n",
+                            __FUNCTION__);
+                    ret = -ENOSYS;
+                } else {
+                    ret = retValue(Util::Creat(new_path.c_str(),stbuf.st_mode));
+                    if (ret==0) unlinks.push_back(old_path.c_str());
+                }
                 break;
-            }
+            case DT_LNK:
+                ret = recover_link(old_path,new_path);
+                if (ret==0) unlinks.push_back(old_path.c_str());
+                break;
+            case DT_DIR:
+                ret =retValue(Util::Symlink(old_path.c_str(),new_path.c_str()));
+                break;
+            default:
+                plfs_debug("WTF? %s %d\n",__FUNCTION__,__LINE__);
+                assert(0);  
+                ret = -ENOSYS;
+                break;
         }
+        if (ret != 0) break;
     }
-    if ( Util::Closedir( dir ) != 0 ) {
-        ret = -errno;
-    }
+    int close_ret = retValue(Util::Closedir(dir));
+    if (ret==0) ret = close_ret;    // only if no prior error
+
+    ret = remove_all(unlinks);  // remove everything we were supposed to
 
     if ( ret != 0 ) {
         printf("Unable to recover %s.\nYou may be able to recover the file"
-                " by manually moving %s to %s\n", logical, 
+                " by manually moving contents of %s to %s\n", 
+                logical, 
                 former.c_str(),
                 canonical.c_str());
     }
@@ -1111,7 +1174,7 @@ plfs_init(PlfsConf *pconf) {
     map<string,PlfsMount*>::iterator itr = pconf->mnt_pts.begin();
     if (itr==pconf->mnt_pts.end()) return false;
     bool expand_error = false;
-    expandPath(itr->first,NULL,&expand_error,HASH_BY_PATH,-1,0);
+    expandPath(itr->first,NULL,&expand_error,HASH_BY_PATH,-1,0,0);
     return(expand_error ? false : true);
 }
 
@@ -1596,12 +1659,20 @@ plfs_symlink(const char *logical, const char *to) {
     PLFS_ENTER2(PLFS_PATH_NOTREQUIRED);
 
     bool expand_error2 = false;
-    string topath = expandPath(to, NULL,&expand_error2,HASH_BY_PATH,-1,0);
+    string topath = expandPath(to, NULL,&expand_error2,HASH_BY_PATH,-1,0,0);
     if (expand_error2) PLFS_EXIT(-ENOENT);
     
     ret = retValue(Util::Symlink(logical,topath.c_str()));
     plfs_debug("%s: %s to %s: %d\n", __FUNCTION__, 
             path.c_str(), topath.c_str(),ret);
+    PLFS_EXIT(ret);
+}
+
+int
+plfs_locate(const char *logical, void *vptr) {
+    PLFS_ENTER;
+    string *target = (string *)vptr;
+    *target = path;
     PLFS_EXIT(ret);
 }
 
@@ -1641,7 +1712,7 @@ int
 plfs_rename( const char *logical, const char *to ) {
     PLFS_ENTER;
     bool expand_error2 = false;
-    string topath = expandPath(to, NULL,&expand_error2,HASH_BY_PATH,-1,0);
+    string topath = expandPath(to, NULL,&expand_error2,HASH_BY_PATH,-1,0,0);
     //if (expand_error2) PLFS_EXIT(-ENOENT);
 
     if ( is_plfs_file( to, NULL ) ) {
@@ -2083,7 +2154,7 @@ plfs_unlink( const char *logical ) {
             PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
             if(!mnt_pt) PLFS_EXIT(-ENOENT);
             for(unsigned i = 0; i < pm->backends.size(); i++) {
-                path = expandPath(logical,NULL,NULL,NO_HASH,i,0);
+                path = expandPath(logical,NULL,NULL,NO_HASH,i,0,0);
                 if (path!=canonical) { // don't bother removing twice
                     ret = plfs_remove_container(path);
                     plfs_debug("Removed non-canonical container %s: %d\n",
@@ -2173,8 +2244,14 @@ plfs_close( Plfs_fd *pfd, pid_t pid, uid_t uid, int open_flags,
                 wf->getMeta( &last_offset, &total_bytes );
             }
             if ( drop_meta ) {
+                size_t max_writers = wf->maxWriters();
+                if (close_opt && close_opt->num_procs > max_writers) {
+                    max_writers = close_opt->num_procs;
+                }
                 Container::addMeta(last_offset, total_bytes, pfd->getPath(), 
-                        Util::hostname(),uid);
+                        Util::hostname(),uid,wf->createTime(),
+                        close_opt?close_opt->pinter:-1,
+                        max_writers);
                 Container::removeOpenrecord( pfd->getPath(), Util::hostname(), 
                         pfd->getPid());
             }

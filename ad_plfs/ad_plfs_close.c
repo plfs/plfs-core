@@ -32,6 +32,7 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
 
     MPI_Comm_rank( fd->comm, &rank );
     MPI_Comm_size( fd->comm, &procs);
+    close_opt.num_procs = &procs;
 
     amode = ad_plfs_amode( fd->access_mode );
 

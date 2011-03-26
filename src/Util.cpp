@@ -469,7 +469,7 @@ bool Util::exists( const char *path ) {
     ENTER_PATH;
     bool exists = false;
     struct stat buf;
-    if ( Util::Stat( path, &buf ) == 0 ) {
+    if (Util::Stat(path, &buf) == 0) {
         exists = true;
     }
     ret = exists;
@@ -687,7 +687,7 @@ int Util::Setfsuid( uid_t u ) {
 
 // a utility for turning return values into 0 or -ERRNO
 int Util::retValue( int res ) {
-    return ( res == 0 ? 0 : -errno );
+    return (res == 0 ? 0 : -errno);
 }
 
 char *Util::hostname() {
@@ -700,7 +700,6 @@ char *Util::hostname() {
     return hname;
 }
 
-int Util::Stat( const char *path, struct stat * file_info)
-{
+int Util::Stat(const char *path, struct stat * file_info) {
     return stat( path , file_info );
 }  

@@ -4,6 +4,7 @@ include Makefile.commonin
 
 plfs_cmd_man_pages = \
 	man1/plfs.1 \
+  man1/plfs_query.1 \
 	man1/plfs_check_config.1 \
 	man1/plfs_flatten_index.1 \
 	man1/plfs_recover.1 \

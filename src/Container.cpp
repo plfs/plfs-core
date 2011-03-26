@@ -121,7 +121,11 @@ bool Container::isContainer( const string &physical_path, mode_t *mode ) {
                     physical_path.c_str());
             string accessfile = getAccessFilePath(physical_path); 
             ret = Util::Lstat( accessfile.c_str(), &buf );
-            if ( ret == 0 && mode ) *mode = S_IFREG; 
+            if ( ret == 0 && mode ) {
+                plfs_debug("%s %s is a container\n", __FUNCTION__,
+                        physical_path.c_str());
+                *mode = S_IFREG; 
+            }
             return ( ret == 0 ? true : false );    
         } else {
             // it's a regular file, or a link, or something
@@ -802,7 +806,8 @@ string Container::hostFromChunk( string chunkpath, const char *type ) {
 // this function drops a file in the metadir which contains
 // stat info so that we can later satisfy stats using just readdir
 int Container::addMeta( off_t last_offset, size_t total_bytes, 
-        const string &path, const string &host, uid_t uid ) 
+    const string &path, const string &host, uid_t uid, 
+    double createtime, int interface, size_t max_writers) 
 {
     string metafile;
     struct timeval time;
@@ -826,16 +831,26 @@ int Container::addMeta( off_t last_offset, size_t total_bytes,
     if (pconf->global_summary_dir) {
         string path_without_slashes = path;
         size_t pos = path_without_slashes.find("/");
+        double bw = ((double)last_offset/(Util::getTime()-createtime))/1048576;
         while(pos!=string::npos) {
             path_without_slashes.replace(pos,1,"_");
             pos = path_without_slashes.find("/");
         }
         ostringstream oss_global;
-        oss_global << *(pconf->global_summary_dir) << "/" 
-            << last_offset << "." << total_bytes  << "."
-            << time.tv_sec << "." << time.tv_usec << "."
-            << host << "." << uid << "." << path_without_slashes;
-        metafile = oss_global.str();
+        oss_global 
+            << std::setprecision(2) << std::fixed
+            << *(pconf->global_summary_dir) << "/" 
+            << "SZ:" << last_offset << "." 
+            << "BL:" << total_bytes  << "."
+            << "OT:" << createtime << "."
+            << "CT:" << Util::getTime() << "."
+            << "BW:" << bw << "."
+            << "IN:" << interface << "."
+            << "NP:" << max_writers << "."
+            << "HO:" << host << "."
+            << "UI:" << uid << "."
+            << "PA:" << path_without_slashes;
+        metafile = oss_global.str().substr(0,PATH_MAX);
         plfs_debug("Creating metafile %s\n", metafile.c_str() );
         Util::Creat( metafile.c_str(), DROPPING_MODE);
     }

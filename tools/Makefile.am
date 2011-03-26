@@ -44,6 +44,7 @@ plfs_check_config \
 plfs_map \
 plfs_version \
 plfs_recover \
+plfs_query \
 plfs_flatten_index
 
 ################################################################################
@@ -57,6 +58,20 @@ plfs_map_CXXFLAGS = \
 @PLFS_DEBUG_CFLAGS@
 
 plfs_map_LDFLAGS = \
+-L../src -lplfs \
+@PTHREAD_LIBS@
+
+################################################################################
+# plfs_query
+################################################################################
+plfs_query_SOURCES = \
+plfs_query.C
+
+plfs_query_CXXFLAGS = \
+-I$(top_srcdir)/src \
+@PLFS_DEBUG_CFLAGS@
+
+plfs_query_LDFLAGS = \
 -L../src -lplfs \
 @PTHREAD_LIBS@
 

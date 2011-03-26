@@ -23,6 +23,7 @@ WriteFile::WriteFile( string path, string hostname,
     this->createtime        = Util::getTime();
     this->write_count       = 0;
     this->index_buffer_mbs  = buffer_mbs;
+    this->max_writers       = 0;
     pthread_mutex_init( &data_mux, NULL );
     pthread_mutex_init( &index_mux, NULL );
 }
@@ -84,6 +85,7 @@ int WriteFile::addWriter( pid_t pid, bool child ) {
     }
     int writers = incrementOpens(0); 
     if ( ret == 0 && ! child ) writers = incrementOpens(1);
+    max_writers++;
     Util::Debug("%s (%d) on %s now has %d writers\n", 
             __FUNCTION__, pid, physical_path.c_str(), writers );
     Util::MutexUnlock( &data_mux, __FUNCTION__ );
