@@ -7,6 +7,7 @@
 #include "OpenFile.h"
 #include "ThreadPool.h"
 
+#include <errno.h>
 #include <list>
 #include <stdarg.h>
 #include <limits>
@@ -140,7 +141,7 @@ expandPath(string logical, bool *mount_point, bool *expand_error,
 {
     // get our initial conf
     static PlfsConf *pconf = NULL;
-    static char *adio_prefix = "plfs:";
+    static const char *adio_prefix = "plfs:";
     static int prefix_length = -1;
     if (!pconf) { 
         pconf = get_plfs_conf(); 
@@ -149,7 +150,7 @@ expandPath(string logical, bool *mount_point, bool *expand_error,
             if (expand_error) *expand_error = true;
             if (mnt_pt_cksum) *mnt_pt_cksum = (unsigned)-1;
             fprintf(stderr,"Missing required /etc/plfsrc file\n");
-            if (error) *error = -ENOATTR;
+            if (error) *error = -ENODATA;
             return "MISSING PLFSRC";    // ugh, this is much less than elegant
             //assert(pconf); 
         }
@@ -157,7 +158,7 @@ expandPath(string logical, bool *mount_point, bool *expand_error,
     if ( pconf->err_msg ) {
       plfs_debug("PlfsConf error: %s\n", pconf->err_msg->c_str());
       if (expand_error) *expand_error = true;
-      if (error) *error = -ENOPOLICY;
+      if (error) *error = -EINVAL;
       return "INVALID";
     }
 
@@ -579,8 +580,7 @@ plfs_mkdir( const char *logical, mode_t mode ) {
     // it SHOULDN'T happen but maybe users break rules by mucking with
     // backends or by editing the set of backends for an existing mount
     // in the plfsrc
-    if (success = true) ret = 0;
-    PLFS_EXIT(ret);
+    PLFS_EXIT(success?0:ret);
 }
 
 // this has to iterate over the backends and remove it everywhere

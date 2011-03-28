@@ -17,6 +17,7 @@ paths for us but in the ADIO path, they were failing because we were just
 using strcmp to test the path against the possible mount points.  Now we
 tokenize and compare each token one by one.  Extra dots in a path 
 (e.g. /mnt/./plfs) still won't work in ADIO.
+* Added README.developer
 * added tools/plfs_recover which is designed for the case where a user
 modified the plfsrc to change the set of backends for an existing mount point.
 They shouldn't ever do this!  But if they do, what will happen is that they

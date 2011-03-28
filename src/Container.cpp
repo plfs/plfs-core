@@ -522,7 +522,7 @@ char *Container::version(const string &path) {
     bool found = false;
     int ret = Util::Opendir( path.c_str(), &dirp );
     if ( dirp == NULL || ret != 0 ) return NULL;
-    while(dirent = readdir(dirp)){
+    while((dirent = readdir(dirp)) != NULL){
         plfs_debug("%s checking %s\n", __FUNCTION__, dirent->d_name);
         if(strncmp(VERSIONPREFIX,dirent->d_name,strlen(VERSIONPREFIX))==0){
             plfs_debug("%s found %s\n", __FUNCTION__, dirent->d_name);
@@ -535,7 +535,7 @@ char *Container::version(const string &path) {
                 versiondir += dirent->d_name;
                 ret = Util::Opendir(versiondir.c_str(), &dirp2);
                 if ( ret != 0 ) return NULL;
-                while(dirent2 = readdir(dirp2)){
+                while((dirent2 = readdir(dirp2))!=NULL){
                     if ((dirent2->d_name)[0] == '.') continue;
                     snprintf(&(version[strlen(version)]),
                         VERSION_LEN-strlen(version), "%s ", dirent2->d_name);
@@ -579,14 +579,11 @@ vector<IndexFileInfo> Container::hostdir_index_read(const char *path){
 
     index_droppings.push_back(path_holder);
      // Start reading the directory
-    while(dirent = readdir(dirp) ){
+    while((dirent = readdir(dirp))!=NULL){
         // Get rid of these hardcoded values ASAP
         if(strncmp(INDEXPREFIX,dirent->d_name,strlen(INDEXPREFIX))==0){
             double time_stamp;
             string str_time_stamp;
-            int frac_len;
-            int frac;
-            
             vector<string> tokens;
             IndexFileInfo index_dropping;
             
@@ -620,7 +617,8 @@ Index Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
     Index index(path);
     IndexerTask task;
     deque<IndexerTask> tasks;
-    int count=0,ret;
+    size_t count=0;
+    int ret;
     string exp_path;
     vector<string> path_pieces;
 
