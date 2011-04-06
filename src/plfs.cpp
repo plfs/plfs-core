@@ -956,83 +956,6 @@ perform_read_task( ReadTask *task, Index *index ) {
     PLFS_EXIT(ret);
 }
 
-// returns bytes read or -errno
-// this is the old one
-ssize_t 
-read_helper( Index *index, char *buf, size_t size, off_t offset ) {
-    off_t  chunk_offset = 0;
-    size_t chunk_length = 0;
-    int    fd           = -1;
-    pid_t chunk_id = (pid_t)-1;
-    bool hole = false;
-    int ret;
-    string path;
-
-    // need to lock this since the globalLookup does the open of the fds
-    ret =index->globalLookup(&fd,&chunk_offset,&chunk_length,path,&hole,
-            &chunk_id, offset);
-    if ( ret != 0 ) PLFS_EXIT(ret);
-
-    ssize_t read_size = min(size,chunk_length);
-    if ( read_size > 0 ) {
-        // uses pread to allow the fd's to be shared 
-        ostringstream oss;
-        oss << "\t TASK offset " << chunk_offset << " len "
-                     << chunk_length << " fd " << fd << endl;
-        plfs_debug("%s", oss.str().c_str() ); 
-        if ( fd >= 0 ) {
-            ret = Util::Pread( fd, buf, read_size, chunk_offset );
-            if ( ret < 0 ) {
-                cerr << "Couldn't read in " << fd << ":" 
-                     << strerror(errno) << endl;
-                return -errno;
-            }
-        } else {
-            assert( hole );
-            // zero fill the hole
-            memset( (void*)buf, 0, read_size);
-            ret = read_size;
-        }
-    } else {
-        // when chunk_length = 0, that means we're at EOF
-        ret = 0;
-    }
-    PLFS_EXIT(ret);
-}
-
-ssize_t 
-plfs_read_old(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
-    ssize_t ret = 0;
-
-    // this can fail because this call is not in a mutex so it's possible
-    // that some other thread in a close is changing ref counts right now
-    // but it's OK that the reference count is off here since the only
-    // way that it could be off is if someone else removes their handle,
-    // but no-one can remove the handle being used here except this thread
-    // which can't remove it now since it's using it now
-    //plfs_reference_count(pfd);
-
-        // if the read spans multiple chunks, we really need to loop in here
-        // to get them all read bec the man page for read says that it 
-        // guarantees to return the number of bytes requested up to EOF
-        // so any partial read by the client indicates EOF and a client
-        // may not retry
-    ssize_t bytes_remaining = size;
-    ssize_t bytes_read      = 0;
-    plfs_debug("TASK LIST:\n" );
-    do {
-        ret = read_helper( index, &(buf[bytes_read]), bytes_remaining, 
-                offset + bytes_read );
-        if ( ret > 0 ) {
-            bytes_read      += ret;
-            bytes_remaining -= ret;
-        }
-    } while( bytes_remaining && ret > 0 );
-    ret = ( ret < 0 ? ret : bytes_read );
-
-    PLFS_EXIT(ret);
-}
-
 // pop the queue, do some work, until none remains
 void *
 reader_thread( void *va ) {
@@ -1061,7 +984,7 @@ reader_thread( void *va ) {
 
 // returns -errno or bytes read
 ssize_t 
-plfs_read_new(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
+plfs_reader(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
 	ssize_t total = 0;  // no bytes read so far
     ssize_t error = 0;  // no error seen so far
     ssize_t ret = 0;    // for holding temporary return values
@@ -1151,10 +1074,8 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
         }
     }
 
-    bool use_new = true;
     if ( ret == 0 ) {
-        if ( use_new ) ret = plfs_read_new(pfd,buf,size,offset,index);
-        else           ret = plfs_read_old(pfd,buf,size,offset,index);
+        ret = plfs_reader(pfd,buf,size,offset,index);
     }
 
     plfs_debug("Read request on %s at offset %ld for %ld bytes: ret %ld\n",
