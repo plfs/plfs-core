@@ -1,3 +1,10 @@
+This file is deprecated.  Pls refer to the README.install in the top-level
+directory.
+
+#######################################
+EVERYTHING BELOW THIS POINT IS DEPRECATED
+#######################################
+
 #!/bin/bash
 
 PLFS_LIB_INSTALL_PATH="$HOME/plfs"
