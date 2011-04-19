@@ -19,12 +19,16 @@
 2) To install PLFS as a ROMIO ADIO layer for MPI-IO.
 
   This should be straight-forward for openmpi-1.4.3.  For other mpi's, you'll
-  need to adjust accordingly.  Please note that all other patch files have 
+  need to adjust accordingly.  The instruction marked with '>>>>' is for
+  developers only who have checked out PLFS.  For typical cases in which
+  you are instead building from a distribution tarball, you can skip that
+  line.  Please note that all other patch files have 
   been deprecated.  You must use the two patch files below.
   > make install (plfs)
   > get openmpi-1.4.3
   > cd openmpi-1.4.3
   > patch -pl < /path/to/plfs/ad-patches/openmpi/ompi-1.4.3-plfs-prep.patch
+  >>>> ./scripts/make_plfs_patch  # developers only
   > patch -p1 < /path/to/plfs/ad-patches/openmpi/ompi-1.4.3-plfs.patch
   > autogen.sh since we patched a Makefile.am
   > ./configure; make
