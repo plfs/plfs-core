@@ -206,7 +206,7 @@ ostream& operator <<(ostream &os,const ContainerEntry &entry) {
 }
 
 ostream& operator <<(ostream &os,const Index &ndx ) {
-    os << "# Index of " << ndx.logical_path << endl;
+    os << "# Index of " << ndx.physical_path << endl;
     os << "# Data Droppings" << endl;
     for(unsigned i = 0; i < ndx.chunk_map.size(); i++ ) {
         os << "# " << i << " " << ndx.chunk_map[i].path << endl;
@@ -221,8 +221,8 @@ ostream& operator <<(ostream &os,const Index &ndx ) {
     return os;
 }
 
-void Index::init( string logical ) {
-    logical_path    = logical;
+void Index::init( string physical ) {
+    physical_path    = physical;
     populated       = false;
     buffering       = false;
     buffer_filled   = false;
@@ -240,7 +240,7 @@ Index::Index( string logical, int fd ) : Metadata::Metadata() {
     this->fd = fd;
     ostringstream os;
     os << __FUNCTION__ << ": " << this << " created index on " <<
-        logical_path << endl;
+        physical_path << endl;
     plfs_debug("%s", os.str().c_str() );
 }
 
@@ -260,19 +260,19 @@ Index::Index( string logical ) : Metadata::Metadata() {
     init( logical );
     ostringstream os;
     os << __FUNCTION__ << ": " << this 
-       << " created index on " << logical_path << ", "
+       << " created index on " << physical_path << ", "
        << chunk_map.size() << " chunks" << endl;
     plfs_debug("%s", os.str().c_str() );
 }
 
 void Index::setPath( string p ) {
-    this->logical_path = p;
+    this->physical_path = p;
 }
 
 Index::~Index() {
     ostringstream os;
     os << __FUNCTION__ << ": " << this 
-       << " removing index on " << logical_path << ", " 
+       << " removing index on " << physical_path << ", " 
        << chunk_map.size() << " chunks"<< endl;
     plfs_debug("%s", os.str().c_str() );
     plfs_debug("There are %d chunks to close fds for\n", chunk_map.size());
@@ -434,7 +434,7 @@ int Index::readIndex( string hostindex ) {
 
     ostringstream os;
     os << __FUNCTION__ << ": " << this << " reading index on " <<
-        logical_path << endl;
+        physical_path << endl;
     plfs_debug("%s", os.str().c_str() );
 
     maddr = mapIndex( hostindex, &fd, &length );
@@ -533,7 +533,7 @@ int Index::global_from_stream(void *addr) {
     quant = sarray[0];
     if ( quant < 0 ) return -EBADF;
     plfs_debug("%s for %s has %ld entries\n",
-            __FUNCTION__,logical_path.c_str(),(long)quant);
+            __FUNCTION__,physical_path.c_str(),(long)quant);
 
     // then skip past the header
     addr = (void*)&(sarray[1]);
@@ -558,13 +558,13 @@ int Index::global_from_stream(void *addr) {
 
     // now read in the vector of chunk files
     plfs_debug("%s of %s now parsing data chunk paths\n",
-            __FUNCTION__,logical_path.c_str());
+            __FUNCTION__,physical_path.c_str());
     vector<string> chunk_paths;
     tokenize((char*)addr,"\n",chunk_paths); // might be inefficient...
     for( size_t i = 0; i < chunk_paths.size(); i++ ) {
         if(chunk_paths[i].size()<7) continue;
         ChunkFile cf;
-        cf.path = logical_path + "/" + chunk_paths[i];
+        cf.path = physical_path + "/" + chunk_paths[i];
         cf.fd = -1;
         chunk_map.push_back(cf);
     }
@@ -584,14 +584,14 @@ int Index::debug_from_stream(void *addr){
         return -1;
     }
     plfs_debug("%s for %s has %ld entries\n",
-        __FUNCTION__,logical_path.c_str(),(long)quant);
+        __FUNCTION__,physical_path.c_str(),(long)quant);
     // then skip past the entries
     ContainerEntry *entries = (ContainerEntry*)addr;
     addr = (void*)&(entries[quant]);
 
     // now read in the vector of chunk files
     plfs_debug("%s of %s now parsing data chunk paths\n",
-                __FUNCTION__,logical_path.c_str());
+                __FUNCTION__,physical_path.c_str());
     vector<string> chunk_paths;
     tokenize((char*)addr,"\n",chunk_paths); // might be inefficient...
     for( size_t i = 0; i < chunk_paths.size(); i++ ) {
@@ -633,7 +633,7 @@ int Index::global_to_stream(void **buffer,size_t *length) {
     // this gets written last but compute it first to compute length
     ostringstream chunks;
     for(unsigned i = 0; i < chunk_map.size(); i++ ) {
-        chunks << chunk_map[i].path.substr(logical_path.length()) << endl;
+        chunks << chunk_map[i].path.substr(physical_path.length()) << endl;
     }
     chunks << '\0'; // null term the file
     size_t chunks_length = chunks.str().length();
@@ -656,7 +656,7 @@ int Index::global_to_stream(void **buffer,size_t *length) {
     // copy in the header
     ptr = memcpy_helper(ptr,&quant,sizeof(quant));
     plfs_debug("%s: Copied header for global index of %s\n",
-            __FUNCTION__, logical_path.c_str()); 
+            __FUNCTION__, physical_path.c_str()); 
 
     // copy in each container entry
     size_t  centry_length = sizeof(ContainerEntry);
@@ -666,12 +666,12 @@ int Index::global_to_stream(void **buffer,size_t *length) {
         ptr = memcpy_helper(ptr,start,centry_length);
     }
     plfs_debug("%s: Copied %ld entries for global index of %s\n",
-            __FUNCTION__, (long)quant,logical_path.c_str()); 
+            __FUNCTION__, (long)quant,physical_path.c_str()); 
 
     // copy the chunk paths
     ptr = memcpy_helper(ptr,(void*)chunks.str().c_str(),chunks_length);
     plfs_debug("%s: Copied the chunk map for global index of %s\n",
-            __FUNCTION__, logical_path.c_str()); 
+            __FUNCTION__, physical_path.c_str()); 
     assert(ptr==(char*)*buffer+*length);
 
     return ret;
@@ -856,7 +856,7 @@ int Index::insertGlobal( ContainerEntry *g_entry ) {
     bool overlap  = false;
 
     plfs_debug("Inserting offset %ld into index of %s\n",
-            (long)g_entry->logical_offset, logical_path.c_str());
+            (long)g_entry->logical_offset, physical_path.c_str());
     ret = insertGlobalEntry( g_entry ); 
     if ( ret.second == false ) {
         ostringstream oss;
@@ -884,7 +884,7 @@ int Index::insertGlobal( ContainerEntry *g_entry ) {
 
     if ( overlap ) {
         ostringstream oss;
-        oss << __FUNCTION__ << " of " << logical_path << " trying to insert "
+        oss << __FUNCTION__ << " of " << physical_path << " trying to insert "
             << "overlap at " << g_entry->logical_offset << endl;
         plfs_debug("%s", oss.str().c_str() );
         handleOverlap( *g_entry, ret );
@@ -1009,7 +1009,7 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
     *hole = false;
     *chunk_id = (pid_t)-1;
     //plfs_debug("Look up %ld in %s\n", 
-    //        (long)logical, logical_path.c_str() );
+    //        (long)logical, physical_path.c_str() );
     ContainerEntry entry, previous;
     MAP_ITR itr;
     MAP_ITR prev = (MAP_ITR)NULL;

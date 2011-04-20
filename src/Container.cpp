@@ -558,15 +558,16 @@ char *Container::version(const string &path) {
 vector<IndexFileInfo> Container::hostdir_index_read(const char *path){
     
     DIR *dirp;
-    struct dirent *dirent;
+    struct dirent *dirent = NULL;
     vector<IndexFileInfo> index_droppings;
 
     // Open the directory and check value
     plfs_debug("%s on %s\n", __FUNCTION__, path);
-    if((dirp=opendir(path)) == NULL) {
+    int ret = Util::Opendir(path,&dirp);
+    if(dirp==NULL || ret != 0) {
         plfs_debug("opendir error in hostdir %s directory reader\n",path);
         // Return some sort of error
-        cerr << "opendir " << path << " error: " << strerror(errno) << endl;
+        cerr << "opendir " << path << " error: " << strerror(-ret) << endl;
         return index_droppings;
     }
 
@@ -608,6 +609,7 @@ vector<IndexFileInfo> Container::hostdir_index_read(const char *path){
             index_droppings.push_back(index_dropping);
         }
     }
+    Util::Closedir(dirp);
     return index_droppings;
 }
 

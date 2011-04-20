@@ -175,7 +175,7 @@ class Index : public Metadata {
 
         bool   populated;
         pid_t  mypid;
-        string logical_path;
+        string physical_path;
         int    chunk_id;
         off_t  last_offset;
         size_t total_bytes;
