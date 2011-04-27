@@ -38,7 +38,7 @@ hashMethod {
 #define PLFS_ENTER PLFS_ENTER2(PLFS_PATH_REQUIRED)
 
 #define PLFS_ENTER2(X) bool is_mnt_pt = false; int ret = 0;\
- unsigned mnt_pt_cksum = -1; \
+ unsigned mnt_pt_cksum = (unsigned)-1; \
  bool expand_error = false; \
  int error = 0; \
  string path = expandPath(logical,&is_mnt_pt,&expand_error,HASH_BY_PATH,-1,\
