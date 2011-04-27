@@ -701,19 +701,18 @@ plfs_recover( const char *logical ) {
     if(!found) PLFS_EXIT(-ENOENT);
 
     // then check whether it's is already at the correct canonical location
+    // however, if we find a directory at the correct canonical location
+    // we still need to keep looking bec it might be a shadow container
     canonical = path;
     plfs_debug("%s Canonical location should be %s\n", __FUNCTION__,
             canonical.c_str());
     isfile = (int) Container::isContainer(path,&canonical_mode); 
-    if (isfile || S_ISDIR(canonical_mode)) {
+    if (isfile) {
         plfs_debug("%s %s is already in canonical location\n",__FUNCTION__,
                 canonical.c_str());
-        if (S_ISDIR(canonical_mode)) {  // dirs need to be on all backends
-            ret = recover_directory(logical,false);
-        }
-        PLFS_EXIT((ret==0?-EEXIST:ret));
+        PLFS_EXIT(0);
     }
-    plfs_debug("%s %s is not in canonical location\n",__FUNCTION__,logical);
+    plfs_debug("%s %s may not be in canonical location\n",__FUNCTION__,logical);
 
     // ok, it's not at the canonical location
     // check all the other backends to see if they have it 
@@ -722,15 +721,15 @@ plfs_recover( const char *logical ) {
     found = false;  // possible it doesn't exist (ENOENT)
     for(unsigned i = 0; i < pm->backends.size(); i++) {
         path = expandPath(logical,NULL,NULL,NO_HASH,i,0,0);
-        plfs_debug("%s query canonical at %s?\n", __FUNCTION__, path.c_str());
-        ret = (int) Container::isContainer(path,&former_mode);
-        if (S_ISDIR(former_mode)) isdir = found = true;
-        if (ret) {
-            isfile = found = true;
+        isfile = (int) Container::isContainer(path,&former_mode);
+        if (isfile) {
+            found = true;
             former = path;
-            plfs_debug("%s old canonical at %s", __FUNCTION__, former.c_str());
-            break;
+        } else if (S_ISDIR(former_mode)) {
+            isdir = found = true;
         }
+        plfs_debug("%s query %s: %s\n", __FUNCTION__, path.c_str(),
+                (isfile?"file":isdir?"dir":"ENOENT"));
     }
     if (!found) PLFS_EXIT(-ENOENT);
 
