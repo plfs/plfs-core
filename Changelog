@@ -1,4 +1,7 @@
 ~~~ Version 2.0.2
+* changed hash by path to hash by filename.  No compatible with 2.0.1.  But 
+plfs_recover can be used to fix this.  This was necessary bec hash by path
+would orphan children when parent directories were renamed. 
 * addressed 41492.  Now 'plfs:' prefix can be passed to all plfs functions.
 It is used to direct MPIIO to use plfs and MPIIO in that case strips it
 off.  But users might get used to using it so if they ever do use it, then

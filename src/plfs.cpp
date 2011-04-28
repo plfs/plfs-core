@@ -27,7 +27,7 @@ requirePlfsPath {
 
 enum
 hashMethod {
-    HASH_BY_PATH,
+    HASH_BY_FILENAME,
     HASH_BY_NODE,
     NO_HASH,
 };
@@ -41,7 +41,7 @@ hashMethod {
  unsigned mnt_pt_cksum = (unsigned)-1; \
  bool expand_error = false; \
  int error = 0; \
- string path = expandPath(logical,&is_mnt_pt,&expand_error,HASH_BY_PATH,-1,\
+ string path = expandPath(logical,&is_mnt_pt,&expand_error,HASH_BY_FILENAME,-1,\
          &mnt_pt_cksum,&error); \
  plfs_debug("EXPAND in %s: %s->%s\n",__FUNCTION__,logical,path.c_str()); \
  if ((expand_error && X==PLFS_PATH_REQUIRED)||error!=0) { \
@@ -193,19 +193,23 @@ expandPath(string logical, bool *mount_point, bool *expand_error,
     if(mnt_pt_cksum) *mnt_pt_cksum = pm->checksum;
 
     // set remaining to the part of logical after the mnt_pt 
+    // however, don't hash on remaining, hashing on the full path is very bad
+    // if a parent dir is renamed, then children files are orphaned
     string remaining = ""; 
+    string filename = "/"; 
     plfs_debug("Trim mnt %s from path %s\n",pm->mnt_pt.c_str(),logical.c_str());
     for(unsigned i = pm->mnt_tokens.size(); i < logical_tokens.size(); i++ ) {
         remaining += "/";
         remaining += logical_tokens[i]; 
+        if (i+1==logical_tokens.size()) filename = logical_tokens[i];
     }
-    plfs_debug("Remaining path is %s\n", remaining.c_str());
-    //remaining = logical.substr(pm->mnt_pt.size());
+    plfs_debug("Remaining path is %s (hash on %s)\n", 
+            remaining.c_str(),filename.c_str());
 
     // choose a backend unless the caller explicitly requested one
     switch(hash_method) {
-    case HASH_BY_PATH:
-        which_backend = Container::hashValue(remaining.c_str());
+    case HASH_BY_FILENAME:
+        which_backend = Container::hashValue(filename.c_str());
         break;
     case HASH_BY_NODE:
         which_backend = Container::hashValue(Util::hostname());
@@ -407,7 +411,7 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
         string hostdir_after_container = 
             hostdir_full.substr(hash_by_node.size(),string::npos);
         string hash_by_path = 
-            expandPath(logical,NULL,NULL,HASH_BY_PATH,-1,0,0);
+            expandPath(logical,NULL,NULL,HASH_BY_FILENAME,-1,0,0);
         hash_by_path +=  "/";
         hash_by_path += hostdir_after_container;
         plfs_debug("Need to link %s into %s (hostdir ret %d)\n", 
@@ -697,6 +701,7 @@ plfs_recover( const char *logical ) {
     mode_t canonical_mode = 0, former_mode = 0;
 
     // first make sure we can find a mount point for this path
+    // this code isn't needed since expandPath does this for us
     PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,found);
     if(!found) PLFS_EXIT(-ENOENT);
 
@@ -710,7 +715,7 @@ plfs_recover( const char *logical ) {
     if (isfile) {
         plfs_debug("%s %s is already in canonical location\n",__FUNCTION__,
                 canonical.c_str());
-        PLFS_EXIT(0);
+        PLFS_EXIT(-EEXIST);
     }
     plfs_debug("%s %s may not be in canonical location\n",__FUNCTION__,logical);
 
@@ -721,9 +726,9 @@ plfs_recover( const char *logical ) {
     found = false;  // possible it doesn't exist (ENOENT)
     for(unsigned i = 0; i < pm->backends.size(); i++) {
         path = expandPath(logical,NULL,NULL,NO_HASH,i,0,0);
-        isfile = (int) Container::isContainer(path,&former_mode);
-        if (isfile) {
-            found = true;
+        ret  = (int) Container::isContainer(path,&former_mode);
+        if (ret) {
+            isfile = found = true;
             former = path;
         } else if (S_ISDIR(former_mode)) {
             isdir = found = true;
@@ -1094,7 +1099,7 @@ plfs_init(PlfsConf *pconf) {
     map<string,PlfsMount*>::iterator itr = pconf->mnt_pts.begin();
     if (itr==pconf->mnt_pts.end()) return false;
     bool expand_error = false;
-    expandPath(itr->first,NULL,&expand_error,HASH_BY_PATH,-1,0,0);
+    expandPath(itr->first,NULL,&expand_error,HASH_BY_FILENAME,-1,0,0);
     return(expand_error ? false : true);
 }
 
@@ -1579,7 +1584,7 @@ plfs_symlink(const char *logical, const char *to) {
     PLFS_ENTER2(PLFS_PATH_NOTREQUIRED);
 
     bool expand_error2 = false;
-    string topath = expandPath(to, NULL,&expand_error2,HASH_BY_PATH,-1,0,0);
+    string topath = expandPath(to, NULL,&expand_error2,HASH_BY_FILENAME,-1,0,0);
     if (expand_error2) PLFS_EXIT(-ENOENT);
     
     ret = retValue(Util::Symlink(logical,topath.c_str()));
@@ -1632,7 +1637,7 @@ int
 plfs_rename( const char *logical, const char *to ) {
     PLFS_ENTER;
     bool expand_error2 = false;
-    string topath = expandPath(to, NULL,&expand_error2,HASH_BY_PATH,-1,0,0);
+    string topath = expandPath(to, NULL,&expand_error2,HASH_BY_FILENAME,-1,0,0);
     //if (expand_error2) PLFS_EXIT(-ENOENT);
 
     if ( is_plfs_file( to, NULL ) ) {
