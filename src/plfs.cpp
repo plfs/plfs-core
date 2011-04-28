@@ -193,7 +193,7 @@ expandPath(string logical, bool *mount_point, bool *expand_error,
     if(mnt_pt_cksum) *mnt_pt_cksum = pm->checksum;
 
     // set remaining to the part of logical after the mnt_pt 
-    string remaining = "/";
+    string remaining = ""; 
     plfs_debug("Trim mnt %s from path %s\n",pm->mnt_pt.c_str(),logical.c_str());
     for(unsigned i = pm->mnt_tokens.size(); i < logical_tokens.size(); i++ ) {
         remaining += "/";

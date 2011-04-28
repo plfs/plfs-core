@@ -77,6 +77,7 @@ size_t Container::hashValue( const char *str ) {
     for( i = 0; i < strlen( str ); i++ ) {
         sum += (size_t)str[i];
     }
+    plfs_debug("%s: %s -> %d\n",__FUNCTION__,str,sum);
     return sum;
     /*
     #include <openssl/md5.h>
