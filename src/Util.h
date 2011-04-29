@@ -112,11 +112,6 @@ class Util {
                                          off_t *, off_t *, double * ); 
         static string bandwidthToString( HASH_MAP<string,double>::iterator,
                                          HASH_MAP<string,off_t>::iterator ); 
-        static double rmdir_time;
-        static double chmod_time;
-        static double mkdir_time;
-        static double rename_time;
-        static double isdir_time;
 };
 
 #endif
