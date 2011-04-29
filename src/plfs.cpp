@@ -33,19 +33,23 @@ hashMethod {
     NO_HASH,
 };
 
+typedef struct {
+    bool is_mnt_pt;
+    bool expand_error;
+    PlfsMount *mnt_pt;
+    int Errno;  // can't use just errno, it's a weird macro
+} ExpansionInfo;
+
 #define PLFS_ENTER PLFS_ENTER2(PLFS_PATH_REQUIRED)
 
 #define PLFS_ENTER2(X) bool is_mnt_pt = false; int ret = 0;\
- unsigned mnt_pt_cksum = (unsigned)-1; \
- bool expand_error = false; \
- int error = 0; \
- PlfsMount *mnt_pt; \
- string path = expandPath(logical,&is_mnt_pt,&expand_error,HASH_BY_FILENAME,-1,\
-         &mnt_pt_cksum,&error,0,&mnt_pt); \
+ ExpansionInfo expansion_info; \
+ string path = expandPath(logical,&expansion_info,HASH_BY_FILENAME,-1,0); \
  plfs_debug("EXPAND in %s: %s->%s\n",__FUNCTION__,logical,path.c_str()); \
- if ((expand_error && X==PLFS_PATH_REQUIRED)||error!=0) { \
-     PLFS_EXIT(error==0?-ENOENT:error); \
- }
+ if (expansion_info.expand_error && X==PLFS_PATH_REQUIRED) { \
+     PLFS_EXIT(-ENOENT); \
+ } \
+ if (expansion_info.Errno) PLFS_EXIT(expansion_info.Errno);
 
 #define PLFS_EXIT(X) return(X);
 
@@ -133,11 +137,17 @@ find_mount_point_using_tokens(PlfsConf *pconf,
 }
 
 // takes a logical path and returns a physical one
+// which_backend is only meaningful when hash_method==NO_HASH
 string
-expandPath(string logical, bool *mount_point, bool *expand_error, 
-        hashMethod hash_method, int which_backend, unsigned *mnt_pt_cksum,
-        int *error, int depth, PlfsMount **mount_pt) 
+expandPath(string logical, ExpansionInfo *exp_info, 
+        hashMethod hash_method, int which_backend, int depth) 
 {
+    // set default return values in exp_info
+    exp_info->is_mnt_pt = false;
+    exp_info->expand_error = false;
+    exp_info->mnt_pt = NULL;
+    exp_info->Errno = 0;
+
     // get our initial conf
     static PlfsConf *pconf = NULL;
     static const char *adio_prefix = "plfs:";
@@ -145,25 +155,17 @@ expandPath(string logical, bool *mount_point, bool *expand_error,
     if (!pconf) { 
         pconf = get_plfs_conf(); 
         if (!pconf) {
-            if (mount_point) *mount_point   = false;
-            if (expand_error) *expand_error = true;
-            if (mnt_pt_cksum) *mnt_pt_cksum = (unsigned)-1;
-            fprintf(stderr,"Missing required /etc/plfsrc file\n");
-            if (error) *error = -ENODATA;
-            return "MISSING PLFSRC";    // ugh, this is much less than elegant
-            //assert(pconf); 
+            exp_info->expand_error = true;
+            exp_info->Errno = -ENODATA; // real error return
+            return "MISSING PLFSRC";  // ugly, but real error is returned above
         }
     }
     if ( pconf->err_msg ) {
       plfs_debug("PlfsConf error: %s\n", pconf->err_msg->c_str());
-      if (expand_error) *expand_error = true;
-      if (error) *error = -EINVAL;
+      exp_info->expand_error = true;
+      exp_info->Errno = -EINVAL;
       return "INVALID";
     }
-
-    // initialize our return parameters
-    if (mount_point)  *mount_point  = false;
-    if (expand_error) *expand_error = false;
 
     // rip off an adio prefix if passed.  Not sure how important this is
     // and not sure how much overhead it adds nor efficiency of implementation
@@ -190,20 +192,16 @@ expandPath(string logical, bool *mount_point, bool *expand_error,
                 fprintf(stderr,
                     "WARNING: Couldn't find PLFS file %s.  Retrying with %s\n",
                     logical.c_str(),fullpath);
-                return(expandPath(fullpath,mount_point,expand_error,
-                        hash_method,which_backend,mnt_pt_cksum,error,
-                        depth,mount_pt));
+                return(expandPath(fullpath,exp_info,hash_method,
+                                    which_backend,depth));
             } // else fall through to error below
         }
         fprintf(stderr,"ERROR: %s is not on a PLFS mount.\n", logical.c_str());
-        if(expand_error) *expand_error = true;
-        if(error) *error = -EPROTOTYPE;
+        exp_info->expand_error = true;
+        exp_info->Errno = -EPROTOTYPE;
         return "PLFS_NO_MOUNT_POINT_FOUND";
     }
-    if (mount_pt) *mount_pt = pm;
-
-    // remember the checksum
-    if(mnt_pt_cksum) *mnt_pt_cksum = pm->checksum;
+    exp_info->mnt_pt = pm; // found a mount point, save it for caller to use
 
     // set remaining to the part of logical after the mnt_pt 
     // however, don't hash on remaining, hashing on the full path is very bad
@@ -382,8 +380,9 @@ plfs_create( const char *logical, mode_t mode, int flags, pid_t pid ) {
     PLFS_ENTER;
     int attempt = 0;
     ret = 0; // suppress compiler warning
-    return Container::create(path,Util::hostname(),mode,flags,
-            &attempt,pid,mnt_pt_cksum);
+    ret =  Container::create(path,Util::hostname(),mode,flags,
+            &attempt,pid,expansion_info.mnt_pt->checksum);
+    PLFS_EXIT(ret);
 }
 
 // this code is where the magic lives to get the distributed hashing
@@ -409,8 +408,10 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
         // stuff.  Hash the hostdir by node, then link it in to the
         // container which was already hashed by filename
         char *hostname = Util::hostname();
-        string hash_by_node = 
-            expandPath(logical,NULL,NULL,HASH_BY_NODE,-1,0,0,0,0); 
+        ExpansionInfo exp_info;
+        string hash_by_node = expandPath(logical,&exp_info,HASH_BY_NODE,-1,0); 
+        if (exp_info.Errno) PLFS_EXIT(exp_info.Errno);
+
         plfs_debug("Making hostdir for %s at %s\n",logical.c_str(),
                 hash_by_node.c_str());
         ret = Container::makeHostDir(hash_by_node, 
@@ -419,12 +420,12 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
             // a sibling beat us to it (this shouldn't happen in ADIO)
             ret = 0;
         }
-        string hostdir_full = 
-            Container::getHostDirPath(hash_by_node,hostname);
-        string hostdir_after_container = 
+        string hostdir_full,hostdir_after_container,hash_by_path;
+        hostdir_full = Container::getHostDirPath(hash_by_node,hostname);
+        hostdir_after_container = 
             hostdir_full.substr(hash_by_node.size(),string::npos);
-        string hash_by_path = 
-            expandPath(logical,NULL,NULL,HASH_BY_FILENAME,-1,0,0,0,0);
+        hash_by_path = expandPath(logical,&exp_info,HASH_BY_FILENAME,-1,0);
+        if (exp_info.Errno) PLFS_EXIT(exp_info.Errno);
         hash_by_path +=  "/";
         hash_by_path += hostdir_after_container;
         plfs_debug("Need to link %s into %s (hostdir ret %d)\n", 
@@ -564,8 +565,10 @@ int
 plfs_readdir( const char *logical, void *vptr ) {
     PLFS_ENTER;
     bool found = false;
-    for(unsigned i = 0; i < mnt_pt->backends.size(); i++) {
-        path = expandPath(logical,NULL,NULL,NO_HASH,i,0,0,0,0);
+    ExpansionInfo exp_info;
+    for(unsigned i = 0; i < expansion_info.mnt_pt->backends.size(); i++) {
+        path = expandPath(logical,&exp_info,NO_HASH,i,0);
+        if(exp_info.Errno) PLFS_EXIT(exp_info.Errno);
         ret = plfs_readdir_helper(path.c_str(),vptr);
         if ( ret == 0 ) found = true;
     }
@@ -584,8 +587,10 @@ int
 plfs_mkdir( const char *logical, mode_t mode ) {
     PLFS_ENTER;
     bool success = false;
-    for(unsigned i = 0; i < mnt_pt->backends.size(); i++) {
-        path = expandPath(logical,NULL,NULL,NO_HASH,i,0,0,0,0);
+    ExpansionInfo exp_info;
+    for(unsigned i = 0; i < expansion_info.mnt_pt->backends.size(); i++) {
+        path = expandPath(logical,&exp_info,NO_HASH,i,0);
+        if(exp_info.Errno) PLFS_EXIT(exp_info.Errno);
         ret = retValue(Util::Mkdir(path.c_str(),mode));
         if ( ret == 0 ) success = true;
     }
@@ -603,8 +608,10 @@ plfs_mkdir( const char *logical, mode_t mode ) {
 int
 plfs_rmdir( const char *logical ) {
     PLFS_ENTER;
-    for(unsigned i = 0; i < mnt_pt->backends.size(); i++) {
-        path = expandPath(logical,NULL,NULL,NO_HASH,i,0,0,0,0);
+    ExpansionInfo exp_info;
+    for(unsigned i = 0; i < expansion_info.mnt_pt->backends.size(); i++) {
+        path = expandPath(logical,&exp_info,NO_HASH,i,0);
+        if(exp_info.Errno) PLFS_EXIT(exp_info.Errno);
         ret = retValue(Util::Rmdir(path.c_str()));
         if(ret==ENOENT||ret==-ENOENT) ret = 0;
         if(ret==ENOTEMPTY||ret==-ENOTEMPTY) {
@@ -653,8 +660,9 @@ mkdir_dash_p(const string &path, bool parent_only) {
 int
 recover_directory(const char *logical, bool parent_only) {
     PLFS_ENTER;
-    for(unsigned i = 0; i < mnt_pt->backends.size(); i++) {
-        ret = mkdir_dash_p(expandPath(logical,NULL,NULL,NO_HASH,i,0,0,0,0),
+    ExpansionInfo exp_info;
+    for(unsigned i = 0; i < expansion_info.mnt_pt->backends.size(); i++) {
+        ret = mkdir_dash_p(expandPath(logical,&exp_info,NO_HASH,i,0),
                 parent_only);
     }
     return ret;    
@@ -701,12 +709,6 @@ plfs_recover( const char *logical ) {
     bool found, isdir, isfile;
     mode_t canonical_mode = 0, former_mode = 0;
 
-    // first make sure we can find a mount point for this path
-    // this code isn't needed since expandPath does this for us
-    // hmm.  shoot.  we need the backends from the mount point though.
-    //PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,found);
-    //if(!found) PLFS_EXIT(-ENOENT);
-
     // then check whether it's is already at the correct canonical location
     // however, if we find a directory at the correct canonical location
     // we still need to keep looking bec it might be a shadow container
@@ -726,8 +728,9 @@ plfs_recover( const char *logical ) {
     isdir = false;  // possible we find it and it's a directory
     isfile = false; // possible we find it and it's a container
     found = false;  // possible it doesn't exist (ENOENT)
-    for(unsigned i = 0; i < mnt_pt->backends.size(); i++) {
-        path = expandPath(logical,NULL,NULL,NO_HASH,i,0,0,0,0);
+    ExpansionInfo exp_info;
+    for(unsigned i = 0; i < expansion_info.mnt_pt->backends.size(); i++) {
+        path = expandPath(logical,&exp_info,NO_HASH,i,0);
         ret  = (int) Container::isContainer(path,&former_mode);
         if (ret) {
             isfile = found = true;
@@ -1100,9 +1103,9 @@ bool
 plfs_init(PlfsConf *pconf) { 
     map<string,PlfsMount*>::iterator itr = pconf->mnt_pts.begin();
     if (itr==pconf->mnt_pts.end()) return false;
-    bool expand_error = false;
-    expandPath(itr->first,NULL,&expand_error,HASH_BY_FILENAME,-1,0,0,0,0);
-    return(expand_error ? false : true);
+    ExpansionInfo exp_info;
+    expandPath(itr->first,&exp_info,HASH_BY_FILENAME,-1,0);
+    return(exp_info.expand_error ? false : true);
 }
 
 // inserts a mount point into a plfs conf structure
@@ -1586,10 +1589,9 @@ plfs_symlink(const char *logical, const char *to) {
     // ok, let's try that then.  no, let's try the first way
     PLFS_ENTER2(PLFS_PATH_NOTREQUIRED);
 
-    bool expand_error2 = false;
-    string topath = expandPath(to, NULL,&expand_error2,
-            HASH_BY_FILENAME,-1,0,0,0,0);
-    if (expand_error2) PLFS_EXIT(-ENOENT);
+    ExpansionInfo exp_info;
+    string topath = expandPath(to, &exp_info, HASH_BY_FILENAME,-1,0);
+    if (exp_info.expand_error) PLFS_EXIT(-ENOENT);
     
     ret = retValue(Util::Symlink(logical,topath.c_str()));
     plfs_debug("%s: %s to %s: %d\n", __FUNCTION__, 
@@ -1637,12 +1639,15 @@ plfs_readlink(const char *logical, char *buf, size_t bufsize) {
     PLFS_EXIT(ret);
 }
 
+// this function needs work.
+// it hasn't been updated in regards to multiple backends yet.
+// probably other similar functions as well might need work
 int
 plfs_rename( const char *logical, const char *to ) {
     PLFS_ENTER;
-    bool expand_error2 = false;
-    string topath = expandPath(to, NULL,&expand_error2,
-            HASH_BY_FILENAME,-1,0,0,0,0);
+    ExpansionInfo exp_info;
+    string topath = expandPath(to,&exp_info,HASH_BY_FILENAME,-1,0);
+    // check return value here?
     //if (expand_error2) PLFS_EXIT(-ENOENT);
 
     if ( is_plfs_file( to, NULL ) ) {
@@ -2080,11 +2085,9 @@ plfs_unlink( const char *logical ) {
         plfs_debug("Remove canonical container %s: %d\n",canonical.c_str(),ret);
  
         if(ret==0) { // then all the copies spread across backends
-            bool mnt_pt;
-            PlfsMount *pm = find_mount_point(get_plfs_conf(),logical,mnt_pt);
-            if(!mnt_pt) PLFS_EXIT(-ENOENT);
-            for(unsigned i = 0; i < pm->backends.size(); i++) {
-                path = expandPath(logical,NULL,NULL,NO_HASH,i,0,0,0,0);
+            ExpansionInfo exp_info;
+            for(unsigned i = 0; i < expansion_info.mnt_pt->backends.size();i++){
+                path = expandPath(logical,&exp_info,NO_HASH,i,0);
                 if (path!=canonical) { // don't bother removing twice
                     ret = plfs_remove_container(path);
                     plfs_debug("Removed non-canonical container %s: %d\n",
