@@ -51,6 +51,7 @@ plfs.h
 
 dist_pkginclude_HEADERS = \
 COPYRIGHT.h \
+plfs_internal.h \
 Util.h
 
 headers = \

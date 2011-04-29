@@ -330,7 +330,9 @@ int Container::Modify( DirectoryOperation type,
     }
     while( ret == 0 && (dent = readdir( dir )) != NULL ) {
         if (!strcmp(dent->d_name,".")||!strcmp(dent->d_name,"..")) continue; 
-        string full_path( path.c_str() ); full_path += "/"; full_path += dent->d_name;
+        string full_path( path.c_str() ); 
+        full_path += "/"; 
+        full_path += dent->d_name;
         if ( Util::isDirectory( full_path.c_str() ) ) {
             ret = Container::Modify(type,full_path,uid, gid,utbuf,mode);
             if ( ret != 0 ) break;
@@ -677,8 +679,8 @@ string Container::getDataPath(const string &path, const string &host, int pid,
     return getChunkPath( path, host, pid, DATAPREFIX, ts );
 }
 
-string Container::getIndexHostPath(const string &path,const string &host, int pid,
-        double ts)
+string Container::getIndexHostPath(const string &path,const string &host, 
+        int pid, double ts)
 {
 
     ostringstream oss;
@@ -1312,7 +1314,7 @@ string Container::getCreatorFilePath( const string& path ) {
 
 size_t Container::getHostDirId( const string &hostname ) {
     PlfsConf *pconf = get_plfs_conf();    
-    return (hashValue(hostname.c_str())%pconf->num_hostdirs) + 1;
+    return (hashValue(hostname.c_str())%pconf->num_hostdirs);
 }
 
 string Container::getHostDirPath( const string & expanded_path, 
@@ -1363,7 +1365,12 @@ int Container::createHelper(const string &expanded_path, const string &hostname,
         // first the top level container
     double begin_time, end_time;
     int res = 0;
-    if ( ! isContainer( expanded_path.c_str(), NULL ) ) {
+    mode_t existing_mode = 0;
+    res = isContainer( expanded_path.c_str(), &existing_mode );
+    // check if someone is trying to overwrite a directory?
+    if (!res && S_ISDIR(existing_mode)) res = -EISDIR;    
+
+    if (!res) {
         plfs_debug("Making top level container %s %x\n", 
                 expanded_path.c_str(),mode);
         begin_time = time(NULL);
@@ -1376,7 +1383,6 @@ int Container::createHelper(const string &expanded_path, const string &hostname,
         if ( res != 0 ) {
             plfs_debug("Failed to make top level container %s:%s\n",
                     expanded_path.c_str(), strerror(errno));
-            return res;
         }
     }
 

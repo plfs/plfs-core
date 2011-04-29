@@ -1,8 +1,7 @@
 #ifndef __PLFS_PRIVATE__
 #define __PLFS_PRIVATE__
 
-// is this file needed?  Why not move all this into plfs.h itself?  Anything
-// really private in here?
+#include "plfs_internal.h"
 
 #include <vector>
 #include <string>
@@ -10,6 +9,7 @@
 using namespace std;
 
 #define SVNVERS $Rev$
+
 
 #define EISDIR_DEBUG \
     if(ret!=0) {\

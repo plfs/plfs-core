@@ -1,16 +1,23 @@
 ~~~ Version 2.0.2
+* fixed bug with opening non-existent files for read through ADIO.  also but
+where you could turn a file into a directory by writing to it.  (ticket 41436)
+* fixed off-by-one error where subdirs were created btwn 1 and 
+plfsrc:num_hostdirs but adio assumed they were created btwn 0 and 
+plfsrc:num_hostdirs - 1.  Now both count from 0 like computers should.
+(ticket 42896)
 * changed hash by path to hash by filename.  No compatible with 2.0.1.  But 
 plfs_recover can be used to fix this.  This was necessary bec hash by path
 would orphan children when parent directories were renamed. 
-* addressed 41492.  Now 'plfs:' prefix can be passed to all plfs functions.
+* Now 'plfs:' prefix can be passed to all plfs functions.
 It is used to direct MPIIO to use plfs and MPIIO in that case strips it
 off.  But users might get used to using it so if they ever do use it, then
 it will work.  Brett or someone commented that this might help prevent
 confusion so give it a try.  I hope it doesn't add a lot of overhead.  It's
 just one extra strncmp in the normal case where prefix isn't present 
+(ticket 41492)  
 * put better info (job size, BW) into the global_summary_dir droppings
 * added tools/plfs_query which is just a tool for developers.
-* fixed 40866.  missing plfsrc was assert(0).  Now it's a bit more elegant
+* missing plfsrc was assert(0).  Now it's a bit more elegant (ticket 40866)  
 * added tools/plfs_version which queries all plfs mountpoints and reports
 their versions.  It also digs into a container and reports the version that
 created a particular plfs file if a target is passed on the command line

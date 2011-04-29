@@ -10,11 +10,11 @@
 #include <dirent.h>
 #include <string.h>
 #include <limits.h>    
+#include <assert.h>
 
 
 #define VERBOSE_DEBUG 0
-#define BIT_ARRAY_LENGTH 1024   // this means max hostdir = 1024
-#define HOSTDIR_PREFIX "hostdir."
+#define BIT_ARRAY_LENGTH MAX_HOSTDIRS 
 
 typedef char Bitmap;
 Bitmap bitmap[BIT_ARRAY_LENGTH/8];
@@ -212,6 +212,7 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
 					   myname, __LINE__, MPI_ERR_IO,
 					   "**io",
 					   "**io %s", strerror(-err));
+            errno = -err;
         } else {
             *error_code = MPI_SUCCESS;
         }
@@ -227,7 +228,8 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
 					   myname, __LINE__, MPI_ERR_IO,
 					   "**io",
 					   "**io %s", strerror(-err));
-        plfs_debug( "%s: failure\n", myname );
+        errno = -err;
+        plfs_debug( "%s: failure %s\n", myname, strerror(-err) );
         return;
     } else {
         plfs_debug( "%s: Success on open (%d)!\n", myname, rank );
@@ -257,34 +259,38 @@ int open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
         MPI_Comm_rank(hostdir_comm,&hostdir_rank);
     }
     
+    // get specified behavior from hints
     if (fd->access_mode==ADIO_RDONLY) {
-            disabl_broadcast = ad_plfs_hints(fd,rank,"plfs_disable_broadcast");
-            compress_flag = ad_plfs_hints(fd,rank,"plfs_compress_index");
-            parallel_index_read =!ad_plfs_hints(fd,rank,"plfs_disable_paropen");
-            plfs_debug("Disable_bcast:%d,compress_flag:%d,parindex:%d\n",
-                        disabl_broadcast,compress_flag,parallel_index_read);
-            // I took out the extra broadcasts at this point. ad_plfs_hints 
-            // has code to make sure that all ranks have the same value
-            // for the hint
+        disabl_broadcast = ad_plfs_hints(fd,rank,"plfs_disable_broadcast");
+        compress_flag = ad_plfs_hints(fd,rank,"plfs_compress_index");
+        parallel_index_read =!ad_plfs_hints(fd,rank,"plfs_disable_paropen");
+        plfs_debug("Disable_bcast:%d,compress_flag:%d,parindex:%d\n",
+                    disabl_broadcast,compress_flag,parallel_index_read);
+        // I took out the extra broadcasts at this point. ad_plfs_hints 
+        // has code to make sure that all ranks have the same value
+        // for the hint
     } else {
         disabl_broadcast = 1; // don't create an index unless we're in read mode
         compress_flag=0;
     }
+
     // This is new code added to handle the parallel_index_read case
-    if( (fd->access_mode==ADIO_RDONLY) && parallel_index_read){
+    if( fd->access_mode==ADIO_RDONLY && parallel_index_read){
         void *global_index;
         // Function to start the parallel index read
-        par_index_read(fd,pfd,error_code,perm,amode,rank,
+        err = par_index_read(fd,pfd,error_code,perm,amode,rank,
                 &global_index);
-        open_opt.pinter = PLFS_MPIIO;
-        open_opt.index_stream=global_index;
-        err = plfs_open(pfd,fd->filename,amode,rank,perm,&open_opt);
-        free(global_index);
-    }
-    // If we are RDONLY and broadcast isn't disabled let's broadcast that index
-    else if(!disabl_broadcast){
+        if (err == 0) {
+            open_opt.pinter = PLFS_MPIIO;
+            open_opt.index_stream=global_index;
+            err = plfs_open(pfd,fd->filename,amode,rank,perm,&open_opt);
+            free(global_index);
+        }
+    } else if(fd->access_mode==ADIO_RDONLY && !disabl_broadcast){
+        // If we are RDONLY and broadcast isn't disabled let's broadcast it 
         err = broadcast_index(pfd,fd,error_code,perm,amode,rank,compress_flag);
     } else {
+        // here we are either writing or reading without optimizations
         open_opt.pinter = PLFS_MPIIO;
         open_opt.index_stream=NULL;
         close_flatten = ad_plfs_hints(fd,rank,"plfs_flatten_close");
@@ -308,8 +314,9 @@ int open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
 					   myname, __LINE__, MPI_ERR_IO,
 					   "**io",
 					   "**io %s", strerror(-err));
-        plfs_debug( "%s: failure\n", myname );
-        return -1;
+        plfs_debug( "%s: failure %s\n", myname, strerror(-err) );
+        errno = -err;
+        return err;
     } else {
         plfs_debug( "%s: Success on open(%d)!\n", myname, rank );
         fd->fs_ptr = *pfd;
@@ -428,8 +435,10 @@ int broadcast_index(Plfs_fd **pfd, ADIO_File fd,
     return 0;
 } 
 
+// returns 0 or -errno
 int par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
-        int amode,int rank, void **global_index){
+        int amode,int rank, void **global_index)
+{
 
     // Each rank and the number of processes playing
     int np,extra_rank,ret;
@@ -460,6 +469,7 @@ int par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     // all members of the group. Don't forget to plan and 
     // look at available methods to get the job done
     MPIBCAST(&num_host_dir,1,MPI_INT,0,fd->comm);
+    if(num_host_dir < 0) return num_host_dir;
     BITMAP_PRINT;
     
     // Get some information used to determine the group index 
@@ -690,43 +700,64 @@ void host_list_print(int line, Bitmap* bitmap){
 }
 
 // Function that reads in the hostdirs and sets the bitmap 
-int num_host_dirs(int *hostdir_count,char *target){
+// returns -errno if the opendir fails
+// returns -EISDIR if it's actually a directory and not a file
+// returns a positive number otherwise as even an empty container
+// will have at least one hostdir
+int 
+num_host_dirs(int *hostdir_count,char *target){
     // Directory reading variables
     DIR *dirp;
     struct dirent *dirent;
+    int isfile = 0;
+    *hostdir_count = 0;
 
     // Open the directory and check value
     if((dirp=opendir(target)) == NULL){
         plfs_debug("Num hostdir opendir error on %s\n",target);
-        return -1;
+        *hostdir_count = -errno;
+        return *hostdir_count; 
     }
 
     // Start reading the directory
     while(dirent = readdir(dirp) ){
         // Look for entries that beging with hostdir
-        if(strncmp(HOSTDIR_PREFIX,dirent->d_name,strlen(HOSTDIR_PREFIX))==0){
+        if(strncmp(HOSTDIRPREFIX,dirent->d_name,strlen(HOSTDIRPREFIX))==0){
             char * substr;
             substr=strtok(dirent->d_name,".");
             substr=strtok(NULL,".");
             int index = atoi(substr);
+            if (index>=MAX_HOSTDIRS) {
+                fprintf(stderr,"Bad behavior in PLFS.  Too many subdirs.\n");
+                *hostdir_count = -ENOSYS;
+                return *hostdir_count;
+            }
             plfs_debug("Added a hostdir for %d\n", index);
             (*hostdir_count)++;
             setBit(index,bitmap);
+        } else if (strncmp(ACCESSFILE,dirent->d_name,strlen(ACCESSFILE))==0){
+            isfile = 1;
         }
     }
     // Close the dir error out if we have a problem
     if (closedir(dirp) == -1 ){
         plfs_debug("Num hostdir closedir error on %s\n",target);
-        return -1;
+        *hostdir_count = -errno;
+        return *hostdir_count;
     }
     BITMAP_PRINT;
+    plfs_debug("%s of %s isfile %d hostdirs %d\n",
+            __FUNCTION__,target,isfile,*hostdir_count);
+    if (!isfile) {
+        *hostdir_count = -EISDIR;
+    }
     return *hostdir_count;
 }
 
 // Calculates the number of ranks per communication group
 // Split comm makes this many subgroups
 int ranks_per_comm_calc(int np,int num_host_dir){
-    return np/num_host_dir;
+    return (num_host_dir>0?np/num_host_dir:0);
 }
 
 // Get the amount of left over ranks, our values
@@ -768,7 +799,7 @@ char *count_to_hostdir(Bitmap *bitmap,int stop_point,int *count,
     if(!first) strcpy(filename,target);
     if(first) strcat(filename,target);
     strcat(filename,"/");
-    strcat(filename,HOSTDIR_PREFIX);
+    strcat(filename,HOSTDIRPREFIX);
     sprintf(hostdir_num,"%d",(*count)-1);
     strcat(filename,hostdir_num);
     return filename;

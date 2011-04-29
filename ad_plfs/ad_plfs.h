@@ -21,7 +21,8 @@ typedef long long int int64_t;
 #include <sys/types.h>
 #include <sys/uio.h>
 #include <fcntl.h>
-#include "plfs.h"
+#include <plfs.h>
+#include <plfs/plfs_internal.h>
 #include "adio.h"
 
 

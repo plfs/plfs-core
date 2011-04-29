@@ -98,6 +98,7 @@ fi
 %{_libdir}/libplfs.so.0.0.0
 %defattr(-,root,root,0644)
 %{_includedir}/plfs/COPYRIGHT.h
+%{_includedir}/plfs/plfs_internal.h
 %{_includedir}/plfs/Util.h
 %{_includedir}/plfs.h
 %config /etc/plfs/VERSION
