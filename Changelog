@@ -1,4 +1,9 @@
 ~~~ Version 2.0.2
+* made tools like plfs_recover a bit more user friendly.  the plfs lib
+used to only work if you passed full logical paths which meant if your cwd
+was in a plfs mount point, it wouldn't work with relative paths.  Now it
+does (but it does print a warning message in this case which might be spammed
+a bit (ticket 43522)
 * fixed bug with opening non-existent files for read through ADIO.  also but
 where you could turn a file into a directory by writing to it.  (ticket 41436)
 * fixed off-by-one error where subdirs were created btwn 1 and 
