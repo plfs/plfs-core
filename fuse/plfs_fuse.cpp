@@ -283,6 +283,9 @@ bool Plfs::isdebugfile( const char *path, const char *file ) {
     return ( ! strcmp( ptr, file ) );
 }
 
+// this is not just a simple wrapper since we cache some state here
+// about what files we've made.  This might get some performance but
+// maybe at the cost of correctness.  hmmmm.
 int Plfs::makePlfsFile( string expanded_path, mode_t mode, int flags ) {
     int res = 0;
     plfs_debug("Need to create container for %s (%s %d)\n", 
@@ -335,6 +338,8 @@ int Plfs::f_access(const char *path, int mask) {
 
 int Plfs::f_mknod(const char *path, mode_t mode, dev_t rdev) {
     PLFS_ENTER;
+
+    plfs_debug("%s on %s mode %d rdev %d\n",__FUNCTION__,path,mode,rdev);
 
     ret = makePlfsFile( strPath.c_str(), mode, 0 );
     if ( ret == 0 ) {

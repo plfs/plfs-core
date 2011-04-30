@@ -1352,6 +1352,8 @@ mode_t Container::containerMode( mode_t mode ) {
     return dirMode(mode);
 }
 
+// this has a return value but the caller also consults errno so if we
+// want to error out we need to explicitly set errno
 int Container::createHelper(const string &expanded_path, const string &hostname,
         mode_t mode, int flags, int *extra_attempts, pid_t pid, 
         unsigned mnt_pt_cksum ) 
@@ -1361,6 +1363,15 @@ int Container::createHelper(const string &expanded_path, const string &hostname,
     // but we could reduce the number of stats by maintaining
     // some memory state that the first thread sets and the
     // others check
+
+    // mkfifo is not working.  I wonder if we need to check the mode
+    // here and do something different if it indicates they are trying
+    // to make a fifo?
+    if (S_ISFIFO(mode)) {
+        plfs_debug("How to mkfifo?\n");
+        errno = ENOSYS;
+        return -ENOSYS;
+    }
 
         // first the top level container
     double begin_time, end_time;
