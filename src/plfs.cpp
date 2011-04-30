@@ -453,7 +453,7 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
         if ( shadow_hostdir != canonical && ret == 0 ) {
             ret=Util::Symlink(shadow_hostdir.c_str(),canonical_hostdir.c_str());
             plfs_debug("Symlink: %d\n", ret);
-            if (ret==EEXIST) {
+            if (ret!=0 && errno==EEXIST) {
                 // a sibling beat us to it.  No big deal.  Thanks sibling!
                 ret = 0;
             }
