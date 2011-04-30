@@ -1,4 +1,5 @@
 ~~~ Version 2.0.2
+* fixed race condition bug in shadow subdirs being linked into canonical
 * made tools like plfs_recover a bit more user friendly.  the plfs lib
 used to only work if you passed full logical paths which meant if your cwd
 was in a plfs mount point, it wouldn't work with relative paths.  Now it
