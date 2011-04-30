@@ -379,7 +379,10 @@ int
 plfs_create( const char *logical, mode_t mode, int flags, pid_t pid ) {
     PLFS_ENTER;
 
-    if (!S_ISREG(mode)) {  // e.g. mkfifo might need to be handled differently
+    // for some reason, the ad_plfs_open that calls this passes a mode
+    // that fails the S_ISREG check... change to just check for fifo
+    //if (!S_ISREG(mode)) {  // e.g. mkfifo might need to be handled differently
+    if (S_ISFIFO(mode)) {
         plfs_debug("%s on non-regular file %s?\n",__FUNCTION__, logical);
         return -ENOSYS;
     }
@@ -396,51 +399,68 @@ plfs_create( const char *logical, mode_t mode, int flags, pid_t pid ) {
 // canonical_container/hostdir but if that hostdir doesn't exist,
 // then the proc creates a shadow_container/hostdir and links that
 // into the canonical_container
-// returns number of current writers sharing the WriteFile *
+// returns number of current writers sharing the WriteFile * or -errno
 int
 addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode, 
         string logical ) 
 {
-    int ret = -ENOENT;
+    int ret = -ENOENT;  // be pessimistic
     int writers = 0;
 
     // just loop a second time in order to deal with ENOENT
     for( int attempts = 0; attempts < 2; attempts++ ) {
         writers = ret = wf->addWriter( pid, false ); 
-        if ( ret != -ENOENT ) break;
+        if ( ret != -ENOENT ) break;    // everything except ENOENT leaves
         
-        // if we get here, the hostdir doesn't exist 
-        // here is a super simple place to add the distributed metadata
-        // stuff.  Hash the hostdir by node, then link it in to the
-        // container which was already hashed by filename
+        // if we get here, the hostdir doesn't exist (we got ENOENT)
+        // here is a super simple place to add the distributed metadata stuff.
+        // 1) create a shadow container by hashing on node name
+        // 2) create a shadow hostdir inside it
+        // 3) create a symlink in canonical container to the shadow hostdir
+        // 4) loop and try one more time now that the hostdir link is in place
         char *hostname = Util::hostname();
-        ExpansionInfo exp_info;
-        string hash_by_node = expandPath(logical,&exp_info,HASH_BY_NODE,-1,0); 
-        if (exp_info.Errno) PLFS_EXIT(exp_info.Errno);
+        string shadow;            // full path to shadow container
+        string canonical;         // full path to canonical
+        string hostdir;           // the name of the hostdir itself
+        string shadow_hostdir;    // full path to shadow hostdir
+        string canonical_hostdir; // full path to the canonical hostdir
 
-        plfs_debug("Making hostdir for %s at %s\n",logical.c_str(),
-                hash_by_node.c_str());
-        ret = Container::makeHostDir(hash_by_node, 
-                hostname, mode, PARENT_ABSENT);
+        // set up our paths.  expansion errors shouldn't happen but check anyway
+        ExpansionInfo exp_info;
+        shadow = expandPath(logical,&exp_info,HASH_BY_NODE,-1,0); 
+        if (exp_info.Errno) PLFS_EXIT(exp_info.Errno);
+        shadow_hostdir = Container::getHostDirPath(shadow,hostname);
+        hostdir = shadow_hostdir.substr(shadow.size(),string::npos);
+        canonical = expandPath(logical,&exp_info,HASH_BY_FILENAME,-1,0);
+        if (exp_info.Errno) PLFS_EXIT(exp_info.Errno);
+        canonical_hostdir = canonical; 
+        canonical_hostdir +=  "/";
+        canonical_hostdir += hostdir;
+
+        // make the shadow container and hostdir
+        plfs_debug("Making shadow hostdir for %s at %s\n",logical.c_str(),
+                shadow.c_str());
+        ret =Container::makeHostDir(shadow,hostname,mode,PARENT_ABSENT);
         if (ret==-EISDIR||ret==-EEXIST) {
-            // a sibling beat us to it (this shouldn't happen in ADIO)
+            // a sibling beat us. No big deal. shouldn't happen in ADIO though
             ret = 0;
         }
-        string hostdir_full,hostdir_after_container,hash_by_path;
-        hostdir_full = Container::getHostDirPath(hash_by_node,hostname);
-        hostdir_after_container = 
-            hostdir_full.substr(hash_by_node.size(),string::npos);
-        hash_by_path = expandPath(logical,&exp_info,HASH_BY_FILENAME,-1,0);
-        if (exp_info.Errno) PLFS_EXIT(exp_info.Errno);
-        hash_by_path +=  "/";
-        hash_by_path += hostdir_after_container;
+
+        // once we are here, we have the shadow and its hostdir created
+        // link the shadow hostdir into it's canonical location
         plfs_debug("Need to link %s into %s (hostdir ret %d)\n", 
-                hostdir_full.c_str(), hash_by_path.c_str(),ret);
-        if ( hostdir_full != hash_by_path && ret == 0 ) {
-            ret = Util::Symlink(hostdir_full.c_str(),hash_by_path.c_str());
+                shadow_hostdir.c_str(), canonical.c_str(),ret);
+        if ( shadow_hostdir != canonical && ret == 0 ) {
+            ret=Util::Symlink(shadow_hostdir.c_str(),canonical_hostdir.c_str());
             plfs_debug("Symlink: %d\n", ret);
+            if (ret==EEXIST) {
+                // a sibling beat us to it.  No big deal.  Thanks sibling!
+                ret = 0;
+            }
         }
     }
+
+    // all done.  we return either -errno or number of writers.  
     if ( ret == 0 ) ret = writers;
     PLFS_EXIT(ret);
 }
