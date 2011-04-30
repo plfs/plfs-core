@@ -378,6 +378,12 @@ plfs_wtime() {
 int 
 plfs_create( const char *logical, mode_t mode, int flags, pid_t pid ) {
     PLFS_ENTER;
+
+    if (!S_ISREG(mode)) {  // e.g. mkfifo might need to be handled differently
+        plfs_debug("%s on non-regular file %s?\n",__FUNCTION__, logical);
+        return -ENOSYS;
+    }
+
     int attempt = 0;
     ret = 0; // suppress compiler warning
     ret =  Container::create(path,Util::hostname(),mode,flags,

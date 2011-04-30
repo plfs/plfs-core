@@ -1364,15 +1364,6 @@ int Container::createHelper(const string &expanded_path, const string &hostname,
     // some memory state that the first thread sets and the
     // others check
 
-    // mkfifo is not working.  I wonder if we need to check the mode
-    // here and do something different if it indicates they are trying
-    // to make a fifo?
-    if (S_ISFIFO(mode)) {
-        plfs_debug("How to mkfifo?\n");
-        errno = ENOSYS;
-        return -ENOSYS;
-    }
-
         // first the top level container
     double begin_time, end_time;
     int res = 0;
