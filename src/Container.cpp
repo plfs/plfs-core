@@ -584,7 +584,6 @@ vector<IndexFileInfo> Container::hostdir_index_read(const char *path){
     index_droppings.push_back(path_holder);
      // Start reading the directory
     while((dirent = readdir(dirp))!=NULL){
-        // Get rid of these hardcoded values ASAP
         if(strncmp(INDEXPREFIX,dirent->d_name,strlen(INDEXPREFIX))==0){
             double time_stamp;
             string str_time_stamp;
