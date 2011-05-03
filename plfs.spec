@@ -10,7 +10,11 @@ Group:		System Environment/Filesystems
 Source:		plfs-%{version}.tar.gz
 URL:		http://institutes.lanl.gov/plfs
 BuildRoot:	%{_tmppath}/plfs-%{version}-root
-Requires:       fuse, fuse-libs
+%if 0%{?suse_version}
+  Requires:       fuse, libfuse2
+%else
+  Requires:       fuse, fuse-libs
+%endif
 Requires:       plfs-lib
 BuildRequires:  fuse-devel, pkgconfig
 
@@ -143,6 +147,9 @@ fi
 %{_mandir}/man3/plfs_wtime.3.gz
 
 %changelog
+* Tues May 3 2011 Ben McClelland <ben@lanl.gov>
+- suse has different dependencies than redhat put in distro specifics
+
 * Sat Jan 29 2011 Ben McClelland <ben@lanl.gov>
 - Fixed the getattr bug 
 - fixed ADIO parse conf error
