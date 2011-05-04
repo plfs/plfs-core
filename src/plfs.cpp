@@ -42,7 +42,8 @@ typedef struct {
 
 #define PLFS_ENTER PLFS_ENTER2(PLFS_PATH_REQUIRED)
 
-#define PLFS_ENTER2(X) bool is_mnt_pt = false; int ret = 0;\
+#define PLFS_ENTER2(X) \
+ int ret = 0;\
  ExpansionInfo expansion_info; \
  string path = expandPath(logical,&expansion_info,HASH_BY_FILENAME,-1,0); \
  plfs_debug("EXPAND in %s: %s->%s\n",__FUNCTION__,logical,path.c_str()); \
@@ -233,7 +234,32 @@ expandPath(string logical, ExpansionInfo *exp_info,
         assert(0);
         break;
     }
-    return pm->backends[which_backend%pm->backends.size()] + "/" + remaining;
+    string expanded =  pm->backends[which_backend%pm->backends.size()] 
+        + "/" + remaining;
+    plfs_debug("%s: %s -> %s (%d.%d)\n", __FUNCTION__, 
+            logical.c_str(), expanded.c_str(),
+            hash_method,which_backend);
+    return expanded;
+}
+
+// a helper routine that returns a list of all possible expansions
+// for a logical path (canonical is at index 0, shadows at the rest)
+// also works for directory operations which need to iterate on all
+// returns 0 or -errno
+int 
+find_all_expansions(const char *logical, vector<string> &containers) {
+    PLFS_ENTER;
+    string canonical = path;
+    containers.push_back(canonical); 
+    ExpansionInfo exp_info;
+    for(unsigned i = 0; i < expansion_info.mnt_pt->backends.size();i++){
+        path = expandPath(logical,&exp_info,NO_HASH,i,0);
+        if(exp_info.Errno) PLFS_EXIT(exp_info.Errno);
+        if (path!=canonical) { // don't bother removing twice
+            containers.push_back(path);
+        }
+    }
+    PLFS_EXIT(ret);
 }
 
 // helper routine for plfs_dump_config
@@ -591,33 +617,34 @@ int
 plfs_readdir( const char *logical, void *vptr ) {
     PLFS_ENTER;
     bool found = false;
-    ExpansionInfo exp_info;
-    for(unsigned i = 0; i < expansion_info.mnt_pt->backends.size(); i++) {
-        path = expandPath(logical,&exp_info,NO_HASH,i,0);
-        if(exp_info.Errno) PLFS_EXIT(exp_info.Errno);
-        ret = plfs_readdir_helper(path.c_str(),vptr);
-        if ( ret == 0 ) found = true;
+    vector<string> exps;
+    if ( (ret = find_all_expansions(logical,exps)) != 0 ) PLFS_EXIT(ret);
+    for(vector<string>::iterator itr = exps.begin(); itr != exps.end(); itr++ ){
+        ret = plfs_readdir_helper((*itr).c_str(),vptr);
+        if (ret==0) found = true;
     }
-    if ( ret == -ENOENT && found ) ret = 0; // one backend didn't exist
-                                            // this is a bit weird but
-                                            // possible if backends are modified
-                                            // which they NEVER should be
-                                            // but just in case
-                                            // we could remember which are
-                                            // missing and mkdir them here
+    if (ret == -ENOENT && found) ret = 0; // one backend didn't exist
+                                          // this is a bit weird but
+                                          // possible if backends are modified
+                                          // which they NEVER should be
+                                          // but just in case
+                                          // we could remember which are
+                                          // missing and mkdir them here
     PLFS_EXIT(ret);
 }
 
 // this has to iterate over the backends and make it everywhere
+// like all directory ops that iterate over backends, ignore weird failures
+// due to inconsistent backends.  That shouldn't happen but just in case
+// returns 0 or -errno
 int
 plfs_mkdir( const char *logical, mode_t mode ) {
     PLFS_ENTER;
     bool success = false;
-    ExpansionInfo exp_info;
-    for(unsigned i = 0; i < expansion_info.mnt_pt->backends.size(); i++) {
-        path = expandPath(logical,&exp_info,NO_HASH,i,0);
-        if(exp_info.Errno) PLFS_EXIT(exp_info.Errno);
-        ret = retValue(Util::Mkdir(path.c_str(),mode));
+    vector<string> exps;
+    if ( (ret = find_all_expansions(logical,exps)) != 0 ) PLFS_EXIT(ret);
+    for(vector<string>::iterator itr = exps.begin(); itr != exps.end(); itr++ ){
+        ret = retValue(Util::Mkdir((*itr).c_str(),mode));
         if ( ret == 0 ) success = true;
     }
     // it's possible that multiple backends get inconsistent
@@ -631,18 +658,19 @@ plfs_mkdir( const char *logical, mode_t mode ) {
 // possible with multiple backends that some are empty and some aren't
 // so if we delete some and then later discover that some aren't empty
 // we need to restore them all
+// need to test this corner case probably
+// return 0 or -errno
 int
 plfs_rmdir( const char *logical ) {
     PLFS_ENTER;
-    ExpansionInfo exp_info;
-    for(unsigned i = 0; i < expansion_info.mnt_pt->backends.size(); i++) {
-        path = expandPath(logical,&exp_info,NO_HASH,i,0);
-        if(exp_info.Errno) PLFS_EXIT(exp_info.Errno);
-        ret = retValue(Util::Rmdir(path.c_str()));
-        if(ret==ENOENT||ret==-ENOENT) ret = 0;
-        if(ret==ENOTEMPTY||ret==-ENOTEMPTY) {
-            if (i>0) { // ugh, deleted some and discovered some weren't empty
-                mode_t mode = Container::getmode(path); // get mode 
+    mode_t mode = Container::getmode(path); // save in case we need to restore
+    vector<string> exps;
+    if ( (ret = find_all_expansions(logical,exps)) != 0 ) PLFS_EXIT(ret);
+    for(vector<string>::iterator itr = exps.begin(); itr != exps.end(); itr++ ){
+        ret = retValue(Util::Rmdir((*itr).c_str()));
+        if(ret==-ENOENT) ret = 0;   // was inconsistent...
+        if(ret==-ENOTEMPTY) {   // found one that wasn't empty
+            if (itr!=exps.begin()) { // ugh, deleted some, found some notempty 
                 plfs_debug("Incorrectly began removing a non-empty directory "
                         "%s.  Will now restore.\n",logical);
                 plfs_mkdir(logical,mode); // restore them all
@@ -686,12 +714,12 @@ mkdir_dash_p(const string &path, bool parent_only) {
 int
 recover_directory(const char *logical, bool parent_only) {
     PLFS_ENTER;
-    ExpansionInfo exp_info;
-    for(unsigned i = 0; i < expansion_info.mnt_pt->backends.size(); i++) {
-        ret = mkdir_dash_p(expandPath(logical,&exp_info,NO_HASH,i,0),
-                parent_only);
+    vector<string> exps;
+    if ( (ret = find_all_expansions(logical,exps)) != 0 ) PLFS_EXIT(ret);
+    for(vector<string>::iterator itr = exps.begin(); itr != exps.end(); itr++ ){
+        ret = mkdir_dash_p(*itr,parent_only);
     }
-    return ret;    
+    return ret;
 }
 
 // this function does a readlink of an existing symlink
@@ -754,17 +782,18 @@ plfs_recover( const char *logical ) {
     isdir = false;  // possible we find it and it's a directory
     isfile = false; // possible we find it and it's a container
     found = false;  // possible it doesn't exist (ENOENT)
-    ExpansionInfo exp_info;
-    for(unsigned i = 0; i < expansion_info.mnt_pt->backends.size(); i++) {
-        path = expandPath(logical,&exp_info,NO_HASH,i,0);
-        ret  = (int) Container::isContainer(path,&former_mode);
+    vector<string> exps;
+    if ( (ret = find_all_expansions(logical,exps)) != 0 ) PLFS_EXIT(ret);
+    for(vector<string>::iterator itr = exps.begin(); itr != exps.end(); itr++ ){
+        if (itr==exps.begin()) continue; // we already know not at canonical
+        ret  = (int) Container::isContainer(*itr,&former_mode);
         if (ret) {
             isfile = found = true;
-            former = path;
+            former = *itr;
         } else if (S_ISDIR(former_mode)) {
             isdir = found = true;
         }
-        plfs_debug("%s query %s: %s\n", __FUNCTION__, path.c_str(),
+        plfs_debug("%s query %s: %s\n", __FUNCTION__, itr->c_str(),
                 (isfile?"file":isdir?"dir":"ENOENT"));
     }
     if (!found) PLFS_EXIT(-ENOENT);
@@ -2111,15 +2140,16 @@ plfs_unlink( const char *logical ) {
         plfs_debug("Remove canonical container %s: %d\n",canonical.c_str(),ret);
  
         if(ret==0) { // then all the copies spread across backends
-            ExpansionInfo exp_info;
-            for(unsigned i = 0; i < expansion_info.mnt_pt->backends.size();i++){
-                path = expandPath(logical,&exp_info,NO_HASH,i,0);
-                if (path!=canonical) { // don't bother removing twice
-                    ret = plfs_remove_container(path);
-                    plfs_debug("Removed non-canonical container %s: %d\n",
-                            path.c_str(),ret);
-                    if(ret==-ENOENT) ret = 0;
-                }
+            vector<string> exps;
+            if ( (ret = find_all_expansions(logical,exps)) != 0 ) 
+                PLFS_EXIT(ret);
+            vector<string>::iterator itr;
+            for(itr = exps.begin(); itr != exps.end(); itr++ ){
+                if(itr==exps.begin()) continue; // skip canonical
+                ret = plfs_remove_container(path);
+                plfs_debug("Removed non-canonical container %s: %d\n",
+                        path.c_str(),ret);
+                if(ret==-ENOENT) ret = 0;
             }
         }
     } else {
