@@ -882,15 +882,28 @@ plfs_recover( const char *logical ) {
     PLFS_EXIT(ret);
 }
 
+// ok, this function looks OK.  Bit of a pain in the ass.
+// basically, we need to replicate all this code for chown and chmod
+// wish there was an easy way to use a function ptr and variable args to
+// do this.....
 int
 plfs_utime( const char *logical, struct utimbuf *ut ) {
     PLFS_ENTER;
     mode_t mode = 0;
-    if ( is_plfs_file( logical, &mode ) ) {
-        ret = Container::Utime( path, ut );
+    ret = is_plfs_file(logical,&mode);
+    if (S_ISREG(mode)) { // it's a PLFS file
+        ret = Container::Utime(path,ut);
+    } else if (S_ISDIR(mode)) { // need to iterate across dirs
+        vector<string> exps;
+        if ( (ret = find_all_expansions(logical,exps)) != 0 ) PLFS_EXIT(ret);
+        for(vector<string>::iterator itr = exps.begin(); itr!=exps.end();itr++){
+            ret = retValue(Util::Utime(itr->c_str(),ut));
+            if (ret==-ENOENT) ret = 0; // ignore inconsistent backends
+            if (ret!=0) break;
+        }
     } else {
-        if ( mode == 0 ) ret = -ENOENT;
-        else ret = retValue( Util::Utime( path.c_str(), ut ) );
+        // ENOENT, a symlink, somehow a flat file in here
+        ret = retValue( Util::Utime(path.c_str(),ut) );
     }
     PLFS_EXIT(ret);
 }

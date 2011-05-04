@@ -197,10 +197,11 @@ int Container::Chmod( const string &path, mode_t mode ) {
 
 
 
-// just do the droppings and the access file
-int Container::Utime( const string &path, const struct utimbuf *buf ) {
-    // TODO: we maybe shouldn't need to fully recurse here...
-    return Container::Modify( UTIME, path.c_str(), 0, 0, buf, 0 );  
+// really just need to do the access file
+int Container::Utime( const string &path, const struct utimbuf *ut ) {
+    string accessfile = getAccessFilePath(path);
+    plfs_debug("%s on %s\n", __FUNCTION__,path.c_str());
+    return Util::retValue(Util::Utime(accessfile.c_str(),ut));
 }
 
 int Container::Chown( const string &path, uid_t uid, gid_t gid ) {
