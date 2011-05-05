@@ -9,7 +9,7 @@
 class
 FileOp {
     public:
-        virtual int op(const char *, bool isfile);
+        virtual int op(const char *, bool isfile) = 0;
         bool onlyAccessFile() {return false;}
 };
 
