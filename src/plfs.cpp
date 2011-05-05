@@ -791,6 +791,20 @@ int
 plfs_rmdir( const char *logical ) {
     PLFS_ENTER;
     mode_t mode = Container::getmode(path); // save in case we need to restore
+    RmdirOp op;
+    ret = plfs_directory_operation(logical,op);
+
+    // check if we started deleting non-empty dirs, if so, restore
+    if (ret==-ENOTEMPTY) {
+        plfs_debug("Started removing a non-empty directory %s. Will restore.\n",
+                        logical);
+        MkdirOp op(mode);
+        op.ignoreErrno(EEXIST);
+        plfs_directory_operation(logical,op); // don't overwrite ret 
+    }
+    PLFS_EXIT(ret);
+
+    /*
     vector<string> exps;
     if ( (ret = find_all_expansions(logical,exps)) != 0 ) PLFS_EXIT(ret);
     for(vector<string>::iterator itr = exps.begin(); itr != exps.end(); itr++ ){
@@ -806,6 +820,7 @@ plfs_rmdir( const char *logical ) {
         }
     }
     PLFS_EXIT(ret);
+    */
 }
 
 // this code just iterates up a path and makes sure all the component 

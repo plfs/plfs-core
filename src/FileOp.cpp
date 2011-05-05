@@ -2,6 +2,18 @@
 #include "Util.h"
 #include "Container.h"
 
+void 
+FileOp::ignoreErrno(int Errno) {
+    ignores.insert(Errno);
+}
+
+int
+FileOp::retValue(int ret) {
+    ret = Util::retValue(ret);
+    if (ignores.find(-ret)!=ignores.end()) ret = 0;
+    return ret;
+}
+
 ChownOp::ChownOp(uid_t u, gid_t g) {
     this->u = u;
     this->g = g;
@@ -9,7 +21,7 @@ ChownOp::ChownOp(uid_t u, gid_t g) {
 
 int
 ChownOp::op(const char *path, bool /* isfile */ ) {
-    return Util::retValue(Util::Chown(path,u,g));
+    return retValue(Util::Chown(path,u,g));
 }
 
 MkdirOp::MkdirOp(mode_t m) {
@@ -17,8 +29,13 @@ MkdirOp::MkdirOp(mode_t m) {
 }
 
 int
+RmdirOp::op(const char *path, bool /* isfile */ ) {
+    return retValue(Util::Rmdir(path));
+}
+
+int
 MkdirOp::op(const char *path, bool isfile) {
-    return Util::retValue(Util::Mkdir(path,m));
+    return retValue(Util::Mkdir(path,m));
 }
 
 ChmodOp::ChmodOp(mode_t m) {
@@ -28,7 +45,7 @@ ChmodOp::ChmodOp(mode_t m) {
 int
 ChmodOp::op(const char *path, bool isfile) {
     mode_t this_mode = (isfile?m:Container::dirMode(m));
-    return Util::retValue(Util::Chmod(path,this_mode));
+    return retValue(Util::Chmod(path,this_mode));
 }
 
 UtimeOp::UtimeOp(struct utimbuf *ut) {
@@ -37,5 +54,5 @@ UtimeOp::UtimeOp(struct utimbuf *ut) {
 
 int
 UtimeOp::op(const char *path, bool /* isfile */ ) {
-    return Util::retValue(Util::Utime(path,ut));
+    return retValue(Util::Utime(path,ut));
 }

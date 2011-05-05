@@ -6,12 +6,20 @@
 #include <sys/stat.h>
 #include <utime.h>
 
+#include <set>
+using namespace std;
+
 class
 FileOp {
     public:
         virtual int op(const char *, bool isfile) = 0;
         virtual const char *name() = 0;
         bool onlyAccessFile() {return false;}
+        void ignoreErrno(int Errno); // can register errno's to be ignored
+    protected:
+        int retValue(int ret);
+    private:
+        set<int> ignores;
 };
 
 class
@@ -34,6 +42,14 @@ UtimeOp : public FileOp {
         bool onlyAccessFile() {return true;}
     private:
         utimbuf *ut;
+};
+
+class
+RmdirOp : public FileOp {
+    public:
+        RmdirOp() {};
+        int op(const char *, bool);
+        const char *name() { return "RmdirOp"; }
 };
 
 class
