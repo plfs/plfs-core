@@ -11,9 +11,9 @@ Source:		plfs-%{version}.tar.gz
 URL:		http://institutes.lanl.gov/plfs
 BuildRoot:	%{_tmppath}/plfs-%{version}-root
 %if 0%{?suse_version}
-  Requires:       fuse, libfuse2
+Requires:       fuse, libfuse2
 %else
-  Requires:       fuse, fuse-libs
+Requires:       fuse, fuse-libs
 %endif
 Requires:       plfs-lib
 BuildRequires:  fuse-devel, pkgconfig
@@ -46,8 +46,11 @@ small N to 1 strided write patterns to a parallel file system.
 %{__mkdir_p} %{buildroot}%{_initrddir}
 %{__mkdir_p} %{buildroot}/etc/sysconfig
 %{__mkdir_p} %{buildroot}/etc/plfs
-#%{__install} -m 0755 fuse/plfs %{buildroot}/%{_sbindir}/plfs
-%{__install} -m 0755 fuse/plfs.init %{buildroot}%{_initrddir}/plfs
+%if 0%{?suse_version}
+   %{__install} -m 0755 fuse/plfs.init.suse %{buildroot}%{_initrddir}/plfs
+%else
+   %{__install} -m 0755 fuse/plfs.init %{buildroot}%{_initrddir}/plfs
+%endif
 %{__install} -m 0644 fuse/plfs.sysconfig %{buildroot}/etc/sysconfig/plfs
 %{__install} -m 0644 plfsrc.example %{buildroot}/etc/plfsrc
 
@@ -86,10 +89,16 @@ fi
 %{_sbindir}/plfs_check_config
 %{_sbindir}/plfs_flatten_index
 %{_sbindir}/plfs_map
+%{_sbindir}/plfs_recover
+%{_sbindir}/plfs_query
+%{_sbindir}/plfs_version
 %{_mandir}/man1/plfs.1.gz
 %{_mandir}/man1/plfs_check_config.1.gz
 %{_mandir}/man1/plfs_flatten_index.1.gz
 %{_mandir}/man1/plfs_map.1.gz
+%{_mandir}/man1/plfs_recover.1.gz
+%{_mandir}/man1/plfs_query.1.gz
+%{_mandir}/man1/plfs_version.1.gz
 %{_mandir}/man5/plfsrc.5.gz
 %{_mandir}/man7/plfs.7.gz
 
@@ -147,8 +156,9 @@ fi
 %{_mandir}/man3/plfs_wtime.3.gz
 
 %changelog
-* Tues May 3 2011 Ben McClelland <ben@lanl.gov>
+* Tue May 3 2011 Ben McClelland <ben@lanl.gov>
 - suse has different dependencies than redhat put in distro specifics
+- add plfs_recover, plfs_query, plfs_version and respective man pages
 
 * Sat Jan 29 2011 Ben McClelland <ben@lanl.gov>
 - Fixed the getattr bug 

@@ -1,0 +1,64 @@
+#!/bin/bash
+#
+# chkconfig: 345 95 05
+# description: PLFS mounts a FUSE based middleware filesystem
+#              to speed up N to 1 writes on a parallel filesystem
+# processname: plfs
+
+if [ ! -f "/etc/sysconfig/plfs" ]; then
+   exit
+fi
+
+# source function library
+. /etc/rc.status
+. /etc/sysconfig/plfs
+
+RETVAL=0
+
+start() {
+   if [ -x /usr/sbin/plfs ]; then
+      echo -n $"Starting plfs: "
+      /sbin/modprobe fuse >/dev/null
+      sleep 2
+      for i in $PLFS_MNT; do
+        /usr/sbin/plfs $i $PLFSOPTS >/dev/null
+      done
+      RETVAL=$?
+      echo
+   fi
+}
+
+stop() {
+   echo -n $"Shutting down plfs: "
+   for i in $PLFS_MNT; do
+     /usr/bin/fusermount -u $i
+   done
+   RETVAL=$?
+   echo
+}
+
+stats() {
+   /bin/mount -t fuse
+}
+
+case "$1" in
+  start)
+   start
+   ;;
+  stop)
+   stop
+   ;;
+  restart)
+   stop
+   start
+   RETVAL=0
+   ;;
+  status)
+   stats
+   ;;
+  *)
+   echo $"Usage: $0 {start|stop|restart|status}"
+   exit 1
+esac
+
+exit $RETVAL
