@@ -75,6 +75,7 @@ class Util {
         static ssize_t Pread( int, void *, size_t, off_t );
         static ssize_t Pwrite(int, const void *buf, size_t count, off_t offset);
         static ssize_t Read( int, void *, size_t );
+        static int Readdir(DIR *, dirent **);
         static ssize_t Readlink(const char*, char *buf, size_t bufsize);
         static int Rename( const char*, const char * );
         static int Rmdir( const char* );

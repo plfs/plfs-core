@@ -12,6 +12,15 @@ ChownOp::op(const char *path, bool /* isfile */ ) {
     return Util::retValue(Util::Chown(path,u,g));
 }
 
+MkdirOp::MkdirOp(mode_t m) {
+    this->m = m;
+}
+
+int
+MkdirOp::op(const char *path, bool isfile) {
+    return Util::retValue(Util::Mkdir(path,m));
+}
+
 ChmodOp::ChmodOp(mode_t m) {
     this->m = m;
 }

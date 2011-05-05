@@ -476,7 +476,11 @@ int Plfs::f_chmod (const char *path, mode_t mode) {
             __FUNCTION__, strPath.c_str(), (int)mode );
         self->known_modes[strPath] = mode;
     }
-  
+    plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
+    PLFS_EXIT;
+
+    // ignore this clean-up code for now
+    /*
     SET_IDS(s_uid,s_gid);
     RESTORE_GROUPS;
     END_TIMES;
@@ -486,6 +490,7 @@ int Plfs::f_chmod (const char *path, mode_t mode) {
     }
     plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
     PLFS_EXIT; 
+    */
 }
 
 // fills the set of supplementary groups of the effective uid
@@ -593,6 +598,9 @@ int Plfs::set_groups( uid_t uid ) {
 int Plfs::f_chown (const char *path, uid_t uid, gid_t gid ) { 
     PLFS_ENTER;
     ret = plfs_chown(strPath.c_str(),uid,gid);
+    PLFS_EXIT;
+    // ignore this clean-up code for now
+    /*
     SET_IDS(s_uid,s_gid);
     RESTORE_GROUPS;
     END_TIMES; 
@@ -602,6 +610,7 @@ int Plfs::f_chown (const char *path, uid_t uid, gid_t gid ) {
         ret = plfs_chown_cleanup ( path, uid, gid );
     }
     return ret;
+    */
 }
 
 int Plfs::f_mkdir (const char *path, mode_t mode ) {

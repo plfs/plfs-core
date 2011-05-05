@@ -410,10 +410,23 @@ int Util::Creat( const char *path, mode_t mode ) {
     else ret = -errno;
     EXIT_UTIL;
 }
-// returns 0 or -errno
 int Util::Statvfs( const char *path, struct statvfs* stbuf ) {
     ENTER_PATH;
     ret = statvfs(path,stbuf);
+    EXIT_UTIL;
+}
+
+        
+// returns 0 if success, 1 if end of dir, -errno if error 
+int Util::Readdir(DIR *dir, struct dirent **de) {
+    ENTER_UTIL;
+    errno = 0;
+    *de = NULL;
+    *de = readdir(dir);
+    if (*de) ret = 0;
+    else if (errno == 0) ret = 1;
+    else ret = -errno;
+    Util::Debug("readdir returned %x (ret %d, errno %d)\n", *de, ret, errno);
     EXIT_UTIL;
 }
 

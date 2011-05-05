@@ -924,7 +924,8 @@ int Container::addOpenrecord( const string &path, const string &host, pid_t pid)
     return ret;
 }
 
-int Container::removeOpenrecord( const string &path, const string &host, pid_t pid){
+int Container::removeOpenrecord(const string &path,const string &host,pid_t pid)
+{
     string openrecord = getOpenrecord( path, host, pid ); 
     return Util::Unlink( openrecord.c_str() );
 }

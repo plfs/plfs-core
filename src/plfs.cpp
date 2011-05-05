@@ -121,8 +121,10 @@ find_mount_point_using_tokens(PlfsConf *pconf,
     for(itr=pconf->mnt_pts.begin(); itr!=pconf->mnt_pts.end(); itr++) {
         if (itr->second->mnt_tokens.size() > logical_tokens.size() ) continue;
         for(unsigned i = 0; i < itr->second->mnt_tokens.size(); i++) {
+            /*
             plfs_debug("%s: %s =?= %s\n", __FUNCTION__,
                   itr->second->mnt_tokens[i].c_str(),logical_tokens[i].c_str());
+          */
             if (itr->second->mnt_tokens[i] != logical_tokens[i]) {
                 found = false;
                 break;  // return to outer loop, try a different mount point
@@ -195,7 +197,7 @@ expandPath(string logical, ExpansionInfo *exp_info,
                     "WARNING: Couldn't find PLFS file %s.  Retrying with %s\n",
                     logical.c_str(),fullpath);
                 return(expandPath(fullpath,exp_info,hash_method,
-                                    which_backend,depth));
+                                    which_backend,depth+1));
             } // else fall through to error below
         }
         fprintf(stderr,"ERROR: %s is not on a PLFS mount.\n", logical.c_str());
@@ -402,6 +404,49 @@ plfs_wtime() {
     return Util::getTime();
 }
 
+// just reads through a directory and returns all descendants
+// useful for gathering the contents of a container
+// this function should probably be in util
+// returns 0 or -errno
+int
+traverseDirectoryTree(const char *physical, vector<string> &files, 
+        vector<string> &dirs) 
+{
+    DIR *dir;
+    struct dirent *ent;
+    int ret = 0;
+    plfs_debug("%s on %s\n", __FUNCTION__, physical);
+
+    ret = Util::Opendir(physical, &dir);
+    if ( dir == NULL ) {
+        if (errno == ENOENT) return 0;  // nothing to aggregate.  No problem.
+        else return -errno;
+    }
+    dirs.push_back(physical);   // save the top dir
+
+    plfs_debug("opendir %s\n", physical);
+    while( (ret = Util::Readdir(dir,&ent)) == 0 ) {
+        plfs_debug("ret %d ent %s\n", ret, ent->d_name);
+        if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, "..")) continue; 
+        string child(physical);
+        child += "/";
+        child += ent->d_name;
+        plfs_debug("made child %s from path %s\n",child.c_str(),physical);
+        if ( Util::isDirectory( child.c_str() ) ) {
+            ret = traverseDirectoryTree(child.c_str(), files, dirs);
+        } else {
+            files.push_back(child);
+        }
+    }
+    if (ret == 1) ret = 0; // just means it hit the end of the directory
+
+    // now close the directory
+    if ( Util::Closedir( dir ) != 0 ) {
+        ret = -errno;
+    }
+    return ret;
+}
+
 int 
 plfs_create( const char *logical, mode_t mode, int flags, pid_t pid ) {
     PLFS_ENTER;
@@ -509,6 +554,33 @@ int isReader( int flags ) {
     return ret;
 }
 
+// takes a logical path for a logical file and returns every physical component
+// comprising that file (canonical/shadow containers, subdirs, data files, etc)
+// returns 0 or -errno
+int
+plfs_collect_from_containers(const char *logical, vector<string> &files, 
+        vector<string> &dirs) 
+{
+    PLFS_ENTER;
+    vector<string> possible_containers;
+    ret = find_all_expansions(logical,possible_containers);
+    if (ret!=0) PLFS_EXIT(ret);
+
+    vector<string>::iterator itr;
+    for(itr=possible_containers.begin();itr!=possible_containers.end();itr++) {
+        ret = traverseDirectoryTree(itr->c_str(),files,dirs);
+        if (ret!=0) break;
+    }
+    PLFS_EXIT(ret);
+}
+
+int
+single_file_op(const char *physical, FileOp &op, bool isfile) {
+    int ret = op.op(physical,isfile);
+    plfs_debug("%s: %s on %s: %d\n", __FUNCTION__,op.name(),physical,ret);
+    return ret;
+}
+
 // this function is shared by chmod/utime/chown maybe others
 // anything that needs to operate on possibly a lot of items
 // either on a bunch of dirs across the backends
@@ -531,8 +603,8 @@ plfs_file_operation(const char *logical, FileOp &op) {
         if (op.onlyAccessFile()) {
             files.push_back(Container::getAccessFilePath(path));
         } else {
-            // need to iterate through all container entries
-            ret = -ENOSYS;
+            // everything
+            ret = plfs_collect_from_containers(logical,files,dirs);
         }
     } else if (S_ISDIR(mode)) { // need to iterate across dirs
         ret = find_all_expansions(logical,dirs);
@@ -544,11 +616,12 @@ plfs_file_operation(const char *logical, FileOp &op) {
     // now apply the operation to each operand so long as ret==0
     vector<string>::iterator itr;
     for(itr = files.begin(); itr != files.end() && ret == 0; itr++) {
-        ret = op.op(itr->c_str(),true);
+        ret = single_file_op(itr->c_str(),op,true);
     }
     for(itr = dirs.begin(); itr != dirs.end() && ret == 0; itr++) {
-        ret = op.op(itr->c_str(),false);
+        ret = single_file_op(itr->c_str(),op,false);
     }
+    plfs_debug("%s: ret %d\n", __FUNCTION__,ret);
     PLFS_EXIT(ret);
 }
 
@@ -668,6 +741,18 @@ plfs_readdir( const char *logical, void *vptr ) {
     PLFS_EXIT(ret);
 }
 
+int
+plfs_directory_operation(const char *logical, FileOp &op) {
+    int ret = 0;
+    vector<string> exps;
+    vector<string>::iterator itr;
+    if ( (ret = find_all_expansions(logical,exps)) != 0 ) PLFS_EXIT(ret);
+    for(itr = exps.begin(); itr != exps.end() && ret == 0; itr++ ){
+        ret = single_file_op(itr->c_str(),op,false);
+    }
+    PLFS_EXIT(ret);
+}
+
 // this has to iterate over the backends and make it everywhere
 // like all directory ops that iterate over backends, ignore weird failures
 // due to inconsistent backends.  That shouldn't happen but just in case
@@ -675,6 +760,12 @@ plfs_readdir( const char *logical, void *vptr ) {
 int
 plfs_mkdir( const char *logical, mode_t mode ) {
     PLFS_ENTER;
+    MkdirOp op(mode);
+    ret = plfs_directory_operation(logical,op);
+    PLFS_EXIT(ret);
+
+    // old code
+    /*
     bool success = false;
     vector<string> exps;
     if ( (ret = find_all_expansions(logical,exps)) != 0 ) PLFS_EXIT(ret);
@@ -687,6 +778,7 @@ plfs_mkdir( const char *logical, mode_t mode ) {
     // backends or by editing the set of backends for an existing mount
     // in the plfsrc
     PLFS_EXIT(success?0:ret);
+    */
 }
 
 // this has to iterate over the backends and remove it everywhere
