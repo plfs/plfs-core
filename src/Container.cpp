@@ -300,7 +300,7 @@ int Container::chmodModify (const string &path, mode_t mode) {
     int ret; 
     string accessfile = getAccessFilePath(path);
     ret = Util::Chmod( accessfile.c_str(), mode );
-    if (ret == 0 ) ret = Util::Chmod( path.c_str(), dirMode( mode )); 
+    if (ret == 0) ret = Util::Chmod( path.c_str(), dirMode( mode )); 
     return ret;
 }
 

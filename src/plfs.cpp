@@ -6,6 +6,7 @@
 #include "Util.h"
 #include "OpenFile.h"
 #include "ThreadPool.h"
+#include "FileOp.h"
 
 #include <errno.h>
 #include <list>
@@ -507,17 +508,56 @@ int isReader( int flags ) {
     }
     return ret;
 }
+
+// this function is shared by chmod/utime/chown maybe others
+// anything that needs to operate on possibly a lot of items
+// either on a bunch of dirs across the backends
+// or on a bunch of entries within a container
+// returns 0 or -errno
+int
+plfs_file_operation(const char *logical, FileOp &op) {
+    PLFS_ENTER;
+    vector<string> files, dirs;
+
+    // first go through and find the set of physical files and dirs
+    // that need to be operated on
+    // if it's a PLFS file, then maybe we just operate on
+    // the access file, or maybe on all subentries
+    // if it's a directory, then we operate on all backend copies
+    // else just operate on whatever it is (ENOENT, symlink)
+    mode_t mode = 0;
+    ret = is_plfs_file(logical,&mode);
+    if (S_ISREG(mode)) { // it's a PLFS file
+        if (op.onlyAccessFile()) {
+            files.push_back(Container::getAccessFilePath(path));
+        } else {
+            // need to iterate through all container entries
+            ret = -ENOSYS;
+        }
+    } else if (S_ISDIR(mode)) { // need to iterate across dirs
+        ret = find_all_expansions(logical,dirs);
+    } else {
+        // ENOENT, a symlink, somehow a flat file in here
+        files.push_back(path);
+    }
+
+    // now apply the operation to each operand so long as ret==0
+    vector<string>::iterator itr;
+    for(itr = files.begin(); itr != files.end() && ret == 0; itr++) {
+        ret = op.op(itr->c_str(),true);
+    }
+    for(itr = dirs.begin(); itr != dirs.end() && ret == 0; itr++) {
+        ret = op.op(itr->c_str(),false);
+    }
+    PLFS_EXIT(ret);
+}
+
 // this requires that the supplementary groups for the user are set
 int 
 plfs_chown( const char *logical, uid_t u, gid_t g ) {
     PLFS_ENTER;
-    mode_t mode = 0;
-    if ( is_plfs_file( logical, &mode ) ) {
-        ret = Container::Chown( path, u, g );
-    } else {
-        if ( mode == 0 ) ret = -ENOENT;
-        else ret = retValue(Util::Chown(path.c_str(),u,g)); 
-    }
+    ChownOp op(u,g);
+    ret = plfs_file_operation(logical,op);
     PLFS_EXIT(ret);
 }
 
@@ -563,13 +603,8 @@ plfs_access( const char *logical, int mask ) {
 int 
 plfs_chmod( const char *logical, mode_t mode ) {
     PLFS_ENTER;
-    mode_t existing_mode = 0;
-    if ( is_plfs_file( logical, &existing_mode ) ) {
-        ret = retValue( Container::Chmod( path, mode ) );
-    } else {
-        if ( existing_mode == 0 ) ret = -ENOENT;
-        else ret = retValue( Util::Chmod( path.c_str(), mode ) );
-    }
+    ChmodOp op(mode);
+    ret = plfs_file_operation(logical,op);
     PLFS_EXIT(ret);
 }
 
@@ -889,22 +924,8 @@ plfs_recover( const char *logical ) {
 int
 plfs_utime( const char *logical, struct utimbuf *ut ) {
     PLFS_ENTER;
-    mode_t mode = 0;
-    ret = is_plfs_file(logical,&mode);
-    if (S_ISREG(mode)) { // it's a PLFS file
-        ret = Container::Utime(path,ut);
-    } else if (S_ISDIR(mode)) { // need to iterate across dirs
-        vector<string> exps;
-        if ( (ret = find_all_expansions(logical,exps)) != 0 ) PLFS_EXIT(ret);
-        for(vector<string>::iterator itr = exps.begin(); itr!=exps.end();itr++){
-            ret = retValue(Util::Utime(itr->c_str(),ut));
-            if (ret==-ENOENT) ret = 0; // ignore inconsistent backends
-            if (ret!=0) break;
-        }
-    } else {
-        // ENOENT, a symlink, somehow a flat file in here
-        ret = retValue( Util::Utime(path.c_str(),ut) );
-    }
+    UtimeOp op(ut);
+    ret = plfs_file_operation(logical,op);
     PLFS_EXIT(ret);
 }
 

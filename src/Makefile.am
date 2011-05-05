@@ -56,6 +56,7 @@ Util.h
 
 headers = \
 Container.h \
+FileOp.h \
 Index.h \
 LogMessage.h \
 Metadata.h \
@@ -69,6 +70,7 @@ $(dist_pkginclude_HEADERS)
 sources = \
 Util.cpp \
 Container.cpp \
+FileOp.cpp \
 Index.cpp \
 LogMessage.cpp \
 OpenFile.cpp \
