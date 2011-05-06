@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <utime.h>
 
+#include <map>
 #include <set>
 #include <vector>
 using namespace std;
@@ -18,7 +19,7 @@ using namespace std;
 class
 FileOp {
     public:
-        virtual int op(const char *, bool isfile) = 0; // returns 0 or -errno
+        virtual int op(const char *, unsigned char type) = 0; // ret 0 or -errno
         virtual const char *name() = 0;
         bool onlyAccessFile() {return false;}
         void ignoreErrno(int Errno); // can register errno's to be ignored
@@ -32,7 +33,7 @@ class
 ChownOp : public FileOp {
     public:
         ChownOp(uid_t, gid_t);
-        int op(const char *, bool);
+        int op(const char *, unsigned char);
         const char *name() { return "ChownOp"; }
     private:
         uid_t u;
@@ -43,7 +44,7 @@ class
 UtimeOp : public FileOp {
     public:
         UtimeOp(struct utimbuf *);
-        int op(const char *, bool);
+        int op(const char *, unsigned char);
         const char *name() { return "UtimeOp"; }
         bool onlyAccessFile() {return true;}
     private:
@@ -57,7 +58,7 @@ class
 TruncateOp : public FileOp {
     public:
         TruncateOp() {};
-        int op(const char *, bool);
+        int op(const char *, unsigned char);
         const char *name() { return "TruncateOp"; }
         void ignore(string);
     private:
@@ -68,25 +69,35 @@ class
 RmdirOp : public FileOp {
     public:
         RmdirOp() {};
-        int op(const char *, bool);
+        int op(const char *, unsigned char);
         const char *name() { return "RmdirOp"; }
 };
 
+// this class does a read dir
+// you can pass it a pointer to a map in which case it returns the names
+// and what their type is (e.g. DT_REG)
+// you can pass it a pointer to a set in which it returns just the names
+// the first bool controls whether it creates full paths or just returns the
+// file name
+// the second bool controls whether it ignores "." and ".."
 class
 ReaddirOp : public FileOp {
     public:
-        ReaddirOp(set<string> *);
-        int op(const char *, bool);
+        ReaddirOp(map<string,unsigned char> *,set<string> *, bool, bool);
+        int op(const char *, unsigned char);
         const char *name() { return "ReaddirOp"; }
     private:
-        set<string> *entries;
+        map<string,unsigned char> *entries;
+        set<string> *names;
+        bool expand;
+        bool skip_dots;
 };
 
 class
 MkdirOp : public FileOp {
     public:
         MkdirOp(mode_t);
-        int op(const char *, bool);
+        int op(const char *, unsigned char);
         const char *name() { return "MkdirOp"; }
     private:
         mode_t m;
@@ -96,7 +107,7 @@ class
 ChmodOp : public FileOp {
     public:
         ChmodOp(mode_t);
-        int op(const char *, bool);
+        int op(const char *, unsigned char);
         const char *name() { return "ChmodOp"; }
     private:
         mode_t m;
@@ -106,7 +117,7 @@ class
 UnlinkOp : public FileOp {
     public:
         UnlinkOp() { }
-        int op(const char *, bool);
+        int op(const char *, unsigned char);
         const char *name() { return "UnlinkOp"; }
 };
 

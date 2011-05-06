@@ -383,6 +383,14 @@ plfs_wtime() {
     return Util::getTime();
 }
 
+// returns 0 or -errno
+int
+single_file_op(const char *physical, FileOp &op, unsigned char type) {
+    int ret = op.op(physical,type);
+    plfs_debug("%s: %s on %s: %d\n", __FUNCTION__,op.name(),physical,ret);
+    return ret;
+}
+
 // just reads through a directory and returns all descendants
 // useful for gathering the contents of a container
 // this function should probably be in util
@@ -395,34 +403,22 @@ traverseDirectoryTree(const char *physical, vector<string> &files,
     struct dirent *ent;
     int ret = 0;
     plfs_debug("%s on %s\n", __FUNCTION__, physical);
+    map<string,unsigned char> entries;
+    map<string,unsigned char>::iterator itr;
+    ReaddirOp op(&entries,NULL,true,true);
+    ret = single_file_op(physical,op,DT_DIR);
+    if (ret==-ENOENT) return 0; // no shadow or canonical on this backend: np.
+    if (ret!=0) return ret;     // some sort of problem
 
-    ret = Util::Opendir(physical, &dir);
-    if(ret!=0) {
-        if(ret==-ENOENT) return 0; // nothing to aggregate.  No problem.
-        else return ret;
-    }
-    dirs.push_back(physical);   // save the top dir
+    dirs.push_back(physical); // save the top dir
 
-    plfs_debug("opendir %s\n", physical);
-    while( (ret = Util::Readdir(dir,&ent)) == 0 ) {
-        plfs_debug("ret %d ent %s\n", ret, ent->d_name);
-        if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, "..")) continue; 
-        string child(physical);
-        child += "/";
-        child += ent->d_name;
-        plfs_debug("made child %s from path %s\n",child.c_str(),physical);
-        if ( Util::isDirectory( child.c_str() ) ) {
-            ret = traverseDirectoryTree(child.c_str(), files, dirs);
-        } else {
-            files.push_back(child);
-        }
+    for(itr = entries.begin(); itr != entries.end() && ret==0; itr++) {
+        if ( itr->second == DT_DIR ) 
+            ret = traverseDirectoryTree(itr->first.c_str(), files, dirs);
+        else
+            files.push_back(itr->first);
     }
-    if (ret == 1) ret = 0; // just means it hit the end of the directory
 
-    // now close the directory
-    if ( Util::Closedir( dir ) != 0 ) {
-        ret = -errno;
-    }
     return ret;
 }
 
@@ -554,13 +550,6 @@ plfs_collect_from_containers(const char *logical, vector<string> &files,
     PLFS_EXIT(ret);
 }
 
-int
-single_file_op(const char *physical, FileOp &op, bool isfile) {
-    int ret = op.op(physical,isfile);
-    plfs_debug("%s: %s on %s: %d\n", __FUNCTION__,op.name(),physical,ret);
-    return ret;
-}
-
 // this function is shared by chmod/utime/chown maybe others
 // anything that needs to operate on possibly a lot of items
 // either on a bunch of dirs across the backends
@@ -600,10 +589,10 @@ plfs_file_operation(const char *logical, FileOp &op) {
     vector<string>::iterator itr;
     vector<string>::reverse_iterator ritr;
     for(itr = files.begin(); itr != files.end() && ret == 0; itr++) {
-        ret = single_file_op(itr->c_str(),op,true);
+        ret = single_file_op(itr->c_str(),op,DT_REG);
     }
     for(ritr = dirs.rbegin(); ritr != dirs.rend() && ret == 0; ++ritr) {
-        ret = single_file_op(ritr->c_str(),op,false);
+        ret = single_file_op(ritr->c_str(),op,DT_DIR);
     }
     plfs_debug("%s: ret %d\n", __FUNCTION__,ret);
     PLFS_EXIT(ret);
@@ -695,7 +684,7 @@ plfs_directory_operation(const char *logical, FileOp &op) {
     vector<string>::iterator itr;
     if ( (ret = find_all_expansions(logical,exps)) != 0 ) PLFS_EXIT(ret);
     for(itr = exps.begin(); itr != exps.end() && ret == 0; itr++ ){
-        ret = single_file_op(itr->c_str(),op,false);
+        ret = single_file_op(itr->c_str(),op,DT_REG);
     }
     PLFS_EXIT(ret);
 }
@@ -705,7 +694,7 @@ plfs_directory_operation(const char *logical, FileOp &op) {
 int 
 plfs_readdir( const char *logical, void *vptr ) {
     PLFS_ENTER;
-    ReaddirOp op((set<string> *)vptr);
+    ReaddirOp op(NULL,(set<string> *)vptr,false,false);
     ret = plfs_directory_operation(logical,op);
     PLFS_EXIT(ret);
 }
@@ -887,40 +876,30 @@ plfs_recover( const char *logical ) {
     //    else assert(0): there should be nothing else
     plfs_debug("%s need to transfer %s from %s into %s\n",
             __FUNCTION__, logical, former.c_str(), canonical.c_str());
-    DIR *dir;
-    struct dirent *ent;
-    ret = Util::Opendir( former.c_str(), &dir );
+    map<string,unsigned char> entries;
+    map<string,unsigned char>::iterator itr;
     vector<string> unlinks;
-    if ( dir == NULL ) PLFS_EXIT(-errno); 
+    string old_path, new_path;
+    ReaddirOp rop(&entries,NULL,false,true);
+    UnlinkOp uop;
+    //CreateOp cop(former_mode);
+    PLFS_EXIT(-ENOSYS);
+    ret = single_file_op(former.c_str(),rop,DT_DIR);
+    if ( ret != 0) PLFS_EXIT(ret); 
 
-    // is it safe to do an unlink() in the middle of a readdir() ??
-    // assume no so save the things to unlink and then unlink them at end
-    while((ret=Util::Readdir(dir,&ent))==0) {
-        if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, "..")) continue;
-        string new_path, old_path;
-        struct stat stbuf;
-        old_path = former;    old_path += "/"; old_path += ent->d_name;
-        new_path = canonical; new_path += "/"; new_path += ent->d_name;
-        switch(ent->d_type){
+    for(itr=entries.begin();itr!=entries.end() && ret==0;itr++) {
+        old_path = former;    old_path += "/"; old_path += itr->first;
+        new_path = canonical; new_path += "/"; new_path += itr->first;;
+        switch(itr->second){
             case DT_REG:
-                // first check to make sure it's zero length
-                // currently all files at top-level are zero length
-                // but if we ever change this and forget to change this
-                // code, let's at least detect this here and error out
-                ret = retValue(Util::Stat(old_path.c_str(),&stbuf));
-                if (ret != 0) PLFS_EXIT(ret);
-                if (stbuf.st_size != 0) {
-                    fprintf(stderr,"%s needs to deal with non-empty files.\n",
-                            __FUNCTION__);
-                    ret = -ENOSYS;
-                } else {
-                    ret = retValue(Util::Creat(new_path.c_str(),stbuf.st_mode));
-                    if (ret==0) unlinks.push_back(old_path.c_str());
-                }
+                //assert(is_zero_length(old_path));   // all top-level files 
+                                                    // are currently zero len
+                //ret = cop.op(new_path);
+                ret = uop.op(old_path.c_str(),DT_REG);
                 break;
             case DT_LNK:
                 ret = recover_link(old_path,new_path);
-                if (ret==0) unlinks.push_back(old_path.c_str());
+                if (ret==0) ret = uop.op(old_path.c_str(),DT_LNK);
                 break;
             case DT_DIR:
                 ret =retValue(Util::Symlink(old_path.c_str(),new_path.c_str()));
@@ -931,14 +910,9 @@ plfs_recover( const char *logical ) {
                 ret = -ENOSYS;
                 break;
         }
-        if (ret != 0) break;
     }
-    if (ret==1) ret = 0; // 1 means read to end of directory
-    int close_ret = retValue(Util::Closedir(dir));
-    if (ret==0) ret = close_ret;    // only if no prior error
 
-    ret = remove_all(unlinks);  // remove everything we were supposed to
-
+    // we did everything we could.  Hopefully that's enough.
     if ( ret != 0 ) {
         printf("Unable to recover %s.\nYou may be able to recover the file"
                 " by manually moving contents of %s to %s\n", 
