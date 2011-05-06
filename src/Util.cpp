@@ -410,10 +410,15 @@ int Util::Creat( const char *path, mode_t mode ) {
     else ret = -errno;
     EXIT_UTIL;
 }
+
 int Util::Statvfs( const char *path, struct statvfs* stbuf ) {
     ENTER_PATH;
     ret = statvfs(path,stbuf);
     EXIT_UTIL;
+}
+
+char * Util::Strdup(const char *s1) {
+    return strdup(s1);
 }
 
         

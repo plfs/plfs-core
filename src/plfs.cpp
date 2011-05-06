@@ -372,6 +372,9 @@ plfs_flatten_index(Plfs_fd *pfd, const char *logical) {
     PLFS_EXIT(ret);
 }
 
+/*
+   This is old code.  Not currently used.
+
 // For chmod we need to guarantee that the creator owns all of 
 // the droppings in the hostdirs and that their mode is set
 // accordingly
@@ -392,6 +395,8 @@ plfs_chown_cleanup (const char *logical,uid_t uid,gid_t gid ) {
     }
     PLFS_EXIT( ret );
 }
+
+*/
 
 // a shortcut for functions that are expecting zero
 int 
@@ -418,9 +423,9 @@ traverseDirectoryTree(const char *physical, vector<string> &files,
     plfs_debug("%s on %s\n", __FUNCTION__, physical);
 
     ret = Util::Opendir(physical, &dir);
-    if ( dir == NULL ) {
-        if (errno == ENOENT) return 0;  // nothing to aggregate.  No problem.
-        else return -errno;
+    if(ret!=0) {
+        if(ret==-ENOENT) return 0; // nothing to aggregate.  No problem.
+        else return ret;
     }
     dirs.push_back(physical);   // save the top dir
 
@@ -614,12 +619,16 @@ plfs_file_operation(const char *logical, FileOp &op) {
     }
 
     // now apply the operation to each operand so long as ret==0
+    // do all files first.  Then do all dirs but do them in reverse
+    // order.  This is necessary for plfs_unlink which will rmdir 
+    // all the directories and it needs to do the children first
     vector<string>::iterator itr;
+    vector<string>::reverse_iterator ritr;
     for(itr = files.begin(); itr != files.end() && ret == 0; itr++) {
         ret = single_file_op(itr->c_str(),op,true);
     }
-    for(itr = dirs.begin(); itr != dirs.end() && ret == 0; itr++) {
-        ret = single_file_op(itr->c_str(),op,false);
+    for(ritr = dirs.rbegin(); ritr != dirs.rend() && ret == 0; ++ritr) {
+        ret = single_file_op(ritr->c_str(),op,false);
     }
     plfs_debug("%s: ret %d\n", __FUNCTION__,ret);
     PLFS_EXIT(ret);
@@ -700,47 +709,9 @@ plfs_stats( void *vptr ) {
     (*stats) = ustats;
 }
 
-int
-plfs_readdir_helper( const char *physical, void *vptr ) {
-    set<string> *dents = (set<string> *)vptr;
-    DIR *dp;
-    plfs_debug("%s: opendir physical %s\n",__FUNCTION__, physical);
-    int ret = Util::Opendir( physical, &dp );
-    if ( ret == 0 && dp ) {
-        struct dirent *de;
-        while ((de = readdir(dp)) != NULL) {
-            plfs_debug("Pushing %s into readdir for %s\n",de->d_name,physical);
-            dents->insert(de->d_name);
-        }
-        Util::Closedir( dp );
-    } else {
-        ret = -errno;
-    }
-    return ret;
-}
-
+// this applies a function to a directory path on each backend
+// currently used by readdir, rmdir, mkdir
 // returns 0 or -errno
-// needs to aggregate over backends
-int 
-plfs_readdir( const char *logical, void *vptr ) {
-    PLFS_ENTER;
-    bool found = false;
-    vector<string> exps;
-    if ( (ret = find_all_expansions(logical,exps)) != 0 ) PLFS_EXIT(ret);
-    for(vector<string>::iterator itr = exps.begin(); itr != exps.end(); itr++ ){
-        ret = plfs_readdir_helper((*itr).c_str(),vptr);
-        if (ret==0) found = true;
-    }
-    if (ret == -ENOENT && found) ret = 0; // one backend didn't exist
-                                          // this is a bit weird but
-                                          // possible if backends are modified
-                                          // which they NEVER should be
-                                          // but just in case
-                                          // we could remember which are
-                                          // missing and mkdir them here
-    PLFS_EXIT(ret);
-}
-
 int
 plfs_directory_operation(const char *logical, FileOp &op) {
     int ret = 0;
@@ -750,6 +721,16 @@ plfs_directory_operation(const char *logical, FileOp &op) {
     for(itr = exps.begin(); itr != exps.end() && ret == 0; itr++ ){
         ret = single_file_op(itr->c_str(),op,false);
     }
+    PLFS_EXIT(ret);
+}
+
+// vptr needs to be a pointer to a set<string>
+// returns 0 or -errno
+int 
+plfs_readdir( const char *logical, void *vptr ) {
+    PLFS_ENTER;
+    ReaddirOp op((set<string> *)vptr);
+    ret = plfs_directory_operation(logical,op);
     PLFS_EXIT(ret);
 }
 
@@ -763,22 +744,6 @@ plfs_mkdir( const char *logical, mode_t mode ) {
     MkdirOp op(mode);
     ret = plfs_directory_operation(logical,op);
     PLFS_EXIT(ret);
-
-    // old code
-    /*
-    bool success = false;
-    vector<string> exps;
-    if ( (ret = find_all_expansions(logical,exps)) != 0 ) PLFS_EXIT(ret);
-    for(vector<string>::iterator itr = exps.begin(); itr != exps.end(); itr++ ){
-        ret = retValue(Util::Mkdir((*itr).c_str(),mode));
-        if ( ret == 0 ) success = true;
-    }
-    // it's possible that multiple backends get inconsistent
-    // it SHOULDN'T happen but maybe users break rules by mucking with
-    // backends or by editing the set of backends for an existing mount
-    // in the plfsrc
-    PLFS_EXIT(success?0:ret);
-    */
 }
 
 // this has to iterate over the backends and remove it everywhere
@@ -803,24 +768,6 @@ plfs_rmdir( const char *logical ) {
         plfs_directory_operation(logical,op); // don't overwrite ret 
     }
     PLFS_EXIT(ret);
-
-    /*
-    vector<string> exps;
-    if ( (ret = find_all_expansions(logical,exps)) != 0 ) PLFS_EXIT(ret);
-    for(vector<string>::iterator itr = exps.begin(); itr != exps.end(); itr++ ){
-        ret = retValue(Util::Rmdir((*itr).c_str()));
-        if(ret==-ENOENT) ret = 0;   // was inconsistent...
-        if(ret==-ENOTEMPTY) {   // found one that wasn't empty
-            if (itr!=exps.begin()) { // ugh, deleted some, found some notempty 
-                plfs_debug("Incorrectly began removing a non-empty directory "
-                        "%s.  Will now restore.\n",logical);
-                plfs_mkdir(logical,mode); // restore them all
-                PLFS_EXIT(-ENOTEMPTY);
-            }
-        }
-    }
-    PLFS_EXIT(ret);
-    */
 }
 
 // this code just iterates up a path and makes sure all the component 
@@ -876,6 +823,7 @@ recover_link(const string &existing, const string &new_path) {
     return retValue(Util::Symlink(buf,new_path.c_str()));
 }
 
+// simple function that takes a set of paths and unlinks them all
 int
 remove_all(vector<string> &unlinks) {
     vector<string>::iterator itr;
@@ -1024,10 +972,7 @@ plfs_recover( const char *logical ) {
     PLFS_EXIT(ret);
 }
 
-// ok, this function looks OK.  Bit of a pain in the ass.
-// basically, we need to replicate all this code for chown and chmod
-// wish there was an easy way to use a function ptr and variable args to
-// do this.....
+// returns 0 or -errno
 int
 plfs_utime( const char *logical, struct utimbuf *ut ) {
     PLFS_ENTER;
@@ -1482,8 +1427,7 @@ get_plfs_conf() {
 // Here are all of the parindex read functions
 int plfs_expand_path(char *logical,char **physical){
     PLFS_ENTER; (void)ret; // suppress compiler warning
-    *physical = (char *)malloc(sizeof(char)*path.size()+1);
-    strcpy(*physical,path.c_str());
+    *physical = Util::Strdup(path.c_str());
     return 0;
 }
 
@@ -1903,6 +1847,10 @@ plfs_sync( Plfs_fd *pfd, pid_t pid ) {
 // an empty container = empty file
 //
 // this code should really be moved to container
+//
+// be nice to use the new FileOp class for this.  Bit tricky though maybe.
+// by the way, this should only be called now with truncate_only==true
+// we changed the unlink functionality to use the new FileOp stuff
 int 
 removeDirectoryTree( const char *path, bool truncate_only ) {
     DIR *dir;
@@ -2256,48 +2204,15 @@ getAtomicUnlinkPath(string path) {
     return atomicpath;
 }
 
-int
-plfs_remove_container(const string &path) {
-    // first atomically remove the canonical location
-    string atomicpath = getAtomicUnlinkPath(path);
-    int ret = retValue(Util::Rename(path.c_str(), atomicpath.c_str()));
-    if ( ret == 0 ) {
-        plfs_debug("Converted %s to %s for atomic unlink\n",
-                path.c_str(), atomicpath.c_str());
-        ret = removeDirectoryTree( atomicpath.c_str(), false );  
-        plfs_debug("Removed plfs container %s: %d\n",path.c_str(),ret);
-    }
-    return ret;
-}
-
+// TODO:  We should perhaps try to make this be atomic.
+// Currently it is just gonna to try to remove everything
+// if it only does a partial job, it will leave something weird
 int 
 plfs_unlink( const char *logical ) {
     PLFS_ENTER;
-    mode_t mode =0;
-    if ( is_plfs_file( logical, &mode ) ) {
-        // first remove the canonical
-        string canonical = path; // it's already expanded 
-        ret = plfs_remove_container(canonical);
-        plfs_debug("Remove canonical container %s: %d\n",canonical.c_str(),ret);
- 
-        if(ret==0) { // then all the copies spread across backends
-            vector<string> exps;
-            if ( (ret = find_all_expansions(logical,exps)) != 0 ) 
-                PLFS_EXIT(ret);
-            vector<string>::iterator itr;
-            for(itr = exps.begin(); itr != exps.end(); itr++ ){
-                if(itr==exps.begin()) continue; // skip canonical
-                ret = plfs_remove_container(path);
-                plfs_debug("Removed non-canonical container %s: %d\n",
-                        path.c_str(),ret);
-                if(ret==-ENOENT) ret = 0;
-            }
-        }
-    } else {
-        if ( mode == 0 ) ret = -ENOENT;
-        else ret = retValue( Util::Unlink( path.c_str() ) );   
-    }
-    PLFS_EXIT(ret); 
+    UnlinkOp op;  // treats file and dirs appropriately
+    ret = plfs_file_operation(logical,op);
+    PLFS_EXIT(ret);
 }
 
 int

@@ -83,6 +83,7 @@ class Util {
         static int Setfsuid( uid_t );
         static int Stat( const char *path, struct stat *file_info);
         static int Statvfs( const char *, struct statvfs* );
+        static char *Strdup(const char *s1);
         static int Symlink( const char *, const char * );
         static int Truncate( const char *, off_t length );
         static int Unlink( const char * );

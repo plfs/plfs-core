@@ -12,7 +12,7 @@ using namespace std;
 class
 FileOp {
     public:
-        virtual int op(const char *, bool isfile) = 0;
+        virtual int op(const char *, bool isfile) = 0; // returns 0 or -errno
         virtual const char *name() = 0;
         bool onlyAccessFile() {return false;}
         void ignoreErrno(int Errno); // can register errno's to be ignored
@@ -53,6 +53,16 @@ RmdirOp : public FileOp {
 };
 
 class
+ReaddirOp : public FileOp {
+    public:
+        ReaddirOp(set<string> *);
+        int op(const char *, bool);
+        const char *name() { return "ReaddirOp"; }
+    private:
+        set<string> *entries;
+};
+
+class
 MkdirOp : public FileOp {
     public:
         MkdirOp(mode_t);
@@ -70,6 +80,14 @@ ChmodOp : public FileOp {
         const char *name() { return "ChmodOp"; }
     private:
         mode_t m;
+};
+
+class
+UnlinkOp : public FileOp {
+    public:
+        UnlinkOp() { }
+        int op(const char *, bool);
+        const char *name() { return "UnlinkOp"; }
 };
 
 #endif

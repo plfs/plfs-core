@@ -24,8 +24,37 @@ ChownOp::op(const char *path, bool /* isfile */ ) {
     return retValue(Util::Chown(path,u,g));
 }
 
+int
+UnlinkOp::op(const char *path, bool isfile) {
+    if (isfile)
+        return retValue(Util::Unlink(path));
+    else
+        return retValue(Util::Rmdir(path));
+}
+
 MkdirOp::MkdirOp(mode_t m) {
     this->m = m;
+}
+
+ReaddirOp::ReaddirOp(set<string> *entries) {
+    this->entries = entries;
+}
+
+int
+ReaddirOp::op(const char *path, bool /* isfile */ ) {
+    int ret;
+    DIR *dir;
+    struct dirent *ent;
+    ret = Util::Opendir(path, &dir);
+    if (ret!=0) return ret;
+
+    while((ret=Util::Readdir(dir,&ent))==0) {
+        entries->insert(ent->d_name);
+    }
+    Util::Closedir(dir);
+
+    if (ret==1) ret = 0; // read to end of directory
+    return ret;
 }
 
 int
