@@ -494,7 +494,8 @@ int par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     if(ranks_per_comm) split_and_merge(fd,rank,extra_rank,
             ranks_per_comm,np,filename,global_index);
     if(!ranks_per_comm) read_and_merge(fd,rank,np,hostdir_per_rank,
-            filename,global_index); 
+            filename,global_index);
+    if(filename!=NULL) free(filename);
     return 0; 
 }
 
