@@ -372,32 +372,6 @@ plfs_flatten_index(Plfs_fd *pfd, const char *logical) {
     PLFS_EXIT(ret);
 }
 
-/*
-   This is old code.  Not currently used.
-
-// For chmod we need to guarantee that the creator owns all of 
-// the droppings in the hostdirs and that their mode is set
-// accordingly
-int 
-plfs_chmod_cleanup(const char *logical,mode_t mode ) {   
-    PLFS_ENTER;
-    if ( is_plfs_file( logical,NULL )) {
-        ret = Container::cleanupChmod( path, mode , 1 , 0 , 0);
-    }
-    PLFS_EXIT( ret );
-}
-
-int 
-plfs_chown_cleanup (const char *logical,uid_t uid,gid_t gid ) {
-    PLFS_ENTER;
-    if ( is_plfs_file( logical, NULL )) {
-        ret = Container::cleanupChown( path, uid, gid);
-    }
-    PLFS_EXIT( ret );
-}
-
-*/
-
 // a shortcut for functions that are expecting zero
 int 
 retValue( int res ) {
@@ -546,6 +520,7 @@ int
 isWriter( int flags ) {
     return (flags & O_WRONLY || flags & O_RDWR );
 }
+
 // Was running into reference count problems so I had to change this code
 // The RDONLY flag is has the lsb set as 0 had to do some bit shifting
 // to figure out if the RDONLY flag was set
@@ -711,6 +686,7 @@ plfs_stats( void *vptr ) {
 
 // this applies a function to a directory path on each backend
 // currently used by readdir, rmdir, mkdir
+// this doesn't require the dirs to already exist
 // returns 0 or -errno
 int
 plfs_directory_operation(const char *logical, FileOp &op) {
@@ -2145,7 +2121,8 @@ plfs_query( Plfs_fd *pfd, size_t *writers, size_t *readers ) {
     return 0;
 }
 
-ssize_t plfs_reference_count( Plfs_fd *pfd ) {
+ssize_t 
+plfs_reference_count( Plfs_fd *pfd ) {
     WriteFile *wf = pfd->getWritefile();
     Index     *in = pfd->getIndex();
     
