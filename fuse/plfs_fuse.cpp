@@ -377,9 +377,7 @@ int Plfs::f_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
 // nothing to do for a read file
 int Plfs::f_fsync(const char *path, int datasync, struct fuse_file_info *fi) {
     PLFS_ENTER; GET_OPEN_FILE;
-    if ( of ) {
-        plfs_sync( of, fuse_get_context()->pid );
-    }
+    if (of) plfs_sync(of, fuse_get_context()->pid);
     PLFS_EXIT;
 }
 
@@ -388,6 +386,7 @@ int Plfs::f_fsync(const char *path, int datasync, struct fuse_file_info *fi) {
 int Plfs::f_ftruncate(const char *path, off_t offset, struct fuse_file_info *fi)
 {
     PLFS_ENTER; GET_OPEN_FILE;
+    if(of) plfs_sync(of,fuse_get_context()->pid); // flush any index buffers
     ret = plfs_trunc( of, strPath.c_str(), offset );
     PLFS_EXIT;
 }

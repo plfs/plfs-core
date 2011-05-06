@@ -1521,6 +1521,8 @@ int Container::Truncate( const string &path, off_t offset ) {
     int ret;
     string indexfile;
 
+    plfs_debug("%s on %s to %ld\n", __FUNCTION__, path.c_str(),offset);
+
 	// this code here goes through each index dropping and rewrites it
 	// preserving only entries that contain data prior to truncate offset
     DIR *td = NULL, *hd = NULL; struct dirent *tent = NULL;

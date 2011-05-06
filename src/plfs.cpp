@@ -2045,7 +2045,10 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
     } else {
             // either at existing end, before it, or after it
         struct stat stbuf;
-        bool sz_only = true; // we just need the size
+        bool sz_only = false; // sz_only isn't accurate in this case
+                              // it should be but the problem is that
+                              // FUSE opens the file and so we just query
+                              // the open file handle and it says 0
         ret = plfs_getattr( of, logical, &stbuf, sz_only );
         Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
         if ( ret == 0 ) {
@@ -2055,6 +2058,7 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
                 ret = Container::Truncate(path, offset); // make smaller
                 Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
             } else if ( stbuf.st_size < offset ) {
+                Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
                 ret = extendFile( of, path, offset );    // make bigger
             }
         }
