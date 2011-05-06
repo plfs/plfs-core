@@ -919,7 +919,7 @@ plfs_recover( const char *logical ) {
 
     // is it safe to do an unlink() in the middle of a readdir() ??
     // assume no so save the things to unlink and then unlink them at end
-    while( (ent = readdir( dir ) ) != NULL ) {
+    while((ret=Util::Readdir(dir,&ent))==0) {
         if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, "..")) continue;
         string new_path, old_path;
         struct stat stbuf;
@@ -957,6 +957,7 @@ plfs_recover( const char *logical ) {
         }
         if (ret != 0) break;
     }
+    if (ret==1) ret = 0; // 1 means read to end of directory
     int close_ret = retValue(Util::Closedir(dir));
     if (ret==0) ret = close_ret;    // only if no prior error
 
@@ -1785,6 +1786,14 @@ plfs_readlink(const char *logical, char *buf, size_t bufsize) {
 int
 plfs_rename( const char *logical, const char *to ) {
     PLFS_ENTER;
+    // this code needs to be fixed badly
+    // one way to do it is to go through and fix all symlinks with
+    // canonical containers to reflect new path
+    // better way is to make the symlinks not contain absolute paths
+    // in the meantime:
+    PLFS_EXIT(-ENOSYS);
+
+    /*
     ExpansionInfo exp_info;
     string topath = expandPath(to,&exp_info,HASH_BY_FILENAME,-1,0);
     // check return value here?
@@ -1802,6 +1811,7 @@ plfs_rename( const char *logical, const char *to ) {
         ret = Container::Utime( topath, NULL );
     }
     PLFS_EXIT(ret);
+    */
 }
 
 ssize_t 
@@ -1852,114 +1862,12 @@ plfs_sync( Plfs_fd *pfd, pid_t pid ) {
 // by the way, this should only be called now with truncate_only==true
 // we changed the unlink functionality to use the new FileOp stuff
 int 
-removeDirectoryTree( const char *path, bool truncate_only ) {
-    DIR *dir;
-    struct dirent *ent;
-    int ret = 0;
-    plfs_debug("%s on %s\n", __FUNCTION__, path );
-
-    ret = Util::Opendir( path, &dir );
-    if ( dir == NULL ) return -errno;
-
-    bool is_meta_dir = false;
-    if (!strncmp(METADIR,&path[strlen(path)-strlen(METADIR)],strlen(METADIR))) {
-        plfs_debug("%s on METADIR\n", __FUNCTION__);
-        is_meta_dir = true;
-    }
-
-    plfs_debug("opendir %s\n", path);
-    while( (ent = readdir( dir ) ) != NULL ) {
-        plfs_debug("readdir %s\n", path);
-        if ( ! strcmp(ent->d_name, ".") || ! strcmp(ent->d_name, "..") ) {
-            //plfs_debug("skipping %s\n", ent->d_name );
-            continue;
-        }
-        if ( ! strcmp(ent->d_name, ACCESSFILE ) && truncate_only ) {
-            continue;   // don't remove our accessfile!
-        }
-        // no separate openhostdir anymore.  same as metadir
-        // no separate creator file anymore.  same as accessfile
-        /*
-        if ( ! strcmp( ent->d_name, OPENHOSTDIR ) && truncate_only ) {
-            continue;   // don't remove open hosts
-        }
-        if ( ! strcmp( ent->d_name, CREATORFILE ) && truncate_only ) {
-                       continue;   // don't remove the creator file
-        }
-        */
-
-        // don't remove open droppings on a truncate
-        if (! strncmp(ent->d_name, OPENPREFIX, strlen(OPENPREFIX))
-                && is_meta_dir && truncate_only)
-        {
-            continue;
-        }
-        
-        string child( path );
-        child += "/";
-        child += ent->d_name;
-        plfs_debug("made child %s from path %s\n",child.c_str(),path);
-        if ( Util::isDirectory( child.c_str() ) ) {
-            if ( removeDirectoryTree( child.c_str(), truncate_only ) != 0 ) {
-                ret = -errno;
-                continue;
-            }
-        } else {
-            // ok, we seem to be screwing things up by deleting a handle
-            // that someone else has open:
-            // e.g. two writers do an open with O_TRUNC at the same time
-            // one writer finishes the O_TRUNC and then opens it's fd's
-            // then the next writer comes and does the O_TRUNC and removes
-            // the first writer's open files.  Instead let's just truncate
-            // each open file
-
-            // however, if it's a metadata dropping, truncating it isn't
-            // meaningful since it's zero length.  We need to unlink them
-            // if it's truncate only.
-            // we know it's a metadata dropping if the parent dir is 'meta'
-            int remove_ret = 0;
-            if ( truncate_only && ! is_meta_dir ) {
-                remove_ret = Util::Truncate(child.c_str(), 0);
-            } else {
-                remove_ret = Util::Unlink  (child.c_str());
-            }
-            plfs_debug("removed/truncated %s: %s\n", 
-                    child.c_str(), strerror(errno) );
-            
-            // ENOENT would be OK, could mean that an openhosts dropping
-            // was removed on another host or something
-            if ( remove_ret != 0 && errno != ENOENT ) {
-                ret = -errno;
-                continue;
-            }
-        }
-    }
-    if ( Util::Closedir( dir ) != 0 ) {
-        ret = -errno;
-    }
-
-    // here we have deleted all children.  Now delete the directory itself
-    // if truncate is called, this means it's a container.  so we only
-    // delete the internal stuff but not the directory structure
-    if ( ret != 0 ) PLFS_EXIT(ret);
-    if ( truncate_only ) {
-        return 0;
-    } else {
-        ret = Util::Rmdir( path );
-        if ( ret != 0 && errno == ENOTEMPTY ) {
-            int prec = numeric_limits<long double>::digits10; // 18
-            ostringstream trash_path;
-            trash_path.precision(prec); // override the default of 6
-            trash_path << "." << path << "." << Util::hostname() << "." 
-                       << Util::getTime() << ".silly_rename";
-            cerr << "Need to silly rename " << path << " to "
-                 << trash_path.str().c_str() << endl;
-            Util::Rename( path, trash_path.str().c_str() ); 
-            ret = 0;
-        }
-        ret = retValue( ret );
-        return ret;
-    }
+truncateFile(const char *logical) {
+    TruncateOp op;
+    op.ignore(ACCESSFILE);
+    op.ignore(OPENPREFIX);
+    op.ignore(VERSIONPREFIX);
+    return plfs_file_operation(logical,op);
 }
             
 // this should only be called if the uid has already been checked
@@ -2105,6 +2013,8 @@ plfs_buildtime( ) {
 }
 
 // the Plfs_fd can be NULL
+// be nice to use new FileOp class for this somehow
+// returns 0 or -errno
 int 
 plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
     PLFS_ENTER;
@@ -2130,7 +2040,7 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
             // this is easy, just remove all droppings
             // this now removes METADIR droppings instead of incorrectly 
             // truncating them
-            ret = removeDirectoryTree( path.c_str(), true );
+            ret = truncateFile(logical);
         }
     } else {
             // either at existing end, before it, or after it

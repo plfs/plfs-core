@@ -25,6 +25,31 @@ ChownOp::op(const char *path, bool /* isfile */ ) {
 }
 
 int
+TruncateOp::op(const char *path, bool isfile) {
+
+    if (!isfile) return 0;  // nothing to do for directories
+
+    // we get here it's a file.  But is it a file that we're ignoring?
+    vector<string>::iterator itr;
+    const char *last_slash = strrchr(path,'/') + 1;
+    assert(last_slash);
+    string filename = last_slash;
+    
+    // check if we ignore it
+    for(itr=ignores.begin();itr!=ignores.end();itr++) {
+        if (filename.compare(0,itr->length(),*itr)==0) return 0;
+    }
+
+    // we made it here, we don't ignore it
+    return retValue(Util::Unlink(path));
+}
+
+void
+TruncateOp::ignore(string path) {
+    ignores.push_back(path);
+}
+
+int
 UnlinkOp::op(const char *path, bool isfile) {
     if (isfile)
         return retValue(Util::Unlink(path));
