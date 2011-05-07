@@ -4,6 +4,14 @@
 #include "Util.h"
 #include "Container.h"
 
+int
+FileOp::op(const char *path, unsigned char type) {
+    // the parent function is just a wrapper to insert a debug message 
+    int ret = do_op(path,type);
+    Util::Debug("FileOp:%s on %s: %d\n",name(),path,ret);
+    return ret;
+}
+
 void 
 FileOp::ignoreErrno(int Errno) {
     ignores.insert(Errno);
@@ -22,12 +30,12 @@ ChownOp::ChownOp(uid_t u, gid_t g) {
 }
 
 int
-ChownOp::op(const char *path, unsigned char /* isfile */ ) {
+ChownOp::do_op(const char *path, unsigned char /* isfile */ ) {
     return retValue(Util::Chown(path,u,g));
 }
 
 int
-TruncateOp::op(const char *path, unsigned char isfile) {
+TruncateOp::do_op(const char *path, unsigned char isfile) {
 
     if (isfile != DT_REG) return 0;  // nothing to do for directories
 
@@ -52,7 +60,7 @@ TruncateOp::ignore(string path) {
 }
 
 int
-UnlinkOp::op(const char *path, unsigned char isfile) {
+UnlinkOp::do_op(const char *path, unsigned char isfile) {
     if (isfile==DT_REG || isfile==DT_LNK)
         return retValue(Util::Unlink(path));
     else if (isfile==DT_DIR)
@@ -60,7 +68,7 @@ UnlinkOp::op(const char *path, unsigned char isfile) {
     else return -ENOSYS;
 }
 
-MkdirOp::MkdirOp(mode_t m) {
+CreateOp::CreateOp(mode_t m) {
     this->m = m;
 }
 
@@ -73,7 +81,7 @@ ReaddirOp::ReaddirOp(map<string,unsigned char> *entries,
 }
 
 int
-ReaddirOp::op(const char *path, unsigned char /* isfile */ ) {
+ReaddirOp::do_op(const char *path, unsigned char /* isfile */ ) {
     int ret;
     DIR *dir;
     struct dirent *ent;
@@ -97,13 +105,18 @@ ReaddirOp::op(const char *path, unsigned char /* isfile */ ) {
 }
 
 int
-RmdirOp::op(const char *path, unsigned char /* isfile */ ) {
+RmdirOp::do_op(const char *path, unsigned char /* isfile */ ) {
     return retValue(Util::Rmdir(path));
 }
 
 int
-MkdirOp::op(const char *path, unsigned char /* isfile */) {
-    return retValue(Util::Mkdir(path,m));
+CreateOp::do_op(const char *path, unsigned char isfile ) {
+    if (isfile==DT_DIR)
+        return retValue(Util::Mkdir(path,m));
+    else if (isfile==DT_REG)
+        return retValue(Util::Creat(path,m));
+    else assert(0);
+    return -ENOSYS;
 }
 
 ChmodOp::ChmodOp(mode_t m) {
@@ -111,7 +124,7 @@ ChmodOp::ChmodOp(mode_t m) {
 }
 
 int
-ChmodOp::op(const char *path, unsigned char isfile) {
+ChmodOp::do_op(const char *path, unsigned char isfile) {
     mode_t this_mode = (isfile==DT_DIR?Container::dirMode(m):m);
     return retValue(Util::Chmod(path,this_mode));
 }
@@ -121,6 +134,6 @@ UtimeOp::UtimeOp(struct utimbuf *ut) {
 }
 
 int
-UtimeOp::op(const char *path, unsigned char /* isfile */ ) {
+UtimeOp::do_op(const char *path, unsigned char /* isfile */ ) {
     return retValue(Util::Utime(path,ut));
 }

@@ -383,14 +383,6 @@ plfs_wtime() {
     return Util::getTime();
 }
 
-// returns 0 or -errno
-int
-single_file_op(const char *physical, FileOp &op, unsigned char type) {
-    int ret = op.op(physical,type);
-    plfs_debug("%s: %s on %s: %d\n", __FUNCTION__,op.name(),physical,ret);
-    return ret;
-}
-
 // just reads through a directory and returns all descendants
 // useful for gathering the contents of a container
 // this function should probably be in util
@@ -406,9 +398,9 @@ traverseDirectoryTree(const char *physical, vector<string> &files,
     map<string,unsigned char> entries;
     map<string,unsigned char>::iterator itr;
     ReaddirOp op(&entries,NULL,true,true);
-    ret = single_file_op(physical,op,DT_DIR);
+    ret = op.op(physical,DT_DIR);
     if (ret==-ENOENT) return 0; // no shadow or canonical on this backend: np.
-    if (ret!=0) return ret;     // some sort of problem
+    if (ret!=0) return ret;     // some other error is a problem
 
     dirs.push_back(physical); // save the top dir
 
@@ -582,17 +574,16 @@ plfs_file_operation(const char *logical, FileOp &op) {
         files.push_back(path);
     }
 
-    // now apply the operation to each operand so long as ret==0
-    // do all files first.  Then do all dirs but do them in reverse
-    // order.  This is necessary for plfs_unlink which will rmdir 
-    // all the directories and it needs to do the children first
-    vector<string>::iterator itr;
+    // now apply the operation to each operand so long as ret==0.  dirs must be
+    // done in reverse order and files must be done first.  This is necessary
+    // for when op is unlink since children must be unlinked first.  for the
+    // other ops, order doesn't matter.
     vector<string>::reverse_iterator ritr;
-    for(itr = files.begin(); itr != files.end() && ret == 0; itr++) {
-        ret = single_file_op(itr->c_str(),op,DT_REG);
+    for(ritr = files.rbegin(); ritr != files.rend() && ret == 0; ++ritr) {
+        ret = op.op(ritr->c_str(),DT_REG);
     }
     for(ritr = dirs.rbegin(); ritr != dirs.rend() && ret == 0; ++ritr) {
-        ret = single_file_op(ritr->c_str(),op,DT_DIR);
+        ret = op.op(ritr->c_str(),DT_DIR);
     }
     plfs_debug("%s: ret %d\n", __FUNCTION__,ret);
     PLFS_EXIT(ret);
@@ -678,13 +669,13 @@ plfs_stats( void *vptr ) {
 // this doesn't require the dirs to already exist
 // returns 0 or -errno
 int
-plfs_directory_operation(const char *logical, FileOp &op) {
+plfs_iterate_backends(const char *logical, FileOp &op) {
     int ret = 0;
     vector<string> exps;
     vector<string>::iterator itr;
     if ( (ret = find_all_expansions(logical,exps)) != 0 ) PLFS_EXIT(ret);
     for(itr = exps.begin(); itr != exps.end() && ret == 0; itr++ ){
-        ret = single_file_op(itr->c_str(),op,DT_REG);
+        ret = op.op(itr->c_str(),DT_DIR);
     }
     PLFS_EXIT(ret);
 }
@@ -695,7 +686,7 @@ int
 plfs_readdir( const char *logical, void *vptr ) {
     PLFS_ENTER;
     ReaddirOp op(NULL,(set<string> *)vptr,false,false);
-    ret = plfs_directory_operation(logical,op);
+    ret = plfs_iterate_backends(logical,op);
     PLFS_EXIT(ret);
 }
 
@@ -706,8 +697,8 @@ plfs_readdir( const char *logical, void *vptr ) {
 int
 plfs_mkdir( const char *logical, mode_t mode ) {
     PLFS_ENTER;
-    MkdirOp op(mode);
-    ret = plfs_directory_operation(logical,op);
+    CreateOp op(mode);
+    ret = plfs_iterate_backends(logical,op);
     PLFS_EXIT(ret);
 }
 
@@ -722,15 +713,15 @@ plfs_rmdir( const char *logical ) {
     PLFS_ENTER;
     mode_t mode = Container::getmode(path); // save in case we need to restore
     RmdirOp op;
-    ret = plfs_directory_operation(logical,op);
+    ret = plfs_iterate_backends(logical,op);
 
     // check if we started deleting non-empty dirs, if so, restore
     if (ret==-ENOTEMPTY) {
         plfs_debug("Started removing a non-empty directory %s. Will restore.\n",
                         logical);
-        MkdirOp op(mode);
+        CreateOp op(mode);
         op.ignoreErrno(EEXIST);
-        plfs_directory_operation(logical,op); // don't overwrite ret 
+        plfs_iterate_backends(logical,op); // don't overwrite ret 
     }
     PLFS_EXIT(ret);
 }
@@ -845,6 +836,7 @@ plfs_recover( const char *logical ) {
         if (ret) {
             isfile = found = true;
             former = *itr;
+            break;  // no need to keep looking
         } else if (S_ISDIR(former_mode)) {
             isdir = found = true;
         }
@@ -878,13 +870,11 @@ plfs_recover( const char *logical ) {
             __FUNCTION__, logical, former.c_str(), canonical.c_str());
     map<string,unsigned char> entries;
     map<string,unsigned char>::iterator itr;
-    vector<string> unlinks;
     string old_path, new_path;
     ReaddirOp rop(&entries,NULL,false,true);
     UnlinkOp uop;
-    //CreateOp cop(former_mode);
-    PLFS_EXIT(-ENOSYS);
-    ret = single_file_op(former.c_str(),rop,DT_DIR);
+    CreateOp cop(former_mode);
+    ret = rop.op(former.c_str(),DT_DIR);
     if ( ret != 0) PLFS_EXIT(ret); 
 
     for(itr=entries.begin();itr!=entries.end() && ret==0;itr++) {
@@ -892,10 +882,14 @@ plfs_recover( const char *logical ) {
         new_path = canonical; new_path += "/"; new_path += itr->first;;
         switch(itr->second){
             case DT_REG:
-                //assert(is_zero_length(old_path));   // all top-level files 
-                                                    // are currently zero len
-                //ret = cop.op(new_path);
-                ret = uop.op(old_path.c_str(),DT_REG);
+                // when this function was written, all top-level files within
+                // the canonical container were zero-length.  This function
+                // assumes that they still are so continue to check in case
+                // in the future someone adds a non-zero-length top level file
+                // in which case this function will need to be modified
+                assert(Util::Filesize(old_path.c_str())==0);
+                ret = cop.op(new_path.c_str(),DT_REG);
+                if (ret==0) ret = uop.op(old_path.c_str(),DT_REG);
                 break;
             case DT_LNK:
                 ret = recover_link(old_path,new_path);

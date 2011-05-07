@@ -125,7 +125,7 @@ bool Container::isContainer( const string &physical_path, mode_t *mode ) {
             if ( ret == 0 && mode ) {
                 plfs_debug("%s %s is a container\n", __FUNCTION__,
                         physical_path.c_str());
-                *mode = S_IFREG; 
+                if (mode) *mode = fileMode(*mode); 
             }
             return ( ret == 0 ? true : false );    
         } else {

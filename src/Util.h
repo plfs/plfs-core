@@ -57,6 +57,7 @@ class Util {
         static int Close( int ); 
         static int Closedir( DIR * );
         static int Creat( const char*, mode_t );
+        static int Filesize(const char*);
         static int Fsync( int );
         static uid_t Getuid();
         static gid_t Getgid();

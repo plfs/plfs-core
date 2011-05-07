@@ -527,6 +527,14 @@ int Util::Mkdir( const char *path, mode_t mode ) {
     EXIT_UTIL;
 }
 
+int Util::Filesize(const char *path) {
+    ENTER_PATH;
+    struct stat stbuf;
+    ret = Stat(path,&stbuf);
+    if (ret==0) ret = (int)stbuf.st_size;
+    EXIT_UTIL;
+}
+
 int Util::Fsync( int fd) {
     ENTER_UTIL;
     ret = fsync( fd ); 

@@ -19,10 +19,11 @@ using namespace std;
 class
 FileOp {
     public:
-        virtual int op(const char *, unsigned char type) = 0; // ret 0 or -errno
+        int op(const char *, unsigned char type); // ret 0 or -errno
         virtual const char *name() = 0;
         bool onlyAccessFile() {return false;}
         void ignoreErrno(int Errno); // can register errno's to be ignored
+        virtual int do_op(const char*, unsigned char type) = 0;
     protected:
         int retValue(int ret);
     private:
@@ -33,7 +34,7 @@ class
 ChownOp : public FileOp {
     public:
         ChownOp(uid_t, gid_t);
-        int op(const char *, unsigned char);
+        int do_op(const char *, unsigned char);
         const char *name() { return "ChownOp"; }
     private:
         uid_t u;
@@ -44,7 +45,7 @@ class
 UtimeOp : public FileOp {
     public:
         UtimeOp(struct utimbuf *);
-        int op(const char *, unsigned char);
+        int do_op(const char *, unsigned char);
         const char *name() { return "UtimeOp"; }
         bool onlyAccessFile() {return true;}
     private:
@@ -58,7 +59,7 @@ class
 TruncateOp : public FileOp {
     public:
         TruncateOp() {};
-        int op(const char *, unsigned char);
+        int do_op(const char *, unsigned char);
         const char *name() { return "TruncateOp"; }
         void ignore(string);
     private:
@@ -69,7 +70,7 @@ class
 RmdirOp : public FileOp {
     public:
         RmdirOp() {};
-        int op(const char *, unsigned char);
+        int do_op(const char *, unsigned char);
         const char *name() { return "RmdirOp"; }
 };
 
@@ -84,7 +85,7 @@ class
 ReaddirOp : public FileOp {
     public:
         ReaddirOp(map<string,unsigned char> *,set<string> *, bool, bool);
-        int op(const char *, unsigned char);
+        int do_op(const char *, unsigned char);
         const char *name() { return "ReaddirOp"; }
     private:
         map<string,unsigned char> *entries;
@@ -94,11 +95,11 @@ ReaddirOp : public FileOp {
 };
 
 class
-MkdirOp : public FileOp {
+CreateOp : public FileOp {
     public:
-        MkdirOp(mode_t);
-        int op(const char *, unsigned char);
-        const char *name() { return "MkdirOp"; }
+        CreateOp(mode_t);
+        int do_op(const char *, unsigned char);
+        const char *name() { return "CreateOp"; }
     private:
         mode_t m;
 };
@@ -107,7 +108,7 @@ class
 ChmodOp : public FileOp {
     public:
         ChmodOp(mode_t);
-        int op(const char *, unsigned char);
+        int do_op(const char *, unsigned char);
         const char *name() { return "ChmodOp"; }
     private:
         mode_t m;
@@ -117,7 +118,7 @@ class
 UnlinkOp : public FileOp {
     public:
         UnlinkOp() { }
-        int op(const char *, unsigned char);
+        int do_op(const char *, unsigned char);
         const char *name() { return "UnlinkOp"; }
 };
 
