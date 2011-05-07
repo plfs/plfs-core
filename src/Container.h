@@ -23,11 +23,6 @@ using namespace std;
 #define DEFAULT_MODE (S_IRUSR|S_IWUSR|S_IXUSR|S_IXGRP|S_IXOTH)
 #define DROPPING_MODE (S_IRWXU|S_IRWXG|S_IRWXO) 
 
-enum
-DirectoryOperation {
-        CHMOD, CHOWN, UTIME, RMDIR, MKDIR
-};
-
 enum 
 parentStatus {
     PARENT_CREATED,PARENT_ABSENT    
@@ -82,8 +77,6 @@ class Container {
         static int getattr( const string &, struct stat * );
 
         static mode_t getmode( const string & );
-        static int Chown( const string &path, uid_t uid, gid_t gid );
-        static int Chmod( const string &path, mode_t mode );
         static int Utime( const string &path, const struct utimbuf *buf );
         static int Truncate( const string &, off_t );
         static int Access( const string &path, int mask );
@@ -101,9 +94,6 @@ class Container {
         static int makeAccess(const string& path,mode_t mode);
         static int makeDroppingReal(const string& path, mode_t mode); 
         static int makeCreator(const string& path);
-        static int cleanupChmod( const string &path, 
-            mode_t mode , int top, uid_t uid , gid_t gid );
-        static int cleanupChown( const string &path, uid_t uid, gid_t gid); 
 	    static int truncateMeta(const string &path, off_t offset);
         // Added for par read index
         static Index parAggregateIndices(vector<IndexFileInfo>& index_list,
@@ -114,10 +104,6 @@ class Container {
         static char *version(const string &path);
     private:
             // static stuff
-        static int Modify(DirectoryOperation,const string &,uid_t,gid_t,
-                const struct utimbuf*,mode_t);
-        static int chmodModify (const string &path, mode_t mode);
-        static int chownModify(const string &path,uid_t uid,gid_t gid );
         static int createHelper( const string &, const string &, 
                 mode_t mode, int flags, int *extra_attempts, pid_t,unsigned );
         static int makeTopLevel(const string &, const string &, mode_t, pid_t,
