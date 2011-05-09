@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <utime.h>
 
+#include <string>
 #include <map>
 #include <set>
 #include <vector>

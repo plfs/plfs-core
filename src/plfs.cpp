@@ -391,8 +391,6 @@ int
 traverseDirectoryTree(const char *physical, vector<string> &files, 
         vector<string> &dirs) 
 {
-    DIR *dir;
-    struct dirent *ent;
     int ret = 0;
     plfs_debug("%s on %s\n", __FUNCTION__, physical);
     map<string,unsigned char> entries;
@@ -1730,12 +1728,13 @@ plfs_readlink(const char *logical, char *buf, size_t bufsize) {
 int
 plfs_rename( const char *logical, const char *to ) {
     PLFS_ENTER;
+    ret = -ENOSYS;
     // this code needs to be fixed badly
     // one way to do it is to go through and fix all symlinks with
     // canonical containers to reflect new path
     // better way is to make the symlinks not contain absolute paths
     // in the meantime:
-    PLFS_EXIT(-ENOSYS);
+    PLFS_EXIT(ret);
 
     /*
     ExpansionInfo exp_info;
