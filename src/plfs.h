@@ -186,7 +186,7 @@ const char * plfs_tag();
 
 const char * plfs_version();
 
-int plfs_file_version(const char *, char **);
+int plfs_file_version(const char *, const char **);
 
 ssize_t plfs_write( Plfs_fd *, const char *, size_t, off_t, pid_t );
 

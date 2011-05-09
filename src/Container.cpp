@@ -9,6 +9,7 @@
 #include <string>
 using namespace std;
 
+#include "FileOp.h"
 #include "Container.h"
 #include "OpenFile.h"
 #include "plfs.h"
@@ -354,49 +355,33 @@ int Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index,string pa
     return ret;
 }
 
+// a function to query the version that a file was created under
+// it assumes that if it finds a directory of the name VERSIONPREFIX
+// that it is version 1.9 since that's how we did version then with
+// a VERSIONPREFIX directory.  If nothing is found, then it assumes
+// 0.1.6.  Otherwise, it parses the version out of the VERSIONPREFIX file
 #define VERSION_LEN 1024
-char *Container::version(const string &path) {
-    DIR *dirp;
-    struct dirent *dirent;
-    static char version[VERSION_LEN];
-    version[0] = '\0';
+const char *Container::version(const string &path) {
     plfs_debug("%s checking %s\n", __FUNCTION__, path.c_str());
 
     // first look for the version file idea that we started in 2.0.1
-    bool found = false;
-    int ret = Util::Opendir( path.c_str(), &dirp );
-    if ( dirp == NULL || ret != 0 ) return NULL;
-    while((dirent = readdir(dirp)) != NULL){
-        plfs_debug("%s checking %s\n", __FUNCTION__, dirent->d_name);
-        if(strncmp(VERSIONPREFIX,dirent->d_name,strlen(VERSIONPREFIX))==0){
-            plfs_debug("%s found %s\n", __FUNCTION__, dirent->d_name);
-            if (strlen(dirent->d_name) == strlen(VERSIONPREFIX)) {
-                // this is the pre 2.0.1 style of multiple files in version dir
-                DIR *dirp2;
-                struct dirent *dirent2;
-                string versiondir = path; 
-                versiondir += "/"; 
-                versiondir += dirent->d_name;
-                ret = Util::Opendir(versiondir.c_str(), &dirp2);
-                if ( ret != 0 ) return NULL;
-                while((dirent2 = readdir(dirp2))!=NULL){
-                    if ((dirent2->d_name)[0] == '.') continue;
-                    snprintf(&(version[strlen(version)]),
-                        VERSION_LEN-strlen(version), "%s ", dirent2->d_name);
-                }
-                Util::Closedir(dirp2);
-            } else {
-                snprintf(version, VERSION_LEN, "%s",
-                    &(dirent->d_name)[strlen(VERSIONPREFIX)+1]);
+    map<string,unsigned char> entries;
+    map<string,unsigned char>::iterator itr;
+    ReaddirOp op(&entries,NULL,false,true);
+    if(op.op(path.c_str(),DT_DIR)!=0) return NULL;
+
+    size_t verlen = strlen(VERSIONPREFIX);
+    for(itr=entries.begin();itr!=entries.end();itr++) {
+        if(itr->first.compare(0,verlen,VERSIONPREFIX)==0) {
+            if(itr->second==DT_DIR) return "1.9";
+            else {
+                static char version[VERSION_LEN]; 
+                itr->first.copy(version,itr->first.size()-verlen,verlen+1);
+                return version;
             }
-            found = true;
-            break;
         }
     }
-    Util::Closedir(dirp);
-
-    if( !found ) snprintf(version, VERSION_LEN, "0.1.6");
-    return version;
+    return "0.1.6";  // no version file or dir found
 }
 
 vector<IndexFileInfo> Container::hostdir_index_read(const char *path){

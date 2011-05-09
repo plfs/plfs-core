@@ -101,7 +101,7 @@ class Container {
         static int indexTaskManager(deque<IndexerTask> &tasks,
                                         Index *index,string path);
         static vector<IndexFileInfo> hostdir_index_read(const char *path);
-        static char *version(const string &path);
+        static const char *version(const string &path);
     private:
             // static stuff
         static int createHelper( const string &, const string &, 

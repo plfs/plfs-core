@@ -1930,7 +1930,7 @@ extendFile( Plfs_fd *of, string strPath, off_t offset ) {
     PLFS_EXIT(ret);
 }
 
-int plfs_file_version(const char *logical, char **version) {
+int plfs_file_version(const char *logical, const char **version) {
     PLFS_ENTER; (void)ret; // suppress compiler warning
     mode_t mode;
     if (!is_plfs_file(logical, &mode)) {

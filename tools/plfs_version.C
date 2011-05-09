@@ -19,7 +19,7 @@ int main (int argc, char **argv) {
         // check version of a particular file
     if (argc>=2 && argv[1]) {
         printf("file: %s\n\t", argv[1]);
-        char *version;
+        const char *version;
         int ret = plfs_file_version(argv[1], &version);
         if ( ret != 0 ) {
             printf("Error: %s\n", strerror(-ret));
