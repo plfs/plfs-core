@@ -22,5 +22,4 @@
 #define GLOBALCHUNK    "global.chunk"
 #define MAX_HOSTDIRS 1024   
 
-
 #endif

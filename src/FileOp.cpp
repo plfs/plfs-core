@@ -8,7 +8,7 @@
 int
 FileOp::op(const char *path, unsigned char type) {
     // the parent function is just a wrapper to insert a debug message 
-    int ret = do_op(path,type);
+    int ret = retValue(do_op(path,type));
     Util::Debug("FileOp:%s on %s: %d\n",name(),path,ret);
     return ret;
 }
@@ -32,7 +32,7 @@ ChownOp::ChownOp(uid_t u, gid_t g) {
 
 int
 ChownOp::do_op(const char *path, unsigned char /* isfile */ ) {
-    return retValue(Util::Chown(path,u,g));
+    return Util::Chown(path,u,g);
 }
 
 int
@@ -52,7 +52,7 @@ TruncateOp::do_op(const char *path, unsigned char isfile) {
     }
 
     // we made it here, we don't ignore it
-    return retValue(Util::Unlink(path));
+    return Util::Unlink(path);
 }
 
 void
@@ -63,9 +63,9 @@ TruncateOp::ignore(string path) {
 int
 UnlinkOp::do_op(const char *path, unsigned char isfile) {
     if (isfile==DT_REG || isfile==DT_LNK)
-        return retValue(Util::Unlink(path));
+        return Util::Unlink(path);
     else if (isfile==DT_DIR)
-        return retValue(Util::Rmdir(path));
+        return Util::Rmdir(path);
     else return -ENOSYS;
 }
 
@@ -74,11 +74,18 @@ CreateOp::CreateOp(mode_t m) {
 }
 
 ReaddirOp::ReaddirOp(map<string,unsigned char> *entries, 
-        set<string> *names, bool expand_path, bool skip_dots) {
+        set<string> *names, bool expand_path, bool skip_dots) 
+{
     this->entries = entries;
     this->names   = names;
     this->expand  = expand_path;
     this->skip_dots = skip_dots;
+}
+
+int
+ReaddirOp::filter(string filter) {
+    filters.insert(filter);
+    return filters.size();
 }
 
 int
@@ -92,6 +99,17 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */ ) {
     while((ret=Util::Readdir(dir,&ent))==0) {
         if (skip_dots && (!strcmp(ent->d_name,".")||!strcmp(ent->d_name,".."))){
             continue;   // skip the dots
+        }
+        if (filters.size()){
+            bool match = false;
+            set<string>::iterator itr;
+            for(itr=filters.begin();itr!=filters.end();itr++){
+                if(itr->compare(0,strlen(ent->d_name),ent->d_name)==0) {
+                    match = true;
+                    break;
+                }
+            }
+            if(!match) continue;  // else, it passed the filters so descend
         }
         string file;
         if (expand) { file = path; file += "/"; file += ent->d_name; }
@@ -107,15 +125,15 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */ ) {
 
 int
 RmdirOp::do_op(const char *path, unsigned char /* isfile */ ) {
-    return retValue(Util::Rmdir(path));
+    return Util::Rmdir(path);
 }
 
 int
 CreateOp::do_op(const char *path, unsigned char isfile ) {
     if (isfile==DT_DIR)
-        return retValue(Util::Mkdir(path,m));
+        return Util::Mkdir(path,m);
     else if (isfile==DT_REG)
-        return retValue(Util::Creat(path,m));
+        return Util::Creat(path,m);
     else assert(0);
     return -ENOSYS;
 }
@@ -127,7 +145,7 @@ ChmodOp::ChmodOp(mode_t m) {
 int
 ChmodOp::do_op(const char *path, unsigned char isfile) {
     mode_t this_mode = (isfile==DT_DIR?Container::dirMode(m):m);
-    return retValue(Util::Chmod(path,this_mode));
+    return Util::Chmod(path,this_mode);
 }
 
 UtimeOp::UtimeOp(struct utimbuf *ut) {
@@ -136,5 +154,5 @@ UtimeOp::UtimeOp(struct utimbuf *ut) {
 
 int
 UtimeOp::do_op(const char *path, unsigned char /* isfile */ ) {
-    return retValue(Util::Utime(path,ut));
+    return Util::Utime(path,ut);
 }

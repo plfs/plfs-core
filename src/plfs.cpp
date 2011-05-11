@@ -383,35 +383,6 @@ plfs_wtime() {
     return Util::getTime();
 }
 
-// just reads through a directory and returns all descendants
-// useful for gathering the contents of a container
-// this function should probably be in util
-// returns 0 or -errno
-int
-traverseDirectoryTree(const char *physical, vector<string> &files, 
-        vector<string> &dirs) 
-{
-    int ret = 0;
-    plfs_debug("%s on %s\n", __FUNCTION__, physical);
-    map<string,unsigned char> entries;
-    map<string,unsigned char>::iterator itr;
-    ReaddirOp op(&entries,NULL,true,true);
-    ret = op.op(physical,DT_DIR);
-    if (ret==-ENOENT) return 0; // no shadow or canonical on this backend: np.
-    if (ret!=0) return ret;     // some other error is a problem
-
-    dirs.push_back(physical); // save the top dir
-
-    for(itr = entries.begin(); itr != entries.end() && ret==0; itr++) {
-        if ( itr->second == DT_DIR ) 
-            ret = traverseDirectoryTree(itr->first.c_str(), files, dirs);
-        else
-            files.push_back(itr->first);
-    }
-
-    return ret;
-}
-
 int 
 plfs_create( const char *logical, mode_t mode, int flags, pid_t pid ) {
     PLFS_ENTER;
@@ -522,6 +493,9 @@ int isReader( int flags ) {
 
 // takes a logical path for a logical file and returns every physical component
 // comprising that file (canonical/shadow containers, subdirs, data files, etc)
+// may not be efficient since it checks every backend and probably some backends
+// won't exist.  Will be better to make this just go through canonical and find
+// everything that way.
 // returns 0 or -errno
 int
 plfs_collect_from_containers(const char *logical, vector<string> &files, 
@@ -532,10 +506,11 @@ plfs_collect_from_containers(const char *logical, vector<string> &files,
     ret = find_all_expansions(logical,possible_containers);
     if (ret!=0) PLFS_EXIT(ret);
 
+    bool follow_links = false;
     vector<string>::iterator itr;
     for(itr=possible_containers.begin();itr!=possible_containers.end();itr++) {
-        ret = traverseDirectoryTree(itr->c_str(),files,dirs);
-        if (ret!=0) break;
+        ret = Util::traverseDirectoryTree(itr->c_str(),files,dirs,follow_links);
+        if (ret!=0) { ret = -errno; break; }
     }
     PLFS_EXIT(ret);
 }
@@ -823,13 +798,13 @@ plfs_recover( const char *logical ) {
 
     // ok, it's not at the canonical location
     // check all the other backends to see if they have it 
+    // also check canonical bec it's possible it's a dir that only exists there
     isdir = false;  // possible we find it and it's a directory
     isfile = false; // possible we find it and it's a container
     found = false;  // possible it doesn't exist (ENOENT)
     vector<string> exps;
     if ( (ret = find_all_expansions(logical,exps)) != 0 ) PLFS_EXIT(ret);
     for(vector<string>::iterator itr = exps.begin(); itr != exps.end(); itr++ ){
-        if (itr==exps.begin()) continue; // we already know not at canonical
         ret  = (int) Container::isContainer(*itr,&former_mode);
         if (ret) {
             isfile = found = true;

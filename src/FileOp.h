@@ -79,18 +79,22 @@ RmdirOp : public FileOp {
 // you can pass it a pointer to a map in which case it returns the names
 // and what their type is (e.g. DT_REG)
 // you can pass it a pointer to a set in which it returns just the names
+// you can pass it a pointer to a different FileOp instance in which case it
+// calls that for each file
 // the first bool controls whether it creates full paths or just returns the
 // file name
 // the second bool controls whether it ignores "." and ".."
 class
 ReaddirOp : public FileOp {
     public:
-        ReaddirOp(map<string,unsigned char> *,set<string> *, bool, bool);
+        ReaddirOp(map<string,unsigned char>*,set<string>*, bool, bool);
         int do_op(const char *, unsigned char);
         const char *name() { return "ReaddirOp"; }
+        int filter(string);
     private:
         map<string,unsigned char> *entries;
         set<string> *names;
+        set<string> filters;
         bool expand;
         bool skip_dots;
 };

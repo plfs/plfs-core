@@ -114,7 +114,7 @@ class Container {
                 const string &host, int pid, const string &ts );
         static string getOpenrecord( const string &, const string &, pid_t );
         static string getOpenHostsDir( const string &);
-        static int discoverOpenHosts( DIR *, set<string> * );
+        static int discoverOpenHosts( set<string> &, set<string> & );
         static string hostFromChunk( string datapath, const char *type );
         static string hostdirFromChunk( string chunkpath, const char *type );
         static string timestampFromChunk(string hostindex, const char *type);

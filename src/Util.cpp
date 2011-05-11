@@ -30,6 +30,7 @@
 #include <stdarg.h>
 using namespace std;
 
+#include "FileOp.h"
 #include "Util.h"
 #include "LogMessage.h"
 
@@ -253,6 +254,32 @@ void Util::addBytes( string function, size_t size ) {
     } else {
         kbytes[function] += (size / 1024);
     }
+}
+
+// just reads through a directory and returns all descendants
+// useful for gathering the contents of a container
+int
+Util::traverseDirectoryTree(const char *path, vector<string> &files,
+        vector<string> &dirs, bool fol_links) 
+{
+    ENTER_PATH;
+    Debug("%s on %s\n", __FUNCTION__, path);
+    map<string,unsigned char> entries;
+    map<string,unsigned char>::iterator itr;
+    ReaddirOp rop(&entries,NULL,true,true);
+    ret = rop.op(path,DT_DIR);
+    if (ret==-ENOENT) return 0; // no shadow or canonical on this backend: np.
+    if (ret!=0) return ret;     // some other error is a problem
+
+    dirs.push_back(path); // save the top dir
+
+    for(itr = entries.begin(); itr != entries.end() && ret==0; itr++) {
+        if (itr->second == DT_DIR || (fol_links &&itr->second == DT_LNK)) 
+            ret=traverseDirectoryTree(itr->first.c_str(),files,dirs,fol_links);
+        else files.push_back(itr->first);
+    }
+
+    EXIT_UTIL;
 }
 
 pthread_mutex_t time_mux;

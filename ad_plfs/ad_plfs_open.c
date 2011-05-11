@@ -705,6 +705,8 @@ void host_list_print(int line, Bitmap* bitmap){
 // returns -EISDIR if it's actually a directory and not a file
 // returns a positive number otherwise as even an empty container
 // will have at least one hostdir
+// hmmm.  this function does a readdir.  be nice to move this into
+// library and use new readdirop class
 int 
 num_host_dirs(int *hostdir_count,char *target){
     // Directory reading variables

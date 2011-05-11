@@ -110,6 +110,9 @@ size_t Container::hashValue( const char *str ) {
 // we need to stat the top level as well and then only stat the accessfile
 // if the top level is a directory.  That's annoying.  We really don't want
 // to do two stats in this call.
+// why not try the accessfile stat first and if that succeeds then everything
+// is good?  oh.  bec if there is a symlink to the plfs file and we stat
+// the symlink, then it will appear as a regular file instead of as a symlink
 bool Container::isContainer( const string &physical_path, mode_t *mode ) {
     plfs_debug("%s checking %s\n", __FUNCTION__, physical_path.c_str());
 
@@ -368,17 +371,17 @@ const char *Container::version(const string &path) {
     map<string,unsigned char> entries;
     map<string,unsigned char>::iterator itr;
     ReaddirOp op(&entries,NULL,false,true);
+    op.filter(VERSIONPREFIX);
     if(op.op(path.c_str(),DT_DIR)!=0) return NULL;
 
-    size_t verlen = strlen(VERSIONPREFIX);
     for(itr=entries.begin();itr!=entries.end();itr++) {
-        if(itr->first.compare(0,verlen,VERSIONPREFIX)==0) {
-            if(itr->second==DT_DIR) return "1.9";
-            else {
-                static char version[VERSION_LEN]; 
-                itr->first.copy(version,itr->first.size()-verlen,verlen+1);
-                return version;
-            }
+        if(itr->second==DT_DIR) {
+            return "1.9";
+        } else {
+            static char version[VERSION_LEN]; 
+            size_t verlen = strlen(VERSIONPREFIX);
+            itr->first.copy(version,itr->first.size()-verlen,verlen+1);
+            return version;
         }
     }
     return "0.1.6";  // no version file or dir found
@@ -386,17 +389,14 @@ const char *Container::version(const string &path) {
 
 vector<IndexFileInfo> Container::hostdir_index_read(const char *path){
     
-    DIR *dirp;
-    struct dirent *dirent = NULL;
+    set<string> entries;
     vector<IndexFileInfo> index_droppings;
-
-    // Open the directory and check value
-    plfs_debug("%s on %s\n", __FUNCTION__, path);
-    int ret = Util::Opendir(path,&dirp);
-    if(dirp==NULL || ret != 0) {
-        plfs_debug("opendir error in hostdir %s directory reader\n",path);
-        // Return some sort of error
-        cerr << "opendir " << path << " error: " << strerror(-ret) << endl;
+    ReaddirOp op(NULL,&entries,false,true);
+    op.filter(INDEXPREFIX);
+    int ret = op.op(path,DT_DIR);
+    if (ret!=0) {
+        plfs_debug("ReaddirOp error in hostdir %s directory reader: %s\n",
+                path,strerror(-ret));
         return index_droppings;
     }
 
@@ -406,38 +406,34 @@ vector<IndexFileInfo> Container::hostdir_index_read(const char *path){
     path_holder.timestamp=-1;
     path_holder.hostname=path;
     path_holder.id=-1;
-
     index_droppings.push_back(path_holder);
+
      // Start reading the directory
-    while((dirent = readdir(dirp))!=NULL){
-        if(strncmp(INDEXPREFIX,dirent->d_name,strlen(INDEXPREFIX))==0){
-            double time_stamp;
-            string str_time_stamp;
-            vector<string> tokens;
-            IndexFileInfo index_dropping;
+    for(set<string>::iterator itr=entries.begin(); itr!=entries.end(); itr++) {
+        // unpack the file name into components (should be separate func)
+        string str_time_stamp;
+        vector<string> tokens;
+        IndexFileInfo index_dropping;
             
-            tokenize(dirent->d_name,".",tokens);
-            str_time_stamp+=tokens[2];
-            str_time_stamp+=".";
-            str_time_stamp+=tokens[3];
-            time_stamp = strtod(str_time_stamp.c_str(),NULL);
+        tokenize(itr->c_str(),".",tokens);
+        str_time_stamp+=tokens[2];
+        str_time_stamp+=".";
+        str_time_stamp+=tokens[3];
+        index_dropping.timestamp = strtod(str_time_stamp.c_str(),NULL);
             
-            int left_over = (tokens.size()-1)-5;
+        int left_over = (tokens.size()-1)-5;
             
-            // Hostname can contain "."
-            int count;
-            for(count=0;count<=left_over;count++){
-                index_dropping.hostname+=tokens[4+count];
-                if(count!=left_over) index_dropping.hostname+=".";
-            }
-            index_dropping.id=atoi(tokens[5+left_over].c_str());
-            index_dropping.timestamp=time_stamp;
-            plfs_debug("Pushing path %s into index list from %s\n",
-                    index_dropping.hostname.c_str(), dirent->d_name);
-            index_droppings.push_back(index_dropping);
+        // Hostname can contain "."
+        int count;
+        for(count=0;count<=left_over;count++){
+            index_dropping.hostname+=tokens[4+count];
+            if(count!=left_over) index_dropping.hostname+=".";
         }
+        index_dropping.id=atoi(tokens[5+left_over].c_str());
+        plfs_debug("Pushing path %s into index list from %s\n",
+                index_dropping.hostname.c_str(), itr->c_str());
+        index_droppings.push_back(index_dropping);
     }
-    Util::Closedir(dirp);
     return index_droppings;
 }
 
@@ -480,19 +476,27 @@ Index Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
 // and aggregates them into a global in-memory index structure
 // returns 0 or -errno
 int Container::aggregateIndices(const string &path, Index *index) {
-    string hostindex;
+    vector<string> files, dirs;
+    bool follow_links = true;
+    int ret = Util::traverseDirectoryTree(path.c_str(),files,dirs,follow_links);
+    if (ret!=0) return -errno;
+
     IndexerTask task;
     deque<IndexerTask> tasks;
-    int ret = 0;
 
     plfs_debug("In %s\n", __FUNCTION__);
     
     // create the list of tasks
-    DIR *td = NULL, *hd = NULL; struct dirent *tent = NULL;
-    while((ret = nextdropping(path,&hostindex,INDEXPREFIX, &td,&hd,&tent))== 1){
-        task.path = hostindex;
-        tasks.push_back(task);  // makes a copy and pushes it
-        plfs_debug("Ag indices path is %s\n",path.c_str());
+    for(vector<string>::iterator itr=files.begin();itr!=files.end();itr++) {
+        string filename; // find just the filename
+        size_t lastslash = itr->rfind('/');
+        filename = itr->substr(lastslash+1,itr->npos);
+
+        if (filename.compare(0,strlen(INDEXPREFIX),INDEXPREFIX)==0) {
+            task.path = (*itr);
+            tasks.push_back(task);
+            plfs_debug("Ag indices path is %s\n",path.c_str());
+        }
     }
     ret=indexTaskManager(tasks,index,path);
     return ret;
@@ -710,18 +714,17 @@ string Container::getOpenHostsDir( const string &path ) {
 // a function that reads the open hosts dir to discover which hosts currently
 // have the file open
 // now the open hosts file has a pid in it so we need to separate this out
-int Container::discoverOpenHosts( DIR *openhostsdir, set<string> *openhosts ) {
-    struct dirent *dent = NULL;
-    while( (dent = readdir( openhostsdir )) != NULL ) {
-        string host;
-        if ( ! strncmp( dent->d_name, ".", 1 ) ) continue;  // skip . and ..
-        // also skip anything that isn't an opendropping
-        if ( strncmp( dent->d_name, OPENPREFIX, strlen(OPENPREFIX))) continue;
-        host = dent->d_name;
-        host.erase(0,strlen(OPENPREFIX));
-        host.erase( host.rfind("."), host.size() );
-        plfs_debug("Host %s (%s) has open handle\n", dent->d_name,host.c_str());
-        openhosts->insert( host );
+int Container::discoverOpenHosts(set<string> &entries, set<string> &openhosts){
+    set<string>::iterator itr;
+    string host;
+    for(itr=entries.begin();itr!=entries.end();itr++) {
+        if (itr->compare(0,strlen(OPENPREFIX),OPENPREFIX) == 0) {
+            host = (*itr);
+            host.erase(0,strlen(OPENPREFIX));
+            host.erase(host.rfind("."), host.size());
+            plfs_debug("Host %s has open handle\n", host.c_str());
+            openhosts.insert(host);
+        }
     }
     return 0;
 }
@@ -767,6 +770,8 @@ mode_t Container::getmode( const string &path ) {
     }
 }
 
+// this function does a stat of a plfs file by examining the internal droppings
+// returns 0 or -errno
 int Container::getattr( const string &path, struct stat *stbuf ) {
         // Need to walk the whole structure
         // and build up the stat.
@@ -784,13 +789,9 @@ int Container::getattr( const string &path, struct stat *stbuf ) {
         // value and we don't see it since it's only in the index file
         // maybe safest to get all of them.  But using both is no good bec 
         // it adds both the index and the data.  ugh.
-    const char *prefix   = INDEXPREFIX;
-    
-    int chunks = 0;
     int ret = 0;
 
-        // the easy stuff has already been copied from the directory
-        // but get the permissions and stuff from the access file
+        // get the permissions and stuff from the access file
     string accessfile = getAccessFilePath( path );
     if ( Util::Lstat( accessfile.c_str(), stbuf ) < 0 ) {
         plfs_debug("%s lstat of %s failed: %s\n",
@@ -799,75 +800,70 @@ int Container::getattr( const string &path, struct stat *stbuf ) {
     }
     stbuf->st_size    = 0;  
     stbuf->st_blocks  = 0;
-    stbuf->st_mode    = fileMode( stbuf->st_mode );
+    stbuf->st_mode    = fileMode(stbuf->st_mode);
 
-        // first read the open dir to see who has
-        // the file open
-        // then read the meta dir to pull all useful
-        // droppings out of there (use everything as
-        // long as it's not open), if we can't use
-        // meta than we need to pull the info from
-        // the hostdir by stating the data files and
-        // maybe even actually reading the index files!
-    DIR *metadir;
-    Util::Opendir( (getMetaDirPath(path)).c_str(), &metadir );
-    time_t most_recent_mod = 0;
-    set< string > openHosts;
-    set< string > validMeta;
-    if ( metadir != NULL ) {
-        discoverOpenHosts( metadir, &openHosts );
+        // first read the open dir to see who has the file open then read the
+        // meta dir to pull all useful droppings out of there (use everything
+        // as long as it's not open), if we can't use meta than we need to pull
+        // the info from the hostdir by stating the data files and maybe even
+        // actually reading the index files!
+        // now the open droppings are stored in the meta dir so we don't need
+        // to readdir twice
+    set<string> entries, openHosts, validMeta;
+    set<string>::iterator itr;
+    ReaddirOp rop(NULL,&entries,false,true);
+    ret = rop.op(getMetaDirPath(path).c_str(),DT_DIR);
+    if (ret!=0) return ret;
 
-        rewinddir(metadir);
-        struct dirent *dent = NULL;
-        while( (dent = readdir( metadir )) != NULL ) {
-            if ( ! strncmp( dent->d_name, ".", 1 ) ) continue;  // . and ..
-            if ( ! strncmp( dent->d_name, OPENPREFIX, strlen(OPENPREFIX)))
-                continue; // now we place openhosts in same dir as meta
-                          // so skip them here
-            off_t last_offset;
-            size_t total_bytes;
-            struct timespec time;
-            ostringstream oss;
-            string host = fetchMeta( dent->d_name, 
-                    &last_offset, &total_bytes, &time );
-            if ( openHosts.find(host) != openHosts.end() ) {
-                plfs_debug("Can't use metafile %s because %s has an "
-                        " open handle.\n", dent->d_name, host.c_str() );
-                continue;
-            }
-            oss  << "Pulled meta " << last_offset << " " << total_bytes
-                 << ", " << time.tv_sec << "." << time.tv_nsec 
-                 << " on host " << host << endl;
-            plfs_debug("%s", oss.str().c_str() );
+    // first get the set of all open hosts
+    discoverOpenHosts(entries, openHosts);
 
-            // oh, let's get rewrite correct.  if someone writes
-            // a file, and they close it and then later they
-            // open it again and write some more then we'll
-            // have multiple metadata droppings.  That's fine.
-            // just consider all of them.
-            stbuf->st_size   =  max( stbuf->st_size, last_offset );
-            stbuf->st_blocks += bytesToBlocks( total_bytes );
-            most_recent_mod  =  max( most_recent_mod, time.tv_sec );
-            validMeta.insert( host );
+    // then consider the valid set of all meta droppings 
+    for(itr=entries.begin();itr!=entries.end();itr++) {
+        if(itr->compare(0,strlen(OPENPREFIX),OPENPREFIX)==0) continue;
+        off_t last_offset;
+        size_t total_bytes;
+        struct timespec time;
+        ostringstream oss;
+        string host = fetchMeta(*itr, &last_offset, &total_bytes, &time);
+        if (openHosts.find(host) != openHosts.end()) {
+            plfs_debug("Can't use metafile %s because %s has an "
+                    " open handle.\n", itr->c_str(), host.c_str() );
+            continue;
         }
-        Util::Closedir( metadir );
+        oss  << "Pulled meta " << last_offset << " " << total_bytes
+             << ", " << time.tv_sec << "." << time.tv_nsec 
+             << " on host " << host << endl;
+        plfs_debug("%s", oss.str().c_str() );
+
+        // oh, let's get rewrite correct.  if someone writes
+        // a file, and they close it and then later they
+        // open it again and write some more then we'll
+        // have multiple metadata droppings.  That's fine.
+        // just consider all of them.
+        stbuf->st_size   =  max( stbuf->st_size, last_offset );
+        stbuf->st_blocks += bytesToBlocks( total_bytes );
+        stbuf->st_mtime  =  max( stbuf->st_mtime, time.tv_sec );
+        validMeta.insert(host);
     }
-    stbuf->st_mtime = most_recent_mod;
 
     // if we're using cached data we don't do this part unless there
     // were open hosts
-    // the way this works is we find each index file, then we find
+    // it's so tempting to use ReaddirOp here....  We could easily do it
+    // to get the list of index files but does it add memory overhead
+    // or latency?  
+    const char *prefix   = INDEXPREFIX;
+    int chunks = 0;
     if ( openHosts.size() > 0 ) {
         string dropping; 
         blkcnt_t index_blocks = 0, data_blocks = 0;
         off_t    index_size = 0, data_size = 0;
         DIR *td = NULL, *hd = NULL; struct dirent *tent = NULL;
-        while((ret=nextdropping(path,&dropping,prefix, &td,&hd,&tent))==1)
-        {
-            string host = hostFromChunk( dropping, prefix );
-            if ( validMeta.find(host) != validMeta.end() ) {
-                plfs_debug("Used stashed stat info for %s\n", 
-                        host.c_str() );
+        while((ret=nextdropping(path,&dropping,prefix,&td,&hd,&tent))==1) {
+            string host = hostFromChunk(dropping, prefix);
+            if (validMeta.find(host) != validMeta.end()) {
+                // hmm, maybe we should also be checking in openHosts
+                plfs_debug("Used stashed stat info for %s\n", host.c_str() );
                 continue;
             } else {
                 chunks++;
@@ -883,9 +879,9 @@ int Container::getattr( const string &path, struct stat *stbuf ) {
                     dropping.c_str(), strerror( errno ) );
                 continue;   // shouldn't this be break?
             }
-            stbuf->st_ctime = max( dropping_st.st_ctime, stbuf->st_ctime );
-            stbuf->st_atime = max( dropping_st.st_atime, stbuf->st_atime );
-            stbuf->st_mtime = max( dropping_st.st_mtime, stbuf->st_mtime );
+            stbuf->st_ctime = max(dropping_st.st_ctime, stbuf->st_ctime);
+            stbuf->st_atime = max(dropping_st.st_atime, stbuf->st_atime);
+            stbuf->st_mtime = max(dropping_st.st_mtime, stbuf->st_mtime);
 
             if ( dropping.find(DATAPREFIX) != dropping.npos ) {
                 plfs_debug("Getting stat info from data dropping\n" );
@@ -896,12 +892,11 @@ int Container::getattr( const string &path, struct stat *stbuf ) {
                 Index index(path);
                 index.readIndex( dropping ); 
                 index_blocks     += bytesToBlocks( index.totalBytes() );
-                index_size        = max( index.lastOffset(), index_size );
+                index_size        = max(index.lastOffset(), index_size);
             }
-
         }
-        stbuf->st_blocks += max( data_blocks, index_blocks );
-        stbuf->st_size   = max( stbuf->st_size, max( data_size, index_size ) );
+        stbuf->st_blocks += max(data_blocks, index_blocks);
+        stbuf->st_size   = max(stbuf->st_size, max(data_size, index_size));
     }
     ostringstream oss;
     oss  << "Examined " << chunks << " droppings:"
@@ -1271,6 +1266,12 @@ struct dirent *Container::getnextent( DIR *dir, const char *prefix ) {
 // it is shared by different parts of the code that want to traverse
 // a container and fetch all the indexes or to traverse a container
 // and fetch all the chunks
+// I can't decide if I want to replace this function with the ReaddirOp
+// class.  That class is cleaner but it adds memory overhead.
+// for the time being, let's keep using this function and not switch it
+// to the ReaddirOp.  That'd be more expensive.  We could think about
+// augmenting the ReaddirOp to take a function pointer (or a FileOp instance)
+// but that's a bit complicated as well.  This code isn't bad just a bit complex
 // this returns 0 if done.  1 if OK.  -errno if a problem
 int Container::nextdropping( const string& physical_path, 
         string *droppingpath, const char *dropping_type,
@@ -1379,80 +1380,47 @@ int Container::Truncate( const string &path, off_t offset ) {
 	if ( ret == 0 ) {
 		ret = truncateMeta(path,offset);
 	}
-	/*
-	// if this code is still here in 2011, delete it
-    // now remove all the meta droppings
-    ret = Util::Opendir( getMetaDirPath( path ).c_str(), &td ); 
-    if ( ret == 0 ) {
-        while( ( tent = readdir( td ) ) != NULL ) {
-            if ( strcmp( ".", tent->d_name ) && strcmp( "..", tent->d_name ) ) {
-                string metadropping = getMetaDirPath( path );
-                metadropping += "/"; metadropping += tent->d_name;
-                plfs_debug("Need to remove meta dropping %s\n",
-                        metadropping.c_str() );
-                Util::Unlink( metadropping.c_str() ); 
-            }
-        }
-        Util::Closedir( td );
-    }
-	*/
     plfs_debug("%s on %s to %ld ret: %d\n", 
             __FUNCTION__, path.c_str(), (long)offset, ret);
     return ret;
 }
 
+// it's unlikely but if a previously closed file is truncated
+// somewhere in the middle, then future stats on the file will
+// be incorrect because they'll reflect incorrect droppings in
+// METADIR, so we need to go through the droppings in METADIR
+// and modify or remove droppings that show an offset beyond
+// this truncate point
+// returns 0 or -errno
 int
 Container::truncateMeta(const string &path, off_t offset){
-
-	// TODO:
-   	// it's unlikely but if a previously closed file is truncated
-   	// somewhere in the middle, then future stats on the file will
-   	// be incorrect because they'll reflect incorrect droppings in
-   	// METADIR, so we need to go through the droppings in METADIR
-   	// and modify or remove droppings that show an offset beyond
-   	// this truncate point
-
-   	struct dirent *dent         = NULL;
-   	DIR *dir                    = NULL;
-   	string meta_path            = getMetaDirPath(path);
-
-   	int ret = Util::Opendir( meta_path.c_str() , &dir );
-    
-   	if ( dir == NULL ) { 
+    int ret;
+    set<string>entries;
+    ReaddirOp op(NULL,&entries,false,true);
+   	string meta_path = getMetaDirPath(path);
+    if (op.op(meta_path.c_str(),DT_DIR)!=0) {
 		plfs_debug("%s wtf\n", __FUNCTION__ );
 		return 0; 
-   	}
+    }
 
-   	while( ret == 0 && (dent = readdir( dir )) != NULL ) {
-		if ( !strcmp( ".", dent->d_name ) || !strcmp( "..", dent->d_name ) ) {
-			continue;
-		}
-        if ( !strncmp( OPENPREFIX, dent->d_name, strlen(OPENPREFIX))) {
-            continue;   // skip open droppings
-        }
-		string full_path( meta_path ); full_path += "/"; 
-		full_path += dent->d_name;
-   	
+    for(set<string>::iterator itr=entries.begin();itr!=entries.end();itr++) {
+        if (itr->compare(0,strlen(OPENPREFIX),OPENPREFIX)==0) continue;
+		string full_path( meta_path ); full_path+="/"; full_path+=(*itr);
 		off_t last_offset;
 		size_t total_bytes;
 		struct timespec time;
 		ostringstream oss;
-		string host = fetchMeta( dent->d_name, 
-			&last_offset, &total_bytes, &time );
-        // We are making smaller so we can use the offset as the total_bytes
+		string host = fetchMeta(itr->c_str(),&last_offset,&total_bytes,&time);
 		if(last_offset > offset) {
 			oss << meta_path << "/" << offset << "."  
 				<< offset    << "." << time.tv_sec 
 				<< "." << time.tv_nsec << "." << host;
 			ret = Util::Rename(full_path.c_str(), oss.str().c_str());
 			if ( ret != 0 ) {
-				plfs_debug("%s wtf, Rename of metadata in truncate failed\n",
-					__FUNCTION__ );
+				plfs_debug("%s wtf, Rename: %s\n",__FUNCTION__,strerror(errno));
+                ret = -errno;
 			}
 		}
    	}
-    // This was added because valgrind discovered a memory leak from not closing the directory
-    // pointer
-    ret=Util::Closedir(dir);
     return ret;
 }

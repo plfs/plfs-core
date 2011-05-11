@@ -29,6 +29,7 @@
 #include <iostream>
 #include <sstream>
 #include <map>
+#include <vector>
 
 using namespace std;
 
@@ -107,6 +108,8 @@ class Util {
         static void addTime( string, double, bool );
         static char *hostname();
         static int retValue( int res );
+        static int traverseDirectoryTree(const char *physical, 
+                vector<string> &files, vector<string> &dirs, bool follow_links);
     private:
         static void addBytes( string, size_t );
         static string timeToString(      HASH_MAP<string,double>::iterator,
