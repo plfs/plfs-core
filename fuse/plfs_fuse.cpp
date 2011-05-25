@@ -681,7 +681,7 @@ int Plfs::f_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     OpenDir *opendir = (OpenDir*)fi->fh;
 
     // skip out early if they're already read to end
-    if (offset>=opendir->last_offset) {
+    if (offset >= (off_t)opendir->entries.size()) {
         plfs_debug("Skipping %s of %s (EOD)\n",__FUNCTION__,strPath.c_str());
         PLFS_EXIT;
     }
@@ -710,6 +710,7 @@ int Plfs::f_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
         opendir->last_offset=i;
         if ( i >= offset ) {
             if ( 0 != filler(buf,(*itr).c_str(),NULL,i+1) ) {
+                plfs_debug("%s: filler is full\n",__FUNCTION__);
                 break;
             }
         }
