@@ -54,6 +54,15 @@ struct OpenFile {
     int      flags;
 };
 
+// we create this on f_opendir and use it at f_readdir
+// we need it because we want to track when an opendir handle is 
+// seeked backwards.  In such a case we probably need to refetch the
+// directory contents.
+typedef struct OpenDirStruct {
+    set<string> entries;
+    off_t last_offset;
+} OpenDir;
+
 #ifdef FUSE_COLLECT_TIMES
     #define START_TIMES double begin, end; begin = plfs_wtime();
     #define END_TIMES   end = plfs_wtime(); \
@@ -654,10 +663,12 @@ int Plfs::removeWriteFile( WriteFile *of, string strPath ) {
 // returns 0 or -errno
 int Plfs::f_opendir( const char *path, struct fuse_file_info *fi ) {
     PLFS_ENTER;
-    set<string> *dirents = new set<string>;
-    ret = plfs_readdir(strPath.c_str(),(void*)dirents);
-    if (ret == 0) fi->fh = (uint64_t)dirents;
-    else delete dirents;
+    OpenDir *opendir = new OpenDir;
+    opendir->last_offset = 0;
+    fi->fh = NULL;
+    ret = plfs_readdir(strPath.c_str(),(void*)(&(opendir->entries)));
+    if (ret==0) fi->fh = (uint64_t)opendir;
+    else delete opendir;
     PLFS_EXIT;
 }
 
@@ -666,58 +677,49 @@ int Plfs::f_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 {
     PLFS_ENTER;
 
-    // f_opendir already stashed a vector of the files into fi
-    // when this is called, use the offset as the index into
-    // the vector, call filler and pass it the index of the *next*
-    // file in the vector, keep moving down the vector until filler
-    // returns non-zero.  this means it got full.  just return then.
-    // then FUSE should empty the buffer and call this again at the
-    // correct offset
+    // pull the opendir that was stashed on the open
+    OpenDir *opendir = (OpenDir*)fi->fh;
 
-    set<string> *dirents = NULL;
-    if ( fi->fh ) {
-        dirents = new set<string>;
-        ret = plfs_readdir(strPath.c_str(),(void*)dirents);
-        if (ret == 0) fi->fh = (uint64_t)dirents;
-        else delete dirents;
-    } else {
-        dirents = (set<string>*)fi->fh;
+    // skip out early if they're already read to end
+    if (offset>=opendir->last_offset) {
+        plfs_debug("Skipping %s of %s (EOD)\n",__FUNCTION__,strPath.c_str());
+        PLFS_EXIT;
     }
 
-    // the dirents used to be a vector which was indexable.  But now
-    // we make them a set so that each entry is unique.  But this means
-    // when this is called multiple times, on subsequent calls, we'll have
-    // to iterate past entries that were previously returned...
-    if ( ret == 0 ) {   // we have a valid entry
-        set<string>::iterator itr;
-        int i = 0;
-        for(itr=dirents->begin();itr!=dirents->end();itr++,i++) {
-            plfs_debug("Returned dirent %s\n",
-                    (*itr).c_str());
-            if ( i >= offset ) {
-                if ( 0 != filler(buf,(*itr).c_str(),NULL,i+1) ) {
-                    break;
-                }
+    // check whether someone seeked backward.  If so, refresh.
+    // we need to do this because we once saw this:
+    // opendir, readdir 0, unlink entry E, readdir 0, stat E 
+    // this caused an unexpected ENOENT bec readdir said E existed but it didn't
+    if (opendir->last_offset > offset) {
+        plfs_debug("Rereading dir %s\n",strPath.c_str());
+        opendir->last_offset = offset;
+        opendir->entries.clear();
+        ret = plfs_readdir(strPath.c_str(),(void*)(&(opendir->entries)));
+        if (ret!=0) PLFS_EXIT;
+    }
+
+    // now iterate through for all entries so long as filler has room
+    // only return entries that weren't previously returned (use offset)
+    // plfs_readdir used to take a vector so we could use offset as random
+    // access but w/ multiple backends, it's easy to use a set which 
+    // automatically collapses redundant entries
+    set<string>::iterator itr;
+    int i =0;
+    for(itr=opendir->entries.begin(); itr!=opendir->entries.end(); itr++,i++) {
+        plfs_debug("Returning dirent %s\n", (*itr).c_str());
+        opendir->last_offset=i;
+        if ( i >= offset ) {
+            if ( 0 != filler(buf,(*itr).c_str(),NULL,i+1) ) {
+                break;
             }
         }
-        // if we make it here, we went through the full dir.  
-        // we once saw this scenario:
-        // opendir
-        // readdir
-        // rm entry
-        // readdir again
-        // getattr entry
-        // ENOENT
-        // so if we go thru the whole thing, delete it so we don't reuse stale
-        delete (set<string>*)fi->fh;
-        fi->fh = (uint64_t)NULL;
     }
     PLFS_EXIT;
 }
 
 int Plfs::f_releasedir( const char *path, struct fuse_file_info *fi ) {
     PLFS_ENTER;
-    if ( fi->fh ) delete (set<string>*)fi->fh;
+    if (fi->fh) delete (OpenDir*)fi->fh;
     PLFS_EXIT;
 }
 

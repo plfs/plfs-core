@@ -1029,10 +1029,23 @@ int Container::makeTopLevel( const string &expanded_path,
                 return -errno;
             }
 
+            // go ahead and make our subdir here now (good for both N-1 & N-N):
+            // N-N: this is good since this means there will never be
+            // shadow containers since every process in N-N wins their race
+            // since in N-N there is no-one to race!
+            // N-1: this is good since only the winner will make the
+            // subdir directly in the canonical location.  Everyone else
+            // will hash by node to create their subdir which may go in 
+            // canonical or may go in a shadow
+            if (makeHostDir(expanded_path,hostname,mode,PARENT_CREATED)  < 0){
+                return -errno;
+            }
+
                 // make the version stuff here?  this means that it is 
                 // possible for someone to find a container without the
                 // version stuff in it.  In that case, just assume
-                // compatible?  move this up above?
+                // compatible?  we could move this up into the temporary so
+                // it's made before the rename.
             ostringstream oss2;
             oss2 << expanded_path << "/" << VERSIONPREFIX
                  << "-tag." << STR(TAG_VERSION)
@@ -1042,16 +1055,6 @@ int Container::makeTopLevel( const string &expanded_path,
             if (makeDropping(oss2.str()) < 0) {
                 return -errno;
             }
-
-            /*
-               // we don't need to make this creator file separately.
-               // just use the accessfile for the creator
-            if ( makeCreator( getCreatorFilePath(expanded_path) ) < 0 ) {
-                plfs_debug("create access file int %s failed\n", 
-                                expanded_path.c_str() );
-                return -errno;
-            }
-            */
             break;
         }
     }
@@ -1179,11 +1182,13 @@ int Container::createHelper(const string &expanded_path, const string &hostname,
         mode_t mode, int flags, int *extra_attempts, pid_t pid, 
         unsigned mnt_pt_cksum ) 
 {
+    // this below comment is specific to FUSE
     // TODO we're in a mutex here so only one thread will
     // make the dir, and the others will stat it
     // but we could reduce the number of stats by maintaining
     // some memory state that the first thread sets and the
     // others check
+    // in ADIO, we use the MPI_comm to co-ordinate (see ad_plfs/ad_plfs_open)
 
         // first the top level container
     double begin_time, end_time;
@@ -1207,21 +1212,6 @@ int Container::createHelper(const string &expanded_path, const string &hostname,
             plfs_debug("Failed to make top level container %s:%s\n",
                     expanded_path.c_str(), strerror(errno));
         }
-    }
-
-        // then the host dir
-        // this is an interesting dilemna here.
-        // if we don't make the hostdir here, then N-1 through FUSE
-        // will distribute itself across backends 
-        // but N-N through ADIO will make extra containers (one hashed
-        // by name and one hashed by node)
-        // is the performance for ADIO N-1 better with this removed?
-        // currently, the LANL main target is ADIO so let's leave this
-        // optimized for ADIO.  Later, we can augment the args to take the
-        // open opts which specify whether we're in ADIO or FUSE so we could
-        // optimize accordingly
-    if ( res == 0 ) {
-        res = makeHostDir( expanded_path, hostname, mode, PARENT_CREATED ); 
     }
     return res;
 }
