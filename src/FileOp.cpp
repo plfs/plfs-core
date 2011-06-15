@@ -88,6 +88,35 @@ ReaddirOp::filter(string filter) {
     return filters.size();
 }
 
+/**
+ * determine_type: determine file type for filesystems that do not provide
+ * it in the readdir() API by falling back to lstat(2).
+ *
+ * @param path the directory we are reading
+ * @param d_name the file we are working on
+ * @return a proper DT_* code based on the st_mode
+ */
+static unsigned char 
+determine_type(const char *path, char *d_name) {
+    string file;
+    struct stat sb;
+    int ret;
+
+    file = path; file += "/"; file += d_name;  /* build full path */
+    if (lstat(file.c_str(), &sb) == 0) {
+        switch (sb.st_mode & S_IFMT) {
+            case S_IFSOCK: return(DT_SOCK);
+            case S_IFLNK:  return(DT_LNK);
+            case S_IFREG:  return(DT_REG);
+            case S_IFBLK:  return(DT_BLK);
+            case S_IFDIR:  return(DT_DIR);
+            case S_IFCHR:  return(DT_CHR);
+            case S_IFIFO:  return(DT_FIFO);
+        }
+    }
+    return(DT_UNKNOWN);   /* XXX */
+}
+
 int
 ReaddirOp::do_op(const char *path, unsigned char /* isfile */ ) {
     int ret;
@@ -114,7 +143,9 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */ ) {
         string file;
         if (expand) { file = path; file += "/"; file += ent->d_name; }
         else { file = ent->d_name; }
-        if (entries) (*entries)[file] = ent->d_type;
+        if (entries) (*entries)[file] = (ent->d_type != DT_UNKNOWN) ? 
+                                         ent->d_type :
+                                         determine_type(path, ent->d_name);
         if (names) names->insert(file);
     }
     Util::Closedir(dir);
