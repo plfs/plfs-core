@@ -59,7 +59,7 @@ UtimeOp : public FileOp {
 class
 TruncateOp : public FileOp {
     public:
-        TruncateOp() {};
+        TruncateOp();
         int do_op(const char *, unsigned char);
         const char *name() { return "TruncateOp"; }
         void ignore(string);

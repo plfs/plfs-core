@@ -1779,6 +1779,8 @@ plfs_sync( Plfs_fd *pfd, pid_t pid ) {
 // be nice to use the new FileOp class for this.  Bit tricky though maybe.
 // by the way, this should only be called now with truncate_only==true
 // we changed the unlink functionality to use the new FileOp stuff
+//
+// the TruncateOp internally does unlinks 
 int 
 truncateFile(const char *logical) {
     TruncateOp op;

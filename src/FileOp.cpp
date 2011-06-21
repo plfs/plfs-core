@@ -35,6 +35,13 @@ ChownOp::do_op(const char *path, unsigned char /* isfile */ ) {
     return Util::Chown(path,u,g);
 }
 
+TruncateOp::TruncateOp() {
+    // it's possible that we lost a race and some other proc already removed
+    ignoreErrno(ENOENT);
+}
+
+// remember this is for truncate to offset 0 of a PLFS logical file
+// so physically on a container, it just unlinks everything
 int
 TruncateOp::do_op(const char *path, unsigned char isfile) {
 
@@ -52,6 +59,7 @@ TruncateOp::do_op(const char *path, unsigned char isfile) {
     }
 
     // we made it here, we don't ignore it
+    // do we want to do an unlink or a truncate?
     return Util::Unlink(path);
 }
 
