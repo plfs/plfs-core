@@ -108,7 +108,6 @@ static unsigned char
 determine_type(const char *path, char *d_name) {
     string file;
     struct stat sb;
-    int ret;
 
     file = path; file += "/"; file += d_name;  /* build full path */
     if (lstat(file.c_str(), &sb) == 0) {
