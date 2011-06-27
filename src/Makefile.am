@@ -60,6 +60,7 @@ FileOp.h \
 Index.h \
 LogMessage.h \
 Metadata.h \
+mlog.h \
 OpenFile.h \
 plfs_private.h \
 ThreadPool.h \
@@ -76,6 +77,7 @@ LogMessage.cpp \
 OpenFile.cpp \
 ThreadPool.cpp \
 WriteFile.cpp \
+mlog.c \
 plfs.cpp
 
 libplfs_la_SOURCES = \

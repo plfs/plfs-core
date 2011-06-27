@@ -178,6 +178,7 @@ AC_CHECK_MEMBERS([struct stat.st_blksize])
 AC_SEARCH_LIBS([gzseek], [z])
 
 AC_PLFS_DEUBG_FLAG_CHECK
+AC_PLFS_MLOG_FLAG_CHECK
 # first see what needs to be built - XXX ugly (update later)
 AC_PKG_PLFS_COMPONENTS
 AS_IF([test "x$plfs_build_fuse" = "x1"], [AC_PKG_PLFS_FUSE])
