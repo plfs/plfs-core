@@ -31,6 +31,9 @@
 # makefacs.pl  autogen mlogfacs.h file based on facs list
 
 @facs = (
+     "PLFS"     => "General PLFS",
+     "FUSE"     => "PLFS FUSE",
+     "MPI"      => "PLFS MPI",
 ### example:
 #    "FOO"      => "Foo subsystem",
 );
@@ -107,7 +110,7 @@ safeprint($_);
 # generate array of facility names, if requested
 #
 safeprint("#ifdef MLOG_FACSARRAY\n");
-safeprint("static char *mlog_facsarray[] = {\n");
+safeprint("static const char *mlog_facsarray[] = {\n");
 safeprintf("    %-16s /* %d -- MLOG default fac */\n", '"' . "MLOG" . '",', 0);
 for ($lcv = 0 ; $lcv <= $#facs ; $lcv += 2) {
     safeprintf("    %-16s /* %d */\n", '"' . $facs[$lcv] . '",', 

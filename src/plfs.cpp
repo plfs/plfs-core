@@ -1,3 +1,6 @@
+
+#define MLOG_FACSARRAY   /* need to define before include mlog .h files */
+
 #include "plfs.h"
 #include "plfs_private.h"
 #include "Index.h"
@@ -17,6 +20,9 @@
 #include <queue>
 #include <vector>
 #include <stdlib.h>
+
+#include <syslog.h>    /* for mlog init */
+
 using namespace std;
 
 // some functions require that the path passed be a PLFS path
@@ -73,6 +79,9 @@ typedef struct {
     list<ReadTask> *tasks;   // the queue of tasks
     pthread_mutex_t mux;    // to lock the queue
 } ReaderArgs;
+
+static void parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp,
+                              char *key, char *value);
 
 vector<string> &tokenize(const string& str,const string& delimiters,
         vector<string> &tokens)
@@ -1167,6 +1176,101 @@ plfs_init(PlfsConf *pconf) {
     return(exp_info.expand_error ? false : true);
 }
 
+/**
+ * plfs_mlogargs: manage mlog command line args (override plfsrc).
+ *
+ * @param mlargc argc (in if mlargv, out if !mlargv)
+ * @param mlargv NULL if reading back old value, otherwise value to save
+ * @return the mlog argv[]
+ */
+char **plfs_mlogargs(int *mlargc, char **mlargv) {
+    static int mlac = 0;
+    static char **mlav = NULL;
+
+    if (mlargv) {
+        mlac = *mlargc;    /* read back */
+        mlav = mlargv;
+    } else {
+        *mlargc = mlac;    /* set */
+    }
+
+    return(mlav);
+}
+
+/**
+ * plfs_mlogtag: allow override of default mlog tag for apps that
+ * can support it.
+ *
+ * @param newtag the new tag to use, or NULL just to read the tag
+ * @return the current tag
+ */
+char *plfs_mlogtag(char *newtag) {
+    static char *tag = NULL;
+    if (newtag)
+        tag = newtag;
+    return((tag) ? tag : (char *)"plfs");
+}
+
+/**
+ * setup_mlog: setup and open the mlog, as per default config, augmented
+ * by plfsrc, and then by command line args
+ *
+ * XXX: we call parse_conf_keyval with a NULL pmntp... shouldn't be
+ * a problem because we restrict the parser to "mlog_" style key values
+ * (so it will never touch that).
+ *
+ * @param pconf the config we are going to use
+ */
+static void setup_mlog(PlfsConf *pconf) {
+    int mac, lcv;
+    char **mav, *start;
+
+    /* recover command line arg key/value pairs, if any */
+    mav = plfs_mlogargs(&mac, NULL);
+    if (mac) {
+        for (lcv = 0 ; lcv < mac ; lcv += 2) {
+            start = mav[lcv];
+            if (start[0] == '-' && start[1] == '-')
+                start += 2;   /* skip "--" */
+            parse_conf_keyval(pconf, NULL, start, mav[lcv+1]);
+            if (pconf->err_msg) {
+                fprintf(stderr, "WARNING: %s\n", pconf->err_msg->c_str());
+                fprintf(stderr, "WARNING: ignoring cmd line %s flag\n", start);
+                delete pconf->err_msg;
+                pconf->err_msg = NULL;
+            }
+        }
+    }
+
+    /* now we are ready to mlog_open ... */
+    if (mlog_open(plfs_mlogtag(NULL),
+                  sizeof(mlog_facsarray)/sizeof(mlog_facsarray[0]),
+                  pconf->mlog_defmask, pconf->mlog_stderrmask,
+                  pconf->mlog_file, pconf->mlog_msgbuf_size,
+                  pconf->mlog_flags, pconf->mlog_syslogfac) < 0) {
+
+        fprintf(stderr, "mlog_open: failed.  Check mlog params.\n");
+        /* XXX: keep going without log?   or abort/exit? */
+        exit(1);
+    }
+
+    /* name facilities */
+    for (lcv = 0; mlog_facsarray[lcv] != NULL ; lcv++) {
+        /* can't fail, as we preallocated in mlog_open() */
+        if (lcv == 0)
+            continue;    /* don't mess with the default facility */
+        (void) mlog_namefacility(lcv, (char *)mlog_facsarray[lcv]);
+    }
+
+    /* finally handle any mlog_setmasks() calls */
+    if (pconf->mlog_setmasks)
+        mlog_setmasks(pconf->mlog_setmasks);
+
+    mlog(PLFS_INFO, "mlog init complete");
+
+    return;
+}
+
 // inserts a mount point into a plfs conf structure
 // also tokenizes the mount point to set up find_mount_point 
 // returns an error string if there's any problems
@@ -1191,7 +1295,160 @@ set_default_confs(PlfsConf *pconf) {
     pconf->err_msg = NULL;
     pconf->buffer_mbs = 64;
     pconf->global_summary_dir = NULL;
+
+    /* default mlog settings */
+    pconf->mlog_flags = 0;
+    pconf->mlog_defmask = MLOG_WARN;
+    pconf->mlog_stderrmask = MLOG_CRIT;
+    pconf->mlog_file = NULL;
+    pconf->mlog_msgbuf_size = 4096;
+    pconf->mlog_syslogfac = LOG_USER;
+    pconf->mlog_setmasks = NULL;
 }
+
+/**
+ * parse_conf_keyval: parse a single conf key/value entry.  void, but will
+ * set pconf->err_msg on error.
+ *
+ * @param pconf the pconf we are loading into
+ * @param pmntp pointer to current mount pointer
+ * @param key the key value
+ * @param value the value of the key
+ */
+static void parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp,
+                              char *key, char *value) {
+    int v;
+
+    if(strcmp(key,"index_buffer_mbs")==0) {
+        pconf->buffer_mbs = atoi(value);
+        if (pconf->buffer_mbs <0) {
+            pconf->err_msg = new string("illegal negative value");
+        }
+    } else if(strcmp(key,"threadpool_size")==0) {
+        pconf->threadpool_size = atoi(value);
+        if (pconf->threadpool_size <=0) {
+            pconf->err_msg = new string("illegal negative value");
+        }
+    } else if (strcmp(key,"global_summary_dir")==0) {
+        pconf->global_summary_dir = new string(value); 
+    } else if (strcmp(key,"num_hostdirs")==0) {
+        pconf->num_hostdirs = atoi(value);
+        if (pconf->num_hostdirs <= 0) {
+            pconf->err_msg = new string("illegal negative value");
+        }
+        if (pconf->num_hostdirs > MAX_HOSTDIRS) 
+            pconf->num_hostdirs = MAX_HOSTDIRS;
+    } else if (strcmp(key,"mount_point")==0) {
+        // clear and save the previous one
+        if (*pmntp) {
+            pconf->err_msg = insert_mount_point(pconf,*pmntp);
+        }
+        if (!pconf->err_msg) {
+            *pmntp = new PlfsMount;
+            (*pmntp)->mnt_pt = value;
+            (*pmntp)->statfs = NULL;
+            tokenize((*pmntp)->mnt_pt,"/",(*pmntp)->mnt_tokens);
+        }
+    } else if (strcmp(key,"statfs")==0) {
+        if( !*pmntp ) {
+            pconf->err_msg = new string("No mount point yet declared");
+        }
+        (*pmntp)->statfs = new string(value);
+    } else if (strcmp(key,"backends")==0) {
+        if( !*pmntp ) {
+            pconf->err_msg = new string("No mount point yet declared");
+        } else {
+            plfs_debug("Gonna tokenize %s\n", value);
+            tokenize(value,",",(*pmntp)->backends); 
+            (*pmntp)->checksum = (unsigned)Container::hashValue(value);
+        }
+    } else if (strcmp(key, "mlog_stderr") == 0) {
+        v = atoi(value);
+        if (v)
+            pconf->mlog_flags |= MLOG_STDERR;
+        else
+            pconf->mlog_flags &= ~MLOG_STDERR;
+    } else if (strcmp(key, "mlog_ucon") == 0) {
+        v = atoi(value);
+        if (v)
+            pconf->mlog_flags |= (MLOG_UCON_ON|MLOG_UCON_ENV);
+        else
+            pconf->mlog_flags &= ~(MLOG_UCON_ON|MLOG_UCON_ENV);
+    } else if (strcmp(key, "mlog_syslog") == 0) {
+        v = atoi(value);
+        if (v)
+            pconf->mlog_flags |= MLOG_SYSLOG;
+        else
+            pconf->mlog_flags &= ~MLOG_SYSLOG;
+    } else if (strcmp(key, "mlog_defmask") == 0) {
+        pconf->mlog_defmask = mlog_str2pri(value);
+        if (v < 0) {
+            pconf->err_msg = new string("Bad mlog_defmask value");
+        }
+    } else if (strcmp(key, "mlog_stderrmask") == 0) {
+        pconf->mlog_stderrmask = mlog_str2pri(value);
+        if (v < 0) {
+            pconf->err_msg = new string("Bad mlog_stderrmask value");
+        }
+    } else if (strcmp(key, "mlog_file") == 0) {
+        pconf->mlog_file = strdup(value);
+        if (pconf->mlog_file == NULL) {
+            /*
+             * XXX: strdup fails, new will too, and we don't handle
+             * exceptions... so we'll assert here.
+             */
+            pconf->err_msg = new string("Unable to malloc mlog_file");
+
+        }
+    } else if (strcmp(key, "mlog_msgbuf_size") == 0) {
+        pconf->mlog_msgbuf_size = atoi(value);
+        /*
+         * 0 means disable it.  negative non-zero values or very
+         * small positive numbers don't make sense, so disallow.
+         */
+        if (pconf->mlog_msgbuf_size < 0 ||
+            (pconf->mlog_msgbuf_size > 0 &&
+             pconf->mlog_msgbuf_size < 256)) {
+            pconf->err_msg = new string("Bad mlog_msgbuf_size");
+        }
+    } else if (strcmp(key, "mlog_syslogfac") == 0) {
+        if (strncmp(value, "LOCAL", 5) != 0) {
+            pconf->err_msg = new string("mlog_syslogfac must be LOCALn");
+            return;
+        }
+        v = atoi(&value[5]);
+        switch (v) {
+        case 0: v = LOG_LOCAL0; break;
+        case 1: v = LOG_LOCAL1; break;
+        case 2: v = LOG_LOCAL2; break;
+        case 3: v = LOG_LOCAL3; break;
+        case 4: v = LOG_LOCAL4; break;
+        case 5: v = LOG_LOCAL5; break;
+        case 6: v = LOG_LOCAL6; break;
+        case 7: v = LOG_LOCAL7; break;
+        default: v = -1;
+        }
+        if (v == -1) {
+            pconf->err_msg = new string("bad mlog_syslogfac value");
+            return;
+        }
+        pconf->mlog_syslogfac = v;
+    } else if (strcmp(key, "mlog_setmasks") == 0) {
+        pconf->mlog_setmasks = strdup(value);
+        if (pconf->mlog_setmasks == NULL) {
+            /*
+             * XXX: strdup fails, new will too, and we don't handle
+             * exceptions... so we'll assert here.
+             */
+            pconf->err_msg = new string("Unable to malloc mlog_setmasks");
+        }
+    } else {
+        ostringstream error_msg;
+        error_msg << "Unknown key " << key;
+        pconf->err_msg = new string(error_msg.str());
+    }
+}
+ 
 
 // set defaults
 PlfsConf *
@@ -1216,58 +1473,9 @@ parse_conf(FILE *fp, string file) {
             pconf->err_msg = new string("Double slashes '//' are bad");
             break;
         }
-        if(strcmp(key,"index_buffer_mbs")==0) {
-            pconf->buffer_mbs = atoi(value);
-            if (pconf->buffer_mbs <0) {
-                pconf->err_msg = new string("illegal negative value");
-                break;
-            }
-        } else if(strcmp(key,"threadpool_size")==0) {
-            pconf->threadpool_size = atoi(value);
-            if (pconf->threadpool_size <=0) {
-                pconf->err_msg = new string("illegal negative value");
-                break;
-            }
-        } else if (strcmp(key,"global_summary_dir")==0) {
-            pconf->global_summary_dir = new string(value); 
-        } else if (strcmp(key,"num_hostdirs")==0) {
-            pconf->num_hostdirs = atoi(value);
-            if (pconf->num_hostdirs <= 0) {
-                pconf->err_msg = new string("illegal negative value");
-                break;
-            }
-            if (pconf->num_hostdirs > MAX_HOSTDIRS) 
-                pconf->num_hostdirs = MAX_HOSTDIRS;
-        } else if (strcmp(key,"mount_point")==0) {
-            // clear and save the previous one
-            if (pmnt) {
-                pconf->err_msg = insert_mount_point(pconf,pmnt);
-                if(pconf->err_msg) break;
-            }
-            pmnt = new PlfsMount;
-            pmnt->mnt_pt = value;
-            pmnt->statfs = NULL;
-            tokenize(pmnt->mnt_pt,"/",pmnt->mnt_tokens);
-        } else if (strcmp(key,"statfs")==0) {
-            if( !pmnt ) {
-                pconf->err_msg = new string("No mount point yet declared");
-                break;
-            }
-            pmnt->statfs = new string(value);
-        } else if (strcmp(key,"backends")==0) {
-            if( !pmnt ) {
-                pconf->err_msg = new string("No mount point yet declared");
-                break;
-            }
-            plfs_debug("Gonna tokenize %s\n", value);
-            tokenize(value,",",pmnt->backends); 
-            pmnt->checksum = (unsigned)Container::hashValue(value);
-        } else {
-            ostringstream error_msg;
-            error_msg << "Unknown key " << key;
-            pconf->err_msg = new string(error_msg.str());
+        parse_conf_keyval(pconf, &pmnt, key, value);
+        if (pconf->err_msg)
             break;
-        }
     }
     plfs_debug("Got EOF from parsing conf\n");
 
@@ -1339,6 +1547,10 @@ get_plfs_conf() {
         break;
     }
 
+    if (pconf) {
+        setup_mlog(pconf);
+    }
+    
     return pconf;
 }
 

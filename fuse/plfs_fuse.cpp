@@ -165,12 +165,65 @@ split(const std::string &s, const char delim, std::vector<std::string> &elems) {
     return elems;
 }
 
+/**
+ * plfsfuse_mlogargfilter: filter out the mlog args from the command
+ * line and save them away for future use.
+ * 
+ * @param argc from main.C
+ * @param argv from main.C
+ */
+
+static void plfsfuse_mlogargfilter(int *argc, char **argv) {
+    int mlac, lcv, cnt;
+    char **mlav;
+
+    if (*argc < 3)
+        return;         /* no args, no work */
+
+    mlac = 0;
+    mlav = (char **) malloc(*argc * sizeof(*argv));
+    if (mlav == NULL) {
+        fprintf(stderr, "plfsfuse_mlogargfilter: malloc failed?  skipping.\n");
+        return;
+    }
+
+    /* all --mlog args are key/value pairs, to match plfsrc */
+    for (lcv = 1 ; lcv < (*argc - 1) ; /*null*/) {
+        if (strncmp(argv[lcv], "--mlog_", 7) != 0) {
+            lcv++;
+            continue;    /* skip if not for us */
+        }
+
+        /* copy over to our area */
+        mlav[mlac++] = argv[lcv];
+        mlav[mlac++] = argv[lcv+1];
+
+        /* remove the key/value pair from system argv */
+        for (cnt = lcv + 2 ; cnt < *argc ; cnt++) {
+            argv[cnt - 2] = argv[cnt];
+        }
+        *argc = *argc - 2;
+        /* lcv remains the same */
+    }
+
+    /* save results, if we find any */
+    if (mlac == 0) {
+        free(mlav);
+    } else {
+        plfs_mlogargs(&mlac, mlav);
+    }
+}
+
 // set this up to parse command line args
 // move code from constructor in here
 // and stop using /etc config file
 int Plfs::init( int *argc, char **argv ) {
-        // figure out our hostname now in order to make containers
     char hostname[_POSIX_PATH_MAX];
+
+    (void)plfs_mlogtag(argv[0]);
+    plfsfuse_mlogargfilter(argc, argv);
+
+    // figure out our hostname now in order to make containers
     if (gethostname(hostname, sizeof(hostname)) < 0) {
         plfs_debug("plfsfuse gethostname failed");
         return -errno;
