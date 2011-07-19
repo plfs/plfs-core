@@ -31,11 +31,15 @@
 # makefacs.pl  autogen mlogfacs.h file based on facs list
 
 @facs = (
-     "PLFS"     => "General PLFS",
+     "PLFS"     => "PLFS main",
+     "INT"      => "PLFS internal",
+     "CON"      => "Containers",
+     "IDX"      => "Index",
+     "FOP"      => "FileOps",
+     "UT"       => "Utilities",
+     "STO"      => "Store",
      "FUSE"     => "PLFS FUSE",
      "MPI"      => "PLFS MPI",
-### example:
-#    "FOO"      => "Foo subsystem",
 );
 
 @mloglvls = (
