@@ -45,12 +45,13 @@ static const char *mlog_facsarray[] = {
     "INT",           /* 2 */
     "CON",           /* 3 */
     "IDX",           /* 4 */
-    "FOP",           /* 5 */
-    "UT",            /* 6 */
-    "STO",           /* 7 */
-    "FUSE",          /* 8 */
-    "MPI",           /* 9 */
-    0,               /* 10 */
+    "WF",            /* 5 */
+    "FOP",           /* 6 */
+    "UT",            /* 7 */
+    "STO",           /* 8 */
+    "FUSE",          /* 9 */
+    "MPI",           /* 10 */
+    0,               /* 11 */
 };
 #endif /* MLOG_FACSARRAY */
 
@@ -61,11 +62,12 @@ static const char *mlog_facsarray[] = {
 #define MLOGFAC_INT       2 /* PLFS internal */
 #define MLOGFAC_CON       3 /* Containers */
 #define MLOGFAC_IDX       4 /* Index */
-#define MLOGFAC_FOP       5 /* FileOps */
-#define MLOGFAC_UT        6 /* Utilities */
-#define MLOGFAC_STO       7 /* Store */
-#define MLOGFAC_FUSE      8 /* PLFS FUSE */
-#define MLOGFAC_MPI       9 /* PLFS MPI */
+#define MLOGFAC_WF        5 /* Write File */
+#define MLOGFAC_FOP       6 /* FileOps */
+#define MLOGFAC_UT        7 /* Utilities */
+#define MLOGFAC_STO       8 /* Store */
+#define MLOGFAC_FUSE      9 /* PLFS FUSE */
+#define MLOGFAC_MPI      10 /* PLFS MPI */
 
 /*
  * PLFS main MLOG levels
@@ -148,103 +150,123 @@ static const char *mlog_facsarray[] = {
 #define IDX_DRARE         IDX_DBG3
 
 /*
+ * Write File MLOG levels
+ */
+#define WF_EMERG         (5 | MLOG_EMERG)
+#define WF_ALERT         (5 | MLOG_ALERT)
+#define WF_CRIT          (5 | MLOG_CRIT)
+#define WF_ERR           (5 | MLOG_ERR)
+#define WF_WARN          (5 | MLOG_WARN)
+#define WF_NOTE          (5 | MLOG_NOTE)
+#define WF_INFO          (5 | MLOG_INFO)
+#define WF_DBG           (5 | MLOG_DBG)
+#define WF_DBG0          (5 | MLOG_DBG0)
+#define WF_DAPI           WF_DBG0
+#define WF_DBG1          (5 | MLOG_DBG1)
+#define WF_DINTAPI        WF_DBG1
+#define WF_DBG2          (5 | MLOG_DBG2)
+#define WF_DCOMMON        WF_DBG2
+#define WF_DBG3          (5 | MLOG_DBG3)
+#define WF_DRARE          WF_DBG3
+
+/*
  * FileOps MLOG levels
  */
-#define FOP_EMERG        (5 | MLOG_EMERG)
-#define FOP_ALERT        (5 | MLOG_ALERT)
-#define FOP_CRIT         (5 | MLOG_CRIT)
-#define FOP_ERR          (5 | MLOG_ERR)
-#define FOP_WARN         (5 | MLOG_WARN)
-#define FOP_NOTE         (5 | MLOG_NOTE)
-#define FOP_INFO         (5 | MLOG_INFO)
-#define FOP_DBG          (5 | MLOG_DBG)
-#define FOP_DBG0         (5 | MLOG_DBG0)
+#define FOP_EMERG        (6 | MLOG_EMERG)
+#define FOP_ALERT        (6 | MLOG_ALERT)
+#define FOP_CRIT         (6 | MLOG_CRIT)
+#define FOP_ERR          (6 | MLOG_ERR)
+#define FOP_WARN         (6 | MLOG_WARN)
+#define FOP_NOTE         (6 | MLOG_NOTE)
+#define FOP_INFO         (6 | MLOG_INFO)
+#define FOP_DBG          (6 | MLOG_DBG)
+#define FOP_DBG0         (6 | MLOG_DBG0)
 #define FOP_DAPI          FOP_DBG0
-#define FOP_DBG1         (5 | MLOG_DBG1)
+#define FOP_DBG1         (6 | MLOG_DBG1)
 #define FOP_DINTAPI       FOP_DBG1
-#define FOP_DBG2         (5 | MLOG_DBG2)
+#define FOP_DBG2         (6 | MLOG_DBG2)
 #define FOP_DCOMMON       FOP_DBG2
-#define FOP_DBG3         (5 | MLOG_DBG3)
+#define FOP_DBG3         (6 | MLOG_DBG3)
 #define FOP_DRARE         FOP_DBG3
 
 /*
  * Utilities MLOG levels
  */
-#define UT_EMERG         (6 | MLOG_EMERG)
-#define UT_ALERT         (6 | MLOG_ALERT)
-#define UT_CRIT          (6 | MLOG_CRIT)
-#define UT_ERR           (6 | MLOG_ERR)
-#define UT_WARN          (6 | MLOG_WARN)
-#define UT_NOTE          (6 | MLOG_NOTE)
-#define UT_INFO          (6 | MLOG_INFO)
-#define UT_DBG           (6 | MLOG_DBG)
-#define UT_DBG0          (6 | MLOG_DBG0)
+#define UT_EMERG         (7 | MLOG_EMERG)
+#define UT_ALERT         (7 | MLOG_ALERT)
+#define UT_CRIT          (7 | MLOG_CRIT)
+#define UT_ERR           (7 | MLOG_ERR)
+#define UT_WARN          (7 | MLOG_WARN)
+#define UT_NOTE          (7 | MLOG_NOTE)
+#define UT_INFO          (7 | MLOG_INFO)
+#define UT_DBG           (7 | MLOG_DBG)
+#define UT_DBG0          (7 | MLOG_DBG0)
 #define UT_DAPI           UT_DBG0
-#define UT_DBG1          (6 | MLOG_DBG1)
+#define UT_DBG1          (7 | MLOG_DBG1)
 #define UT_DINTAPI        UT_DBG1
-#define UT_DBG2          (6 | MLOG_DBG2)
+#define UT_DBG2          (7 | MLOG_DBG2)
 #define UT_DCOMMON        UT_DBG2
-#define UT_DBG3          (6 | MLOG_DBG3)
+#define UT_DBG3          (7 | MLOG_DBG3)
 #define UT_DRARE          UT_DBG3
 
 /*
  * Store MLOG levels
  */
-#define STO_EMERG        (7 | MLOG_EMERG)
-#define STO_ALERT        (7 | MLOG_ALERT)
-#define STO_CRIT         (7 | MLOG_CRIT)
-#define STO_ERR          (7 | MLOG_ERR)
-#define STO_WARN         (7 | MLOG_WARN)
-#define STO_NOTE         (7 | MLOG_NOTE)
-#define STO_INFO         (7 | MLOG_INFO)
-#define STO_DBG          (7 | MLOG_DBG)
-#define STO_DBG0         (7 | MLOG_DBG0)
+#define STO_EMERG        (8 | MLOG_EMERG)
+#define STO_ALERT        (8 | MLOG_ALERT)
+#define STO_CRIT         (8 | MLOG_CRIT)
+#define STO_ERR          (8 | MLOG_ERR)
+#define STO_WARN         (8 | MLOG_WARN)
+#define STO_NOTE         (8 | MLOG_NOTE)
+#define STO_INFO         (8 | MLOG_INFO)
+#define STO_DBG          (8 | MLOG_DBG)
+#define STO_DBG0         (8 | MLOG_DBG0)
 #define STO_DAPI          STO_DBG0
-#define STO_DBG1         (7 | MLOG_DBG1)
+#define STO_DBG1         (8 | MLOG_DBG1)
 #define STO_DINTAPI       STO_DBG1
-#define STO_DBG2         (7 | MLOG_DBG2)
+#define STO_DBG2         (8 | MLOG_DBG2)
 #define STO_DCOMMON       STO_DBG2
-#define STO_DBG3         (7 | MLOG_DBG3)
+#define STO_DBG3         (8 | MLOG_DBG3)
 #define STO_DRARE         STO_DBG3
 
 /*
  * PLFS FUSE MLOG levels
  */
-#define FUSE_EMERG       (8 | MLOG_EMERG)
-#define FUSE_ALERT       (8 | MLOG_ALERT)
-#define FUSE_CRIT        (8 | MLOG_CRIT)
-#define FUSE_ERR         (8 | MLOG_ERR)
-#define FUSE_WARN        (8 | MLOG_WARN)
-#define FUSE_NOTE        (8 | MLOG_NOTE)
-#define FUSE_INFO        (8 | MLOG_INFO)
-#define FUSE_DBG         (8 | MLOG_DBG)
-#define FUSE_DBG0        (8 | MLOG_DBG0)
+#define FUSE_EMERG       (9 | MLOG_EMERG)
+#define FUSE_ALERT       (9 | MLOG_ALERT)
+#define FUSE_CRIT        (9 | MLOG_CRIT)
+#define FUSE_ERR         (9 | MLOG_ERR)
+#define FUSE_WARN        (9 | MLOG_WARN)
+#define FUSE_NOTE        (9 | MLOG_NOTE)
+#define FUSE_INFO        (9 | MLOG_INFO)
+#define FUSE_DBG         (9 | MLOG_DBG)
+#define FUSE_DBG0        (9 | MLOG_DBG0)
 #define FUSE_DAPI         FUSE_DBG0
-#define FUSE_DBG1        (8 | MLOG_DBG1)
+#define FUSE_DBG1        (9 | MLOG_DBG1)
 #define FUSE_DINTAPI      FUSE_DBG1
-#define FUSE_DBG2        (8 | MLOG_DBG2)
+#define FUSE_DBG2        (9 | MLOG_DBG2)
 #define FUSE_DCOMMON      FUSE_DBG2
-#define FUSE_DBG3        (8 | MLOG_DBG3)
+#define FUSE_DBG3        (9 | MLOG_DBG3)
 #define FUSE_DRARE        FUSE_DBG3
 
 /*
  * PLFS MPI MLOG levels
  */
-#define MPI_EMERG        (9 | MLOG_EMERG)
-#define MPI_ALERT        (9 | MLOG_ALERT)
-#define MPI_CRIT         (9 | MLOG_CRIT)
-#define MPI_ERR          (9 | MLOG_ERR)
-#define MPI_WARN         (9 | MLOG_WARN)
-#define MPI_NOTE         (9 | MLOG_NOTE)
-#define MPI_INFO         (9 | MLOG_INFO)
-#define MPI_DBG          (9 | MLOG_DBG)
-#define MPI_DBG0         (9 | MLOG_DBG0)
+#define MPI_EMERG        (10 | MLOG_EMERG)
+#define MPI_ALERT        (10 | MLOG_ALERT)
+#define MPI_CRIT         (10 | MLOG_CRIT)
+#define MPI_ERR          (10 | MLOG_ERR)
+#define MPI_WARN         (10 | MLOG_WARN)
+#define MPI_NOTE         (10 | MLOG_NOTE)
+#define MPI_INFO         (10 | MLOG_INFO)
+#define MPI_DBG          (10 | MLOG_DBG)
+#define MPI_DBG0         (10 | MLOG_DBG0)
 #define MPI_DAPI          MPI_DBG0
-#define MPI_DBG1         (9 | MLOG_DBG1)
+#define MPI_DBG1         (10 | MLOG_DBG1)
 #define MPI_DINTAPI       MPI_DBG1
-#define MPI_DBG2         (9 | MLOG_DBG2)
+#define MPI_DBG2         (10 | MLOG_DBG2)
 #define MPI_DCOMMON       MPI_DBG2
-#define MPI_DBG3         (9 | MLOG_DBG3)
+#define MPI_DBG3         (10 | MLOG_DBG3)
 #define MPI_DRARE         MPI_DBG3
 
 #endif /* _MLOGFACS_H_ */

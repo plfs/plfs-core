@@ -35,6 +35,7 @@
      "INT"      => "PLFS internal",
      "CON"      => "Containers",
      "IDX"      => "Index",
+     "WF"       => "Write File",
      "FOP"      => "FileOps",
      "UT"       => "Utilities",
      "STO"      => "Store",
