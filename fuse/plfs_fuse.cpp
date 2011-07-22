@@ -150,8 +150,8 @@ typedef struct OpenDirStruct {
                            of = (Plfs_fd *)openfile->pfd;                    \
                            ostringstream oss;                                \
                            oss << __FUNCTION__ << " got OpenFile for " <<    \
-                               strPath.c_str() << " (" << of << ")" << endl; \
-                           plfs_debug("%s", oss.str().c_str() );   \
+                               strPath.c_str() << " (" << of << ")" ;   \
+                           mlog(FUSE_DCOMMON, "%s", oss.str().c_str() ); \
                        }
 
 
@@ -225,7 +225,7 @@ int Plfs::init( int *argc, char **argv ) {
 
     // figure out our hostname now in order to make containers
     if (gethostname(hostname, sizeof(hostname)) < 0) {
-        plfs_debug("plfsfuse gethostname failed");
+        fprintf(stderr, "plfsfuse gethostname failed\n");
         return -errno;
     }
     myhost = hostname; 
@@ -328,7 +328,7 @@ string Plfs::expandPath( const char *path ) {
         */
         full_logical = self->pmnt->mnt_pt + path; // make absolute
     }
-    plfs_debug("%s %s->%s\n", __FUNCTION__, path, full_logical.c_str());
+    mlog(FUSE_DCOMMON, "%s %s->%s", __FUNCTION__, path, full_logical.c_str());
     return full_logical;
     
 }
@@ -350,7 +350,7 @@ bool Plfs::isdebugfile( const char *path, const char *file ) {
 // maybe at the cost of correctness.  hmmmm.
 int Plfs::makePlfsFile( string expanded_path, mode_t mode, int flags ) {
     int res = 0;
-    plfs_debug("Need to create container for %s (%s %d)\n", 
+    mlog(FUSE_DAPI, "Need to create container for %s (%s %d)", 
             expanded_path.c_str(), 
             self->myhost.c_str(), fuse_get_context()->pid );
 
@@ -371,7 +371,7 @@ int Plfs::makePlfsFile( string expanded_path, mode_t mode, int flags ) {
         self->extra_attempts += extra_attempts;
         if ( res == 0 ) {
             self->createdContainers.insert( expanded_path );
-            plfs_debug("%s Stashing mode for %s: %d\n",
+            mlog(FUSE_DCOMMON, "%s Stashing mode for %s: %d",
                 __FUNCTION__, expanded_path.c_str(), (int)mode );
             self->known_modes[expanded_path] = mode;
         }
@@ -381,7 +381,7 @@ int Plfs::makePlfsFile( string expanded_path, mode_t mode, int flags ) {
     double time_end = plfs_wtime();
     self->make_container_time += (time_end - time_start);
     if ( time_end - time_start > 2 ) {
-        plfs_debug("WTF: %s of %s took %.2f secs\n", __FUNCTION__,
+        mlog(FUSE_DRARE, "WTF: %s of %s took %.2f secs", __FUNCTION__,
                 expanded_path.c_str(), time_end - time_start );
         self->wtfs++;
     }
@@ -401,7 +401,7 @@ int Plfs::f_access(const char *path, int mask) {
 int Plfs::f_mknod(const char *path, mode_t mode, dev_t rdev) {
     PLFS_ENTER;
 
-    plfs_debug("%s on %s mode %d rdev %d\n",__FUNCTION__,path,mode,rdev);
+    mlog(FUSE_DAPI, "%s on %s mode %d rdev %d",__FUNCTION__,path,mode,rdev);
 
     ret = makePlfsFile( strPath.c_str(), mode, 0 );
     if ( ret == 0 ) {
@@ -533,7 +533,7 @@ int Plfs::f_chmod (const char *path, mode_t mode) {
     plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
     ret = plfs_chmod( strPath.c_str(), mode );
     if ( ret == 0 ) {
-        plfs_debug("%s Stashing mode for %s: %d\n",
+        mlog(FUSE_DCOMMON, "%s Stashing mode for %s: %d",
             __FUNCTION__, strPath.c_str(), (int)mode );
         self->known_modes[strPath] = mode;
     }
@@ -622,7 +622,7 @@ int Plfs::set_groups( uid_t uid ) {
     if ( itr == self->memberships.end() ) {
         pwd      = getpwuid( uid );
         if( pwd ) {
-            plfs_debug("Need to find groups for %d\n", (int)uid );
+            mlog(FUSE_DCOMMON, "Need to find groups for %d", (int)uid );
             username = pwd->pw_name;
 
             // read the groups to discover the memberships of the caller
@@ -649,7 +649,7 @@ int Plfs::set_groups( uid_t uid ) {
     // now unlock the mutex, set the groups, and return 
     plfs_mutex_unlock( &self->group_mutex, __FUNCTION__ );
     if ( groups_ptr == NULL) {
-        plfs_debug("WTF: Got a null group ptr for %d\n", uid); 
+        mlog(FUSE_DRARE, "WTF: Got a null group ptr for %d", uid); 
     } else {
         setgroups( groups_ptr->size(), (const gid_t*)&(groups_ptr->front()) ); 
     }
@@ -735,7 +735,8 @@ int Plfs::f_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
     // skip out early if they're already read to end
     if (offset >= (off_t)opendir->entries.size()) {
-        plfs_debug("Skipping %s of %s (EOD)\n",__FUNCTION__,strPath.c_str());
+        mlog(FUSE_DCOMMON, "Skipping %s of %s (EOD)",__FUNCTION__,
+             strPath.c_str());
         PLFS_EXIT;
     }
 
@@ -744,7 +745,7 @@ int Plfs::f_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     // opendir, readdir 0, unlink entry E, readdir 0, stat E 
     // this caused an unexpected ENOENT bec readdir said E existed but it didn't
     if (opendir->last_offset > offset) {
-        plfs_debug("Rereading dir %s\n",strPath.c_str());
+        mlog(FUSE_DCOMMON, "Rereading dir %s",strPath.c_str());
         opendir->last_offset = offset;
         opendir->entries.clear();
         ret = plfs_readdir(strPath.c_str(),(void*)(&(opendir->entries)));
@@ -759,11 +760,11 @@ int Plfs::f_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     set<string>::iterator itr;
     int i =0;
     for(itr=opendir->entries.begin(); itr!=opendir->entries.end(); itr++,i++) {
-        plfs_debug("Returning dirent %s\n", (*itr).c_str());
+        mlog(FUSE_DCOMMON, "Returning dirent %s", (*itr).c_str());
         opendir->last_offset=i;
         if ( i >= offset ) {
             if ( 0 != filler(buf,(*itr).c_str(),NULL,i+1) ) {
-                plfs_debug("%s: filler is full\n",__FUNCTION__);
+                mlog(FUSE_DCOMMON, "%s: filler is full",__FUNCTION__);
                 break;
             }
         }
@@ -823,11 +824,11 @@ int Plfs::f_open(const char *path, struct fuse_file_info *fi) {
         }
         if ( fi->flags & O_RDWR ) self->o_rdwrs++;
     }
-    //plfs_debug("%s: %s ref count: %d\n", __FUNCTION__, 
+    //mlog(FUSE_DCOMMON, "%s: %s ref count: %d", __FUNCTION__, 
     //        strPath.c_str(), plfs_reference_count(pfd));
 
     if ( ret == 0 ) {
-        plfs_debug("%s %s has %d references\n", __FUNCTION__, path,
+        mlog(FUSE_DCOMMON, "%s %s has %d references", __FUNCTION__, path,
                 pfd->incrementOpens(0));
     }
     plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
@@ -869,14 +870,14 @@ int Plfs::f_release( const char *path, struct fuse_file_info *fi ) {
         SET_GROUPS( openfile->uid );
         plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
         assert( openfile->flags == fi->flags );
-        plfs_debug("%s: %s ref count: %d\n", __FUNCTION__, 
+        mlog(FUSE_DAPI, "%s: %s ref count: %d", __FUNCTION__, 
             strPath.c_str(), plfs_reference_count(of));
         int remaining = plfs_close(of, openfile->pid, openfile->uid,
                 fi->flags ,NULL);
         fi->fh = (uint64_t)NULL;
         if ( remaining == 0 ) {
             string pathHash = pathToHash(strPath,openfile->uid,openfile->flags);
-            plfs_debug("%s: Removing Open File: %s remaining: %d\n", 
+            mlog(FUSE_DCOMMON, "%s: Removing Open File: %s remaining: %d", 
                 __FUNCTION__, pathHash.c_str(), remaining);
             removeOpenFile(pathHash,openfile->pid,of);
             /*
@@ -890,8 +891,8 @@ int Plfs::f_release( const char *path, struct fuse_file_info *fi ) {
             }
             */
         } else {
-            plfs_debug(
-                "%s not yet removing open file for %s, pid %u, %d remaining\n",
+            mlog(FUSE_DCOMMON,
+                "%s not yet removing open file for %s, pid %u, %d remaining",
                 __FUNCTION__, strPath.c_str(), openfile->pid, remaining );
         }
         delete openfile;
@@ -906,10 +907,11 @@ int Plfs::addOpenFile( string expanded, pid_t pid, Plfs_fd *pfd) {
 
     ostringstream oss;
     oss << __FUNCTION__ << " adding OpenFile for " <<
-        expanded << " (" << pfd << ") pid " << pid << endl;
-    plfs_debug("%s", oss.str().c_str() ); 
+        expanded << " (" << pfd << ") pid " << pid;
+    mlog(FUSE_DCOMMON, "%s", oss.str().c_str() ); 
     self->open_files[expanded] = pfd;
-    //plfs_debug("Current open files: %s\n", openFilesToString(false).c_str());
+    //mlog(FUSE_DCOMMON, "Current open files: %s",
+    //openFilesToString(false).c_str());
     return 0;
 }
 
@@ -920,12 +922,12 @@ int Plfs::addOpenFile( string expanded, pid_t pid, Plfs_fd *pfd) {
 int Plfs::removeOpenFile(string expanded, pid_t pid, Plfs_fd *pfd) {
     ostringstream oss;
     int erased = 0;
-    plfs_debug("%s", oss.str().c_str() ); 
     erased = self->open_files.erase( expanded );
     oss << __FUNCTION__ << " removed " << erased << " OpenFile for " <<
-                expanded << " (" << pfd << ") pid " << pid << endl;
-    plfs_debug("%s",oss.str().c_str());
-    //plfs_debug("Current open files: %s\n", openFilesToString(false).c_str());
+        expanded << " (" << pfd << ") pid " << pid;
+    mlog(FUSE_DCOMMON, "%s",oss.str().c_str());
+    //mlog(FUSE_DCOMMON, "Current open files: %s",
+    //     openFilesToString(false).c_str());
     return erased;
 }
 
@@ -936,14 +938,14 @@ Plfs_fd *Plfs::findOpenFile( string expanded ) {
     HASH_MAP<string, Plfs_fd *>::iterator itr;
     itr = self->open_files.find( expanded );
     if ( itr == self->open_files.end() ) {
-        plfs_debug("No OpenFile found for %s\n", expanded.c_str() );
+        mlog(FUSE_DCOMMON, "No OpenFile found for %s", expanded.c_str() );
         pfd = NULL;
     } else {
         ostringstream oss;
         pfd = itr->second;
         oss << __FUNCTION__ << " OpenFile " << pfd << " found for " <<
-            expanded.c_str() << endl;
-        plfs_debug("%s", oss.str().c_str() ); 
+            expanded.c_str();
+        mlog(FUSE_DCOMMON, "%s", oss.str().c_str() ); 
     }
     return pfd;
 }
@@ -957,7 +959,7 @@ mode_t Plfs::getMode( string expanded ) {
     HASH_MAP<string, mode_t>::iterator itr =
             self->known_modes.find( expanded );
     if ( itr == self->known_modes.end() ) {
-        plfs_debug("Pulling mode from Container\n" );
+        mlog(FUSE_DCOMMON, "Pulling mode from Container" );
         plfs_mode(expanded.c_str(),&mode);
         self->known_modes[expanded] = mode;
         whence = (char*)"container";
@@ -965,7 +967,7 @@ mode_t Plfs::getMode( string expanded ) {
         mode = itr->second; 
         whence = (char*)"stashed value";
     }
-    plfs_debug("%s pulled mode %d from %s\n", 
+    mlog(FUSE_DCOMMON, "%s pulled mode %d from %s", 
             __FUNCTION__, mode, whence);
     return mode;
 }
@@ -991,7 +993,7 @@ int Plfs::f_readlink (const char *path, char *buf, size_t bufsize) {
 // see comments for f_symlink.  handled the same way
 int Plfs::f_link( const char *path, const char *to ) {
     PLFS_ENTER;
-    plfs_debug("%s: %s to %s\n", __FUNCTION__,path,to);
+    mlog(FUSE_DAPI, "%s: %s to %s", __FUNCTION__,path,to);
     string toPath = expandPath(to);
     ret = plfs_link(path,toPath.c_str());
     PLFS_EXIT;
@@ -1003,7 +1005,7 @@ int Plfs::f_link( const char *path, const char *to ) {
 // created
 int Plfs::f_symlink( const char *path, const char *to ) {
     PLFS_ENTER;
-    plfs_debug("%s: %s to %s\n", __FUNCTION__,path,to);
+    mlog(FUSE_DAPI, "%s: %s to %s", __FUNCTION__,path,to);
     string toPath = expandPath(to);
     ret = plfs_symlink(path,toPath.c_str());
     PLFS_EXIT;
@@ -1025,7 +1027,7 @@ int Plfs::f_statfs(const char *path, struct statvfs *stbuf) {
     // hmmm, I guess we can call Util:: and bypass plfs_ but that's a bit
     // of a kludge since we try to make everything in FUSE go through plfs
     if(self->pmnt->statfs) {
-        plfs_debug("Forwarding statfs to specified path %s\n",
+        mlog(FUSE_DCOMMON, "Forwarding statfs to specified path %s",
                 self->pmnt->statfs->c_str());
         ret = Util::Statvfs(self->pmnt->statfs->c_str(),stbuf);
         ret = Util::retValue(ret);  // fix it up on error
@@ -1045,8 +1047,8 @@ int Plfs::f_readn(const char *path, char *buf, size_t size, off_t offset,
 
     PLFS_ENTER; GET_OPEN_FILE;
     ostringstream os;
-    os << __FUNCTION__ << " reading from " << of << endl;
-    plfs_debug("%s", os.str().c_str() );
+    os << __FUNCTION__ << " reading from " << of;
+    mlog(FUSE_DCOMMON, "%s", os.str().c_str() );
     ret = plfs_read( of, buf, size, offset );
     PLFS_EXIT;
 }
@@ -1059,7 +1061,7 @@ string Plfs::openFilesToString(bool verbose) {
     oss << quant << " OpenFiles" << ( quant ? ": " : "" ) << endl;
     HASH_MAP<string, Plfs_fd *>::iterator itr;
     for(itr = self->open_files.begin(); itr != self->open_files.end(); itr++){
-        plfs_debug("%s openFile %s\n", __FUNCTION__, itr->first.c_str()); 
+        mlog(FUSE_DCOMMON, "%s openFile %s", __FUNCTION__, itr->first.c_str()); 
         if ( verbose ) {
             plfs_query( itr->second, &writers, &readers );
             oss << itr->second->getPath() << ", ";
@@ -1140,7 +1142,7 @@ int Plfs::writeDebug( char *buf, size_t size, off_t offset, const char *path ) {
     memcpy( buf, (const void*)&(tmpbuf[offset]), validsize );
     delete []tmpbuf;
     tmpbuf = NULL;
-    plfs_debug("Returning the buffer for debugfile %s\n", path);
+    mlog(FUSE_DCOMMON, "Returning the buffer for debugfile %s", path);
     return validsize; 
 }
 
@@ -1245,8 +1247,9 @@ int Plfs::f_rename( const char *path, const char *to ) {
                     removeOpenFile(current.path, pid, pfd);
                     addOpenFile(pathHash, pid, pfd);
                     pfd->setPath( toPath ); 
-                    plfs_debug("Rename open file %s -> %s (hope this works)\n",
-                        path, to );
+                    mlog(FUSE_DCOMMON, "Rename open file %s -> %s "
+                         "(hope this works)",
+                               path, to );
                 }
             }
         }

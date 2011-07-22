@@ -101,7 +101,7 @@ void * IndexFileInfo::listToStream(vector<IndexFileInfo> &list,int *bytes)
         // Putting the plus one for the null terminating  char
         // Try using the strcpy function
         int len =(*itr).hostname.size()+1;
-        plfs_debug("Size of hostname is %d\n",len);
+        mlog(IDX_DCOMMON, "Size of hostname is %d",len);
         char * hostname = strdup((*itr).hostname.c_str());
         buf_pos=memcpy_helper(buf_pos,&timestamp,sizeof(double));
         buf_pos=memcpy_helper(buf_pos,&id,sizeof(pid_t));
@@ -238,10 +238,8 @@ void Index::init( string physical ) {
 Index::Index( string logical, int fd ) : Metadata::Metadata() {
     init( logical );
     this->fd = fd;
-    ostringstream os;
-    os << __FUNCTION__ << ": " << this << " created index on " <<
-        physical_path << endl;
-    plfs_debug("%s", os.str().c_str() );
+    mlog(IDX_DAPI, "%s: created index on %s, fd=%d", __FUNCTION__,
+         physical_path.c_str(), fd);
 }
 
 void
@@ -258,11 +256,8 @@ Index::unlock( const char *function ) {
 
 Index::Index( string logical ) : Metadata::Metadata() {
     init( logical );
-    ostringstream os;
-    os << __FUNCTION__ << ": " << this 
-       << " created index on " << physical_path << ", "
-       << chunk_map.size() << " chunks" << endl;
-    plfs_debug("%s", os.str().c_str() );
+    mlog(IDX_DAPI, "%s: created index on %s, %d chunks", __FUNCTION__,
+         physical_path.c_str(), chunk_map.size());
 }
 
 void Index::setPath( string p ) {
@@ -273,12 +268,12 @@ Index::~Index() {
     ostringstream os;
     os << __FUNCTION__ << ": " << this 
        << " removing index on " << physical_path << ", " 
-       << chunk_map.size() << " chunks"<< endl;
-    plfs_debug("%s", os.str().c_str() );
-    plfs_debug("There are %d chunks to close fds for\n", chunk_map.size());
+       << chunk_map.size() << " chunks";
+    mlog(IDX_DAPI, "%s", os.str().c_str() );
+    mlog(IDX_DCOMMON, "There are %d chunks to close fds for",chunk_map.size());
     for( unsigned i = 0; i < chunk_map.size(); i++ ) {
         if ( chunk_map[i].fd > 0 ) {
-            plfs_debug("Closing fd %d for %s\n",
+            mlog(IDX_DCOMMON, "Closing fd %d for %sa",
                     (int)chunk_map[i].fd, chunk_map[i].path.c_str() );
             Util::Close( chunk_map[i].fd );
         }
@@ -386,16 +381,14 @@ int Index::flush() {
     // ok, vectors are guaranteed to be contiguous
     // so just dump it in one fell swoop
     size_t  len = hostIndex.size() * sizeof(HostEntry);
-    ostringstream os;
-    os << __FUNCTION__ << " flushing : " << len << " bytes" << endl; 
-    plfs_debug("%s", os.str().c_str() );
+    mlog(IDX_DAPI, "%s flushing %d bytes", __FUNCTION__, len);
     if ( len == 0 ) return 0;   // could be 0 if we weren't buffering
     // valgrind complains about writing uninitialized bytes here....
     // but it's fine as far as I can tell.
     void *start = &(hostIndex.front());
     int ret     = Util::Writen( fd, start, len );
     if ( (size_t)ret != (size_t)len ) {
-        plfs_debug("%s failed write to fd %d: %s\n", 
+        mlog(IDX_DRARE, "%s failed write to fd %d: %s", 
                 __FUNCTION__, fd, strerror(errno));
     }
     hostIndex.clear();
@@ -415,7 +408,7 @@ void *Index::mapIndex( string hostindex, int *fd, off_t *length ) {
     // created.  
     Util::Lseek( *fd, 0, SEEK_END, length );
     if ( *length <= 0 ) {
-        plfs_debug("%s is a zero length index file\n", hostindex.c_str() );
+        mlog(IDX_DRARE, "%s is a zero length index file", hostindex.c_str());
         return NULL;
     }
 
@@ -434,8 +427,8 @@ int Index::readIndex( string hostindex ) {
 
     ostringstream os;
     os << __FUNCTION__ << ": " << this << " reading index on " <<
-        physical_path << endl;
-    plfs_debug("%s", os.str().c_str() );
+        physical_path;
+    mlog(IDX_DAPI, "%s", os.str().c_str() );
 
     maddr = mapIndex( hostindex, &fd, &length );
     if( maddr == (void*)-1 ) {
@@ -478,13 +471,13 @@ int Index::readIndex( string hostindex ) {
     HostEntry *h_index = (HostEntry*)maddr;
     size_t entries     = length / sizeof(HostEntry); // shouldn't be partials
                                                      // but any will be ignored
-    plfs_debug("There are %d in %s\n", entries, hostindex.c_str() );
+    mlog(IDX_DCOMMON, "There are %d in %s", entries, hostindex.c_str() );
     for( size_t i = 0; i < entries; i++ ) {
         ContainerEntry c_entry;
         HostEntry      h_entry = h_index[i];
         
         //  too verbose
-        //plfs_debug("Checking chunk %s\n", chunkpath.c_str());
+        //mlog(IDX_DCOMMON, "Checking chunk %s", chunkpath.c_str());
 
             // remember the mapping of a chunkpath to a chunkid
             // and set the initial offset
@@ -496,7 +489,7 @@ int Index::readIndex( string hostindex ) {
             known_chunks[h_entry.id]  = chunk_id++;
             // chunk_map is indexed by chunk_id so these need to be the same
             assert( (size_t)chunk_id == chunk_map.size() );
-            plfs_debug("Inserting chunk %s (%d)\n", cf.path.c_str(),
+            mlog(IDX_DCOMMON, "Inserting chunk %s (%d)", cf.path.c_str(),
                 chunk_map.size());
         }
 
@@ -518,7 +511,7 @@ int Index::readIndex( string hostindex ) {
                 hostindex.c_str() );
         }
     }
-    plfs_debug("After %s in %p, now are %d chunks\n",
+    mlog(IDX_DAPI, "After %s in %p, now are %d chunks",
         __FUNCTION__,this,chunk_map.size());
     return cleanupReadIndex(fd, maddr, length, 0, "DONE",hostindex.c_str());
 }
@@ -532,7 +525,7 @@ int Index::global_from_stream(void *addr) {
     size_t *sarray = (size_t*)addr;
     quant = sarray[0];
     if ( quant < 0 ) return -EBADF;
-    plfs_debug("%s for %s has %ld entries\n",
+    mlog(IDX_DAPI, "%s for %s has %ld entries",
             __FUNCTION__,physical_path.c_str(),(long)quant);
 
     // then skip past the header
@@ -557,7 +550,7 @@ int Index::global_from_stream(void *addr) {
     addr = (void*)&(entries[quant]);
 
     // now read in the vector of chunk files
-    plfs_debug("%s of %s now parsing data chunk paths\n",
+    mlog(IDX_DCOMMON, "%s of %s now parsing data chunk paths",
             __FUNCTION__,physical_path.c_str());
     vector<string> chunk_paths;
     tokenize((char*)addr,"\n",chunk_paths); // might be inefficient...
@@ -580,22 +573,22 @@ int Index::debug_from_stream(void *addr){
     size_t *sarray = (size_t*)addr;
     quant = sarray[0];
     if ( quant < 0 ) {
-        plfs_debug("WTF the size of your stream index is less than 0\n");
+        mlog(IDX_DRARE, "WTF the size of your stream index is less than 0");
         return -1;
     }
-    plfs_debug("%s for %s has %ld entries\n",
+    mlog(IDX_DAPI, "%s for %s has %ld entries",
         __FUNCTION__,physical_path.c_str(),(long)quant);
     // then skip past the entries
     ContainerEntry *entries = (ContainerEntry*)addr;
     addr = (void*)&(entries[quant]);
 
     // now read in the vector of chunk files
-    plfs_debug("%s of %s now parsing data chunk paths\n",
+    mlog(IDX_DCOMMON, "%s of %s now parsing data chunk paths",
                 __FUNCTION__,physical_path.c_str());
     vector<string> chunk_paths;
     tokenize((char*)addr,"\n",chunk_paths); // might be inefficient...
     for( size_t i = 0; i < chunk_paths.size(); i++ ) {
-        plfs_debug("Chunk path:%d is :%s\n",i,chunk_paths[i].c_str());
+        mlog(IDX_DCOMMON, "Chunk path:%d is :%s",i,chunk_paths[i].c_str());
     }
     return 0;
 }
@@ -647,7 +640,7 @@ int Index::global_to_stream(void **buffer,size_t *length) {
     *buffer = malloc(*length);
     // Let's check this malloc and make sure it succeeds
     if(!buffer){
-        plfs_debug("%s, Malloc of stream buffer failed\n",__FUNCTION__);
+        mlog(IDX_DRARE, "%s, Malloc of stream buffer failed",__FUNCTION__);
         return -1;
     }
     char *ptr = (char*)*buffer;
@@ -655,7 +648,7 @@ int Index::global_to_stream(void **buffer,size_t *length) {
 
     // copy in the header
     ptr = memcpy_helper(ptr,&quant,sizeof(quant));
-    plfs_debug("%s: Copied header for global index of %s\n",
+    mlog(IDX_DCOMMON, "%s: Copied header for global index of %s",
             __FUNCTION__, physical_path.c_str()); 
 
     // copy in each container entry
@@ -665,12 +658,12 @@ int Index::global_to_stream(void **buffer,size_t *length) {
         void *start = &(itr->second);
         ptr = memcpy_helper(ptr,start,centry_length);
     }
-    plfs_debug("%s: Copied %ld entries for global index of %s\n",
+    mlog(IDX_DCOMMON, "%s: Copied %ld entries for global index of %s",
             __FUNCTION__, (long)quant,physical_path.c_str()); 
 
     // copy the chunk paths
     ptr = memcpy_helper(ptr,(void*)chunks.str().c_str(),chunks_length);
-    plfs_debug("%s: Copied the chunk map for global index of %s\n",
+    mlog(IDX_DCOMMON, "%s: Copied the chunk map for global index of %s",
             __FUNCTION__, physical_path.c_str()); 
     assert(ptr==(char*)*buffer+*length);
 
@@ -688,8 +681,8 @@ size_t Index::splitEntry( ContainerEntry *entry,
         if ( entry->splittable(*itr) ) {
             /*
             ostringstream oss;
-            oss << "Need to split " << endl << *entry << " at " << *itr << endl;
-            plfs_debug("%s",oss.str().c_str());
+            oss << "Need to split " << endl << *entry << " at " << *itr;
+            mlog(IDX_DCOMMON,"%s",oss.str().c_str());
             */
             ContainerEntry trimmed = entry->split(*itr);
             entries.insert(make_pair(trimmed.logical_offset,trimmed));
@@ -758,8 +751,8 @@ int Index::handleOverlap(ContainerEntry &incoming,
     // find overlaps, and then forwards the same
     for(first=insert_ret.first;;first--) {
         if (!first->second.overlap(incoming)) {  // went too far
-            plfs_debug("Moving first %ld forward, "
-                    "no longer overlaps with incoming %ld\n",
+            mlog(IDX_DCOMMON, "Moving first %ld forward, "
+                    "no longer overlaps with incoming %ld",
                     first->first, incoming.logical_offset);
             first++;
             break;
@@ -821,8 +814,8 @@ int Index::handleOverlap(ContainerEntry &incoming,
     }
 
     oss << "Entries have now been trimmed:" << endl;
-    for(cur=winners.begin();cur!=winners.end();cur++) oss << cur->second <<endl;
-    plfs_debug("%s",oss.str().c_str());
+    for(cur=winners.begin();cur!=winners.end();cur++) oss << cur->second;
+    mlog(IDX_DCOMMON, "%s",oss.str().c_str());
 
     // I've seen weird cases where when a file is continuously overwritten
     // slightly (like config.log), that it makes a huge mess of small little
@@ -855,13 +848,13 @@ int Index::insertGlobal( ContainerEntry *g_entry ) {
     pair<map<off_t,ContainerEntry>::iterator,bool> ret;
     bool overlap  = false;
 
-    plfs_debug("Inserting offset %ld into index of %s\n",
+    mlog(IDX_DAPI, "Inserting offset %ld into index of %s",
             (long)g_entry->logical_offset, physical_path.c_str());
     ret = insertGlobalEntry( g_entry ); 
     if ( ret.second == false ) {
         ostringstream oss;
         oss << "overlap1" <<endl<< *g_entry <<endl << ret.first->second << endl;
-        plfs_debug("%s", oss.str().c_str() );
+        mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
         overlap  = true;
     }
 
@@ -871,22 +864,22 @@ int Index::insertGlobal( ContainerEntry *g_entry ) {
     prev = ret.first; prev--;
     if ( next != global_index.end() && g_entry->overlap( next->second ) ) {
         ostringstream oss;
-        oss << "overlap2 " << endl << *g_entry << endl <<next->second << endl;
-        plfs_debug("%s", oss.str().c_str() );
+        oss << "overlap2 " << endl << *g_entry << endl <<next->second;
+        mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
         overlap = true;
     }
     if (ret.first!=global_index.begin() && prev->second.overlap(*g_entry) ){
         ostringstream oss;
-        oss << "overlap3 " << endl << *g_entry << endl <<prev->second << endl;
-        plfs_debug("%s", oss.str().c_str() );
+        oss << "overlap3 " << endl << *g_entry << endl <<prev->second;
+        mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
         overlap = true;
     }
 
     if ( overlap ) {
         ostringstream oss;
         oss << __FUNCTION__ << " of " << physical_path << " trying to insert "
-            << "overlap at " << g_entry->logical_offset << endl;
-        plfs_debug("%s", oss.str().c_str() );
+            << "overlap at " << g_entry->logical_offset;
+        mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
         handleOverlap( *g_entry, ret );
     } else {
             // might as well try to merge any potentially adjoining regions
@@ -916,30 +909,29 @@ int Index::cleanupReadIndex( int fd, void *maddr, off_t length, int ret,
 {
     int ret2 = 0, ret3 = 0;
     if ( ret < 0 ) {
-        plfs_debug("WTF.  readIndex failed during %s on %s: %s\n",
+        mlog(IDX_DRARE, "WTF.  readIndex failed during %s on %s: %s",
                 last_func, indexfile, strerror( errno ) );
     }
 
     if ( maddr != NULL && maddr != (void*)-1 ) {
         ret2 = Util::Munmap( maddr, length );
         if ( ret2 < 0 ) {
-            ostringstream oss;
-            oss << "WTF. readIndex failed during munmap of "  << indexfile 
-                 << " (" << length << "): " << strerror(errno) << endl;
-            plfs_debug("%s\n", oss.str().c_str() );
+            mlog(IDX_DRARE,
+                 "WTF.  readIndex failed during munmap of %s (%d): %s",
+                 indexfile, length, strerror(errno));
             ret = ret2; // set to error
         }
     }
 
     if ( maddr == (void*)-1 ) {
-        plfs_debug("mmap failed on %s: %s\n",indexfile,strerror(errno));
+        mlog(IDX_DRARE, "mmap failed on %s: %s",indexfile,strerror(errno));
     }
 
     if ( fd > 0 ) {
         ret3 = Util::Close( fd );
         if ( ret3 < 0 ) {
-            plfs_debug(
-                    "WTF. readIndex failed during close of %s: %s\n",
+            mlog(IDX_DRARE, 
+                    "WTF. readIndex failed during close of %s: %s",
                     indexfile, strerror( errno ) );
             ret = ret3; // set to error
         }
@@ -977,7 +969,7 @@ int Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
         /*
         cf_ptr->fd = Util::Open(cf_ptr->path.c_str(), O_RDONLY);
         if ( cf_ptr->fd < 0 ) {
-            plfs_debug("WTF? Open of %s: %s\n", 
+            mlog(IDX_DRARE, "WTF? Open of %s: %s", 
                     cf_ptr->path.c_str(), strerror(errno) );
             return -errno;
         } 
@@ -985,9 +977,9 @@ int Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
         // I'm not sure why we used to open the chunk file here and
         // now we don't.  If you figure it out, pls explain it here.
         // we must have done the open elsewhere.  But where and why not here?
-        plfs_debug("Not opening chunk file %s yet\n", cf_ptr->path.c_str());
+        mlog(IDX_DRARE, "Not opening chunk file %s yet", cf_ptr->path.c_str());
     }
-    plfs_debug("Will read from chunk %s at off %ld (shift %ld)\n",
+    mlog(IDX_DCOMMON, "Will read from chunk %s at off %ld (shift %ld)",
             cf_ptr->path.c_str(), (long)*chunk_off, (long)shift );
     *fd = cf_ptr->fd;
     path = cf_ptr->path;
@@ -1004,11 +996,11 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
         string &path, bool *hole, pid_t *chunk_id, off_t logical ) 
 {
     ostringstream os;
-    os << __FUNCTION__ << ": " << this << " using index." << endl;
-    plfs_debug("%s", os.str().c_str() );
+    os << __FUNCTION__ << ": " << this << " using index.";
+    mlog(IDX_DAPI, "%s", os.str().c_str() );
     *hole = false;
     *chunk_id = (pid_t)-1;
-    //plfs_debug("Look up %ld in %s\n", 
+    //mlog(IDX_DCOMMON, "Look up %ld in %s", 
     //        (long)logical, physical_path.c_str() );
     ContainerEntry entry, previous;
     MAP_ITR itr;
@@ -1042,13 +1034,13 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
     //ostringstream oss;
     //oss << "Considering whether chunk " << entry 
     //     << " contains " << logical; 
-    //plfs_debug("%s\n", oss.str().c_str() );
+    //mlog(IDX_DCOMMON, "%s\n", oss.str().c_str() );
 
         // case 1 or 2
     if ( entry.contains( logical ) ) {
         //ostringstream oss;
         //oss << "FOUND(1): " << entry << " contains " << logical;
-        //plfs_debug("%s\n", oss.str().c_str() );
+        //mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
         return chunkFound( fd, chunk_off, chunk_len, 
                 logical - entry.logical_offset, path, chunk_id, &entry );
     }
@@ -1059,7 +1051,7 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
         if ( previous.contains( logical ) ) {
             //ostringstream oss;
             //oss << "FOUND(2): "<< previous << " contains " << logical << endl;
-            //plfs_debug("%s\n", oss.str().c_str() );
+            //mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
             return chunkFound( fd, chunk_off, chunk_len, 
                 logical - previous.logical_offset, path, chunk_id, &previous );
         }
@@ -1071,8 +1063,8 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
         // case 4: within a hole
     if ( logical < entry.logical_offset ) {
         ostringstream oss;
-        oss << "FOUND(4): " << logical << " is in a hole" << endl;
-        plfs_debug("%s", oss.str().c_str() );
+        oss << "FOUND(4): " << logical << " is in a hole";
+        mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
         off_t remaining_hole_size = entry.logical_offset - logical;
         *fd = -1;
         *chunk_len = remaining_hole_size;
@@ -1084,7 +1076,7 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
         // case 3: off the end of the file
     //oss.str("");    // stupid way to clear the buffer
     //oss << "FOUND(3): " <<logical << " is beyond the end of the file" << endl;
-    //plfs_debug("%s\n", oss.str().c_str() );
+    //mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
     *fd = -1;
     *chunk_len = 0;
     return 0;
@@ -1116,7 +1108,7 @@ void Index::addWrite( off_t offset, size_t length, pid_t pid,
         && hostIndex[quant-1].logical_offset + (off_t)hostIndex[quant-1].length 
             == offset )
     {
-        plfs_debug("Merged new write with last at %ld\n",
+        mlog(IDX_DCOMMON, "Merged new write with last at %ld",
              (long)hostIndex[quant-1].logical_offset ); 
         hostIndex[quant-1].length += length;
     } else {
@@ -1178,8 +1170,8 @@ void Index::addWrite( off_t offset, size_t length, pid_t pid,
             cf.fd = -1;
             cf.path = Container::chunkPathFromIndexPath(index_path,entry.id);
             // No good we need the Index Path please be stashed somewhere
-            //plfs_debug("The hostIndex logical path is: %s\n",cf.path.c_str());
-            plfs_debug("Use chunk path from index path: %s\n",cf.path.c_str());
+            mlog(IDX_DCOMMON, "Use chunk path from index path: %s",
+                 cf.path.c_str());
             chunk_map.push_back( cf );
         }
     }
@@ -1188,7 +1180,7 @@ void Index::addWrite( off_t offset, size_t length, pid_t pid,
 void Index::truncate( off_t offset ) {
     map<off_t,ContainerEntry>::iterator itr, prev;
     bool first = false;
-    plfs_debug("Before %s in %p, now are %d chunks\n",
+    mlog(IDX_DAPI, "Before %s in %p, now are %d chunks",
         __FUNCTION__,this,global_index.size());
 
         // Finds the first element whose offset >= offset. 
@@ -1207,14 +1199,14 @@ void Index::truncate( off_t offset ) {
             // is a valid offset, so truncate to 7
             // would mean the new length would be 3
         prev->second.length = offset - prev->second.logical_offset ;//+ 1;???
-        plfs_debug("%s Modified a global index record to length %u\n",
+        mlog(IDX_DCOMMON, "%s Modified a global index record to length %u",
                 __FUNCTION__, (uint)prev->second.length);
         if (prev->second.length==0) {
-          plfs_debug( "Just truncated index entry to 0 length\n" );
+            mlog(IDX_DCOMMON, "Just truncated index entry to 0 length" );
         }
       }
     }
-    plfs_debug("After %s in %p, now are %d chunks\n",
+    mlog(IDX_DAPI, "After %s in %p, now are %d chunks",
         __FUNCTION__,this,global_index.size());
 }
 
@@ -1276,8 +1268,8 @@ int Index::rewriteIndex( int fd ) {
                 itrd->second.original_chunk, begin_timestamp, end_timestamp );
         /*
         ostringstream os;
-        os << __FUNCTION__ << " added : " << itr->second << endl; 
-        plfs_debug("%s", os.str().c_str() );
+        os << __FUNCTION__ << " added : " << itr->second;
+        mlog(IDX_DCOMMON, "%s", os.str().c_str() );
         */
     }
     return flush(); 

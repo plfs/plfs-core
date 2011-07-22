@@ -42,7 +42,8 @@ int Container::Access( const string &path, int mask ) {
     bool mode_set=false;
     string accessfile = getAccessFilePath(path);
 
-    plfs_debug("%s Check existence of %s\n",__FUNCTION__,accessfile.c_str());
+    mlog(CON_DAPI, "%s Check existence of %s", __FUNCTION__,
+         accessfile.c_str());
     ret = Util::Access( accessfile.c_str(), F_OK );
     if ( ret == 0 ) {
         // at this point, we know the file exists
@@ -60,9 +61,9 @@ int Container::Access( const string &path, int mask ) {
         }
         assert(mode_set);
     
-        plfs_debug("The file exists attempting open\n");
+        mlog(CON_DCOMMON, "The file exists attempting open");
         ret = Util::Open(accessfile.c_str(),open_mode);
-        plfs_debug("Open returns %d\n",ret);
+        mlog(CON_DAPI, "Open returns %d",ret);
         if(ret >= 0 ) {
             ret = Util::Close(ret);
         }
@@ -78,7 +79,7 @@ size_t Container::hashValue( const char *str ) {
     for( i = 0; i < strlen( str ); i++ ) {
         sum += (size_t)str[i];
     }
-    plfs_debug("%s: %s -> %d\n",__FUNCTION__,str,sum);
+    mlog(CON_DINTAPI, "%s: %s -> %d",__FUNCTION__,str,sum);
     return sum;
     /*
     #include <openssl/md5.h>
@@ -114,7 +115,7 @@ size_t Container::hashValue( const char *str ) {
 // is good?  oh.  bec if there is a symlink to the plfs file and we stat
 // the symlink, then it will appear as a regular file instead of as a symlink
 bool Container::isContainer( const string &physical_path, mode_t *mode ) {
-    plfs_debug("%s checking %s\n", __FUNCTION__, physical_path.c_str());
+    mlog(CON_DAPI, "%s checking %s", __FUNCTION__, physical_path.c_str());
 
     struct stat buf;
     int ret = Util::Lstat( physical_path.c_str(), &buf );
@@ -122,12 +123,12 @@ bool Container::isContainer( const string &physical_path, mode_t *mode ) {
         if ( mode ) *mode = buf.st_mode;
         if ( Util::isDirectory(&buf) ) {
             // it's either a directory or a container.  check for access file
-            plfs_debug("%s %s is a directory\n", __FUNCTION__, 
+            mlog(CON_DCOMMON, "%s %s is a directory", __FUNCTION__, 
                     physical_path.c_str());
             string accessfile = getAccessFilePath(physical_path); 
             ret = Util::Lstat( accessfile.c_str(), &buf );
             if ( ret == 0 && mode ) {
-                plfs_debug("%s %s is a container\n", __FUNCTION__,
+                mlog(CON_DCOMMON, "%s %s is a container", __FUNCTION__,
                         physical_path.c_str());
                 if (mode) *mode = fileMode(*mode); 
             }
@@ -156,7 +157,7 @@ bool Container::isContainer( const string &physical_path, mode_t *mode ) {
     string accessfile = getAccessFilePath(physical_path); 
     struct stat buf;
     int ret = Util::Stat( accessfile.c_str(), &buf );
-    plfs_debug("%s checked %s: %d\n", __FUNCTION__, accessfile.c_str(),ret);
+    mlog(CON_DCOMMON, "%s checked %s: %d",__FUNCTION__,accessfile.c_str(),ret);
     return(ret==0 ? true:false);
     // I think if we really wanted to reduce this to one stat and have the
     // symlinks work, we could have the symlink point to the back-end instead
@@ -166,7 +167,7 @@ bool Container::isContainer( const string &physical_path, mode_t *mode ) {
     // have to make the backwards mapping in f_readlink to get from a 
     // physical back-end pointer to a front-end one
     if ( Util::isDirectory(physical_path) ) {
-        plfs_debug("%s %s is a directory\n", __FUNCTION__, physical_path);
+        mlog(CON_DCOMMON,"%s %s is a directory", __FUNCTION__, physical_path);
         struct stat buf;
         string accessfile = getAccessFilePath(physical_path); 
         int ret = Util::Lstat( accessfile.c_str(), &buf );
@@ -198,7 +199,7 @@ int Container::ignoreNoEnt( int ret ) {
 // really just need to do the access file
 int Container::Utime( const string &path, const struct utimbuf *ut ) {
     string accessfile = getAccessFilePath(path);
-    plfs_debug("%s on %s\n", __FUNCTION__,path.c_str());
+    mlog(CON_DAPI, "%s on %s", __FUNCTION__,path.c_str());
     return Util::retValue(Util::Utime(accessfile.c_str(),ut));
 }
 
@@ -237,7 +238,8 @@ indexer_thread( void *va ) {
         args->index->lock(__FUNCTION__);
         args->index->merge(&subindex);
         args->index->unlock(__FUNCTION__);
-        plfs_debug("THREAD MERGE %s into main index\n", task.path.c_str());
+        mlog(CON_DCOMMON, "THREAD MERGE %s into main index",
+             task.path.c_str());
     }
 
     pthread_exit((void*)ret);
@@ -262,7 +264,7 @@ int Container::flattenIndex( const string &path, Index *index ) {
     // compress adds overhead and no benefit if the writes weren't through FUSE
     //index->compress();  
     int ret = index->global_to_file(index_fd);
-    plfs_debug("index->global_to_file returned %d\n",ret);
+    mlog(CON_DCOMMON, "index->global_to_file returned %d",ret);
     Util::Close(index_fd);
 
     if ( ret == 0 ) { // dump was successful so do the atomic rename
@@ -279,14 +281,15 @@ int Container::populateIndex(const string &path, Index *index,bool use_global) {
     int ret = 0;
 
     // first try for the top-level global index
-    plfs_debug("%s on %s %s attempt to use flattened index\n",
+    mlog(CON_DAPI, "%s on %s %s attempt to use flattened index",
             __FUNCTION__,path.c_str(),(use_global?"will":"will not"));
     int idx_fd = -1;
     if ( use_global ) {
         idx_fd = Util::Open(getGlobalIndexPath(path).c_str(),O_RDONLY);
     }
     if ( idx_fd >= 0 ) {
-        plfs_debug("Using cached global flattened index for %s\n",path.c_str());
+        mlog(CON_DCOMMON,"Using cached global flattened index for %s",
+             path.c_str());
         off_t len = -1;
         ret = Util::Lseek(idx_fd,0,SEEK_END,&len);
         if ( ret != -1 ) {
@@ -296,14 +299,15 @@ int Container::populateIndex(const string &path, Index *index,bool use_global) {
                 ret = index->global_from_stream(addr);
                 Util::Munmap(addr,len);
             } else {
-                plfs_debug("WTF: mmap %s of len %ld: %s\n",
+                mlog(CON_ERR, "WTF: mmap %s of len %ld: %s",
                         getGlobalIndexPath(path).c_str(),
                         (long)len, strerror(errno));
             }
         }
         Util::Close(idx_fd);
     } else {    // oh well, do it the hard way
-        plfs_debug("Building global flattened index for %s\n",path.c_str());
+        mlog(CON_DCOMMON, "Building global flattened index for %s",
+             path.c_str());
         ret = aggregateIndices(path,index);
     }
     return ret;
@@ -314,7 +318,7 @@ int Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index,string pa
     int ret=0;
     if ( tasks.empty() ) {
         ret = 0;    // easy, 0 length file
-        plfs_debug("No THREADS needed to create index for empty %s\n", 
+        mlog(CON_DAPI, "No THREADS needed to create index for empty %s", 
                 path.c_str());
     } else {
             // shuffle might help for large parallel opens on a 
@@ -336,10 +340,11 @@ int Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index,string pa
             pthread_mutex_init( &(args.mux), NULL );
             size_t count = min(pconf->threadpool_size,tasks.size());
             ThreadPool threadpool(count,indexer_thread, (void*)&args);
-            plfs_debug("%d THREADS to create index of %s\n",count,path.c_str());
+            mlog(CON_DAPI, "%d THREADS to create index of %s",
+                 count,path.c_str());
             ret = threadpool.threadError();    // returns errno
             if ( ret ) {
-                plfs_debug("THREAD pool error %s\n", strerror(ret) );
+                mlog(CON_DRARE, "THREAD pool error %s", strerror(ret) );
                 ret = -ret;
             } else {
                 vector<void*> *stati    = threadpool.getStati();
@@ -365,7 +370,7 @@ int Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index,string pa
 // 0.1.6.  Otherwise, it parses the version out of the VERSIONPREFIX file
 #define VERSION_LEN 1024
 const char *Container::version(const string &path) {
-    plfs_debug("%s checking %s\n", __FUNCTION__, path.c_str());
+    mlog(CON_DAPI, "%s checking %s", __FUNCTION__, path.c_str());
 
     // first look for the version file idea that we started in 2.0.1
     map<string,unsigned char> entries;
@@ -395,7 +400,7 @@ vector<IndexFileInfo> Container::hostdir_index_read(const char *path){
     op.filter(INDEXPREFIX);
     int ret = op.op(path,DT_DIR);
     if (ret!=0) {
-        plfs_debug("ReaddirOp error in hostdir %s directory reader: %s\n",
+        mlog(CON_DRARE, "ReaddirOp error in hostdir %s directory reader: %s",
                 path,strerror(-ret));
         return index_droppings;
     }
@@ -430,7 +435,7 @@ vector<IndexFileInfo> Container::hostdir_index_read(const char *path){
             if(count!=left_over) index_dropping.hostname+=".";
         }
         index_dropping.id=atoi(tokens[5+left_over].c_str());
-        plfs_debug("Pushing path %s into index list from %s\n",
+        mlog(CON_DCOMMON, "Pushing path %s into index list from %s",
                 index_dropping.hostname.c_str(), itr->c_str());
         index_droppings.push_back(index_dropping);
     }
@@ -448,8 +453,8 @@ Index Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
     string exp_path;
     vector<string> path_pieces;
 
-    plfs_debug("In parAgg indices before for loop\n");
-    plfs_debug("Rank |%d| indexListSize |%d| ranksRerComm |%d|\n",rank,
+    mlog(CON_DAPI, "In parAgg indices before for loop");
+    mlog(CON_DAPI, "Rank |%d| indexListSize |%d| ranksRerComm |%d|",rank,
             index_list.size(),ranks_per_comm);
     for(count=rank;count<index_list.size();count+=ranks_per_comm){
         // Used this pointer to make the next function call cleaner
@@ -460,11 +465,11 @@ Index Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
         string index_path = getIndexHostPath(path,current->hostname,
                                     current->id,current->timestamp);
         task.path = index_path;
-        plfs_debug("Task push path %s\n",index_path.c_str());
+        mlog(CON_DCOMMON, "Task push path %s",index_path.c_str());
         tasks.push_back(task);
     }
     
-    plfs_debug("Par agg indices path %s\n",path.c_str());
+    mlog(CON_DCOMMON, "Par agg indices path %s",path.c_str());
     ret=indexTaskManager(tasks,&index,path);
        
     return index;
@@ -484,7 +489,7 @@ int Container::aggregateIndices(const string &path, Index *index) {
     IndexerTask task;
     deque<IndexerTask> tasks;
 
-    plfs_debug("In %s\n", __FUNCTION__);
+    mlog(CON_DAPI, "In %s", __FUNCTION__);
     
     // create the list of tasks
     for(vector<string>::iterator itr=files.begin();itr!=files.end();itr++) {
@@ -495,7 +500,7 @@ int Container::aggregateIndices(const string &path, Index *index) {
         if (filename.compare(0,strlen(INDEXPREFIX),INDEXPREFIX)==0) {
             task.path = (*itr);
             tasks.push_back(task);
-            plfs_debug("Ag indices path is %s\n",path.c_str());
+            mlog(CON_DCOMMON, "Ag indices path is %s",path.c_str());
         }
     }
     ret=indexTaskManager(tasks,index,path);
@@ -545,7 +550,7 @@ string Container::makeUniquePath( const string &physical ) {
     if ( ! init ) {
         init = true;
         if (gethostname(hostname, sizeof(hostname)) < 0) {
-            plfs_debug("plfsfuse gethostname failed");
+            mlog(CON_CRIT, "plfsfuse gethostname failed");
             return ""; 
         }
     }
@@ -573,7 +578,7 @@ string Container::chunkPath( const string &hostdir, const char *type,
 {
     ostringstream oss;
     oss << hostdir << "/" << type << ts << "." << host << "." << pid;
-    plfs_debug("%s: ts %s, host %s\n",__FUNCTION__,ts.c_str(),host.c_str());
+    mlog(CON_DAPI, "%s: ts %s, host %s",__FUNCTION__,ts.c_str(),host.c_str());
     return oss.str();
 }
 
@@ -592,7 +597,7 @@ string Container::chunkPathFromIndexPath( const string &hostindex, pid_t pid ) {
     string hostdir   = hostdirFromChunk( hostindex, INDEXPREFIX);
     string timestamp = timestampFromChunk(hostindex,INDEXPREFIX);
     string chunkpath = chunkPath(hostdir, DATAPREFIX, host, pid,timestamp);
-    plfs_debug("%s: Returning %s from %s\n",__FUNCTION__,chunkpath.c_str(),
+    mlog(CON_DAPI, "%s: Returning %s from %s",__FUNCTION__,chunkpath.c_str(),
             hostindex.c_str());
     return chunkpath;
 }
@@ -600,12 +605,12 @@ string Container::chunkPathFromIndexPath( const string &hostindex, pid_t pid ) {
 // a chunk looks like: container/HOSTDIRPREFIX.XXX/type.ts.host.pid
 string Container::timestampFromChunk( string chunkpath, const char *type ) {
     // cut off everything through the type
-    plfs_debug("%s:%d path is %s\n",__FUNCTION__,__LINE__,chunkpath.c_str());
+    mlog(CON_DAPI, "%s:%d path is %s",__FUNCTION__,__LINE__,chunkpath.c_str());
     chunkpath.erase( 0, chunkpath.rfind(type) + strlen(type) );
     // erase everything after the second "." 
     size_t firstdot = chunkpath.find(".")+1;
     chunkpath.erase(chunkpath.find(".",firstdot),chunkpath.size());
-    plfs_debug("%s: Returning %s\n",__FUNCTION__,chunkpath.c_str());
+    mlog(CON_DAPI, "%s: Returning %s",__FUNCTION__,chunkpath.c_str());
     return chunkpath;
     // cut off the pid 
     chunkpath.erase( chunkpath.rfind("."),chunkpath.size());
@@ -631,7 +636,7 @@ string Container::hostFromChunk( string chunkpath, const char *type ) {
     chunkpath.erase( 0, chunkpath.find(".")+1);
     // then cut off everything after the host
     chunkpath.erase( chunkpath.rfind("."), chunkpath.size() );
-    //plfs_debug("%s:%d path is %s\n",__FUNCTION__,__LINE__,chunkpath.c_str());
+    //mlog(CON_DAPI,"%s:%d path is %s",__FUNCTION__,__LINE__,chunkpath.c_str());
     return chunkpath;
 }
 
@@ -645,7 +650,7 @@ int Container::addMeta( off_t last_offset, size_t total_bytes,
     struct timeval time;
     int ret = 0;
     if ( gettimeofday( &time, NULL ) != 0 ) {
-        plfs_debug("WTF: gettimeofday in %s failed: %s\n",
+        mlog(CON_CRIT, "WTF: gettimeofday in %s failed: %s",
                 __FUNCTION__, strerror(errno ) );
         return -errno;
     }
@@ -655,7 +660,7 @@ int Container::addMeta( off_t last_offset, size_t total_bytes,
         << time.tv_sec << "." << time.tv_usec << "."
         << host;
     metafile = oss.str();
-    plfs_debug("Creating metafile %s\n", metafile.c_str() );
+    mlog(CON_DCOMMON, "Creating metafile %s", metafile.c_str() );
     ret = ignoreNoEnt(Util::Creat( metafile.c_str(), DROPPING_MODE ));
 
     // now let's maybe make a global summary dropping
@@ -683,7 +688,7 @@ int Container::addMeta( off_t last_offset, size_t total_bytes,
             << "UI:" << uid << "."
             << "PA:" << path_without_slashes;
         metafile = oss_global.str().substr(0,PATH_MAX);
-        plfs_debug("Creating metafile %s\n", metafile.c_str() );
+        mlog(CON_DCOMMON, "Creating metafile %s", metafile.c_str() );
         Util::Creat( metafile.c_str(), DROPPING_MODE);
     }
 
@@ -722,7 +727,7 @@ int Container::discoverOpenHosts(set<string> &entries, set<string> &openhosts){
             host = (*itr);
             host.erase(0,strlen(OPENPREFIX));
             host.erase(host.rfind("."), host.size());
-            plfs_debug("Host %s has open handle\n", host.c_str());
+            mlog(CON_DCOMMON, "Host %s has open handle", host.c_str());
             openhosts.insert(host);
         }
     }
@@ -732,7 +737,7 @@ int Container::discoverOpenHosts(set<string> &entries, set<string> &openhosts){
 string Container::getOpenrecord( const string &path, const string &host, pid_t pid){
     ostringstream oss;
     oss << getOpenHostsDir( path ) << "/" << OPENPREFIX << host << "." << pid;
-    plfs_debug("created open record path %s\n", oss.str().c_str() );
+    mlog(CON_DAPI, "created open record path %s", oss.str().c_str() );
     return oss.str();
 }
 
@@ -746,7 +751,7 @@ int Container::addOpenrecord( const string &path, const string &host, pid_t pid)
         ret = Util::Creat( openrecord.c_str(), DEFAULT_MODE );
     }
     if ( ret != 0 ) {
-        plfs_debug("Couldn't make openrecord %s: %s\n", 
+        mlog(CON_INFO, "Couldn't make openrecord %s: %s", 
                 openrecord.c_str(), strerror( errno ) );
     }
     return ret;
@@ -763,7 +768,7 @@ int Container::removeOpenrecord(const string &path,const string &host,pid_t pid)
 mode_t Container::getmode( const string &path ) {
     struct stat stbuf;
     if ( Util::Lstat( path.c_str(), &stbuf ) < 0 ) {
-        plfs_debug("Failed to getmode for %s\n", path.c_str() );
+        mlog(CON_WARN, "Failed to getmode for %s", path.c_str() );
         return DEFAULT_MODE;
     } else {
         return fileMode(stbuf.st_mode);
@@ -794,7 +799,7 @@ int Container::getattr( const string &path, struct stat *stbuf ) {
         // get the permissions and stuff from the access file
     string accessfile = getAccessFilePath( path );
     if ( Util::Lstat( accessfile.c_str(), stbuf ) < 0 ) {
-        plfs_debug("%s lstat of %s failed: %s\n",
+        mlog(CON_DRARE, "%s lstat of %s failed: %s",
                 __FUNCTION__, accessfile.c_str(), strerror( errno ) );
         return -errno;
     }
@@ -827,14 +832,14 @@ int Container::getattr( const string &path, struct stat *stbuf ) {
         ostringstream oss;
         string host = fetchMeta(*itr, &last_offset, &total_bytes, &time);
         if (openHosts.find(host) != openHosts.end()) {
-            plfs_debug("Can't use metafile %s because %s has an "
-                    " open handle.\n", itr->c_str(), host.c_str() );
+            mlog(CON_DRARE, "Can't use metafile %s because %s has an "
+                    " open handle", itr->c_str(), host.c_str() );
             continue;
         }
         oss  << "Pulled meta " << last_offset << " " << total_bytes
              << ", " << time.tv_sec << "." << time.tv_nsec 
-             << " on host " << host << endl;
-        plfs_debug("%s", oss.str().c_str() );
+             << " on host " << host;
+        mlog(CON_DCOMMON, "%s", oss.str().c_str() );
 
         // oh, let's get rewrite correct.  if someone writes
         // a file, and they close it and then later they
@@ -863,7 +868,8 @@ int Container::getattr( const string &path, struct stat *stbuf ) {
             string host = hostFromChunk(dropping, prefix);
             if (validMeta.find(host) != validMeta.end()) {
                 // hmm, maybe we should also be checking in openHosts
-                plfs_debug("Used stashed stat info for %s\n", host.c_str() );
+                mlog(CON_DCOMMON, "Used stashed stat info for %s",
+                     host.c_str() );
                 continue;
             } else {
                 chunks++;
@@ -875,7 +881,7 @@ int Container::getattr( const string &path, struct stat *stbuf ) {
             struct stat dropping_st;
             if (Util::Lstat(dropping.c_str(), &dropping_st) < 0 ) {
                 ret = -errno;
-                plfs_debug("lstat of %s failed: %s\n",
+                mlog(CON_DRARE, "lstat of %s failed: %s",
                     dropping.c_str(), strerror( errno ) );
                 continue;   // shouldn't this be break?
             }
@@ -884,11 +890,11 @@ int Container::getattr( const string &path, struct stat *stbuf ) {
             stbuf->st_mtime = max(dropping_st.st_mtime, stbuf->st_mtime);
 
             if ( dropping.find(DATAPREFIX) != dropping.npos ) {
-                plfs_debug("Getting stat info from data dropping\n" );
+                mlog(CON_DCOMMON, "Getting stat info from data dropping");
                 data_blocks += dropping_st.st_blocks;
                 data_size   += dropping_st.st_size;
             } else {
-                plfs_debug("Getting stat info from index dropping\n");
+                mlog(CON_DCOMMON, "Getting stat info from index dropping");
                 Index index(path);
                 index.readIndex( dropping ); 
                 index_blocks     += bytesToBlocks( index.totalBytes() );
@@ -901,8 +907,8 @@ int Container::getattr( const string &path, struct stat *stbuf ) {
     ostringstream oss;
     oss  << "Examined " << chunks << " droppings:"
          << path << " total size " << stbuf->st_size <<  ", usage "
-         << stbuf->st_blocks << " at " << stbuf->st_blksize << endl;
-    plfs_debug("%s", oss.str().c_str() );
+         << stbuf->st_blocks << " at " << stbuf->st_blksize;
+    mlog(CON_DCOMMON, "%s", oss.str().c_str() );
     return ret;
 }
 
@@ -944,26 +950,25 @@ int Container::makeTopLevel( const string &expanded_path,
     string tmpName( oss.str() ); 
     if ( Util::Mkdir( tmpName.c_str(), dirMode(mode) ) < 0 ) {
         if ( errno != EEXIST && errno != EISDIR ) {
-            plfs_debug("Mkdir %s to %s failed: %s\n",
+            mlog(CON_DRARE, "Mkdir %s to %s failed: %s",
                 tmpName.c_str(), expanded_path.c_str(), strerror(errno) );
             return -errno;
         } else if ( errno == EEXIST ) {
             if ( ! Container::isContainer(tmpName.c_str(),NULL) ) {
-                plfs_debug("Mkdir %s to %s failed: %s\n",
+                mlog(CON_DRARE, "Mkdir %s to %s failed: %s",
                     tmpName.c_str(), expanded_path.c_str(), strerror(errno) );
             } else {
-                plfs_debug("%s is already a container.\n",
-                        tmpName.c_str() );
+                mlog(CON_DRARE, "%s is already a container.", tmpName.c_str());
             }
         }
     }
     string tmpAccess( getAccessFilePath(tmpName) );
     if ( makeAccess( tmpAccess, mode ) < 0 ) {
-        plfs_debug("create access file in %s failed: %s\n", 
+        mlog(CON_DRARE, "create access file in %s failed: %s", 
                         tmpName.c_str(), strerror(errno) );
         int saveerrno = errno;
         if ( Util::Rmdir( tmpName.c_str() ) != 0 ) {
-            plfs_debug("rmdir of %s failed : %s\n",
+            mlog(CON_DRARE, "rmdir of %s failed : %s",
                 tmpName.c_str(), strerror(errno) );
         }
         return -saveerrno;
@@ -979,7 +984,7 @@ int Container::makeTopLevel( const string &expanded_path,
         attempts++;
         if ( Util::Rename( tmpName.c_str(), expanded_path.c_str() ) < 0 ) {
             int saveerrno = errno;
-            plfs_debug("rename of %s -> %s failed: %s\n",
+            mlog(CON_DRARE, "rename of %s -> %s failed: %s",
                 tmpName.c_str(), expanded_path.c_str(), strerror(errno) );
             if ( saveerrno == ENOTDIR ) {
                 // there's a normal file where we want to make our container
@@ -992,11 +997,11 @@ int Container::makeTopLevel( const string &expanded_path,
             }
             // if we get here, we lost the race
             if ( Util::Unlink( tmpAccess.c_str() ) < 0 ) {
-                plfs_debug("unlink of temporary %s failed : %s\n",
+                mlog(CON_DRARE, "unlink of temporary %s failed : %s",
                         tmpAccess.c_str(), strerror(errno) );
             }
             if ( Util::Rmdir( tmpName.c_str() ) < 0 ) {
-                plfs_debug("rmdir of temporary %s failed : %s\n",
+                mlog(CON_DRARE, "rmdir of temporary %s failed : %s",
                         tmpName.c_str(), strerror(errno) );
             }
             // probably what happened is some other node outraced us
@@ -1008,7 +1013,7 @@ int Container::makeTopLevel( const string &expanded_path,
             //if ( ! isContainer( expanded_path ) ) 
             if ( saveerrno != EEXIST && saveerrno != ENOTEMPTY 
                     && saveerrno != EISDIR ) {
-                plfs_debug("rename %s to %s failed: %s\n",
+                mlog(CON_DRARE, "rename %s to %s failed: %s",
                         tmpName.c_str(), expanded_path.c_str(), strerror
                         (saveerrno) );
                 return -saveerrno;
@@ -1082,7 +1087,7 @@ int Container::makeHostDir(const string &path,
 {
     int ret = 0;
     if (pstat == PARENT_ABSENT) {
-        plfs_debug("Making absent parent %s\n", path.c_str());
+        mlog(CON_DCOMMON, "Making absent parent %s", path.c_str());
         ret = makeSubdir(path.c_str(),mode);
     }
     if (ret == 0) {
@@ -1107,7 +1112,7 @@ int Container::makeMeta( const string &path, mode_t type, mode_t mode ) {
     } else if ( type == S_IFREG ) {
         ret = Util::Creat( path.c_str(), mode ); 
     } else {
-        cerr << "WTF.  Unknown type passed to " << __FUNCTION__ << endl;
+        mlog(CON_CRIT, "WTF.  Unknown type passed to %s", __FUNCTION__);
         ret = -1;
         errno = ENOSYS;
     }
@@ -1147,7 +1152,7 @@ string Container::getHostDirPath( const string & expanded_path,
     ostringstream oss;
     size_t host_value = getHostDirId(hostname); 
     oss << expanded_path << "/" << HOSTDIRPREFIX << host_value; 
-    //plfs_debug("%s : %s %s -> %s\n", 
+    //mlog(CON_DAPI, "%s : %s %s -> %s", 
     //        __FUNCTION__, hostname, expanded_path, oss.str().c_str() );
     return oss.str();
 }
@@ -1199,17 +1204,17 @@ int Container::createHelper(const string &expanded_path, const string &hostname,
     if (!res && S_ISDIR(existing_mode)) res = -EISDIR;    
 
     if (!res) {
-        plfs_debug("Making top level container %s %x\n", 
+        mlog(CON_DCOMMON, "Making top level container %s %x", 
                 expanded_path.c_str(),mode);
         begin_time = time(NULL);
         res = makeTopLevel( expanded_path, hostname, mode, pid, mnt_pt_cksum );
         end_time = time(NULL);
         if ( end_time - begin_time > 2 ) {
-            plfs_debug("WTF: TopLevel create of %s took %.2f\n", 
+            mlog(CON_WARN, "WTF: TopLevel create of %s took %.2f", 
                     expanded_path.c_str(), end_time - begin_time );
         }
         if ( res != 0 ) {
-            plfs_debug("Failed to make top level container %s:%s\n",
+            mlog(CON_DRARE, "Failed to make top level container %s:%s",
                     expanded_path.c_str(), strerror(errno));
         }
     }
@@ -1269,7 +1274,7 @@ int Container::nextdropping( const string& physical_path,
 {
     ostringstream oss;
     oss << "looking for nextdropping in " << physical_path; 
-    //plfs_debug("%s\n", oss.str().c_str() );
+    //mlog(CON_DAPI, "%s", oss.str().c_str() );
         // open it on the initial 
     if ( *topdir == NULL ) {
         Util::Opendir( physical_path.c_str(), topdir );
@@ -1301,11 +1306,11 @@ int Container::nextdropping( const string& physical_path,
     if ( *hostdir == NULL ) {
         Util::Opendir( hostpath.c_str(), hostdir );
         if ( *hostdir == NULL ) {
-            plfs_debug("opendir %s: %s\n",
+            mlog(CON_DRARE, "opendir %s: %s",
                     hostpath.c_str(),strerror(errno));
             return -errno;
         } else {
-            plfs_debug("%s opened dir %s\n", 
+            mlog(CON_DCOMMON, "%s opened dir %s", 
                     __FUNCTION__, hostpath.c_str() );
         }
     }
@@ -1337,23 +1342,24 @@ int Container::Truncate( const string &path, off_t offset ) {
     int ret;
     string indexfile;
 
-    plfs_debug("%s on %s to %ld\n", __FUNCTION__, path.c_str(),offset);
+    mlog(CON_DAPI, "%s on %s to %ld", __FUNCTION__, path.c_str(),offset);
 
 	// this code here goes through each index dropping and rewrites it
 	// preserving only entries that contain data prior to truncate offset
     DIR *td = NULL, *hd = NULL; struct dirent *tent = NULL;
     while((ret = nextdropping(path,&indexfile,INDEXPREFIX, &td,&hd,&tent))== 1){
         Index index( indexfile, -1 );
-        plfs_debug("%s new idx %p %s\n", __FUNCTION__,&index,indexfile.c_str());
+        mlog(CON_DCOMMON, "%s new idx %p %s", __FUNCTION__,
+             &index,indexfile.c_str());
         ret = index.readIndex( indexfile );
         if ( ret == 0 ) {
             if ( index.lastOffset() > offset ) {
-                plfs_debug("%s %p at %ld\n",__FUNCTION__,&index,offset);
+                mlog(CON_DCOMMON, "%s %p at %ld",__FUNCTION__,&index,offset);
                 index.truncate( offset );
                 int fd = Util::Open(indexfile.c_str(), O_TRUNC | O_WRONLY);
                 if ( fd < 0 ) {
-                    cerr << "Couldn't overwrite index file " << indexfile
-                         << ": " << strerror( fd ) << endl;
+                    mlog(CON_CRIT, "Couldn't overwrite index file %s: %s",
+                         indexfile.c_str(), strerror( fd ));
                     return -errno;
                 }
                 ret = index.rewriteIndex( fd );
@@ -1361,8 +1367,8 @@ int Container::Truncate( const string &path, off_t offset ) {
                 if ( ret != 0 ) break;
             }
         } else {
-            cerr << "Failed to read index file " << indexfile 
-                 << ": " << strerror( -ret ) << endl;
+            mlog(CON_CRIT, "Failed to read index file %s: %s",
+                 indexfile.c_str(), strerror( -ret ));
             break;
         }
     }
@@ -1370,7 +1376,7 @@ int Container::Truncate( const string &path, off_t offset ) {
 	if ( ret == 0 ) {
 		ret = truncateMeta(path,offset);
 	}
-    plfs_debug("%s on %s to %ld ret: %d\n", 
+    mlog(CON_DAPI, "%s on %s to %ld ret: %d", 
             __FUNCTION__, path.c_str(), (long)offset, ret);
     return ret;
 }
@@ -1389,7 +1395,7 @@ Container::truncateMeta(const string &path, off_t offset){
     ReaddirOp op(NULL,&entries,false,true);
    	string meta_path = getMetaDirPath(path);
     if (op.op(meta_path.c_str(),DT_DIR)!=0) {
-		plfs_debug("%s wtf\n", __FUNCTION__ );
+		mlog(CON_DRARE, "%s wtf", __FUNCTION__ );
 		return 0; 
     }
 
@@ -1407,7 +1413,8 @@ Container::truncateMeta(const string &path, off_t offset){
 				<< "." << time.tv_nsec << "." << host;
 			ret = Util::Rename(full_path.c_str(), oss.str().c_str());
 			if ( ret != 0 ) {
-				plfs_debug("%s wtf, Rename: %s\n",__FUNCTION__,strerror(errno));
+				mlog(CON_DRARE, "%s wtf, Rename: %s",__FUNCTION__,
+                     strerror(errno));
                 ret = -errno;
 			}
 		}

@@ -4,12 +4,13 @@
 #include "FileOp.h"
 #include "Util.h"
 #include "Container.h"
+#include "mlogfacs.h"
 
 int
 FileOp::op(const char *path, unsigned char type) {
     // the parent function is just a wrapper to insert a debug message 
     int ret = retValue(do_op(path,type));
-    Util::Debug("FileOp:%s on %s: %d\n",name(),path,ret);
+    mlog(FOP_DAPI, "FileOp:%s on %s: %d",name(),path,ret);
     return ret;
 }
 

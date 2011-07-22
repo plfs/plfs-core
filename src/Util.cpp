@@ -33,6 +33,7 @@ using namespace std;
 #include "FileOp.h"
 #include "Util.h"
 #include "LogMessage.h"
+#include "mlogfacs.h"
 
 #ifdef HAVE_SYS_FSUID_H
     #include <sys/fsuid.h>
@@ -58,7 +59,7 @@ using namespace std;
     #define ENTER_MUX  ENTER_UTIL;
     #define ENTER_PATH ENTER_UTIL;
 #else
-    #define DEBUG_ENTER /*Util::Debug("Enter %s\n", __FUNCTION__ );*/
+    #define DEBUG_ENTER /* mlog(UT_DAPI, "Enter %s", __FUNCTION__ );*/
     #define DEBUG_EXIT  LogMessage lm1;                             \
                         lm1 << "Util::" << setw(13) << __FUNCTION__ \
                             << setw(7) << setprecision(0) << ret    \
@@ -107,44 +108,6 @@ using namespace std;
     // hmm, want to pass an arg to this macro but it didn't work...
     #define EXIT_UTIL   end   = getTime();                          \
                         EXIT_SHARED;
-#endif
-
-#ifdef PLFS_DEBUG_ON
-void
-Util::Debug( const char *format, ... ) {
-    va_list args;
-    va_start(args, format);
-    Util::Debug( format, args);
-    va_end( args );
-}
-
-void
-Util::Debug( const char *format, va_list args ) {
-    static FILE *debugfile = NULL;
-    static bool init = 0;
-    if ( ! init ) {
-        init = 1;
-        if ( getenv( "PLFS_DEBUG" ) ) {
-            // get the env and parse through it for %.h and %.s
-            // and %.p.  Replace %h with hostname, %.s with timestamp,
-            // %.p with pid
-            debugfile = fopen( getenv("PLFS_DEBUG"), "w" );
-        }
-    }
-    if ( debugfile ) {
-        // not sure if this is a performance hit.  To remove
-        // the added header comment out the next three lines
-        // and restore the forth
-        ostringstream oss;
-        oss << "PDEBUG: pid (" << getpid() << ") " << format;
-        vfprintf(debugfile, oss.str().c_str(), args);
-        //vfprintf(debugfile, format, args);
-        fflush(debugfile);
-    }
-}
-#else
-void Util::Debug( const char *format, ... ) { return; }
-void Util::Debug( const char *format, va_list args ) { return; }
 #endif
 
 void
@@ -263,7 +226,7 @@ Util::traverseDirectoryTree(const char *path, vector<string> &files,
         vector<string> &dirs, bool fol_links) 
 {
     ENTER_PATH;
-    Debug("%s on %s\n", __FUNCTION__, path);
+    mlog(UT_DAPI, "%s on %s", __FUNCTION__, path);
     map<string,unsigned char> entries;
     map<string,unsigned char>::iterator itr;
     ReaddirOp rop(&entries,NULL,true,true);
@@ -345,19 +308,19 @@ int Util::Truncate( const char *path, off_t length ) {
 int Util::MutexLock(  pthread_mutex_t *mux , const char * where ) {
     ENTER_MUX;
     ostringstream os, os2;
-    os << "Locking mutex " << mux << " from " << where << endl;
-    Util::Debug("%s", os.str().c_str() );
+    os << "Locking mutex " << mux << " from " << where;
+    mlog(UT_DAPI, "%s", os.str().c_str() );
     pthread_mutex_lock( mux );
-    os2 << "Locked mutex " << mux << " from " << where << endl;
-    Util::Debug("%s", os2.str().c_str() );
+    os2 << "Locked mutex " << mux << " from " << where;
+    mlog(UT_DAPI, "%s", os2.str().c_str() );
     EXIT_UTIL;
 }
 
 int Util::MutexUnlock( pthread_mutex_t *mux, const char *where ) {
     ENTER_MUX;
     ostringstream os;
-    os << "Unlocking mutex " << mux << " from " << where << endl;
-    Util::Debug("%s", os.str().c_str() );
+    os << "Unlocking mutex " << mux << " from " << where;
+    mlog(UT_DAPI, "%s", os.str().c_str() );
     pthread_mutex_unlock( mux );
     EXIT_UTIL;
 }
@@ -458,7 +421,7 @@ int Util::Readdir(DIR *dir, struct dirent **de) {
     if (*de) ret = 0;
     else if (errno == 0) ret = 1;
     else ret = -errno;
-    Util::Debug("readdir returned %x (ret %d, errno %d)\n", *de, ret, errno);
+    mlog(UT_DCOMMON, "readdir returned %x (ret %d, errno %d)", *de, ret, errno);
     EXIT_UTIL;
 }
 
@@ -574,7 +537,7 @@ double Util::getTime( ) {
     //return 1.0e-9 * gethrtime();
     struct timeval time;
     if ( gettimeofday( &time, NULL ) != 0 ) {
-        Util::Debug("WTF: %s failed: %s\n", 
+        mlog(UT_CRIT, "WTF: %s failed: %s", 
                 __FUNCTION__, strerror(errno));
     }
     return (double)time.tv_sec + time.tv_usec/1.e6; 
@@ -723,7 +686,7 @@ int Util::Setfsgid( gid_t g ) {
     #ifndef __APPLE__
     errno = 0;
     ret = setfsgid( g );
-    Util::Debug("Set gid %d: %s\n", g, strerror(errno) ); 
+    mlog(UT_DCOMMON, "Set gid %d: %s", g, strerror(errno) ); 
     #endif
     EXIT_UTIL;
 }
@@ -733,7 +696,7 @@ int Util::Setfsuid( uid_t u ) {
     #ifndef __APPLE__
     errno = 0;
     ret = setfsuid( u );
-    Util::Debug("Set uid %d: %s\n", u, strerror(errno) ); 
+    mlog(UT_DCOMMON, "Set uid %d: %s", u, strerror(errno) ); 
     #endif
     EXIT_UTIL;
 }

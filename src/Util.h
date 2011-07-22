@@ -93,8 +93,6 @@ class Util {
         static ssize_t Write( int, const void *, size_t );
 
             // other misc stuff
-        static void Debug( const char *format, ... );
-        static void Debug( const char *format, va_list );
         static void SeriousError(string,pid_t);
         static void OpenError(const char*, const char*,int,int,pid_t);
         static bool exists( const char* );
