@@ -30,6 +30,9 @@ void ADIOI_PLFS_WriteContig(ADIO_File fd, void *buf, int count,
     } else {
         myoff = fd->fp_ind;
     }
+    if (file_ptr_type == ADIO_INDIVIDUAL) {
+        myoff = fd->fp_ind;
+    }
     plfs_debug( "%s: offset %ld len %ld rank %d\n", 
             myname, (long)myoff, (long)len, rank );
     err = plfs_write( fd->fs_ptr, buf, len, myoff, rank );
@@ -43,7 +46,9 @@ void ADIOI_PLFS_WriteContig(ADIO_File fd, void *buf, int count,
 					   "**io",
 					   "**io %s", strerror(-err));
     } else {
-        fd->fp_ind += err;
+        if (file_ptr_type == ADIO_INDIVIDUAL) {
+            fd->fp_ind += err;
+        }
         *error_code = MPI_SUCCESS;
     }
 }
