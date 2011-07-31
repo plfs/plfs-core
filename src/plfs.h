@@ -25,7 +25,6 @@ typedef enum {
 
 typedef struct{
     char *index_stream; /* Index stream passed in from another proc */
-    int  mpi;           /* Flag indicating that mpi is being used   */
     int  buffer_index;  /* Buffer index yes/no                      */
     plfs_interface pinter;
 } Plfs_open_opt;
