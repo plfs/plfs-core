@@ -115,9 +115,6 @@ int plfs_index_stream(Plfs_fd **pfd, char ** buffer);
 int plfs_merge_indexes(Plfs_fd **pfd, char *index_streams, 
                         int *index_sizes, int procs);
 
-/* Have ADIO set a flag indicating that MPI is being used*/
-int plfs_set_mpi(Plfs_fd **pfd);
-
 int plfs_link( const char *path, const char *to );
 
 /* the void * should be a string */
