@@ -1235,6 +1235,27 @@ int mlog_dmesg(char **b1p, int *b1len, char **b2p, int *b2len) {
 }
 
 /*
+ * mlog_mbcount: give a hint as to the current size of the message buffer.
+ */
+int mlog_mbcount() {
+    struct mlog_mbhead *mb;
+    int rv;
+    
+    /* first check if we are open and have the buffer */
+    if (!mlog_xst.tag || !mst.mb)
+        return(0);
+
+    mlog_lock();
+    rv = 0;
+    mb = (struct mlog_mbhead *)mst.mb;
+    if (mb)
+        rv = mb->mbh_cnt;
+    mlog_unlock();
+
+    return(rv);
+}
+
+/*
  * mlog_mbcopy: safely copy the most recent bytes of the message buffer
  * over into another buffer for use.   returns # of bytes copied, -1 on
  * error.

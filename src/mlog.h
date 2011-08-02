@@ -208,6 +208,14 @@ void mlog_close(void);
 int mlog_dmesg(char **b1p, int *b1len, char **b2p, int *b2len);
 
 /**
+ * mlog_mbcount: give hint as to current size of message buffer.
+ * (buffer size may change if mlog is called after this...)
+ *
+ * @return number of bytes in msg buffer (zero if empty/disabled)
+ */
+int mlog_mbcount(void);
+       
+/**
  * mlog_mbcopy: safely copy the most recent bytes of the message buffer
  * over into another buffer for use.
  *
