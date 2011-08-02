@@ -212,10 +212,11 @@ int mlog_dmesg(char **b1p, int *b1len, char **b2p, int *b2len);
  * over into another buffer for use.
  *
  * @param buf buffer to copy to
+ * @param offset offset in message buffer (0 to start at the end)
  * @param len length of the buffer
  * @return number of bytes copied (<= len), or -1 on error
  */
-int mlog_mbcopy(char *buf, int len);
+int mlog_mbcopy(char *buf, int offset, int len);
 
 /**
  * mlog_exit: like mlog, but exits with the given status after processing

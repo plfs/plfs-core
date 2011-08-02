@@ -1239,7 +1239,7 @@ int mlog_dmesg(char **b1p, int *b1len, char **b2p, int *b2len) {
  * over into another buffer for use.   returns # of bytes copied, -1 on
  * error.
  */
-int mlog_mbcopy(char *buf, int len) {
+int mlog_mbcopy(char *buf, int offset, int len) {
     char *b1, *b2, *bp;
     int b1l, b2l, got, want, skip;
 
@@ -1251,6 +1251,27 @@ int mlog_mbcopy(char *buf, int len) {
 
     mlog_lock();
     mlog_dmesg_mbuf(&b1, &b1l, &b2, &b2l);
+
+    /* pull back from the newest data by 'offset' bytes */
+    if (offset > 0 && b2l > 0) {
+        if (offset > b2l) {
+            offset -= b2l;
+            b2l = 0;
+        } else {
+            b2l -= offset;
+            offset = 0;
+        }
+    }
+    if (offset > 0 && b1l > 0) {
+        if (offset > b1l) {
+            offset -= b1l;
+            b1l = 0;
+        } else {
+            b1l -= offset;
+            offset = 0;
+        }
+    }
+    
     got = b1l + b2l;                      /* total bytes in msg buf */
     want = (len > got) ? got : len;       /* how many we want, capped by got */
     skip = (want < got) ? got - want : 0; /* how many we skip over */
