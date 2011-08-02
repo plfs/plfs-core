@@ -320,6 +320,18 @@ int mlog_setlogmask(int facility, int mask);
 void mlog_setmasks(char *mstr);
 
 /**
+ * mlog_getmasks: get current mask level as a string (not null terminated).
+ * if the buffer is null, we probe for length rather than fill.
+ *
+ * @param buf the buffer to put the results in (NULL == probe for length)
+ * @param discard bytes to discard before starting to fill buf (normally 0)
+ * @param len length of the buffer
+ * @param unterm if non-zero do not include a trailing null
+ * @return bytes returned (may be truncated and non-null terminated if == len)
+ */
+int mlog_getmasks(char *buf, int discard, int len, int unterm);
+
+/**
  * mlog_ucon_add: add an endpoint as a ucon
  *
  * @param host hostname (or IP) of remote endpoint

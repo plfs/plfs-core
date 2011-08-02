@@ -379,6 +379,44 @@ static int mlog_setnfac(int n) {
 }
 
 /**
+ * mlog_bput: copy a string to a buffer, counting the bytes
+ *
+ * @param bpp pointer to output pointer (we advance it)
+ * @param skippy pointer to bytes to skip
+ * @param residp pointer to length of buffer remaining
+ * @param totcp pointer to total bytes moved counter
+ * @param str the string to copy in (null to just add a \0)
+ */
+static void mlog_bput(char **bpp, int *skippy, int *residp, int *totcp,
+                      char *str) {
+    static char *nullsrc = "X\0\0";          /* 'X' is a non-null dummy char */
+    char *sp;
+
+    if (str == NULL)                         /* trick to allow a null insert */
+        str = nullsrc;
+
+    for (sp = str ; *sp ; sp++) {
+
+        if (sp == nullsrc)
+            sp++;                            /* skip over 'X' to null */
+        
+        if (totcp) {
+            (*totcp)++;                      /* update the total */
+        }
+        if (skippy && *skippy > 0) {
+            (*skippy)--;                     /* honor skip */
+            continue;
+        }
+        if (*residp > 0 && *bpp != NULL) {   /* copyout if buffer w/space */
+            **bpp = *sp;
+            (*bpp)++;
+            (*residp)--;
+        }
+    }
+    return;
+}
+
+/**
  * wswap: swap byte order of a 32bit word
  * does not access mlog global state.
  *
@@ -745,7 +783,8 @@ int mlog_open(char *tag, int maxfac_hint, int default_mask, int stderr_mask,
      * mlog_close() to clean up after us if we encounter an error.
      */
     mst.oflags = (flags & ~(MLOG_SYSLOG|MLOG_UCON_ON));
-    if (mlog_setnfac(maxfac_hint + 1) < 0) /* +1 for default fac. */
+    /* maxfac_hint should include default fac. */
+    if (mlog_setnfac((maxfac_hint < 1) ? 1 : maxfac_hint) < 0)
         goto error;
     if (msgbuf_len) {
         mst.mb = malloc(msgbuf_len + sizeof(struct mlog_mbhead));
@@ -1058,6 +1097,10 @@ void mlog_setmasks(char *mstr) {
     char *m, *fac, *eq, *pri, *cm, pbuf[5];
     int faclen, prilen, prino, facno;
 
+    /* not open? */
+    if (!mlog_xst.tag)
+        return;
+    
     m = mstr;
     while (m) {
     
@@ -1089,6 +1132,8 @@ void mlog_setmasks(char *mstr) {
 
             mlog_lock();
             for (facno = 0 ; facno < mlog_xst.fac_cnt ; facno++) {
+                if (mlog_xst.mlog_facs[facno].fac_name == NULL)
+                    continue;
                 if (strlen(mlog_xst.mlog_facs[facno].fac_name) == faclen &&
                     strncmp(mlog_xst.mlog_facs[facno].fac_name, fac,
                             faclen) == 0)
@@ -1104,6 +1149,53 @@ void mlog_setmasks(char *mstr) {
             }
         }
     }
+}
+
+/*
+ * mlog_getmasks: get current masks levels
+ */
+int mlog_getmasks(char *buf, int discard, int len, int unterm) {
+    char *bp, *p;
+    int skipcnt, resid, total, facno;
+    char store[16];
+
+   /* not open? */
+    if (!mlog_xst.tag)
+        return(0);
+
+    bp = buf;
+    skipcnt = discard;
+    resid = len;
+    total = 0;
+    
+    mlog_lock();
+    for (facno = 0 ; facno < mlog_xst.fac_cnt ; facno++) {
+        if (facno)
+            mlog_bput(&bp, &skipcnt, &resid, &total, ",");
+        if (mlog_xst.mlog_facs[facno].fac_name == NULL) {
+            snprintf(store, sizeof(store), "%d", facno);
+            mlog_bput(&bp, &skipcnt, &resid, &total, store);
+        } else {
+            mlog_bput(&bp, &skipcnt, &resid, &total,
+                      mlog_xst.mlog_facs[facno].fac_name);
+        }
+        mlog_bput(&bp, &skipcnt, &resid, &total, "=");
+        p = mlog_pristr(mlog_xst.mlog_facs[facno].fac_mask);
+        store[1] = 0;
+        while (*p && *p != ' ' && *p != '-') {
+            store[0] = *p;
+            p++;
+            mlog_bput(&bp, &skipcnt, &resid, &total, store);
+        }
+    }
+    mlog_unlock();
+    strncpy(store, "\n", sizeof(store));
+    mlog_bput(&bp, &skipcnt, &resid, &total, store);
+    if (unterm == 0)
+        mlog_bput(&bp, &skipcnt, &resid, &total, NULL);
+
+    /* buf == NULL means probe for length ... */
+    return((buf == NULL) ? total : len - resid);
 }
 
 /*

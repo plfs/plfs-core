@@ -1236,7 +1236,8 @@ static void setup_mlog(PlfsConf *pconf) {
 
     /* now we are ready to mlog_open ... */
     if (mlog_open(plfs_mlogtag(NULL),
-                  sizeof(mlog_facsarray)/sizeof(mlog_facsarray[0]),
+                  /* don't count the null at end of mlog_facsarray */
+                  sizeof(mlog_facsarray)/sizeof(mlog_facsarray[0]) - 1,
                   pconf->mlog_defmask, pconf->mlog_stderrmask,
                   pconf->mlog_file, pconf->mlog_msgbuf_size,
                   pconf->mlog_flags, pconf->mlog_syslogfac) < 0) {
