@@ -36,10 +36,37 @@
 
 using namespace std;
 
-#define DEBUGFILE ".plfsdebug"
-#define DEBUGLOG  ".plfslog"
-#define DEBUGFILESIZE 16384
-#define DEBUGLOGSIZE  4194304
+#define DEBUGPREFIX ".plfs"          /* all debug files start with this */
+#define DEBUGMAXOFF (1024*1024*1024) /* for sanity checking */
+
+/**
+ * pfuse_dbgdrv: PLFS/FUSE debug file driver
+ */
+struct pfuse_dbgdrv {
+    const char *name;         /*!< file name, excluding the DEBUGPREFIX */
+    int (*getsize)(struct pfuse_dbgdrv *dd);    /*!< for getattr */
+    /*!< read/write data from dbg file, NULL if not needed */
+    int (*dbgread)(char *buf, size_t size, off_t offset);
+    int (*dbgwrite)(const char *buf, size_t size, off_t offset);
+};
+
+/*
+ * table to drive the debug files... with necessary prototypes.
+ */
+static int dbg_sizer(struct pfuse_dbgdrv *dd);
+static int dbg_log_read(char *buf, size_t size, off_t offset);
+static int dbg_msgbufsz(struct pfuse_dbgdrv *dd);
+static int dbg_msgbuf_read(char *buf, size_t size, off_t offset);
+static int dbg_mlogsize(struct pfuse_dbgdrv *dd);
+static int dbg_mlogmask_read(char *buf, size_t size, off_t offset);
+static int dbg_mlogmask_write(const char *buf, size_t size, off_t offset);
+
+static struct pfuse_dbgdrv pfuse_dbgfiles[] = {
+    { "debug",    dbg_sizer, Plfs::dbg_debug_read, NULL },
+    { "log",      dbg_sizer, dbg_log_read, NULL },
+    { "msgbuf",   dbg_msgbufsz, dbg_msgbuf_read, NULL },
+    { "mlogmask", dbg_mlogsize, dbg_mlogmask_read, dbg_mlogmask_write },
+};
 
 // the reason we need this struct is because we want to know the original
 // pid at the f_release bec fuse_get_context->pid returns 0 in the f_release
@@ -142,7 +169,7 @@ typedef struct OpenDirStruct {
                    DEBUG_MUTEX_OFF;                                     \
                    return ret;
 
-#define EXIT_IF_DEBUG  if ( isdebugfile(path) ) return 0;
+#define EXIT_IF_DEBUG  if ( get_dbgdrv(path) != NULL) return 0;
 
 #define GET_OPEN_FILE  struct OpenFile *openfile = (struct OpenFile*)fi->fh; \
                        Plfs_fd *of = NULL;                                   \
@@ -333,16 +360,31 @@ string Plfs::expandPath( const char *path ) {
     
 }
 
-bool Plfs::isdebugfile( const char *path ) {
-    return ( isdebugfile( path, DEBUGFILE ) || isdebugfile( path, DEBUGLOG ) );
-}
+/**
+ * get_dbgdrv: get the debug driver for the given file
+ *
+ * @param path the file we are requesting info for
+ * @return the driver for the file, or NULL if there isn't one
+ */
+static struct pfuse_dbgdrv *get_dbgdrv(const char *path) {
+    const char *cp;
+    int lcv;
 
-bool Plfs::isdebugfile( const char *path, const char *file ) {
-    const char *ptr = path;
-    if ( ptr[0] == '/' ) {
-        ptr++;  // skip past the forward slash
+    cp = path;
+    if (*cp == '/')      /* skip leading '/' if present */
+        cp++;
+
+    /* first check the prefix */
+    if (strncmp(cp, DEBUGPREFIX, sizeof(DEBUGPREFIX) - 1) != 0)
+        return(NULL);
+    cp += ( sizeof(DEBUGPREFIX) - 1);
+
+    for (lcv = 0 ;
+         lcv < sizeof(pfuse_dbgfiles)/sizeof(pfuse_dbgfiles[0]) ; lcv++) {
+        if (strcmp(pfuse_dbgfiles[lcv].name, cp) == 0)
+            return(&pfuse_dbgfiles[lcv]);
     }
-    return ( ! strcmp( ptr, file ) );
+    return(NULL);
 }
 
 // this is not just a simple wrapper since we cache some state here
@@ -447,6 +489,7 @@ int Plfs::f_fsync(const char *path, int datasync, struct fuse_file_info *fi) {
 // current write file and adjust those indices also if necessary
 int Plfs::f_ftruncate(const char *path, off_t offset, struct fuse_file_info *fi)
 {
+    EXIT_IF_DEBUG;
     PLFS_ENTER; GET_OPEN_FILE;
     if(of) plfs_sync(of,fuse_get_context()->pid); // flush any index buffers
     ret = plfs_trunc( of, strPath.c_str(), offset );
@@ -456,6 +499,7 @@ int Plfs::f_ftruncate(const char *path, off_t offset, struct fuse_file_info *fi)
 // use removeDirectoryTree to remove all data but not the dir structure
 // return 0 or -errno 
 int Plfs::f_truncate( const char *path, off_t offset ) {
+    EXIT_IF_DEBUG;
     PLFS_ENTER;
     ret = plfs_trunc( NULL, strPath.c_str(), offset );
     PLFS_EXIT;
@@ -465,15 +509,16 @@ int Plfs::f_truncate( const char *path, off_t offset ) {
 int Plfs::getattr_helper( string expanded, const char *path, 
         struct stat *stbuf, Plfs_fd *of ) 
 {
+    struct pfuse_dbgdrv *dd;
     bool sz_only = false;
     int ret = plfs_getattr( of, expanded.c_str(), stbuf, sz_only );
     if ( ret == -ENOENT ) {
-        if ( isdebugfile( path ) ) {
+        if ( (dd = get_dbgdrv(path)) != NULL ) {
             stbuf->st_mode = S_IFREG | 0444;
+            if (dd->dbgwrite)
+                stbuf->st_mode |= 0200;
             stbuf->st_nlink = 1;
-            stbuf->st_size = ( isdebugfile( path, DEBUGFILE ) ?
-                                DEBUGFILESIZE :
-                                DEBUGLOGSIZE );
+            stbuf->st_size = dd->getsize(dd);
             struct timeval  tv;
             gettimeofday(&tv, NULL);
             stbuf->st_mtime = tv.tv_sec; 
@@ -975,6 +1020,13 @@ mode_t Plfs::getMode( string expanded ) {
 int Plfs::f_write(const char *path, const char *buf, size_t size, off_t offset,
 		struct fuse_file_info *fi) 
 {
+    struct pfuse_dbgdrv *dd;
+    if ((dd = get_dbgdrv(path)) != NULL) {
+        if (offset < 0 || offset >= DEBUGMAXOFF || dd->dbgwrite == NULL)
+            return(0);
+        return(dd->dbgwrite(buf, size, offset));
+    }
+
     PLFS_ENTER; GET_OPEN_FILE;
     ret = plfs_write( of, buf, size, offset, fuse_get_context()->pid );
     PLFS_EXIT;
@@ -1041,8 +1093,11 @@ int Plfs::f_statfs(const char *path, struct statvfs *stbuf) {
 int Plfs::f_readn(const char *path, char *buf, size_t size, off_t offset,
 		struct fuse_file_info *fi) 
 {
-    if ( isdebugfile( path ) ) {
-        return writeDebug( buf, size, offset, path );
+    struct pfuse_dbgdrv *dd;
+    if ((dd = get_dbgdrv(path)) != NULL) {
+        if (offset < 0 || offset >= DEBUGMAXOFF || dd->dbgread == NULL)
+            return(0);
+        return(dd->dbgread(buf, size, offset));
     }
 
     PLFS_ENTER; GET_OPEN_FILE;
@@ -1072,78 +1127,6 @@ string Plfs::openFilesToString(bool verbose) {
         }
     }
     return oss.str();
-}
-
-int Plfs::writeDebug( char *buf, size_t size, off_t offset, const char *path ) {
-
-        // make sure we don't allow them to read more than we have
-    size_t validsize; 
-    off_t maxsize = ( isdebugfile( path, DEBUGFILE ) 
-            ? DEBUGFILESIZE : DEBUGLOGSIZE );
-    if ( off_t(size + offset) > maxsize ) {
-        if ( maxsize > offset ) {
-            validsize = maxsize - offset;
-        } else {
-            validsize = 0;
-        }
-    } else {
-        validsize = size;
-    }
-
-    char *tmpbuf = new char[maxsize];
-    int  ret;
-    memset( buf, 0, size );
-    memset( tmpbuf, 0, maxsize );
-
-    if ( isdebugfile( path, DEBUGFILE ) ) {
-        string stats;
-        plfs_stats( &stats );
-        // openFilesToString must be called from w/in a mutex
-        plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ ); 
-        ret = snprintf( tmpbuf, DEBUGFILESIZE, 
-                "Version %s (SVN %s) (DATA %s) (LIB %s)\n"
-                "Build date: %s\n"
-                "Hostname %s, %.2f Uptime\n"
-                "%s"
-                "%s"
-                "%.2f MakeContainerTime\n"
-                "%d WTFs\n"
-                "%d ExtraAttempts\n"
-                "%d Opens with O_RDWR\n"
-                "%s",
-                STR(TAG_VERSION), 
-		STR(SVN_VERSION), 
-		STR(DATA_VERSION),
-                plfs_version(),
-                plfs_buildtime(),
-                self->myhost.c_str(), 
-                plfs_wtime() - self->begin_time,
-                confToString(self->pconf,self->pmnt).c_str(),
-                stats.c_str(),
-                self->make_container_time,
-                self->wtfs,
-                self->extra_attempts,
-                self->o_rdwrs,
-                openFilesToString(true).c_str() );
-        plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
-    } else {
-        ret = snprintf(tmpbuf, maxsize, "%s", LogMessage::Dump().c_str());
-    }
-    if ( ret >= maxsize ) {
-        LogMessage lm;
-        lm << "WARNING:  DEBUGFILESIZE is too small" << endl;
-        lm.flush();
-    }
-    // this next line is nice, it makes the reading of the debug files
-    // really fast since they only read the size of the file
-    // but for some reason it crashes when the size > 4096....
-    //validsize = strlen( &(tmpbuf[offset]) );
-
-    memcpy( buf, (const void*)&(tmpbuf[offset]), validsize );
-    delete []tmpbuf;
-    tmpbuf = NULL;
-    mlog(FUSE_DCOMMON, "Returning the buffer for debugfile %s", path);
-    return validsize; 
 }
 
 string Plfs::confToString( PlfsConf *p, PlfsMount *pmnt ) {
@@ -1325,4 +1308,187 @@ string Plfs:: getRenameHash(string to, string current, string base) {
     pathHash.append(to);
     pathHash.append(uid_mode);
     return pathHash;     
+}
+
+/*
+ * special debug file drivers...
+ */
+
+#define DEBUGFILESIZE 16384
+#define DEBUGLOGSIZE  4194304
+
+/**
+ * dbg_sizer: sizer for static debug files.
+ * XXX: this just replicates the old code
+ */
+static int dbg_sizer(struct pfuse_dbgdrv *dd) {
+    if (strcmp(dd->name, "debug") == 0)
+        return(DEBUGFILESIZE);
+    if (strcmp(dd->name, "log") == 0)
+        return(DEBUGLOGSIZE);
+    return(0);
+}
+
+/**
+ * dbg_debug_read: read the debug/compile info
+ */
+int Plfs::dbg_debug_read(char *buf, size_t size, off_t offset) {
+    size_t validsize;
+    off_t maxsize = DEBUGFILESIZE;
+
+    /* make sure we don't allow them to read more than we have */
+    if ( off_t(size + offset) > maxsize ) {
+        if ( maxsize > offset ) {
+            validsize = maxsize - offset;
+        } else {
+            validsize = 0;
+        }
+    } else {
+        validsize = size;
+    }
+
+    char *tmpbuf = new char[maxsize];
+    int  ret;
+    memset( buf, 0, size );
+    memset( tmpbuf, 0, maxsize );
+
+    string stats;
+    plfs_stats( &stats );
+    // openFilesToString must be called from w/in a mutex
+    plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ ); 
+    ret = snprintf( tmpbuf, DEBUGFILESIZE, 
+                    "Version %s (SVN %s) (DATA %s) (LIB %s)\n"
+                    "Build date: %s\n"
+                    "Hostname %s, %.2f Uptime\n"
+                    "%s"
+                    "%s"
+                    "%.2f MakeContainerTime\n"
+                    "%d WTFs\n"
+                    "%d ExtraAttempts\n"
+                    "%d Opens with O_RDWR\n"
+                    "%s",
+                    STR(TAG_VERSION), 
+                    STR(SVN_VERSION), 
+                    STR(DATA_VERSION),
+                    plfs_version(),
+                    plfs_buildtime(),
+                    self->myhost.c_str(), 
+                    plfs_wtime() - self->begin_time,
+                    confToString(self->pconf,self->pmnt).c_str(),
+                    stats.c_str(),
+                    self->make_container_time,
+                    self->wtfs,
+                    self->extra_attempts,
+                    self->o_rdwrs,
+                    openFilesToString(true).c_str() );
+    plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
+
+    if ( ret >= maxsize ) {
+        LogMessage lm;
+        lm << "WARNING:  DEBUGFILESIZE is too small" << endl;
+        lm.flush();
+    }
+
+    // this next line is nice, it makes the reading of the debug files
+    // really fast since they only read the size of the file
+    // but for some reason it crashes when the size > 4096....
+    //validsize = strlen( &(tmpbuf[offset]) );
+
+    memcpy( buf, (const void*)&(tmpbuf[offset]), validsize );
+    delete []tmpbuf;
+    tmpbuf = NULL;
+    return(validsize);
+
+}
+
+/**
+ * dbg_log_read: read the debug log
+ */
+static int dbg_log_read(char *buf, size_t size, off_t offset) {
+    size_t validsize;
+    off_t maxsize = DEBUGLOGSIZE;
+
+    /* make sure we don't allow them to read more than we have */
+    if ( off_t(size + offset) > maxsize ) {
+        if ( maxsize > offset ) {
+            validsize = maxsize - offset;
+        } else {
+            validsize = 0;
+        }
+    } else {
+        validsize = size;
+    }
+
+    char *tmpbuf = new char[maxsize]; /* XXX: malloc's 4MB here */
+    int  ret;
+    memset( buf, 0, size );
+    memset( tmpbuf, 0, maxsize );
+    
+    ret = snprintf(tmpbuf, maxsize, "%s", LogMessage::Dump().c_str());
+
+    if ( ret >= maxsize ) {
+        LogMessage lm;
+        lm << "WARNING:  DEBUGFILESIZE is too small" << endl;
+        lm.flush();
+    }
+    // this next line is nice, it makes the reading of the debug files
+    // really fast since they only read the size of the file
+    // but for some reason it crashes when the size > 4096....
+    //validsize = strlen( &(tmpbuf[offset]) );
+
+    memcpy( buf, (const void*)&(tmpbuf[offset]), validsize );
+    delete []tmpbuf;
+    tmpbuf = NULL;
+    return validsize; 
+}
+
+/**
+ * dbg_msgbufsz: get the message buffer size
+ */
+static int dbg_msgbufsz(struct pfuse_dbgdrv *dd) {
+    return(mlog_mbcount());
+}
+
+/**
+ * dbg_msgbuf_read: read the message buffer
+ */
+static int dbg_msgbuf_read(char *buf, size_t size, off_t offset) {
+    int rv;
+
+    /*
+     * we already used DEBUGMAXOFF to make sure the 64 off_t offset isn't
+     * going to wrap the offset arg to mlog
+     */
+    rv = mlog_mbcopy(buf, offset, size);
+    if (rv < 0)
+        return(0);    /* just make errors be the same as EOF */
+    return(rv);
+}
+
+/**
+ * dbg_mlogsize: get the size of the mlog mask info...
+ */
+static int dbg_mlogsize(struct pfuse_dbgdrv *dd) {
+    int rv;
+
+    rv = mlog_getmasks(NULL, 0, 0, 1);
+    return(rv);
+}
+
+/**
+ * dbg_mlogmask_read: read the current mlog mask...
+ */
+static int dbg_mlogmask_read(char *buf, size_t size, off_t offset) {
+    int rv;
+
+    rv = mlog_getmasks(buf, offset, size, 1);
+    return(rv);
+}
+
+/**
+ * dbg_mlogmask_write: change the current mlog mask...
+ */
+static int dbg_mlogmask_write(const char *buf, size_t size, off_t offset) {
+    mlog_setmasks((char *)buf);
+    return(size);
 }
