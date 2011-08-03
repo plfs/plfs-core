@@ -489,7 +489,10 @@ int Plfs::f_fsync(const char *path, int datasync, struct fuse_file_info *fi) {
 // current write file and adjust those indices also if necessary
 int Plfs::f_ftruncate(const char *path, off_t offset, struct fuse_file_info *fi)
 {
-    EXIT_IF_DEBUG;
+    struct pfuse_dbgdrv *dd;
+    dd = get_dbgdrv(path);
+    if (dd->dbgwrite)
+        return(0);
     PLFS_ENTER; GET_OPEN_FILE;
     if(of) plfs_sync(of,fuse_get_context()->pid); // flush any index buffers
     ret = plfs_trunc( of, strPath.c_str(), offset );
@@ -499,7 +502,10 @@ int Plfs::f_ftruncate(const char *path, off_t offset, struct fuse_file_info *fi)
 // use removeDirectoryTree to remove all data but not the dir structure
 // return 0 or -errno 
 int Plfs::f_truncate( const char *path, off_t offset ) {
-    EXIT_IF_DEBUG;
+    struct pfuse_dbgdrv *dd;
+    dd = get_dbgdrv(path);
+    if (dd->dbgwrite)
+        return(0);
     PLFS_ENTER;
     ret = plfs_trunc( NULL, strPath.c_str(), offset );
     PLFS_EXIT;
