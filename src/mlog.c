@@ -1102,6 +1102,8 @@ void mlog_setmasks(char *mstr) {
         return;
     
     m = mstr;
+    while (*m == ' ' || *m == '\t')   /* remove leading space */
+        m++;
     while (m) {
     
         /* parse */
@@ -1115,7 +1117,16 @@ void mlog_setmasks(char *mstr) {
         cm = strchr(pri, ',');
         m = (cm) ? cm + 1 : NULL;  /* null will exit the while loop */
         faclen = eq - fac;
-        prilen = (cm) ? cm - pri : strlen(pri);
+        if (cm) {
+            prilen = cm - pri;
+        } else {
+            prilen = strlen(pri);
+            /* remove trailing whitespace */
+            while (prilen > 0 && (pri[prilen-1] == '\n' || 
+                   pri[prilen-1] == ' ' || pri[prilen-1] == '\t') ) {
+                prilen--;
+            }
+        }
 
         /* process */
         if (prilen > 4) {
