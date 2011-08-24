@@ -767,7 +767,7 @@ int Index::handleOverlap(ContainerEntry &incoming,
         findSplits(first->second,splits);
         if ( first == global_index.begin() ) break;
     }
-    for(;(last != global_index.end()) && (last->second.overlap(incoming)); last++ ){
+    for(;(last!=global_index.end()) && (last->second.overlap(incoming));last++){
         findSplits(last->second,splits);
     }
     findSplits(incoming,splits);  // get split points from incoming as well

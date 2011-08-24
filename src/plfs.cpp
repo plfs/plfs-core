@@ -1171,14 +1171,20 @@ plfs_init(PlfsConf *pconf) {
 // also tokenizes the mount point to set up find_mount_point 
 // returns an error string if there's any problems
 string *
-insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt) {
+insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt, string file) {
     string *error = NULL;
+    pair<map<string,PlfsMount*>::iterator, bool> insert_ret; 
     if( pmnt->backends.size() == 0 ) {
         error = new string("No backends specified for mount point");
     } else {
         plfs_debug("Inserting mount point %s as discovered in %s\n",
-                pmnt->mnt_pt.c_str(),pconf->file.c_str());
-        pconf->mnt_pts[pmnt->mnt_pt] = pmnt;
+                pmnt->mnt_pt.c_str(),file.c_str());
+        insert_ret = pconf->mnt_pts.insert(
+                pair<string,PlfsMount*>(pmnt->mnt_pt,pmnt));
+        if (!insert_ret.second) {
+            error = new string("Mount point multiply defined\n");
+        }
+        //pconf->mnt_pts[pmnt->mnt_pt] = pmnt;
     }
     return error;
 }
@@ -1195,13 +1201,17 @@ set_default_confs(PlfsConf *pconf) {
 
 // set defaults
 PlfsConf *
-parse_conf(FILE *fp, string file) {
-    PlfsConf *pconf = new PlfsConf;
+parse_conf(FILE *fp, string file, PlfsConf *pconf) {
+    if (!pconf) pconf = new PlfsConf;
     set_default_confs(pconf);
-    pconf->file = file;
-
+    pair<set<string>::iterator, bool> insert_ret; 
+    insert_ret = pconf->files.insert(file);
     PlfsMount *pmnt = NULL;
-    plfs_debug("Parsing %s\n", pconf->file.c_str());
+    plfs_debug("Parsing %s\n", file.c_str());
+    if (insert_ret.second == false) {
+        pconf->err_msg = new string("include file included more than once");
+        return pconf;
+    }
 
     char input[8192];
     char key[8192];
@@ -1222,6 +1232,15 @@ parse_conf(FILE *fp, string file) {
                 pconf->err_msg = new string("illegal negative value");
                 break;
             }
+        } else if(strcmp(key,"include")==0) {
+            FILE *include = fopen(value,"r");
+            if ( include == NULL ) {
+                pconf->err_msg = new string("open include file failed");
+                break;
+            }
+            pconf = parse_conf(include, value, pconf);
+            fclose(include);
+            if (pconf->err_msg) break;
         } else if(strcmp(key,"threadpool_size")==0) {
             pconf->threadpool_size = atoi(value);
             if (pconf->threadpool_size <=0) {
@@ -1241,7 +1260,7 @@ parse_conf(FILE *fp, string file) {
         } else if (strcmp(key,"mount_point")==0) {
             // clear and save the previous one
             if (pmnt) {
-                pconf->err_msg = insert_mount_point(pconf,pmnt);
+                pconf->err_msg = insert_mount_point(pconf,pmnt,file);
                 if(pconf->err_msg) break;
             }
             pmnt = new PlfsMount;
@@ -1274,7 +1293,7 @@ parse_conf(FILE *fp, string file) {
     // save the current mount point
     if ( !pconf->err_msg ) {
         if(pmnt) {
-            pconf->err_msg = insert_mount_point(pconf,pmnt);
+            pconf->err_msg = insert_mount_point(pconf,pmnt,file);
         } else {
             pconf->err_msg = new string("No mount point specified");
         }
@@ -1330,7 +1349,7 @@ get_plfs_conf() {
         string file = possible_files[i];
         FILE *fp = fopen(file.c_str(),"r");
         if ( fp == NULL ) continue;
-        PlfsConf *tmppconf = parse_conf(fp,file);
+        PlfsConf *tmppconf = parse_conf(fp,file,NULL);
         fclose(fp);
         if(tmppconf) {
             if(tmppconf->err_msg) return tmppconf;

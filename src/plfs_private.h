@@ -3,9 +3,10 @@
 
 #include "plfs_internal.h"
 
-#include <vector>
-#include <string>
 #include <map>
+#include <set>
+#include <string>
+#include <vector>
 using namespace std;
 
 #define SVNVERS $Rev$
@@ -28,7 +29,7 @@ typedef struct {
 } PlfsMount;
 
 typedef struct {
-    string file;
+    set<string> files;
     size_t num_hostdirs;
     size_t threadpool_size;
     size_t buffer_mbs;  // how many mbs to buffer for write indexing

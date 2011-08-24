@@ -25,6 +25,7 @@ FileOp {
         bool onlyAccessFile() {return false;}
         void ignoreErrno(int Errno); // can register errno's to be ignored
         virtual int do_op(const char*, unsigned char type) = 0;
+        virtual ~FileOp() {}
     protected:
         int retValue(int ret);
     private:
