@@ -13,6 +13,12 @@ Path names must be fully qualified.  Note that all keywords should be in lower-c
 The possible keywords and their meanings are as follows:
 
 .B
+include
+.RS
+This allows multiple plfsrc files to be parsed.  This is useful if you want to define global values and then put individual mount points in individual plfsrc files.  You might do so if some mount points are shared on diffent clusters (e.g. at LANL we have compute nodes and file transfer nodes and we want different global values for things like threadpool_size but we want to ensure that their mount points are the same so we have individual plfsrc  files for each but then include the same plfsrc files that define shared mount points.
+.RE
+
+.B
 num_hostdirs
 .RS
 This should be the square root of the total number of compute nodes typically expected to participate in a job.  Optional.  Default is 32.  Max is 1024.
