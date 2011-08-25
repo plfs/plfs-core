@@ -309,7 +309,9 @@ int Container::populateIndex(const string &path, Index *index,bool use_global) {
     return ret;
 }
 
-int Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index,string path){
+int Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index,
+        string path)
+{
     
     int ret=0;
     if ( tasks.empty() ) {
@@ -486,7 +488,7 @@ int Container::aggregateIndices(const string &path, Index *index) {
 
     plfs_debug("In %s\n", __FUNCTION__);
     
-    // create the list of tasks
+    // create the list of tasks.  A task is reading one index file.
     for(vector<string>::iterator itr=files.begin();itr!=files.end();itr++) {
         string filename; // find just the filename
         size_t lastslash = itr->rfind('/');
@@ -1141,6 +1143,8 @@ size_t Container::getHostDirId( const string &hostname ) {
     return (hashValue(hostname.c_str())%pconf->num_hostdirs);
 }
 
+// this function is maybe one easy place where we can fix things
+// if the hostdir path includes a symlink....
 string Container::getHostDirPath( const string & expanded_path, 
         const string & hostname )
 {

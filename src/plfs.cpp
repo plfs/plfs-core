@@ -16,6 +16,7 @@
 #include <assert.h>
 #include <queue>
 #include <vector>
+#include <sstream>
 #include <stdlib.h>
 using namespace std;
 
@@ -39,6 +40,7 @@ typedef struct {
     bool expand_error;
     PlfsMount *mnt_pt;
     int Errno;  // can't use just errno, it's a weird macro
+    int which_backend;
 } ExpansionInfo;
 
 #define PLFS_ENTER PLFS_ENTER2(PLFS_PATH_REQUIRED)
@@ -151,6 +153,7 @@ expandPath(string logical, ExpansionInfo *exp_info,
     exp_info->expand_error = false;
     exp_info->mnt_pt = NULL;
     exp_info->Errno = 0;
+    exp_info->which_backend = -1; 
 
     // get our initial conf
     static PlfsConf *pconf = NULL;
@@ -224,24 +227,25 @@ expandPath(string logical, ExpansionInfo *exp_info,
     // choose a backend unless the caller explicitly requested one
     switch(hash_method) {
     case HASH_BY_FILENAME:
-        which_backend = Container::hashValue(filename.c_str());
+        exp_info->which_backend = Container::hashValue(filename.c_str());
         break;
     case HASH_BY_NODE:
-        which_backend = Container::hashValue(Util::hostname());
+        exp_info->which_backend = Container::hashValue(Util::hostname());
         break;
     case NO_HASH:
-        which_backend = which_backend; // user specified
+        exp_info->which_backend = which_backend; // user specified
         break;
     default:
-        which_backend = -1;
+        exp_info->which_backend = -1;
         assert(0);
         break;
     }
-    string expanded =  pm->backends[which_backend%pm->backends.size()] 
+    exp_info->which_backend %= pm->backends.size();
+    string expanded =  pm->backends[exp_info->which_backend] 
         + "/" + remaining;
     plfs_debug("%s: %s -> %s (%d.%d)\n", __FUNCTION__, 
             logical.c_str(), expanded.c_str(),
-            hash_method,which_backend);
+            hash_method,exp_info->which_backend);
     return expanded;
 }
 
@@ -459,12 +463,29 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
         plfs_debug("Need to link %s into %s (hostdir ret %d)\n", 
                 shadow_hostdir.c_str(), canonical.c_str(),ret);
         if ( shadow_hostdir != canonical && ret == 0 ) {
-            ret=Util::Symlink(shadow_hostdir.c_str(),canonical_hostdir.c_str());
+
+            // we were symlinking to the full physical location of the
+            // canonical_hostdir.  But that can change on a rename either
+            // of the file or of a predecessor directory
+            // so instead the symlink just needs to contain enough
+            // identifying information
+            // string symlink_val(shadow_hostdir);
+            ostringstream oss;
+            oss << exp_info.which_backend;
+            string symlink_val(oss.str());
+            ret=Util::Symlink(symlink_val.c_str(),canonical_hostdir.c_str());
             ret=retValue(ret);
             plfs_debug("Symlink: %d\n", ret);
             if (ret==-EISDIR||ret==-EEXIST) {
                 ret = 0; // a sibling beat us to it. No biggie. Thanks sibling!
             }
+
+            // now it would be nice to remember the physical path since
+            // we want to hide symlinks from the WriteFile.  So change
+            // the WriteFile's notion of it's path to the new physical
+            // shadow path.  This will make things a bit faster as well
+            // since we won't be asking the file system to resolve symlinks
+            wf->setPath(shadow);
         }
     }
 
@@ -506,7 +527,10 @@ plfs_collect_from_containers(const char *logical, vector<string> &files,
     ret = find_all_expansions(logical,possible_containers);
     if (ret!=0) PLFS_EXIT(ret);
 
-    bool follow_links = false;
+    // this is nice.  in order to do rename, our symlinks within the canonical
+    // container no longer contain valid paths.  Luckily this code doesn't 
+    // follow symlinks so we got nothing to worry about here.
+    bool follow_links = false;  // don't change this to true! 
     vector<string>::iterator itr;
     for(itr=possible_containers.begin();itr!=possible_containers.end();itr++) {
         ret = Util::traverseDirectoryTree(itr->c_str(),files,dirs,follow_links);
@@ -1558,7 +1582,7 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode,
     // this next chunk of code works similarly for writes and reads
     // for writes, create a writefile if needed, otherwise add a new writer
     // create the write index file after the write data file so that the
-    // hostdir is created
+    // hostdir is already created
     // for reads, create an index if needed, otherwise add a new reader
     // this is so that any permission errors are returned on open
     if ( ret == 0 && isWriter(flags) ) {
@@ -1654,16 +1678,11 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode,
 }
 
 
+// this is when the user wants to make a symlink on plfs
+// very easy, just write whatever the user wants into a symlink
+// at the proper canonical location 
 int
 plfs_symlink(const char *logical, const char *to) {
-    // the link should contain the path to the file
-    // we should create a symlink on the backend that has 
-    // a link to the logical file.  this is weird and might
-    // get ugly but let's try and see what happens.
-    //
-    // really we should probably make the link point to the backend
-    // and then un-resolve it on the readlink...
-    // ok, let's try that then.  no, let's try the first way
     PLFS_ENTER2(PLFS_PATH_NOTREQUIRED);
 
     ExpansionInfo exp_info;
@@ -1719,6 +1738,10 @@ plfs_readlink(const char *logical, char *buf, size_t bufsize) {
 // this function needs work.
 // it hasn't been updated in regards to multiple backends yet.
 // probably other similar functions as well might need work
+// we should be able to use plfs_recover here for plfs files
+// we just rename all the shadow and canonical containers and
+// then call plfs_recover to make sure that canonical is in the
+// right place
 int
 plfs_rename( const char *logical, const char *to ) {
     PLFS_ENTER;
@@ -1905,16 +1928,21 @@ plfs_mutex_lock(pthread_mutex_t *mux, const char *func){
 }
 
 // this is called when truncate has been used to extend a file
+// WriteFile always needs to be given completely valid physical paths
+// (i.e. no hostdir symlinks)  so this construction of a WriteFile here
+// needs to make sure that the path does not contain a symlink
+// or we could just say that we don't support truncating a file beyond
+// it's maximum offset
 // returns 0 or -errno
 int 
-extendFile( Plfs_fd *of, string strPath, off_t offset ) {
+extendFile(Plfs_fd *of, string strPath, off_t offset) {
     int ret = 0;
     bool newly_opened = false;
     WriteFile *wf = ( of && of->getWritefile() ? of->getWritefile() : NULL );
     pid_t pid = ( of ? of->getPid() : 0 );
     if ( wf == NULL ) {
         mode_t mode = Container::getmode( strPath ); 
-        wf = new WriteFile( strPath.c_str(), Util::hostname(), mode, 0 );
+        wf = new WriteFile(strPath.c_str(), Util::hostname(), mode, 0);
         ret = wf->openIndex( pid );
         newly_opened = true;
     }
@@ -1951,11 +1979,51 @@ plfs_buildtime( ) {
     return __DATE__; 
 }
 
+// this does readlink on a hostdir entry 
+// we stash location information in the hostdir entry to locate a shadow
+// hostdir from the symlink hostdir in the canonical location
+// returns 0 or -errno
+int
+resolveSymbolicHostdir(const string &logical, string &container, 
+        string &hostdir) 
+{
+    ExpansionInfo exp_info;
+    char buf[1024];
+    int ret;
+    ostringstream oss;
+    int which_backend;
+
+    // read the link
+    ret = Util::Readlink(hostdir.c_str(),buf,1024);
+    if (ret<=0) {
+        plfs_debug("WTF.  readlink %s: %s\n", hostdir.c_str(), strerror(errno));
+        return retValue(ret);
+    }
+
+    // expand the path using the info from the link
+    buf[ret] = '\0';
+    which_backend = atoi(buf);
+    container = expandPath(logical,&exp_info,NO_HASH,which_backend,0);
+    if (exp_info.expand_error) {
+        plfs_debug("WTF. expand error on %s into %d backend\n",
+                logical.c_str(), which_backend);
+        return -ENOENT;
+    }
+
+    // all done.  get the fuck out of here.
+    oss << "Resolved " << hostdir;
+    hostdir = Container::getHostDirPath(container,Util::hostname());
+    oss << " into " << hostdir << endl;
+    plfs_debug("%s: %s\n", __FUNCTION__, oss.str().c_str());
+    return 0;
+
+}
+
 // the Plfs_fd can be NULL
 // be nice to use new FileOp class for this somehow
 // returns 0 or -errno
 int 
-plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
+plfs_trunc(Plfs_fd *of, const char *logical, off_t offset) {
     PLFS_ENTER;
     mode_t mode = 0;
     if ( ! is_plfs_file( logical, &mode ) ) {
@@ -1996,9 +2064,32 @@ plfs_trunc( Plfs_fd *of, const char *logical, off_t offset ) {
             } else if ( stbuf.st_size > offset ) {
                 ret = Container::Truncate(path, offset); // make smaller
                 Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
-            } else if ( stbuf.st_size < offset ) {
+            } else if (stbuf.st_size < offset) {
                 Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
-                ret = extendFile( of, path, offset );    // make bigger
+                // these are physical paths.  hdir to the hostdir
+                // container to the actual physical container containing hdir
+                // container can be the canonical or a shadow
+                string hdir;      
+                string container; 
+                            
+                // extendFile uses writefile which needs the correct physical
+                // path to the pysical index file (i.e. path with no symlinks)
+                // so in order for this call to work there must be a valid
+                // hostdir.  So what we need to do here is call
+                // Container::getHostDirPath and make sure it exists
+                // if it doesn't, then create it.
+                // if it exists and is a directory, then nothing to do.
+                // if it's a symlink, resolve it and pass resolved path
+                hdir = Container::getHostDirPath(path,Util::hostname());
+                container = path;
+                if (Util::exists(hdir.c_str())) {
+                    if (! Util::isDirectory(hdir.c_str())) {
+                        ret = resolveSymbolicHostdir(logical,container,hdir);
+                    }
+                } else {
+                    ret = Util::Mkdir(hdir.c_str(),DEFAULT_MODE);
+                }
+                if (ret==0) ret = extendFile(of, container, offset);  // finally
             }
         }
     }

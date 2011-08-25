@@ -649,16 +649,6 @@ int Plfs::f_unlink( const char *path ) {
     PLFS_EXIT;
 }
 
-/*
-int Plfs::removeWriteFile( WriteFile *of, string strPath ) {
-    int ret = of->Close();  // close any open fds
-    delete( of );
-    self->write_files.erase( strPath );
-    self->createdContainers.erase( strPath );
-    return ret;
-}
-*/
-
 // see f_readdir for some documentation here
 // returns 0 or -errno
 int Plfs::f_opendir( const char *path, struct fuse_file_info *fi ) {
