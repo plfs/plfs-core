@@ -404,6 +404,7 @@ int Index::flush() {
 
 // takes a path and returns a ptr to the mmap of the file 
 // also computes the length of the file
+// TODO: possible that this fails if there is a symlink hostdir 
 void *Index::mapIndex( string hostindex, int *fd, off_t *length ) {
     void *addr;
     *fd = Util::Open( hostindex.c_str(), O_RDONLY );
@@ -557,12 +558,16 @@ int Index::global_from_stream(void *addr) {
     addr = (void*)&(entries[quant]);
 
     // now read in the vector of chunk files
+    // oh shit.  this code needs work now.  it sets the chunk paths
+    // up using the top-level container path.  but some of the 
+    // chunk paths will contain symlinks so it will be difficult to
+    // reconstruct
     plfs_debug("%s of %s now parsing data chunk paths\n",
             __FUNCTION__,physical_path.c_str());
     vector<string> chunk_paths;
     tokenize((char*)addr,"\n",chunk_paths); // might be inefficient...
     for( size_t i = 0; i < chunk_paths.size(); i++ ) {
-        if(chunk_paths[i].size()<7) continue;
+        if(chunk_paths[i].size()<7) continue; // WTF does <7 mean???
         ChunkFile cf;
         cf.path = physical_path + "/" + chunk_paths[i];
         cf.fd = -1;
@@ -631,6 +636,12 @@ int Index::global_to_stream(void **buffer,size_t *length) {
     // first build the vector of chunk paths, trim them to relative
     // to the container so they're smaller and still valid after rename
     // this gets written last but compute it first to compute length
+    // the problem is that some of them might contain symlinks!
+    // maybe we can handle this in one single place.  If we can find
+    // the one single place where we open the data chunk we can handle
+    // an error there possibly and reconstruct the full path.  Oh but
+    // we also have to find the place where we open the index chunks
+    // as well.
     ostringstream chunks;
     for(unsigned i = 0; i < chunk_map.size(); i++ ) {
         chunks << chunk_map[i].path.substr(physical_path.length()) << endl;
@@ -964,8 +975,10 @@ int Index::setChunkFd( pid_t chunk_id, int fd ) {
     return 0;
 }
 
+// this is a helper function to globalLookup which returns information
+// identifying the physical location of some piece of data
 // we found a chunk containing an offset, return necessary stuff 
-// this opens an fd to the chunk if necessary
+// this does not open the fd to the chunk however 
 int Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len, 
         off_t shift, string &path, pid_t *chunk_id, ContainerEntry *entry ) 
 {
@@ -974,17 +987,18 @@ int Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
     *chunk_len  = entry->length       - shift;
     *chunk_id   = entry->id;
     if( cf_ptr->fd < 0 ) {
-        /*
-        cf_ptr->fd = Util::Open(cf_ptr->path.c_str(), O_RDONLY);
-        if ( cf_ptr->fd < 0 ) {
-            plfs_debug("WTF? Open of %s: %s\n", 
-                    cf_ptr->path.c_str(), strerror(errno) );
-            return -errno;
-        } 
-        */
         // I'm not sure why we used to open the chunk file here and
         // now we don't.  If you figure it out, pls explain it here.
         // we must have done the open elsewhere.  But where and why not here?
+        // ok, I figured it out (johnbent 8/27/2011):
+        // this function is a helper to globalLookup which returns information
+        // about in which physical data chunk some logical data resides
+        // we stash that location info here but don't do the open.  we changed
+        // this when we made reads be multi-threaded.  since we postpone the
+        // opens and do them in the threads we give them a better chance to
+        // be parallelized.  However, it turns out that the opens are then
+        // later mutex'ed so they're actually parallized.  But we've done the
+        // best that we can here at least.
         plfs_debug("Not opening chunk file %s yet\n", cf_ptr->path.c_str());
     }
     plfs_debug("Will read from chunk %s at off %ld (shift %ld)\n",

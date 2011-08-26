@@ -1267,6 +1267,8 @@ struct dirent *Container::getnextent( DIR *dir, const char *prefix ) {
 // augmenting the ReaddirOp to take a function pointer (or a FileOp instance)
 // but that's a bit complicated as well.  This code isn't bad just a bit complex
 // this returns 0 if done.  1 if OK.  -errno if a problem
+// TODO: some code here will need to be fixed since hostdir symlinks are no 
+// longer fully valid paths but are just metadata
 int Container::nextdropping( const string& physical_path, 
         string *droppingpath, const char *dropping_type,
         DIR **topdir, DIR **hostdir, struct dirent **topent ) 

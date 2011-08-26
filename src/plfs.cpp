@@ -428,7 +428,7 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
         // here is a super simple place to add the distributed metadata stuff.
         // 1) create a shadow container by hashing on node name
         // 2) create a shadow hostdir inside it
-        // 3) create a symlink in canonical container to the shadow hostdir
+        // 3) create a symlink in canonical container identifying shadow 
         // 4) loop and try one more time now that the hostdir link is in place
         char *hostname = Util::hostname();
         string shadow;            // full path to shadow container
@@ -1012,6 +1012,9 @@ perform_read_task( ReadTask *task, Index *index ) {
             index->unlock(__FUNCTION__);
             if ( task->fd < 0 ) {   // not currently stashed, we have to open it
                 bool won_race = true;   // assume we will be first stash
+                // TODO: This is where the data chunk is opened.  We need to
+                // create a helper function that does this open and reacts
+                // appropriately when it fails due to symlinks
                 task->fd = Util::Open(task->path.c_str(), O_RDONLY);
                 if ( task->fd < 0 ) {
                     plfs_debug("WTF? Open of %s: %s\n", 
@@ -1083,14 +1086,13 @@ plfs_reader(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
     list<ReadTask> tasks;   // a container of read tasks in case the logical
                             // read spans multiple chunks so we can thread them
 
-    // you might think that this can fail because this call is not in a mutex 
-    // so it's possible
-    // that some other thread in a close is changing ref counts right now
-    // but it's OK that the reference count is off here since the only
-    // way that it could be off is if someone else removes their handle,
-    // but no-one can remove the handle being used here except this thread
-    // which can't remove it now since it's using it now
-    //plfs_reference_count(pfd);
+    // you might think that this can fail because this call is not in a mutex
+    // so you might think it's possible that some other thread in a close is
+    // changing ref counts right now but it's OK that the reference count is
+    // off here since the only way that it could be off is if someone else
+    // removes their handle, but no-one can remove the handle being used here
+    // except this thread which can't remove it now since it's using it now
+    // plfs_reference_count(pfd);
 
         // TODO:  make the tasks do the file opens on the chunks
         // have a routine to shove the open'd fd's back into the index
