@@ -21,5 +21,6 @@
 #define GLOBALINDEX    "global.index"
 #define GLOBALCHUNK    "global.chunk"
 #define MAX_HOSTDIRS 1024   
+#define METALINK_MAX 2048
 
 #endif

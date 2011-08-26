@@ -81,6 +81,11 @@ class Container {
         static int Truncate( const string &, off_t );
         static int Access( const string &path, int mask );
 
+        static int createMetalink(const string &,const string &,const string &);
+        static int resolveMetalink(const string &, string &);
+        static int collectContents(const string &path,
+            vector<string> &files, vector<string> &filters);
+
         static int flattenIndex( const string &, Index * );
         static int populateIndex(const string &,Index *,bool use_cached_global);
         static int aggregateIndices( const string &, Index * );

@@ -393,6 +393,7 @@ vector<IndexFileInfo> Container::hostdir_index_read(const char *path){
     
     set<string> entries;
     vector<IndexFileInfo> index_droppings;
+    // TODO: handle case where the path is a symlink
     ReaddirOp op(NULL,&entries,false,true);
     op.filter(INDEXPREFIX);
     int ret = op.op(path,DT_DIR);
@@ -472,6 +473,100 @@ Index Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
     return index;
 
 
+}
+
+// returns 0 or -errno
+int Container::createMetalink(
+        const string &canonical_backend, 
+        const string &shadow_backend,
+        const string &canonical_hostdir)
+{
+    int ret = 0; 
+    ostringstream oss;
+    oss << canonical_backend.size() << shadow_backend;
+    ret = Util::Symlink(oss.str().c_str(),canonical_hostdir.c_str());
+    plfs_debug("%s: wrote %s into %s: %d\n", 
+            __FUNCTION__, oss.str().c_str(), canonical_hostdir.c_str(), ret);
+    return Util::retValue(ret);
+}
+
+// this function reads a metalink and replaces the canonical backend
+// in the metalink path with the shadow backend that it reads from the metalink
+// Example: we have a metalink at a physical path
+// e.g. /panfs/volume65/.plfs_store/johnbent/projectA/data/exp1.dat
+// we readlink it and get something like XY where X is int and Y is string
+// e.g. 27/panfs/volume13/.plfs_store
+// so we strip the first X chars of metalink, and save remainder 
+// e.g. /johnbent/projectA/data/expl1.dat
+// we then preface this with the string we read from readlink
+// e.g. /panfs/volume13/.plfs_store/johnbent/projectA/data/exp1.dat
+//
+// returns 0 or -errno
+int Container::resolveMetalink(const string &metalink, string &resolved) {
+    size_t canonical_backend_length;
+    int ret = 0;
+    istringstream iss;
+    char buf[METALINK_MAX];
+    ret = Util::Readlink(metalink.c_str(),buf,METALINK_MAX);
+    if (ret<=0) {
+        plfs_debug("WTF.  readlink %s: %s\n",metalink.c_str(),strerror(errno));
+        return Util::retValue(ret);
+    } else {
+        buf[ret] = '\0';
+        ret = 0;
+    }
+
+    // so read the info out of the symlink
+    // then construct the path to the shadow
+    iss.str(buf);
+    iss >> canonical_backend_length;
+    iss >> resolved; 
+    resolved += '/'; // be safe.  we'll probably end up with 3 '///' lol
+    resolved += metalink.substr(canonical_backend_length);
+    plfs_debug("%s: resolved %s into %s\n", metalink.c_str(), resolved.c_str());
+    return ret;
+}
+
+// this function collects all droppings from a container
+// it makes one assumption about how containers are structured:
+// 1) it knows how to deal with metalinks
+// it'd be nice if the only place that container structure was understood
+// was in this class.  but I don't think that's quite true.
+// That's our goal though!
+int Container::collectContents(const string &physical,
+        vector<string> &files, vector<string> &filters) 
+{
+    map<string,unsigned char> entries;
+    map<string,unsigned char>::iterator e_itr;
+    vector<string>::iterator f_itr;
+    ReaddirOp rop(&entries,NULL,true,true);
+    int ret = 0;
+
+    // set up and use our ReaddirOp to get all entries out of top-level
+    for(f_itr=filters.begin(); f_itr!=filters.end(); f_itr++) {
+        rop.filter(*f_itr);
+    }
+    ret = rop.op(physical.c_str(),DT_DIR);
+
+    // now for each entry we found: descend into dirs, resolve metalinks and
+    // then descend, save files.
+    for(e_itr = entries.begin(); ret==0 && e_itr != entries.end(); e_itr++) {
+        if(e_itr->second==DT_DIR) { 
+            ret = Container::collectContents(e_itr->first,files,filters);
+        } else if (e_itr->second==DT_LNK) { 
+            string resolved;
+            ret = Container::resolveMetalink(e_itr->first,resolved);
+            if (ret==0) {
+                ret = Container::collectContents(resolved,files,filters);
+            }
+        } else if (e_itr->second==DT_REG) {
+            files.push_back(e_itr->first);
+        } else {
+            assert(0);
+        }
+
+    }
+    return ret;
 }
 
 // this function traverses the container, finds all the index droppings,

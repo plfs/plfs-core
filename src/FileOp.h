@@ -20,6 +20,7 @@ using namespace std;
 class
 FileOp {
     public:
+        // first arg to op is path, second is type of path
         int op(const char *, unsigned char type); // ret 0 or -errno
         virtual const char *name() = 0;
         bool onlyAccessFile() {return false;}

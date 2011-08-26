@@ -274,6 +274,8 @@ Util::traverseDirectoryTree(const char *path, vector<string> &files,
     dirs.push_back(path); // save the top dir
 
     for(itr = entries.begin(); itr != entries.end() && ret==0; itr++) {
+        // TODO: these links will be broken.  Then what?
+        // this code will break unless we fix it to handle metalinks.
         if (itr->second == DT_DIR || (fol_links &&itr->second == DT_LNK)) 
             ret=traverseDirectoryTree(itr->first.c_str(),files,dirs,fol_links);
         else files.push_back(itr->first);
