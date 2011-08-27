@@ -257,15 +257,11 @@ expandPath(string logical, ExpansionInfo *exp_info,
 int 
 find_all_expansions(const char *logical, vector<string> &containers) {
     PLFS_ENTER;
-    string canonical = path;
-    containers.push_back(canonical); 
     ExpansionInfo exp_info;
     for(unsigned i = 0; i < expansion_info.mnt_pt->backends.size();i++){
         path = expandPath(logical,&exp_info,NO_HASH,i,0);
         if(exp_info.Errno) PLFS_EXIT(exp_info.Errno);
-        if (path!=canonical) { // don't bother removing twice
-            containers.push_back(path);
-        }
+        containers.push_back(path);
     }
     PLFS_EXIT(ret);
 }
@@ -704,7 +700,7 @@ plfs_rename( const char *logical, const char *to ) {
     ExpansionInfo exp_info;
     string topath = expandPath(to,&exp_info,HASH_BY_FILENAME,-1,0);
     if (exp_info.Errno) PLFS_EXIT(-ENOENT); // should never happen; check anyway
-    if (is_plfs_file(topath.c_str(), NULL)) {
+    if (is_plfs_file(to, NULL)) {
         ret = plfs_unlink(to);
         if (ret!=0) PLFS_EXIT(ret);
     }
@@ -723,6 +719,10 @@ plfs_rename( const char *logical, const char *to ) {
         if (err != 0) ret = err;  // keep trying but save the error
         plfs_debug("rename %s to %s: %d\n",srcs[i].c_str(),dsts[i].c_str(),err);
     }
+
+    // now we need to call plfs_recover to ensure that canonical is in right place
+    // only need to do plfs_recover if it's a file and not if it's a dir ....
+    ret = plfs_recover(to);
     PLFS_EXIT(ret);
 }
 

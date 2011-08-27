@@ -141,6 +141,8 @@ bool Container::isContainer( const string &physical_path, mode_t *mode ) {
             // in which case return an empty mode as well bec this means
             // that the caller lacks permission to stat the thing
         if ( mode ) *mode = 0;  // ENOENT
+        plfs_debug("%s on %s: returning false\n",
+                __FUNCTION__,physical_path.c_str());
         return false;
     }
 
