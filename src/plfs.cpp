@@ -515,20 +515,16 @@ int isReader( int flags ) {
 // returns 0 or -errno
 int
 plfs_collect_from_containers(const char *logical, vector<string> &files, 
-        vector<string> &dirs) 
+        vector<string> &dirs, vector<string> &links) 
 {
     PLFS_ENTER;
     vector<string> possible_containers;
     ret = find_all_expansions(logical,possible_containers);
     if (ret!=0) PLFS_EXIT(ret);
 
-    // this is nice.  in order to do rename, our symlinks within the canonical
-    // container no longer contain valid paths.  Luckily this code doesn't 
-    // follow symlinks so we got nothing to worry about here.
-    bool follow_links = false;  // don't change this to true! 
     vector<string>::iterator itr;
     for(itr=possible_containers.begin();itr!=possible_containers.end();itr++) {
-        ret = Util::traverseDirectoryTree(itr->c_str(),files,dirs,follow_links);
+        ret = Util::traverseDirectoryTree(itr->c_str(),files,dirs,links);
         if (ret!=0) { ret = -errno; break; }
     }
     PLFS_EXIT(ret);
@@ -542,7 +538,7 @@ plfs_collect_from_containers(const char *logical, vector<string> &files,
 int
 plfs_file_operation(const char *logical, FileOp &op) {
     PLFS_ENTER;
-    vector<string> files, dirs;
+    vector<string> files, dirs, links;
 
     // first go through and find the set of physical files and dirs
     // that need to be operated on
@@ -557,7 +553,7 @@ plfs_file_operation(const char *logical, FileOp &op) {
             files.push_back(Container::getAccessFilePath(path));
         } else {
             // everything
-            ret = plfs_collect_from_containers(logical,files,dirs);
+            ret = plfs_collect_from_containers(logical,files,dirs,links);
         }
     } else if (S_ISDIR(mode)) { // need to iterate across dirs
         ret = find_all_expansions(logical,dirs);
@@ -573,6 +569,9 @@ plfs_file_operation(const char *logical, FileOp &op) {
     vector<string>::reverse_iterator ritr;
     for(ritr = files.rbegin(); ritr != files.rend() && ret == 0; ++ritr) {
         ret = op.op(ritr->c_str(),DT_REG);
+    }
+    for(ritr = links.rbegin(); ritr != links.rend() && ret == 0; ++ritr) {
+        op.op(ritr->c_str(),DT_LNK);
     }
     for(ritr = dirs.rbegin(); ritr != dirs.rend() && ret == 0; ++ritr) {
         ret = op.op(ritr->c_str(),DT_DIR);
@@ -720,7 +719,7 @@ plfs_rename( const char *logical, const char *to ) {
         plfs_debug("rename %s to %s: %d\n",srcs[i].c_str(),dsts[i].c_str(),err);
     }
 
-    // now we need to call plfs_recover to ensure that canonical is in right place
+    // now we need to call plfs_recover to ensure canonical is in right place
     // only need to do plfs_recover if it's a file and not if it's a dir ....
     ret = plfs_recover(to);
     PLFS_EXIT(ret);
@@ -888,6 +887,8 @@ plfs_recover( const char *logical ) {
     
     // if we make it here, it's a file 
     // first recover the parent directory, then ensure a container directory 
+    // if performance is ever slow here, we probably don't need to recover
+    // the parent directory here
     if ((ret = recover_directory(logical,true)) != 0) PLFS_EXIT(ret);
     ret = mkdir_dash_p(canonical,false);
     if (ret != 0 && ret != EEXIST) PLFS_EXIT(ret);   // some bad error
@@ -900,7 +901,10 @@ plfs_recover( const char *logical ) {
     //  foreach entry in former:
     //    if empty file: create file w/ same name in canonical; remove
     //    if symlink: create identical symlink in canonical; remove
-    //    if directory: create symlink in canonical to it
+    //    TODO:
+    //    if directory: 
+    //      if meta: recurse 
+    //      if subdir: create metalink in canonical to it
     //    else assert(0): there should be nothing else
     plfs_debug("%s need to transfer %s from %s into %s\n",
             __FUNCTION__, logical, former.c_str(), canonical.c_str());

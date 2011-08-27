@@ -260,7 +260,7 @@ void Util::addBytes( string function, size_t size ) {
 // useful for gathering the contents of a container
 int
 Util::traverseDirectoryTree(const char *path, vector<string> &files,
-        vector<string> &dirs, bool fol_links) 
+        vector<string> &dirs, vector<string> &links) 
 {
     ENTER_PATH;
     Debug("%s on %s\n", __FUNCTION__, path);
@@ -274,11 +274,13 @@ Util::traverseDirectoryTree(const char *path, vector<string> &files,
     dirs.push_back(path); // save the top dir
 
     for(itr = entries.begin(); itr != entries.end() && ret==0; itr++) {
-        // TODO: these links will be broken.  Then what?
-        // this code will break unless we fix it to handle metalinks.
-        if (itr->second == DT_DIR || (fol_links &&itr->second == DT_LNK)) 
-            ret=traverseDirectoryTree(itr->first.c_str(),files,dirs,fol_links);
-        else files.push_back(itr->first);
+        if (itr->second == DT_DIR) {
+            ret=traverseDirectoryTree(itr->first.c_str(),files,dirs,links);
+        } else if (itr->second == DT_LNK) {
+            links.push_back(itr->first);
+        } else {
+            files.push_back(itr->first);
+        }
     }
 
     EXIT_UTIL;

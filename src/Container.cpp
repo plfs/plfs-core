@@ -531,9 +531,17 @@ int Container::resolveMetalink(const string &metalink, string &resolved) {
     return ret;
 }
 
+int Container::collectIndices(const string &physical, vector<string> &indices) {
+    vector<string> filters;
+    filters.push_back(INDEXPREFIX);
+    filters.push_back(HOSTDIRPREFIX);
+    return collectContents(physical,indices,filters);
+}
+
 // this function collects all droppings from a container
-// it makes one assumption about how containers are structured:
+// it makes two assumptions about how containers are structured:
 // 1) it knows how to deal with metalinks
+// 2) containers are only one directory level deep
 // it'd be nice if the only place that container structure was understood
 // was in this class.  but I don't think that's quite true.
 // That's our goal though!
@@ -578,10 +586,8 @@ int Container::collectContents(const string &physical,
 // and aggregates them into a global in-memory index structure
 // returns 0 or -errno
 int Container::aggregateIndices(const string &path, Index *index) {
-    vector<string> files, filters;
-    filters.push_back(INDEXPREFIX);
-    filters.push_back(HOSTDIRPREFIX);
-    int ret = collectContents(path,files,filters);
+    vector<string> files; 
+    int ret = collectIndices(path,files);
     if (ret!=0) return -errno;
 
     IndexerTask task;
@@ -952,29 +958,32 @@ int Container::getattr( const string &path, struct stat *stbuf ) {
 
     // if we're using cached data we don't do this part unless there
     // were open hosts
-    // it's so tempting to use ReaddirOp here....  We could easily do it
-    // to get the list of index files but does it add memory overhead
-    // or latency?  
-    const char *prefix   = INDEXPREFIX;
     int chunks = 0;
     if ( openHosts.size() > 0 ) {
-        string dropping; 
-        blkcnt_t index_blocks = 0, data_blocks = 0;
-        off_t    index_size = 0, data_size = 0;
-        DIR *td = NULL, *hd = NULL; struct dirent *tent = NULL;
-        while((ret=nextdropping(path,&dropping,prefix,&td,&hd,&tent))==1) {
-            string host = hostFromChunk(dropping, prefix);
-            if (validMeta.find(host) != validMeta.end()) {
-                // hmm, maybe we should also be checking in openHosts
-                plfs_debug("Used stashed stat info for %s\n", host.c_str() );
-                continue;
-            } else {
-                chunks++;
-            }
+        // we used to use the very cute nextdropping code which maintained
+        // open readdir handles and just iterated one at a time through
+        // all the contents of a container
+        // but the new metalink stuff makes that hard.  So lets use our
+        // helper functions which will make memory overheads....
+        vector<string> indices;
+        vector<string>::iterator itr;
+        ret = collectIndices(path,indices);
+        chunks = indices.size();
+        for(itr=indices.begin(); itr!=indices.end() && ret==0; itr++) {
+            string dropping = *itr;
+            string host = hostFromChunk(dropping,INDEXPREFIX);
 
-            // we'll always stat the dropping to get at least the timestamp
-            // if it's an index dropping then we'll read it
-            // it it's a data dropping, we'll just use more stat info
+            // need to read index data when host_is_open OR not cached
+            bool host_is_open;
+            bool host_is_cached;
+            bool use_this_index;
+            host_is_open = (openHosts.find(host) != openHosts.end());
+            host_is_cached = (validMeta.find(host) != validMeta.end());
+            use_this_index = (host_is_open || !host_is_cached);
+            if (!use_this_index) continue;
+
+            // stat the dropping to get the timestamps
+            // then read the index info 
             struct stat dropping_st;
             if (Util::Lstat(dropping.c_str(), &dropping_st) < 0 ) {
                 ret = -errno;
@@ -986,21 +995,14 @@ int Container::getattr( const string &path, struct stat *stbuf ) {
             stbuf->st_atime = max(dropping_st.st_atime, stbuf->st_atime);
             stbuf->st_mtime = max(dropping_st.st_mtime, stbuf->st_mtime);
 
-            if ( dropping.find(DATAPREFIX) != dropping.npos ) {
-                plfs_debug("Getting stat info from data dropping\n" );
-                data_blocks += dropping_st.st_blocks;
-                data_size   += dropping_st.st_size;
-            } else {
-                plfs_debug("Getting stat info from index dropping\n");
-                Index index(path);
-                index.readIndex( dropping ); 
-                index_blocks     += bytesToBlocks( index.totalBytes() );
-                index_size        = max(index.lastOffset(), index_size);
-            }
+            plfs_debug("Getting stat info from index dropping\n");
+            Index index(path);
+            index.readIndex(dropping); 
+            stbuf->st_blocks += bytesToBlocks( index.totalBytes() );
+            stbuf->st_size   = max(stbuf->st_size, index.lastOffset());
         }
-        stbuf->st_blocks += max(data_blocks, index_blocks);
-        stbuf->st_size   = max(stbuf->st_size, max(data_size, index_size));
     }
+
     ostringstream oss;
     oss  << "Examined " << chunks << " droppings:"
          << path << " total size " << stbuf->st_size <<  ", usage "
@@ -1141,10 +1143,12 @@ int Container::makeTopLevel( const string &expanded_path,
             // will hash by node to create their subdir which may go in 
             // canonical or may go in a shadow
 
+            /*
             // comment this out as easy way to test metalink code on one node
             if (makeHostDir(expanded_path,hostname,mode,PARENT_CREATED)  < 0){
                 return -errno;
             }
+            */
 
                 // make the version stuff here?  this means that it is 
                 // possible for someone to find a container without the

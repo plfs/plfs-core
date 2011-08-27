@@ -109,7 +109,7 @@ class Util {
         static char *hostname();
         static int retValue( int res );
         static int traverseDirectoryTree(const char *physical, 
-                vector<string> &files, vector<string> &dirs, bool follow_links);
+            vector<string> &files, vector<string> &dirs, vector<string>&links);
     private:
         static void addBytes( string, size_t );
         static string timeToString(      HASH_MAP<string,double>::iterator,
