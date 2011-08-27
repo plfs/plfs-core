@@ -241,7 +241,7 @@ expandPath(string logical, ExpansionInfo *exp_info,
         break;
     }
     exp_info->which_backend %= pm->backends.size();
-    string expanded =  pm->backends[exp_info->which_backend];
+    string expanded =  pm->backends[exp_info->which_backend]
         + "/" + remaining;
     plfs_debug("%s: %s -> %s (%d.%d)\n", __FUNCTION__, 
             logical.c_str(), expanded.c_str(),
@@ -672,6 +672,7 @@ plfs_iterate_backends(const char *logical, FileOp &op) {
     if ( (ret = find_all_expansions(logical,exps)) != 0 ) PLFS_EXIT(ret);
     for(itr = exps.begin(); itr != exps.end() && ret == 0; itr++ ){
         ret = op.op(itr->c_str(),DT_DIR);
+        plfs_debug("%s on %s: %d\n",op.name(),itr->c_str(),ret);
     }
     PLFS_EXIT(ret);
 }

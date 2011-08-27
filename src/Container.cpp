@@ -507,6 +507,7 @@ int Container::resolveMetalink(const string &metalink, string &resolved) {
     int ret = 0;
     istringstream iss;
     char buf[METALINK_MAX];
+    plfs_debug("%s resolving %s\n", __FUNCTION__, metalink.c_str());
     ret = Util::Readlink(metalink.c_str(),buf,METALINK_MAX);
     if (ret<=0) {
         plfs_debug("WTF.  readlink %s: %s\n",metalink.c_str(),strerror(errno));
@@ -523,7 +524,8 @@ int Container::resolveMetalink(const string &metalink, string &resolved) {
     iss >> resolved; 
     resolved += '/'; // be safe.  we'll probably end up with 3 '///' lol
     resolved += metalink.substr(canonical_backend_length);
-    plfs_debug("%s: resolved %s into %s\n", metalink.c_str(), resolved.c_str());
+    plfs_debug("%s: resolved %s into %s\n", 
+            __FUNCTION__,metalink.c_str(), resolved.c_str());
     return ret;
 }
 
@@ -546,6 +548,7 @@ int Container::collectContents(const string &physical,
     for(f_itr=filters.begin(); f_itr!=filters.end(); f_itr++) {
         rop.filter(*f_itr);
     }
+    plfs_debug("%s on %s\n", __FUNCTION__, physical.c_str());
     ret = rop.op(physical.c_str(),DT_DIR);
 
     // now for each entry we found: descend into dirs, resolve metalinks and
@@ -573,9 +576,10 @@ int Container::collectContents(const string &physical,
 // and aggregates them into a global in-memory index structure
 // returns 0 or -errno
 int Container::aggregateIndices(const string &path, Index *index) {
-    vector<string> files, dirs;
-    bool follow_links = true;
-    int ret = Util::traverseDirectoryTree(path.c_str(),files,dirs,follow_links);
+    vector<string> files, filters;
+    filters.push_back(INDEXPREFIX);
+    filters.push_back(HOSTDIRPREFIX);
+    int ret = collectContents(path,files,filters);
     if (ret!=0) return -errno;
 
     IndexerTask task;
@@ -1134,6 +1138,8 @@ int Container::makeTopLevel( const string &expanded_path,
             // subdir directly in the canonical location.  Everyone else
             // will hash by node to create their subdir which may go in 
             // canonical or may go in a shadow
+
+            // comment this out as easy way to test metalink code on one node
             if (makeHostDir(expanded_path,hostname,mode,PARENT_CREATED)  < 0){
                 return -errno;
             }

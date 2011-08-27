@@ -4,6 +4,7 @@
 #include "FileOp.h"
 #include "Util.h"
 #include "Container.h"
+#include "plfs.h"
 
 int
 FileOp::op(const char *path, unsigned char type) {
@@ -140,7 +141,11 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */ ) {
             bool match = false;
             set<string>::iterator itr;
             for(itr=filters.begin();itr!=filters.end();itr++){
-                if(itr->compare(0,strlen(ent->d_name),ent->d_name)==0) {
+                plfs_debug("%s checking first %d of filter %s on %s\n",
+                        __FUNCTION__, itr->length(), itr->c_str(), ent->d_name);
+                // don't know why itr->compare isn't working.  driving me nuts.
+                //if(itr->compare(0,itr->length()-1,ent->d_name)==0) {
+                if(strncmp(itr->c_str(),ent->d_name,itr->length()-1)==0) {
                     match = true;
                     break;
                 }
@@ -150,6 +155,7 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */ ) {
         string file;
         if (expand) { file = path; file += "/"; file += ent->d_name; }
         else { file = ent->d_name; }
+        plfs_debug("%s inserting %s\n", __FUNCTION__, file.c_str());
         if (entries) (*entries)[file] = (ent->d_type != DT_UNKNOWN) ? 
                                          ent->d_type :
                                          determine_type(path, ent->d_name);
