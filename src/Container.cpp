@@ -249,7 +249,7 @@ bool Container::isContainer( const string &physical_path, mode_t *mode ) {
                 // something weird here.  it should be: *mode = buf.st_mode;
                 // but then the rename has a weird error.
                 // but leaving it like this adds an execute bit to renamed files
-                if (mode) *mode = fileMode(*mode); 
+                if (mode) *mode = buf.st_mode; //fileMode(*mode); 
             }
             return ( ret == 0 ? true : false );    
         } else {

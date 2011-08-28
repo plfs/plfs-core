@@ -174,11 +174,14 @@ RmdirOp::do_op(const char *path, unsigned char /* isfile */ ) {
 
 int
 CreateOp::do_op(const char *path, unsigned char isfile ) {
-    if (isfile==DT_DIR)
-        return Util::Mkdir(path,m);
-    else if (isfile==DT_REG)
+    if (isfile==DT_DIR) {
+        mode_t mode = Container::dirMode(m); 
+        return Util::Mkdir(path,mode);
+    } else if (isfile==DT_REG) {
         return Util::Creat(path,m);
-    else assert(0);
+    } else {
+        assert(0);
+    }
     return -ENOSYS;
 }
 
