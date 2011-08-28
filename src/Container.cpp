@@ -1287,7 +1287,7 @@ int Container::makeTopLevel( const string &expanded_path,
             // don't create the hostdir now.  later when it's created it
             // will be created by hashing on node and is therefore likely to 
             // be created in a shadow container
-            bool test_metalink = true;
+            bool test_metalink = false;
             if (test_metalink) {
                 fprintf(stderr,"Warning.  This PLFS code is experimental.  "
                     "You should not see this message.  Pls fix %s %d\n",
