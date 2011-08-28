@@ -28,6 +28,123 @@ bool checkMask(int mask,int value) {
     return (mask&value||mask==value);
 }
 
+// somehow a file is not in its canonical location.  make it so.
+// this function does recurse on the meta dir bec we need all those empty files
+// moved as well.
+// by the way, it's easier to think about this sometimes if you think of the
+// from_backend as a shadow container to the to_backend which is now canonical
+// returns 0 or -errno
+int
+Container::transferCanonical(const string &from, const string &to,
+        const string &from_backend, const string &to_backend, mode_t mode) {
+    int ret = 0;
+
+
+    //  foreach entry in from:
+    //    if empty file: create file w/ same name in to; remove
+    //    if symlink: create identical symlink in to; remove
+    //    TODO:
+    //    if directory: 
+    //      if meta: recurse 
+    //      if subdir: create metalink in to to it
+    //    else assert(0): there should be nothing else
+
+    // set up our operators
+    plfs_debug("%s need to transfer from %s into %s\n",
+            __FUNCTION__, from.c_str(), to.c_str());
+    map<string,unsigned char> entries;
+    map<string,unsigned char>::iterator itr;
+    string old_path, new_path;
+    ReaddirOp rop(&entries,NULL,false,true); 
+    UnlinkOp uop;
+    CreateOp cop(mode);
+    cop.ignoreErrno(EEXIST);
+    cop.ignoreErrno(EISDIR);
+
+    // do the readdir of old to get the list of things that need to be moved
+    ret = rop.op(from.c_str(),DT_DIR);
+    if ( ret != 0) return ret; 
+
+    // then make sure there is a directory in the right place
+    ret = cop.op(to.c_str(),DT_DIR);
+    if ( ret != 0) return ret; 
+
+    // now transfer all contents from old to new 
+    for(itr=entries.begin();itr!=entries.end() && ret==0;itr++) {
+        // set up full paths
+        old_path = from;    old_path += "/"; old_path += itr->first;
+        new_path = to; new_path += "/"; new_path += itr->first;;
+        switch(itr->second){
+            case DT_REG:
+                // all top-level files within container are zero-length
+                // except for global index.  We should really copy global
+                // index over.  Someone do that later.  Now we just ophan it.
+                // for the zero length ones, just create them new, delete old.
+                if (Util::Filesize(old_path.c_str())==0) {
+                    ret = cop.op(new_path.c_str(),DT_REG);
+                    if (ret==0) ret = uop.op(old_path.c_str(),DT_REG);
+                } else {
+                    if(istype(itr->first,GLOBALINDEX)) {
+                        // here is where we should copy the thing
+                        // for now we're just losing the global index
+                    } else {
+                        // something unexpected in container
+                        assert(0 && itr->first==""); 
+                    }
+                }
+                break;
+            case DT_LNK:
+                {
+                    // we are transferring the canonical stuff from:
+                    // 'from' into 'to'
+                    // here we have found a metalink within 'from' to some 3rd
+                    // container 'other'
+                    // we need to recreate this metalink to 'other' into 'to'
+                    // do check to make sure that 'other' is not 'to'
+                    // in which case no need to recreate. 
+                    size_t sz;  // we don't need this
+                    string canonical_backend = to_backend;
+                    string other_backend; 
+                    ret = readMetalink(old_path,other_backend,sz);
+                    if (ret==0 && canonical_backend!=other_backend) {
+                        ret = createMetalink(canonical_backend,other_backend,
+                                new_path);
+                    }
+                    if (ret==0) ret = uop.op(old_path.c_str(),DT_LNK);
+                }
+                break;
+            case DT_DIR:
+                // two types of dir.  meta dir and host dir
+                if (istype(itr->first,METADIR)) {
+                    ret = transferCanonical(old_path,new_path,
+                            from_backend,to_backend,mode);
+                } else if (istype(itr->first,HOSTDIRPREFIX)) {
+                    // in this case what happens is that the former canonical
+                    // container is now a shadow container.  So link its 
+                    // physical subdirs into the new canonical location.
+                    string canonical_backend = to_backend;
+                    string shadow_backend = from_backend;
+                    ret = createMetalink(canonical_backend,shadow_backend,
+                            new_path); 
+                } else {
+                    // something unexpected if we're here
+                    // try including the string in the assert so we get 
+                    // a printout maybe of the offensive string
+                    assert(0 && itr->first==""); 
+                }
+                break;
+            default:
+                plfs_debug("WTF? %s %d\n",__FUNCTION__,__LINE__);
+                assert(0);  
+                ret = -ENOSYS;
+                break;
+        }
+    }
+
+    // we did everything we could.  Hopefully that's enough.
+    return ret;
+}
+
 int Container::Access( const string &path, int mask ) {
     // there used to be some concern here that the accessfile might not
     // exist yet but the way containers are made ensures that an accessfile
@@ -134,6 +251,7 @@ bool Container::isContainer( const string &physical_path, mode_t *mode ) {
             return ( ret == 0 ? true : false );    
         } else {
             // it's a regular file, or a link, or something
+            // mode is already set above
             return false;
         }
     } else {    
@@ -507,12 +625,30 @@ int Container::createMetalink(
 int Container::resolveMetalink(const string &metalink, string &resolved) {
     size_t canonical_backend_length;
     int ret = 0;
+    plfs_debug("%s resolving %s\n", __FUNCTION__, metalink.c_str());
+
+    ret = readMetalink(metalink,resolved,canonical_backend_length);
+    resolved += '/'; // be safe.  we'll probably end up with 3 '///' lol
+    resolved += metalink.substr(canonical_backend_length);
+    plfs_debug("%s: resolved %s into %s\n", 
+            __FUNCTION__,metalink.c_str(), resolved.c_str());
+    return ret;
+}
+
+// ok a metalink is a link at path P pointing to a shadow subdir at path S/L
+// P is comprised of B/L where B is canonical backend 
+// and L is remainder of path all the way to subdir
+// the contents of the metalink are XS where X is stringlen of B and S 
+// to get L we just remove the first X bytes from P
+// then we can easily get S/L 
+// returns 0 or -errno
+int Container::readMetalink(const string &P, string &S, size_t &X) {
     istringstream iss;
     char buf[METALINK_MAX];
-    plfs_debug("%s resolving %s\n", __FUNCTION__, metalink.c_str());
-    ret = Util::Readlink(metalink.c_str(),buf,METALINK_MAX);
+
+    int ret = Util::Readlink(P.c_str(),buf,METALINK_MAX);
     if (ret<=0) {
-        plfs_debug("WTF.  readlink %s: %s\n",metalink.c_str(),strerror(errno));
+        plfs_debug("WTF.  readlink %s: %s\n",P.c_str(),strerror(errno));
         return Util::retValue(ret);
     } else {
         buf[ret] = '\0';
@@ -520,14 +656,9 @@ int Container::resolveMetalink(const string &metalink, string &resolved) {
     }
 
     // so read the info out of the symlink
-    // then construct the path to the shadow
     iss.str(buf);
-    iss >> canonical_backend_length;
-    iss >> resolved; 
-    resolved += '/'; // be safe.  we'll probably end up with 3 '///' lol
-    resolved += metalink.substr(canonical_backend_length);
-    plfs_debug("%s: resolved %s into %s\n", 
-            __FUNCTION__,metalink.c_str(), resolved.c_str());
+    iss >> X;
+    iss >> S; 
     return ret;
 }
 
@@ -601,7 +732,7 @@ int Container::aggregateIndices(const string &path, Index *index) {
         size_t lastslash = itr->rfind('/');
         filename = itr->substr(lastslash+1,itr->npos);
 
-        if (filename.compare(0,strlen(INDEXPREFIX),INDEXPREFIX)==0) {
+        if (istype(filename,INDEXPREFIX)) {
             task.path = (*itr);
             tasks.push_back(task);
             plfs_debug("Ag indices path is %s\n",path.c_str());
@@ -671,6 +802,7 @@ string Container::getGlobalIndexPath( const string &physical ) {
     return oss.str();
 }
 
+// this function is weird currently.  We have no global chunks...
 string Container::getGlobalChunkPath( const string &physical ) {
     ostringstream oss;
     oss << physical << "/" << GLOBALCHUNK;
@@ -820,6 +952,11 @@ string Container::getOpenHostsDir( const string &path ) {
     return openhostsdir;
 }
 
+// simple function to see if a dropping is a particular type such as OPENPREFIX
+bool Container::istype(const string &dropping, const char *type) {
+    return (dropping.compare(0,strlen(type),type)==0);
+}
+
 // a function that reads the open hosts dir to discover which hosts currently
 // have the file open
 // now the open hosts file has a pid in it so we need to separate this out
@@ -827,7 +964,7 @@ int Container::discoverOpenHosts(set<string> &entries, set<string> &openhosts){
     set<string>::iterator itr;
     string host;
     for(itr=entries.begin();itr!=entries.end();itr++) {
-        if (itr->compare(0,strlen(OPENPREFIX),OPENPREFIX) == 0) {
+        if (istype(*itr,OPENPREFIX)) {
             host = (*itr);
             host.erase(0,strlen(OPENPREFIX));
             host.erase(host.rfind("."), host.size());
@@ -927,9 +1064,9 @@ int Container::getattr( const string &path, struct stat *stbuf ) {
     // first get the set of all open hosts
     discoverOpenHosts(entries, openHosts);
 
-    // then consider the valid set of all meta droppings 
+    // then consider the valid set of all meta droppings (not open droppings)
     for(itr=entries.begin();itr!=entries.end();itr++) {
-        if(itr->compare(0,strlen(OPENPREFIX),OPENPREFIX)==0) continue;
+        if (istype(*itr,OPENPREFIX)) continue;
         off_t last_offset;
         size_t total_bytes;
         struct timespec time;
@@ -1143,12 +1280,20 @@ int Container::makeTopLevel( const string &expanded_path,
             // will hash by node to create their subdir which may go in 
             // canonical or may go in a shadow
 
-            /*
-            // comment this out as easy way to test metalink code on one node
-            if (makeHostDir(expanded_path,hostname,mode,PARENT_CREATED)  < 0){
-                return -errno;
+            // if you want to test metalink stuff on a single node, then
+            // don't create the hostdir now.  later when it's created it
+            // will be created by hashing on node and is therefore likely to 
+            // be created in a shadow container
+            bool test_metalink = true;
+            if (test_metalink) {
+                fprintf(stderr,"Warning.  This PLFS code is experimental.  "
+                    "You should not see this message.  Pls fix %s %d\n",
+                    __FILE__, __LINE__);
+            } else {
+                if (makeHostDir(expanded_path,hostname,mode,PARENT_CREATED)<0) {
+                    return -errno;
+                }
             }
-            */
 
                 // make the version stuff here?  this means that it is 
                 // possible for someone to find a container without the
@@ -1507,7 +1652,7 @@ Container::truncateMeta(const string &path, off_t offset){
     }
 
     for(set<string>::iterator itr=entries.begin();itr!=entries.end();itr++) {
-        if (itr->compare(0,strlen(OPENPREFIX),OPENPREFIX)==0) continue;
+        if (istype(*itr,OPENPREFIX)) continue; // don't remove open droppings
 		string full_path( meta_path ); full_path+="/"; full_path+=(*itr);
 		off_t last_offset;
 		size_t total_bytes;

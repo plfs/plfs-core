@@ -149,8 +149,9 @@ int plfs_readlink( const char *path, char *buf, size_t bufsize );
 /* 
    recover a lost plfs file (which can happen if plfsrc is ever improperly
    modified
+   d_type can be DT_DIR, DT_REG, DT_UNKNOWN
 */
-int plfs_recover( const char *path );
+int plfs_recover(const char *path);
 
 int plfs_rename( const char *from, const char *to );
 

@@ -45,7 +45,7 @@ int main (int argc, char **argv) {
         fprintf(stderr, "Couldn't query %s: %s\n",
                 target, strerror(-ret));
     } else {
-        printf("%s is located at %s\n",target,backend.c_str());
+        printf("%s\n",backend.c_str());
     }
     exit( ret );
 }

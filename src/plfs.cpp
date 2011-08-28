@@ -76,6 +76,7 @@ typedef struct {
     pthread_mutex_t mux;    // to lock the queue
 } ReaderArgs;
 
+// function that tokenizes a string into a set of strings based on set of delims
 vector<string> &tokenize(const string& str,const string& delimiters,
         vector<string> &tokens)
 {
@@ -97,6 +98,19 @@ vector<string> &tokenize(const string& str,const string& delimiters,
     }
 
 	return tokens;
+}
+
+// the expansion info doesn't include a string for the backend
+// to save a bit of space (probably an unnecessary optimization but anyway)
+// it just includes an offset into the backend arrary
+// these helper functions just dig out the string 
+const string &
+get_backend(const ExpansionInfo &exp, size_t which) {
+    return exp.mnt_pt->backends[which];
+}
+const string &
+get_backend(const ExpansionInfo &exp) {
+    return get_backend(exp,exp.which_backend);
 }
 
 char *plfs_gethostname() {
@@ -241,8 +255,7 @@ expandPath(string logical, ExpansionInfo *exp_info,
         break;
     }
     exp_info->which_backend %= pm->backends.size();
-    string expanded =  pm->backends[exp_info->which_backend]
-        + "/" + remaining;
+    string expanded = get_backend(*exp_info) + "/" + remaining;
     plfs_debug("%s: %s -> %s (%d.%d)\n", __FUNCTION__, 
             logical.c_str(), expanded.c_str(),
             hash_method,exp_info->which_backend);
@@ -253,6 +266,8 @@ expandPath(string logical, ExpansionInfo *exp_info,
 // for a logical path (canonical is at index 0, shadows at the rest)
 // also works for directory operations which need to iterate on all
 // it may well return some paths which don't actually exist
+// some callers assume that the ordering is consistent.  Don't change.
+// also, the order returned is the same as the ordering of the backends.
 // returns 0 or -errno
 int 
 find_all_expansions(const char *logical, vector<string> &containers) {
@@ -443,13 +458,13 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
         shadow = expandPath(logical,&exp_info,HASH_BY_NODE,-1,0); 
         if (exp_info.Errno) PLFS_EXIT(exp_info.Errno);
         shadow_hostdir = Container::getHostDirPath(shadow,hostname);
-        shadow_backend = exp_info.mnt_pt->backends[exp_info.which_backend]; 
         hostdir = shadow_hostdir.substr(shadow.size(),string::npos);
+        shadow_backend = get_backend(exp_info);
 
         // now set up canonical
         canonical = expandPath(logical,&exp_info,HASH_BY_FILENAME,-1,0);
         if (exp_info.Errno) PLFS_EXIT(exp_info.Errno);
-        canonical_backend = exp_info.mnt_pt->backends[exp_info.which_backend]; 
+        canonical_backend = get_backend(exp_info);
         canonical_hostdir = Container::getHostDirPath(canonical,hostname);
 
         // make the shadow container and hostdir
@@ -682,27 +697,31 @@ plfs_readdir( const char *logical, void *vptr ) {
     PLFS_EXIT(ret);
 }
 
-// this function needs work.
-// it hasn't been updated in regards to multiple backends yet.
-// probably other similar functions as well might need work
-// we should be able to use plfs_recover here for plfs files
-// we just rename all the shadow and canonical containers and
-// then call plfs_recover to make sure that canonical is in the
-// right place
+// just rename all the shadow and canonical containers 
+// then call recover_file to move canonical stuff if necessary 
 int
 plfs_rename( const char *logical, const char *to ) {
     PLFS_ENTER;
+    string old_canonical = path;
+    string old_canonical_backend = get_backend(expansion_info);
+    string new_canonical;
+    string new_canonical_backend;
 
     plfs_debug("%s: %s -> %s\n", __FUNCTION__, logical, to);
 
     // first check if there is a file already at dst.  If so, remove it
     ExpansionInfo exp_info;
-    string topath = expandPath(to,&exp_info,HASH_BY_FILENAME,-1,0);
+    new_canonical = expandPath(to,&exp_info,HASH_BY_FILENAME,-1,0);
+    new_canonical_backend = get_backend(exp_info);
     if (exp_info.Errno) PLFS_EXIT(-ENOENT); // should never happen; check anyway
     if (is_plfs_file(to, NULL)) {
         ret = plfs_unlink(to);
         if (ret!=0) PLFS_EXIT(ret);
     }
+
+    // now check whether it is a file of a directory we are renaming
+    mode_t mode;
+    bool isfile = Container::isContainer(old_canonical,&mode);
 
     // get the list of all possible entries for both src and dest
     vector<string> srcs, dsts;
@@ -711,17 +730,27 @@ plfs_rename( const char *logical, const char *to ) {
     if ( (ret = find_all_expansions(to,dsts)) != 0 ) PLFS_EXIT(ret);
     assert(srcs.size()==dsts.size());
 
-    // now go through and rename all of them
+    // now go through and rename all of them (ignore ENOENT)
     for(size_t i = 0; i < srcs.size(); i++) {
         int err = retValue(Util::Rename(srcs[i].c_str(),dsts[i].c_str()));
-        if (err == -ENOENT) err = 0;  // some might be empty
+        if (err == -ENOENT) err = 0;  // a file might not be distributed on all 
         if (err != 0) ret = err;  // keep trying but save the error
         plfs_debug("rename %s to %s: %d\n",srcs[i].c_str(),dsts[i].c_str(),err);
     }
 
-    // now we need to call plfs_recover to ensure canonical is in right place
-    // only need to do plfs_recover if it's a file and not if it's a dir ....
-    ret = plfs_recover(to);
+    // if it's a file whose canonical location has moved, recover it
+    bool moved = (old_canonical_backend!=new_canonical_backend);
+    if (moved && isfile) {
+        // ok, old canonical is no longer a valid path bec we renamed it
+        // we need to construct the new path to where the canonical contents are
+        // to contains the mount point plus the path.  We just need to rip the
+        // mount point off to and then append it to the old_canonical_backend
+        string mnt_pt = exp_info.mnt_pt->mnt_pt;
+        old_canonical = old_canonical_backend + "/" + &to[mnt_pt.length()];
+        ret = Container::transferCanonical(old_canonical,new_canonical,
+                old_canonical_backend,new_canonical_backend,mode);
+    }
+
     PLFS_EXIT(ret);
 }
 
@@ -802,18 +831,6 @@ recover_directory(const char *logical, bool parent_only) {
     return ret;
 }
 
-// this function does a readlink of an existing symlink
-// and creates an identical symlink at a new location
-// returns 0 or -errno
-int
-recover_link(const string &existing, const string &new_path) {
-    static char buf[PATH_MAX];
-    ssize_t len = Util::Readlink(existing.c_str(), buf, PATH_MAX);
-    if (len==-1) return -errno;
-    buf[len] = '\0'; // null term.  stupid readlink
-    return retValue(Util::Symlink(buf,new_path.c_str()));
-}
-
 // simple function that takes a set of paths and unlinks them all
 int
 remove_all(vector<string> &unlinks) {
@@ -828,19 +845,21 @@ remove_all(vector<string> &unlinks) {
 
 // this is a bit of a crazy function.  Basically, it's for the case where
 // someone changed the set of backends for an existing mount point.  They
-// shouldn't ever do this, so hopefully this code is never used!  But if they
+// shouldn't ever do this, so hopefully this code is never used!  
+// But if they
 // do, what will happen is that they will see their file on a readdir() but on
 // a stat() they'll either get ENOENT because there is nothing at the new
 // canonical location, or they'll see the shadow container which looks like a
-// directory to them.  So this function makes it so that a plfs file that had a
+// directory to them.  
+// So this function makes it so that a plfs file that had a
 // different previous canonical location is now recovered to the new canonical
 // location.  hopefully it always works but it won't currently work across
 // different file systems because it uses rename()
 // returns 0 or -errno (-EEXIST means it didn't need to be recovered)
 int 
-plfs_recover( const char *logical ) { 
+plfs_recover(const char *logical) { 
     PLFS_ENTER; 
-    string former, canonical; 
+    string former, canonical, former_backend, canonical_backend; 
     bool found, isdir, isfile;
     mode_t canonical_mode = 0, former_mode = 0;
 
@@ -848,6 +867,7 @@ plfs_recover( const char *logical ) {
     // however, if we find a directory at the correct canonical location
     // we still need to keep looking bec it might be a shadow container
     canonical = path;
+    canonical_backend = get_backend(expansion_info);
     plfs_debug("%s Canonical location should be %s\n", __FUNCTION__,
             canonical.c_str());
     isfile = (int) Container::isContainer(path,&canonical_mode); 
@@ -866,16 +886,21 @@ plfs_recover( const char *logical ) {
     found = false;  // possible it doesn't exist (ENOENT)
     vector<string> exps;
     if ( (ret = find_all_expansions(logical,exps)) != 0 ) PLFS_EXIT(ret);
-    for(vector<string>::iterator itr = exps.begin(); itr != exps.end(); itr++ ){
-        ret  = (int) Container::isContainer(*itr,&former_mode);
+    for(size_t i=0; i<exps.size();i++) {
+        string possible = exps[i];
+        ret  = (int) Container::isContainer(possible,&former_mode);
         if (ret) {
             isfile = found = true;
-            former = *itr;
+            former = possible; 
+            // we know the backend is at offset i in backends
+            // we know this is in the same mount point as canonical
+            // that mount point is still stashed in expansion_info
+            former_backend = get_backend(expansion_info,i);
             break;  // no need to keep looking
         } else if (S_ISDIR(former_mode)) {
             isdir = found = true;
         }
-        plfs_debug("%s query %s: %s\n", __FUNCTION__, itr->c_str(),
+        plfs_debug("%s query %s: %s\n", __FUNCTION__, possible.c_str(),
                 (isfile?"file":isdir?"dir":"ENOENT"));
     }
     if (!found) PLFS_EXIT(-ENOENT);
@@ -893,60 +918,8 @@ plfs_recover( const char *logical ) {
     ret = mkdir_dash_p(canonical,false);
     if (ret != 0 && ret != EEXIST) PLFS_EXIT(ret);   // some bad error
 
-    // at this point there is a plfs container at the former position
-    // there is a directory at the canonical position
-    // it might have already been there bec it was a shadow container
-    // or we just created it above
-    // recreate the container as discovered at former into canonical as so:
-    //  foreach entry in former:
-    //    if empty file: create file w/ same name in canonical; remove
-    //    if symlink: create identical symlink in canonical; remove
-    //    TODO:
-    //    if directory: 
-    //      if meta: recurse 
-    //      if subdir: create metalink in canonical to it
-    //    else assert(0): there should be nothing else
-    plfs_debug("%s need to transfer %s from %s into %s\n",
-            __FUNCTION__, logical, former.c_str(), canonical.c_str());
-    map<string,unsigned char> entries;
-    map<string,unsigned char>::iterator itr;
-    string old_path, new_path;
-    ReaddirOp rop(&entries,NULL,false,true);
-    UnlinkOp uop;
-    CreateOp cop(former_mode);
-    ret = rop.op(former.c_str(),DT_DIR);
-    if ( ret != 0) PLFS_EXIT(ret); 
-
-    for(itr=entries.begin();itr!=entries.end() && ret==0;itr++) {
-        old_path = former;    old_path += "/"; old_path += itr->first;
-        new_path = canonical; new_path += "/"; new_path += itr->first;;
-        switch(itr->second){
-            case DT_REG:
-                // when this function was written, all top-level files within
-                // the canonical container were zero-length.  This function
-                // assumes that they still are so continue to check in case
-                // in the future someone adds a non-zero-length top level file
-                // in which case this function will need to be modified
-                assert(Util::Filesize(old_path.c_str())==0);
-                ret = cop.op(new_path.c_str(),DT_REG);
-                if (ret==0) ret = uop.op(old_path.c_str(),DT_REG);
-                break;
-            case DT_LNK:
-                ret = recover_link(old_path,new_path);
-                if (ret==0) ret = uop.op(old_path.c_str(),DT_LNK);
-                break;
-            case DT_DIR:
-                ret =retValue(Util::Symlink(old_path.c_str(),new_path.c_str()));
-                break;
-            default:
-                plfs_debug("WTF? %s %d\n",__FUNCTION__,__LINE__);
-                assert(0);  
-                ret = -ENOSYS;
-                break;
-        }
-    }
-
-    // we did everything we could.  Hopefully that's enough.
+    ret = Container::transferCanonical(former,canonical,
+            former_backend,canonical_backend,former_mode);
     if ( ret != 0 ) {
         printf("Unable to recover %s.\nYou may be able to recover the file"
                 " by manually moving contents of %s to %s\n", 

@@ -73,6 +73,9 @@ class Container {
         static mode_t containerMode(  mode_t );
         static int makeHostDir(const string &path, const string &host, 
                 mode_t mode, parentStatus);
+        static int transferCanonical(const string &from,
+                const string &to, const string &from_backend,
+                const string &to_backend, mode_t);
 
         static int getattr( const string &, struct stat * );
 
@@ -82,6 +85,7 @@ class Container {
         static int Access( const string &path, int mask );
 
         static int createMetalink(const string &,const string &,const string &);
+        static int readMetalink(const string &,string &, size_t &);
         static int resolveMetalink(const string &, string &);
         static int collectIndices(const string &path, vector<string> &indices);
         static int collectContents(const string &path,
@@ -128,6 +132,7 @@ class Container {
         static struct dirent *getnextent( DIR *dir, const char *prefix );
         static int makeMeta( const string &path, mode_t type, mode_t mode );
         static int ignoreNoEnt( int ret );
+        static bool istype(const string &dropping, const char *type);
 };
 
 #endif
