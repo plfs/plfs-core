@@ -404,7 +404,7 @@ int Index::flush() {
 
 // takes a path and returns a ptr to the mmap of the file 
 // also computes the length of the file
-// TODO: possible that this fails if there is a symlink hostdir 
+// Update: seems to work with metalink
 void *Index::mapIndex( string hostindex, int *fd, off_t *length ) {
     void *addr;
     *fd = Util::Open( hostindex.c_str(), O_RDONLY );
@@ -560,8 +560,10 @@ int Index::global_from_stream(void *addr) {
     // now read in the vector of chunk files
     // oh shit.  this code needs work now.  it sets the chunk paths
     // up using the top-level container path.  but some of the 
-    // chunk paths will contain symlinks so it will be difficult to
-    // reconstruct
+    // chunk paths are metalinks so it will be difficult to
+    // reconstruct.  We can either make it so that it uses the
+    // actual path to shadowed subdirs or that it deals with
+    // metalinks when we try later to opendir them
     plfs_debug("%s of %s now parsing data chunk paths\n",
             __FUNCTION__,physical_path.c_str());
     vector<string> chunk_paths;

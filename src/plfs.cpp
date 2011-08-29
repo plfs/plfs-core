@@ -1019,9 +1019,11 @@ perform_read_task( ReadTask *task, Index *index ) {
             index->unlock(__FUNCTION__);
             if ( task->fd < 0 ) {   // not currently stashed, we have to open it
                 bool won_race = true;   // assume we will be first stash
-                // TODO: This is where the data chunk is opened.  We need to
+                // This is where the data chunk is opened.  We need to
                 // create a helper function that does this open and reacts
-                // appropriately when it fails due to symlinks
+                // appropriately when it fails due to metalinks
+                // this is currently working with metalinks.  We resolve
+                // them before we get here
                 task->fd = Util::Open(task->path.c_str(), O_RDONLY);
                 if ( task->fd < 0 ) {
                     plfs_debug("WTF? Open of %s: %s\n", 
@@ -1414,8 +1416,8 @@ int plfs_hostdir_rddir(void **index_stream,char *targets,int rank,
     unsigned count=0;
     while(count<directories.size()){  // why isn't this a for loop?
         path=directories[count];
-        index_droppings=Container::hostdir_index_read(path.c_str());
-        if (index_droppings.size() == 0) return -ENOENT;
+        int ret = Container::indices_from_subdir(path,index_droppings);
+        if (ret!=0) return ret;
         index_droppings.erase(index_droppings.begin());
         Index tmp(top_level);
         tmp=Container::parAggregateIndices(index_droppings,0,1,path);
@@ -1427,12 +1429,14 @@ int plfs_hostdir_rddir(void **index_stream,char *targets,int rank,
 }
 
 // Returns size of the hostdir stream entries
+// or -errno
 int plfs_hostdir_zero_rddir(void **entries,const char* path,int rank){
     vector<IndexFileInfo> index_droppings;
     int size;
     IndexFileInfo converter;
     
-    index_droppings=Container::hostdir_index_read(path);
+    int ret = Container::indices_from_subdir(path,index_droppings);
+    if (ret!=0) return ret;
     plfs_debug("Found [%d] index droppings in %s\n",
                 index_droppings.size(),path);
     *entries=converter.listToStream(index_droppings,&size);

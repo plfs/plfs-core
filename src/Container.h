@@ -110,7 +110,7 @@ class Container {
                                  int rank, int ranks_per_comm,string path);
         static int indexTaskManager(deque<IndexerTask> &tasks,
                                         Index *index,string path);
-        static vector<IndexFileInfo> hostdir_index_read(const char *path);
+        static int indices_from_subdir(string,vector<IndexFileInfo>&);
         static const char *version(const string &path);
     private:
             // static stuff

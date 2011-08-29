@@ -43,7 +43,6 @@ Container::transferCanonical(const string &from, const string &to,
     //  foreach entry in from:
     //    if empty file: create file w/ same name in to; remove
     //    if symlink: create identical symlink in to; remove
-    //    TODO:
     //    if directory: 
     //      if meta: recurse 
     //      if subdir: create metalink in to to it
@@ -512,19 +511,19 @@ const char *Container::version(const string &path) {
     return "0.1.6";  // no version file or dir found
 }
 
-vector<IndexFileInfo> Container::hostdir_index_read(const char *path){
-    
-    set<string> entries;
-    vector<IndexFileInfo> index_droppings;
-    // TODO: handle case where the path is a symlink
-    ReaddirOp op(NULL,&entries,false,true);
-    op.filter(INDEXPREFIX);
-    int ret = op.op(path,DT_DIR);
-    if (ret!=0) {
-        plfs_debug("ReaddirOp error in hostdir %s directory reader: %s\n",
-                path,strerror(-ret));
-        return index_droppings;
-    }
+// added the code where it handles metalinks by trying again on error
+int
+Container::indices_from_subdir(string path, vector<IndexFileInfo> &indices) {
+
+    // resolve it if metalink.  otherwise unchanged.
+    string resolved;
+    int ret = resolveMetalink(path,resolved);
+    if (ret==0) path = resolved;
+
+    // collect the indices from subdir
+    vector<string> index_files;
+    ret = collectIndices(path,index_files);
+    if (ret!=0) return ret;
 
     // I need the path so I am going to try this out
     // Should always be the first element
@@ -532,35 +531,38 @@ vector<IndexFileInfo> Container::hostdir_index_read(const char *path){
     path_holder.timestamp=-1;
     path_holder.hostname=path;
     path_holder.id=-1;
-    index_droppings.push_back(path_holder);
+    indices.push_back(path_holder);
 
      // Start reading the directory
-    for(set<string>::iterator itr=entries.begin(); itr!=entries.end(); itr++) {
-        // unpack the file name into components (should be separate func)
+    vector<string>::iterator itr;
+    for(itr = index_files.begin(); itr!=index_files.end(); itr++){
         string str_time_stamp;
         vector<string> tokens;
         IndexFileInfo index_dropping;
             
+        // unpack the file name into components (should be separate func)
+        // ugh, this should be encapsulated.  if we ever change format 
+        // of index filename, this will break.
         tokenize(itr->c_str(),".",tokens);
         str_time_stamp+=tokens[2];
         str_time_stamp+=".";
         str_time_stamp+=tokens[3];
         index_dropping.timestamp = strtod(str_time_stamp.c_str(),NULL);
             
-        int left_over = (tokens.size()-1)-5;
+        int left_over = (tokens.size()-1)-5;    // WTF is 5?!?!?
             
         // Hostname can contain "."
         int count;
         for(count=0;count<=left_over;count++){
-            index_dropping.hostname+=tokens[4+count];
+            index_dropping.hostname+=tokens[4+count];   // WTF is 4?!?!?
             if(count!=left_over) index_dropping.hostname+=".";
         }
-        index_dropping.id=atoi(tokens[5+left_over].c_str());
+        index_dropping.id=atoi(tokens[5+left_over].c_str());    // WTF is 5?!?!?!
         plfs_debug("Pushing path %s into index list from %s\n",
                 index_dropping.hostname.c_str(), itr->c_str());
-        index_droppings.push_back(index_dropping);
+        indices.push_back(index_dropping);
     }
-    return index_droppings;
+    return 0;
 }
 
 Index Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
@@ -624,6 +626,7 @@ int Container::createMetalink(
 // we then preface this with the string we read from readlink
 // e.g. /panfs/volume13/.plfs_store/johnbent/projectA/data/exp1.dat
 //
+// it's OK to fail: we use this to check if things are metalinks
 // returns 0 or -errno
 int Container::resolveMetalink(const string &metalink, string &resolved) {
     size_t canonical_backend_length;
@@ -631,8 +634,10 @@ int Container::resolveMetalink(const string &metalink, string &resolved) {
     plfs_debug("%s resolving %s\n", __FUNCTION__, metalink.c_str());
 
     ret = readMetalink(metalink,resolved,canonical_backend_length);
-    resolved += '/'; // be safe.  we'll probably end up with 3 '///' lol
-    resolved += metalink.substr(canonical_backend_length);
+    if (ret==0) {
+        resolved += '/'; // be safe.  we'll probably end up with 3 '///'  
+        resolved += metalink.substr(canonical_backend_length);
+    }
     plfs_debug("%s: resolved %s into %s\n", 
             __FUNCTION__,metalink.c_str(), resolved.c_str());
     return ret;
@@ -651,7 +656,8 @@ int Container::readMetalink(const string &P, string &S, size_t &X) {
 
     int ret = Util::Readlink(P.c_str(),buf,METALINK_MAX);
     if (ret<=0) {
-        plfs_debug("WTF.  readlink %s: %s\n",P.c_str(),strerror(errno));
+        // it's OK to fail: we use this to check if things are metalinks
+        plfs_debug("readlink %s failed: %s\n",P.c_str(),strerror(errno));
         return Util::retValue(ret);
     } else {
         buf[ret] = '\0';
@@ -1522,8 +1528,8 @@ struct dirent *Container::getnextent( DIR *dir, const char *prefix ) {
 // augmenting the ReaddirOp to take a function pointer (or a FileOp instance)
 // but that's a bit complicated as well.  This code isn't bad just a bit complex
 // this returns 0 if done.  1 if OK.  -errno if a problem
-// TODO: some code here will need to be fixed since hostdir symlinks are no 
-// longer fully valid paths but are just metadata
+// TODO: some code here will need to be fixed for metalink stuff 
+// currently only used by Truncate.
 int Container::nextdropping( const string& physical_path, 
         string *droppingpath, const char *dropping_type,
         DIR **topdir, DIR **hostdir, struct dirent **topent ) 
