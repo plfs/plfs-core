@@ -87,9 +87,9 @@ class Container {
         static int createMetalink(const string &,const string &,const string &);
         static int readMetalink(const string &,string &, size_t &);
         static int resolveMetalink(const string &, string &);
-        static int collectIndices(const string &path, vector<string> &indices);
+        static int collectIndices(const string &path, vector<string> &indices,bool);
         static int collectContents(const string &path,
-            vector<string> &files, vector<string> &filters);
+            vector<string> &files, vector<string> &filters,bool);
 
         static int flattenIndex( const string &, Index * );
         static int populateIndex(const string &,Index *,bool use_cached_global);

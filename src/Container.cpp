@@ -522,7 +522,7 @@ Container::indices_from_subdir(string path, vector<IndexFileInfo> &indices) {
 
     // collect the indices from subdir
     vector<string> index_files;
-    ret = collectIndices(path,index_files);
+    ret = collectIndices(path,index_files,false);
     if (ret!=0) return ret;
 
     // I need the path so I am going to try this out
@@ -671,11 +671,12 @@ int Container::readMetalink(const string &P, string &S, size_t &X) {
     return ret;
 }
 
-int Container::collectIndices(const string &physical, vector<string> &indices) {
+int Container::collectIndices(const string &physical, vector<string> &indices,
+        bool full_path) {
     vector<string> filters;
     filters.push_back(INDEXPREFIX);
     filters.push_back(HOSTDIRPREFIX);
-    return collectContents(physical,indices,filters);
+    return collectContents(physical,indices,filters,full_path);
 }
 
 // this function collects all droppings from a container
@@ -686,12 +687,12 @@ int Container::collectIndices(const string &physical, vector<string> &indices) {
 // was in this class.  but I don't think that's quite true.
 // That's our goal though!
 int Container::collectContents(const string &physical,
-        vector<string> &files, vector<string> &filters) 
+        vector<string> &files, vector<string> &filters, bool full_path) 
 {
     map<string,unsigned char> entries;
     map<string,unsigned char>::iterator e_itr;
     vector<string>::iterator f_itr;
-    ReaddirOp rop(&entries,NULL,true,true);
+    ReaddirOp rop(&entries,NULL,full_path,true);
     int ret = 0;
 
     // set up and use our ReaddirOp to get all entries out of top-level
@@ -705,12 +706,12 @@ int Container::collectContents(const string &physical,
     // then descend, save files.
     for(e_itr = entries.begin(); ret==0 && e_itr != entries.end(); e_itr++) {
         if(e_itr->second==DT_DIR) { 
-            ret = Container::collectContents(e_itr->first,files,filters);
+            ret = Container::collectContents(e_itr->first,files,filters,true);
         } else if (e_itr->second==DT_LNK) { 
             string resolved;
             ret = Container::resolveMetalink(e_itr->first,resolved);
             if (ret==0) {
-                ret = Container::collectContents(resolved,files,filters);
+                ret = Container::collectContents(resolved,files,filters,true);
             }
         } else if (e_itr->second==DT_REG) {
             files.push_back(e_itr->first);
@@ -727,7 +728,7 @@ int Container::collectContents(const string &physical,
 // returns 0 or -errno
 int Container::aggregateIndices(const string &path, Index *index) {
     vector<string> files; 
-    int ret = collectIndices(path,files);
+    int ret = collectIndices(path,files,true);
     if (ret!=0) return -errno;
 
     IndexerTask task;
@@ -1113,7 +1114,7 @@ int Container::getattr( const string &path, struct stat *stbuf ) {
         // helper functions which will make memory overheads....
         vector<string> indices;
         vector<string>::iterator itr;
-        ret = collectIndices(path,indices);
+        ret = collectIndices(path,indices,true);
         chunks = indices.size();
         for(itr=indices.begin(); itr!=indices.end() && ret==0; itr++) {
             string dropping = *itr;
@@ -1457,11 +1458,13 @@ int Container::createHelper(const string &expanded_path, const string &hostname,
 
         // first the top level container
     double begin_time, end_time;
+    bool existing_container = false;
     int res = 0;
     mode_t existing_mode = 0;
     res = isContainer( expanded_path.c_str(), &existing_mode );
     // check if someone is trying to overwrite a directory?
     if (!res && S_ISDIR(existing_mode)) res = -EISDIR;    
+    existing_container = res;
 
     if (!res) {
         plfs_debug("Making top level container %s %x\n", 
@@ -1478,7 +1481,10 @@ int Container::createHelper(const string &expanded_path, const string &hostname,
                     expanded_path.c_str(), strerror(errno));
         }
     }
-    return res;
+
+    // hmm.  what should we do if someone calls create on an existing object
+    // I think we need to return success since ADIO expects this
+    return (existing_container ? 0 : res);
 }
 
 // This should be in a mutex if multiple procs on the same node try to create
