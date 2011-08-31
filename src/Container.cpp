@@ -1466,7 +1466,7 @@ int Container::createHelper(const string &expanded_path, const string &hostname,
     if (!res && S_ISDIR(existing_mode)) res = -EISDIR;    
     existing_container = res;
 
-    if (!res) {
+    if (res==0) { 
         plfs_debug("Making top level container %s %x\n", 
                 expanded_path.c_str(),mode);
         begin_time = time(NULL);
