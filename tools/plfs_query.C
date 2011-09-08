@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string>
+#include <vector>
 using namespace std;
 
 #include "plfs.h"
@@ -40,12 +41,16 @@ int main (int argc, char **argv) {
     }
 
     string backend;
-    int ret = plfs_locate(target,(void*)&backend);
+    vector<string> files;
+    int ret = plfs_locate(target,(void*)&files);
     if ( ret != 0 ) {
         fprintf(stderr, "Couldn't query %s: %s\n",
                 target, strerror(-ret));
     } else {
-        printf("%s\n",backend.c_str());
+        vector<string>::iterator itr;
+        for(itr=files.begin(); itr!=files.end(); itr++) {
+            printf("%s\n",itr->c_str());
+        }
     }
     exit( ret );
 }

@@ -1705,11 +1705,16 @@ plfs_symlink(const char *logical, const char *to) {
     PLFS_EXIT(ret);
 }
 
+// void * should be a vector
 int
 plfs_locate(const char *logical, void *vptr) {
     PLFS_ENTER;
-    string *target = (string *)vptr;
-    *target = path;
+    vector<string> *files = (vector<string> *)vptr;
+    vector<string> filters;
+    ret = Container::collectContents(path,*files,filters);
+
+    //string *target = (string *)vptr;
+    //*target = path;
     PLFS_EXIT(ret);
 }
 
