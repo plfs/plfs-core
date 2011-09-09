@@ -25,7 +25,11 @@ using namespace std;
 // do we try to cache a read index even in RDWR mode?
 // if we do, blow it away on writes
 // otherwise, blow it away whenever it gets created
-bool cache_index_on_rdwr = true;
+// it would be nice to change this to true but it breaks something
+// figure out what and change.  do not change to true without figuring out
+// how it breaks things.  It should be obvious.  Try to build PLFS inside
+// PLFS and it will break.
+bool cache_index_on_rdwr = false;   // DO NOT change to true!!!!
 
 // some functions require that the path passed be a PLFS path
 // some (like symlink) don't
@@ -1741,7 +1745,7 @@ plfs_locate(const char *logical, void *vptr) {
     PLFS_ENTER;
     vector<string> *files = (vector<string> *)vptr;
     vector<string> filters;
-    ret = Container::collectContents(path,*files,filters);
+    ret = Container::collectContents(path,*files,filters,true);
 
     //string *target = (string *)vptr;
     //*target = path;
