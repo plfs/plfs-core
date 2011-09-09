@@ -3,6 +3,7 @@
 #include "COPYRIGHT.h"
 #include <string>
 #include <map>
+#include <pthread.h>
 #include "WriteFile.h"
 #include "Index.h"
 #include "Metadata.h"
@@ -22,9 +23,13 @@ class Plfs_fd : public Metadata {
         time_t     getCtime() { return ctime; }
         void       setIndex( Index *i )          { this->index     = i;  }
         void       setWritefile( WriteFile *wf ) { this->writefile = wf; }
+        // when we build and destroy an index in RDWR mode, we want to lock it
+        int       lockIndex();
+        int       unlockIndex();
     private:
         WriteFile *writefile;
         Index     *index;
+        pthread_mutex_t index_mux;
         pid_t     pid;
         mode_t    mode;
         string    path;

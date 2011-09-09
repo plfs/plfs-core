@@ -20,6 +20,13 @@
 #include <stdlib.h>
 using namespace std;
 
+// TODO:
+// this global variable should be a plfs conf
+// do we try to cache a read index even in RDWR mode?
+// if we do, blow it away on writes
+// otherwise, blow it away whenever it gets created
+bool cache_index_on_rdwr = true;
+
 // some functions require that the path passed be a PLFS path
 // some (like symlink) don't
 enum
@@ -1163,12 +1170,12 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
             pfd->getPath(),long(offset),long(size));
 
     // possible that we opened the file as O_RDWR
-    // if so, we don't have a persistent index
+    // if so, we may not have a persistent index
     // build an index now, but destroy it after this IO
     // so that new writes are re-indexed for new reads
     // basically O_RDWR is possible but it can reduce read BW
-    if ( index == NULL ) {
-        index = new Index( pfd->getPath() );
+    if (index == NULL) {
+        index = new Index(pfd->getPath());
         if ( index ) {
             new_index_created = true;
             ret = Container::populateIndex(pfd->getPath(),index,false);
@@ -1184,12 +1191,23 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
     plfs_debug("Read request on %s at offset %ld for %ld bytes: ret %ld\n",
             pfd->getPath(),long(offset),long(size),long(ret));
 
-    if ( new_index_created ) {
-        plfs_debug("%s removing freshly created index for %s\n",
-                __FUNCTION__, pfd->getPath() );
-        delete( index );
-        index = NULL;
+
+    // we created a new index.  Maybe we cache it or maybe we destroy it.
+    if (new_index_created) {
+        bool delete_index = true;
+        if (cache_index_on_rdwr) {
+            pfd->lockIndex();
+            if (pfd->getIndex()==NULL) { // no-one else cached one
+                pfd->setIndex(index);
+                delete_index = false;
+            }
+            pfd->unlockIndex();
+        }
+        if (delete_index) delete(index);
+        plfs_debug("%s %s freshly created index for %s\n",
+            __FUNCTION__, delete_index?"removing":"caching", pfd->getPath());
     }
+
     PLFS_EXIT(ret);
 }
 
@@ -1649,10 +1667,19 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode,
         if ( ret == 0 ) {
             index->incrementOpens(1);
         }
+
         // can't cache index if error or if in O_RDWR
-        if ( index && (ret != 0 || isWriter(flags) )){
-            delete index;
-            index = NULL;
+        // actually let's cache index even if we're in O_RDWR
+        // bec some apps do that for reads and the performance
+        // penalty is too large
+        if (index) {
+            bool delete_index = false;
+            if (ret!=0) delete_index = true;
+            if (!cache_index_on_rdwr && isWriter(flags)) delete_index = true;
+            if (delete_index) {
+                delete index;
+                index = NULL;
+            }
         }
     }
 
@@ -1674,7 +1701,7 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode,
         //cerr << __FUNCTION__ << " added open record for " << path << endl;
     } else if ( ret == 0 ) {
         if ( wf && new_writefile) (*pfd)->setWritefile( wf ); 
-        if ( index && new_index ) (*pfd)->setIndex( index  ); 
+        if ( index && new_index ) (*pfd)->setIndex(index); 
     }
     if (ret == 0) {
         // do we need to incrementOpens twice if O_RDWR ?
@@ -1782,6 +1809,18 @@ plfs_write(Plfs_fd *pfd, const char *buf, size_t size, off_t offset, pid_t pid){
     // but no-one can remove the handle being used here except this thread
     // which can't remove it now since it's using it now
     //plfs_reference_count(pfd);
+
+    // possible that we cache index in RDWR.  If so, delete it on a write
+    Index *index = pfd->getIndex(); 
+    if (index != NULL) {
+        assert(cache_index_on_rdwr);
+        pfd->lockIndex();
+        if (pfd->getIndex()) { // make sure another thread didn't delete
+            delete index;
+            pfd->setIndex(NULL);
+        }
+        pfd->unlockIndex();
+    }
 
     int ret = 0; ssize_t written;
     WriteFile *wf = pfd->getWritefile();
@@ -2225,7 +2264,7 @@ plfs_close( Plfs_fd *pfd, pid_t pid, uid_t uid, int open_flags,
       // Clean up reads moved fd reference count updates
     }   
 
-    if (isReader(open_flags) && index){ // might have been O_RDWR so no index
+    if (isReader(open_flags) && index){ 
         assert( index );
         readers = index->incrementOpens(-1);
         if ( readers == 0 ) {
@@ -2243,11 +2282,6 @@ plfs_close( Plfs_fd *pfd, pid_t pid, uid_t uid, int open_flags,
 
     // make sure the reference counting is correct 
     plfs_reference_count(pfd);    
-    //if(index && readers == 0 ) {
-    //        delete index;
-    //        index = NULL;
-    //        pfd->setIndex(NULL);
-    //}
 
     if ( ret == 0 && ref_count == 0 ) {
         ostringstream oss;

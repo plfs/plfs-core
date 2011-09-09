@@ -1,3 +1,4 @@
+#include "Util.h"
 #include "OpenFile.h"
 #include "COPYRIGHT.h"
 #include <stdlib.h>
@@ -13,6 +14,15 @@ Plfs_fd::Plfs_fd( WriteFile *wf, Index *i, pid_t pi, mode_t m, const char *p ) :
     this->path      = p;
     this->mode      = m;
     this->ctime     = t.tv_sec;
+    pthread_mutex_init(&index_mux,NULL);
+}
+
+int Plfs_fd::lockIndex() {
+    return Util::MutexLock(&index_mux,__FUNCTION__);
+}
+
+int Plfs_fd::unlockIndex() {
+    return Util::MutexUnlock(&index_mux,__FUNCTION__);
 }
 
 // this should be in a mutex when it is called
