@@ -53,7 +53,9 @@ typedef struct {
  if (expansion_info.expand_error && X==PLFS_PATH_REQUIRED) { \
      PLFS_EXIT(-ENOENT); \
  } \
- if (expansion_info.Errno) PLFS_EXIT(expansion_info.Errno);
+ if (expansion_info.Errno && X==PLFS_PATH_REQUIRED) { \
+     PLFS_EXIT(expansion_info.Errno); \
+ }
 
 #define PLFS_EXIT(X) return(X);
 
@@ -600,6 +602,7 @@ int
 plfs_chown( const char *logical, uid_t u, gid_t g ) {
     PLFS_ENTER;
     ChownOp op(u,g);
+    op.ignoreErrno(ENOENT); // see comment in plfs_utime
     ret = plfs_file_operation(logical,op);
     PLFS_EXIT(ret);
 }
@@ -1750,11 +1753,21 @@ plfs_readlink(const char *logical, char *buf, size_t bufsize) {
     PLFS_EXIT(ret);
 }
 
+// OK.  This is a bit of a pain.  We've seen cases
+// where untar opens a file for writing it and while
+// it's open, it initiates a utime on it and then
+// while the utime is pending, it closes the file
+// this means that the utime op might have found
+// an open dropping and is about to operate on it
+// when it disappears.  So we need to ignore ENOENT.
+// a bit ugly.  Probably we need to do the same
+// thing with chown
 // returns 0 or -errno
 int
 plfs_utime( const char *logical, struct utimbuf *ut ) {
     PLFS_ENTER;
     UtimeOp op(ut);
+    op.ignoreErrno(ENOENT);
     ret = plfs_file_operation(logical,op);
     PLFS_EXIT(ret);
 }
