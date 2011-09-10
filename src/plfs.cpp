@@ -1229,6 +1229,7 @@ plfs_init(PlfsConf *pconf) {
 // returns an error string if there's any problems
 string *
 insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt, string file) {
+    static set<string> backends;
     string *error = NULL;
     pair<map<string,PlfsMount*>::iterator, bool> insert_ret; 
     if( pmnt->backends.size() == 0 ) {
@@ -1241,6 +1242,19 @@ insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt, string file) {
         if (!insert_ret.second) {
             error = new string("Mount point multiply defined\n");
         }
+        
+        // check that no backend is used more than once
+        vector<string>::iterator itr;
+        for(itr=pmnt->backends.begin();itr!=pmnt->backends.end();itr++) {
+            pair<set<string>::iterator,bool> insert_ret2;
+            insert_ret2 = backends.insert(*itr);
+            if (!insert_ret2.second) {
+                error = new string("Backend illegally used more than once: ");
+                error->append(*itr);
+                break;
+            }
+        }
+
         //pconf->mnt_pts[pmnt->mnt_pt] = pmnt;
     }
     return error;
