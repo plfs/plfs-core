@@ -6,6 +6,13 @@
    this.  Any old plfsrc's containing this directive need to be edited
    beforing updating to 2.0 or above.
 
+0.0) if you are a developer and check out PLFS code from sourceforge, you 
+will need to run ./autogen.sh which will probably complain about version
+build tool versions.  We do supply a Makefile.tools which tries to download,
+configure, and install the correct versions of these tools in buildtools/bin.
+So you can do 'make -f Makefile.tools' and then prefix `pwd`/buildtools/bin 
+to your PATH environment.
+
 1) To install PLFS as a FUSE filesystem.
 
   0) you'll need to have fuse installed and have /dev/libfuse loaded
