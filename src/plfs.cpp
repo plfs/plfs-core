@@ -1309,7 +1309,7 @@ parse_conf(FILE *fp, string file, PlfsConf *pconf) {
                 pconf->err_msg = new string("open include file failed");
                 break;
             }
-            pconf = parse_conf(include, value, pconf);
+            pconf = parse_conf(include, value, pconf);  // recurse
             fclose(include);
             if (pconf->err_msg) break;
         } else if(strcmp(key,"threadpool_size")==0) {
@@ -1362,15 +1362,14 @@ parse_conf(FILE *fp, string file, PlfsConf *pconf) {
     plfs_debug("Got EOF from parsing conf\n");
 
     // save the current mount point
-    if ( !pconf->err_msg ) {
-        if(pmnt) {
-            pconf->err_msg = insert_mount_point(pconf,pmnt,file);
-        } else {
-            pconf->err_msg = new string("No mount point specified");
-        }
+    if (!pconf->err_msg && pmnt) {
+        pconf->err_msg = insert_mount_point(pconf,pmnt,file);
     }
 
-    plfs_debug("BUG SEARCH %s %d\n",__FUNCTION__,__LINE__);
+    if (pconf->mnt_pts.size()<=0) {
+        pconf->err_msg = new string("No mount points defined.");
+    }
+
     if(pconf->err_msg) {
         plfs_debug("Error in the conf file: %s\n", pconf->err_msg->c_str());
         ostringstream error_msg;
@@ -1380,7 +1379,8 @@ parse_conf(FILE *fp, string file, PlfsConf *pconf) {
         pconf->err_msg = new string(error_msg.str());
     }
 
-    plfs_debug("BUG SEARCH %s %d\n",__FUNCTION__,__LINE__);
+    // be nice to check at make sure we have at least one mount point
+
     assert(pconf);
     plfs_debug("Successfully parsed conf file\n");
     return pconf;
