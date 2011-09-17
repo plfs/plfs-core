@@ -82,7 +82,7 @@ class Container {
         static mode_t getmode( const string & );
         static int Utime( const string &path, const struct utimbuf *buf );
         static int Truncate( const string &, off_t );
-        static int Access( const string &path, int mask );
+        //static int Access( const string &path, int mask );
 
         static int createMetalink(const string &,const string &,const string &);
         static int readMetalink(const string &,string &, size_t &);

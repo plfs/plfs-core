@@ -26,6 +26,72 @@ FileOp::retValue(int ret) {
     return ret;
 }
 
+AccessOp::AccessOp(int mask) {
+    this->mask = mask;
+}
+
+// helper function for Access
+bool checkMask(int mask,int value) {
+    return (mask&value||mask==value);
+}
+
+// helper function for AccessOp
+// this used to be in Container since Container was the one that did
+// the lookup for us of the access file from the container name
+// but now plfs_file_operation is doing that so this code isn't appropriate
+// in container.  really it should just be embedded in AccessOp::op() but
+// then I'd have to mess with indentation
+int Access( const string &path, int mask ) {
+    // there used to be some concern here that the accessfile might not
+    // exist yet but the way containers are made ensures that an accessfile
+    // will exist if the container exists
+    
+    // doing just Access is insufficient when plfs daemon run as root
+    // root can access everything.  so, we must also try the open
+   
+    mode_t open_mode;
+    int ret;
+    errno = 0;
+    bool mode_set=false;
+    string accessfile = path; 
+
+    plfs_debug("%s Check existence of %s\n",__FUNCTION__,accessfile.c_str());
+    ret = Util::Access( accessfile.c_str(), F_OK );
+    if ( ret == 0 ) {
+        // at this point, we know the file exists
+        if(checkMask(mask,W_OK|R_OK)){
+            open_mode = O_RDWR;
+            mode_set=true;
+        } else if(checkMask(mask,R_OK)||checkMask(mask,X_OK)) {
+            open_mode = O_RDONLY;
+            mode_set=true;
+        } else if(checkMask(mask,W_OK)){
+            open_mode = O_WRONLY;
+            mode_set=true;
+        } else if(checkMask(mask,F_OK)){
+            return 0;   // we already know this
+        }
+        assert(mode_set);
+    
+        plfs_debug("The file exists attempting open\n");
+        ret = Util::Open(accessfile.c_str(),open_mode);
+        plfs_debug("Open returns %d\n",ret);
+        if(ret >= 0 ) {
+            ret = Util::Close(ret);
+        }
+    }
+    return ret; 
+}
+
+int
+AccessOp::do_op(const char *path, unsigned char isfile) {
+    if (isfile==DT_DIR || isfile==DT_LNK)
+        return Util::Access(path,mask);
+    else if (isfile==DT_REG)
+        return Access(path,mask);
+    else return -ENOSYS; // what else could it be? 
+}
+
 ChownOp::ChownOp(uid_t u, gid_t g) {
     this->u = u;
     this->g = g;

@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "plfs.h"
+#include "Util.h"
 #include "plfs_private.h"
 #include "Container.h"
 
@@ -39,7 +40,7 @@ int main (int argc, char **argv) {
     while ( fgets( line, sizeof line, fpipe)) {
         if(strstr(line,"plfs")) {
             vector<string> tokens;
-            tokenize(line," ",tokens);
+            Util::tokenize(line," ",tokens);
             if (tokens.size() >= 3) {
                 printf("mount: %s\n", tokens[2].c_str());
                 FILE *fpipe2;

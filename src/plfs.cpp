@@ -195,6 +195,11 @@ expandPath(string logical, ExpansionInfo *exp_info,
             mnt_pt_found);
     if(!mnt_pt_found) {
         if (depth==0) {
+            // here's another weird thing
+            // sometimes users want to do cd /mnt/plfs/johnbent/dir
+            // plfs_version ./file
+            // well the expansion fails.  So try to figure out the full
+            // path and try again
             char fullpath[PATH_MAX+1];
             fullpath[0] = '\0';
             realpath(logical.c_str(),fullpath);
@@ -206,10 +211,21 @@ expandPath(string logical, ExpansionInfo *exp_info,
                                     which_backend,depth+1));
             } // else fall through to error below
         }
-        fprintf(stderr,"ERROR: %s is not on a PLFS mount.\n", logical.c_str());
+        fprintf(stderr,"WARNING: %s is not on a PLFS mount.\n",logical.c_str());
         exp_info->expand_error = true;
         exp_info->Errno = -EPROTOTYPE;
-        return "PLFS_NO_MOUNT_POINT_FOUND";
+        // we used to return a bogus string as an error indication
+        // but it's screwing things up now that we're trying to make it
+        // so that plfs_access can return OK for things like /mnt
+        // because we have a user code that wants to check access on a file
+        // like /mnt/plfs/johnbent/dir/file
+        // so they slowly first check access on /mnt, then /mnt/plfs, etc
+        // the access check on /mnt fails since /mnt is not on a plfs mount
+        // but we want to let it succeed.  By the way, this is only necessary
+        // on machines that have PLFS-MPI and not PLFS-FUSE.  So definitely
+        // a bit of a one-off kludge.  Hopefully this doesn't mess other stuff
+        //return "PLFS_NO_MOUNT_POINT_FOUND";
+        return logical; // just pass back whatever they gave us
     }
     exp_info->mnt_pt = pm; // found a mount point, save it for caller to use
 
@@ -555,6 +571,7 @@ plfs_file_operation(const char *logical, FileOp &op) {
     if (S_ISREG(mode)) { // it's a PLFS file
         if (op.onlyAccessFile()) {
             files.push_back(Container::getAccessFilePath(path));
+            ret = 0;    // ret was one from is_plfs_file
         } else {
             // everything
             ret = plfs_collect_from_containers(logical,files,dirs,links);
@@ -563,7 +580,7 @@ plfs_file_operation(const char *logical, FileOp &op) {
         ret = find_all_expansions(logical,dirs);
     } else {
         // ENOENT, a symlink, somehow a flat file in here
-        files.push_back(path);
+        files.push_back(path);  // we might want to reset ret to 0 here 
     }
 
     // now apply the operation to each operand so long as ret==0.  dirs must be
@@ -572,6 +589,7 @@ plfs_file_operation(const char *logical, FileOp &op) {
     // other ops, order doesn't matter.
     vector<string>::reverse_iterator ritr;
     for(ritr = files.rbegin(); ritr != files.rend() && ret == 0; ++ritr) {
+        plfs_debug("%s on %s\n",__FUNCTION__,ritr->c_str());
         ret = op.op(ritr->c_str(),DT_REG);
     }
     for(ritr = links.rbegin(); ritr != links.rend() && ret == 0; ++ritr) {
@@ -601,6 +619,12 @@ is_plfs_file( const char *logical, mode_t *mode ) {
     PLFS_EXIT(ret);
 }
 
+int
+is_plfs_directory(const char *logical, mode_t *mode) {
+    PLFS_ENTER;
+    PLFS_EXIT(ret);
+}
+
 #ifdef PLFS_DEBUG_ON
 void 
 plfs_debug( const char *format, ... ) {
@@ -619,25 +643,24 @@ plfs_serious_error(const char *msg,pid_t pid ) {
     Util::SeriousError(msg,pid);
 }
 
-int
-plfs_access( const char *logical, int mask ) {
-    PLFS_ENTER;
-    mode_t mode = 0;
-    if ( is_plfs_file( logical, &mode ) ) {
-        ret = retValue( Container::Access( path, mask ) );
-        assert(ret!=-20);   // wtf is this?
-    } else {
-        if ( mode == 0 ) ret = -ENOENT;
-        else ret = retValue( Util::Access( path.c_str(), mask ) );
-    }
-    PLFS_EXIT(ret);
-}
-
 int 
 plfs_chmod( const char *logical, mode_t mode ) {
     PLFS_ENTER;
     ChmodOp op(mode);
     ret = plfs_file_operation(logical,op);
+    PLFS_EXIT(ret);
+}
+
+int
+plfs_access( const char *logical, int mask ) {
+    // possible they are using plfs_access to check non-plfs file....
+    PLFS_ENTER2(PLFS_PATH_NOTREQUIRED); 
+    if (expansion_info.expand_error) {
+        ret = retValue(Util::Access(logical,mask));
+    } else {
+        AccessOp op(mask);
+        ret = plfs_file_operation(logical,op);
+    }
     PLFS_EXIT(ret);
 }
 

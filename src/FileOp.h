@@ -23,7 +23,7 @@ FileOp {
         // first arg to op is path, second is type of path
         int op(const char *, unsigned char type); // ret 0 or -errno
         virtual const char *name() = 0;
-        bool onlyAccessFile() {return false;}
+        virtual bool onlyAccessFile() {return false;}
         void ignoreErrno(int Errno); // can register errno's to be ignored
         virtual int do_op(const char*, unsigned char type) = 0;
         virtual ~FileOp() {}
@@ -31,6 +31,17 @@ FileOp {
         int retValue(int ret);
     private:
         set<int> ignores;
+};
+
+class
+AccessOp : public FileOp {
+    public:
+        AccessOp(int);
+        int do_op(const char*, unsigned char);
+        bool onlyAccessFile() {return true;}
+        const char *name() { return "AccessOp"; }
+    private:
+        int mask;
 };
 
 class
