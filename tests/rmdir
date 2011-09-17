@@ -1,0 +1,42 @@
+#! /bin/tcsh
+
+if ("X" == "X$1") then
+  echo "Usage: $0 existing_directory"
+  exit 1
+endif
+
+if ( ! -d $1 ) then
+  echo "Usage: $1 is not an existing directory"
+  exit 1
+endif
+
+# make a uniq directory
+# could maybe use mktemp
+set dir = $1/`date +%s`
+mkdir $dir 
+if ($? != 0 ) exit $?
+
+# now touch a file in it
+set file = $dir/foo
+touch $file 
+if ($? != 0 ) exit $?
+
+# now attempt to remove the directory.  should fail
+rmdir $dir >& /dev/null
+if ($? != 1) then
+  echo "$0: rmdir of $dir unexpectedly succeeded.  Error"
+  exit 1
+endif
+
+# now ensure that we can still see the file
+ls $file >& /dev/null
+if ($? != 0) exit $?
+
+# now remove the file and then the directory
+/bin/rm $file
+if ($? != 0) exit $?
+rmdir $dir
+if ($? != 0) exit $?
+
+# success!
+exit 0
