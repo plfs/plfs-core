@@ -1,5 +1,18 @@
 #! /bin/tcsh
 
+
+# this test is a reproducer of a bug first found in 2.0.1
+# in which rmdir of a non-empty
+# directory would corrupt the directory
+
+# this test does this:
+# mkdir foo
+# touch foo/foo
+# rmdir foo
+# ls foo/foo
+# rm foo/foo
+# rmdir foo
+
 if ("X" == "X$1") then
   echo "Usage: $0 existing_directory"
   exit 1
