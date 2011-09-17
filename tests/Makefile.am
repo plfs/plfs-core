@@ -43,13 +43,21 @@
 # rename
 ################################################################################
 sources = \
-rename.C
+rename.C access.C
 
 noinst_PROGRAMS = \
-rename
+rename access
+
+access_SOURCES = \
+access.C
+
+access_CXXFLAGS =
+
+access_LDFLAGS = \
+	-lplfs
 
 rename_SOURCES = \
-$(sources)
+rename.C
 
 rename_CXXFLAGS =
 

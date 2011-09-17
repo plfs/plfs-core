@@ -89,30 +89,6 @@ typedef struct {
     pthread_mutex_t mux;    // to lock the queue
 } ReaderArgs;
 
-// function that tokenizes a string into a set of strings based on set of delims
-vector<string> &tokenize(const string& str,const string& delimiters,
-        vector<string> &tokens)
-{
-	// skip delimiters at beginning.
-    string::size_type lastPos = str.find_first_not_of(delimiters, 0);
-    	
-	// find first "non-delimiter".
-    string::size_type pos = str.find_first_of(delimiters, lastPos);
-
-    while (string::npos != pos || string::npos != lastPos) {
-        // found a token, add it to the vector.
-        tokens.push_back(str.substr(lastPos, pos - lastPos));
-		
-        // skip delimiters.  Note the "not_of"
-        lastPos = str.find_first_not_of(delimiters, pos);
-		
-        // find next "non-delimiter"
-        pos = str.find_first_of(delimiters, lastPos);
-    }
-
-	return tokens;
-}
-
 // the expansion info doesn't include a string for the backend
 // to save a bit of space (probably an unnecessary optimization but anyway)
 // it just includes an offset into the backend arrary
@@ -138,7 +114,7 @@ PlfsMount *
 find_mount_point(PlfsConf *pconf, const string &logical, bool &found) {
     plfs_debug("Searching for mount point matching %s\n", logical.c_str());
     vector<string> logical_tokens;
-    tokenize(logical,"/",logical_tokens);
+    Util::tokenize(logical,"/",logical_tokens);
     return find_mount_point_using_tokens(pconf,logical_tokens,found);
 }
 
@@ -214,7 +190,7 @@ expandPath(string logical, ExpansionInfo *exp_info,
     // find the appropriate PlfsMount from the PlfsConf
     bool mnt_pt_found = false;
     vector<string> logical_tokens;
-    tokenize(logical,"/",logical_tokens);
+    Util::tokenize(logical,"/",logical_tokens);
     PlfsMount *pm = find_mount_point_using_tokens(pconf,logical_tokens,
             mnt_pt_found);
     if(!mnt_pt_found) {
@@ -816,7 +792,7 @@ mkdir_dash_p(const string &path, bool parent_only) {
     string recover_path; 
     vector<string> canonical_tokens;
     plfs_debug("%s on %s\n",__FUNCTION__,path.c_str());
-    tokenize(path,"/",canonical_tokens);
+    Util::tokenize(path,"/",canonical_tokens);
     size_t last = canonical_tokens.size();
     if (parent_only) last--;
     for(size_t i=0 ; i < last; i++){
@@ -1337,7 +1313,7 @@ parse_conf(FILE *fp, string file, PlfsConf *pconf) {
             pmnt = new PlfsMount;
             pmnt->mnt_pt = value;
             pmnt->statfs = NULL;
-            tokenize(pmnt->mnt_pt,"/",pmnt->mnt_tokens);
+            Util::tokenize(pmnt->mnt_pt,"/",pmnt->mnt_tokens);
         } else if (strcmp(key,"statfs")==0) {
             if( !pmnt ) {
                 pconf->err_msg = new string("No mount point yet declared");
@@ -1350,7 +1326,7 @@ parse_conf(FILE *fp, string file, PlfsConf *pconf) {
                 break;
             }
             plfs_debug("Gonna tokenize %s\n", value);
-            tokenize(value,",",pmnt->backends); 
+            Util::tokenize(value,",",pmnt->backends); 
             pmnt->checksum = (unsigned)Container::hashValue(value);
         } else {
             ostringstream error_msg;
@@ -1448,7 +1424,7 @@ int plfs_hostdir_rddir(void **index_stream,char *targets,int rank,
     vector<IndexFileInfo> index_droppings;
 
     plfs_debug("Rank |%d| targets %s\n",rank,targets);
-    tokenize(targets,"|",directories);
+    Util::tokenize(targets,"|",directories);
 
     // Path is extremely important when converting to stream
     Index global(top_level);
@@ -2158,7 +2134,7 @@ getAtomicUnlinkPath(string path) {
     stringstream timestamp;
     timestamp << fixed << Util::getTime();
     vector<string> tokens;
-    tokenize(path,"/",tokens);
+    Util::tokenize(path,"/",tokens);
     atomicpath = "";
     for(size_t i=0 ; i < tokens.size(); i++){
         atomicpath += "/";

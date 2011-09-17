@@ -93,6 +93,9 @@ class Util {
         static ssize_t Write( int, const void *, size_t );
 
             // other misc stuff
+        static vector<string> &tokenize(    const string& str,
+                                            const string& delimiters,
+                                            vector<string> &tokens);
         static void Debug( const char *format, ... );
         static void Debug( const char *format, va_list );
         static void SeriousError(string,pid_t);
