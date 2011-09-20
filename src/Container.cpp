@@ -909,11 +909,17 @@ string Container::fetchMeta( const string &metafile_name,
     return host;
 }
 
+// this returns the path to the metadir
+// don't ever assume that this exists bec it's possible
+// that it doesn't yet
+string Container::getMetaDirPath( const string& strPath ) {
+    string metadir( strPath + "/" + METADIR ); 
+    return metadir;
+}
+
+// open hosts and meta dir currently share a name
 string Container::getOpenHostsDir( const string &path ) {
-    string openhostsdir( path );
-    openhostsdir += "/";
-    openhostsdir += METADIR; // OPENHOSTDIR;
-    return openhostsdir;
+    return getMetaDirPath(path);
 }
 
 // simple function to see if a dropping is a particular type such as OPENPREFIX
@@ -1231,8 +1237,11 @@ int Container::makeTopLevel( const string &expanded_path,
             if ( makeSubdir(getMetaDirPath(expanded_path), mode ) < 0){
                 return -errno;
             }
-            if ( makeSubdir( getOpenHostsDir(expanded_path), mode )< 0){
-                return -errno;
+            if (getOpenHostsDir(expanded_path)!=getMetaDirPath(expanded_path)){
+                // as of 2.0, the openhostsdir and the metadir are the same dir
+                if ( makeSubdir( getOpenHostsDir(expanded_path), mode )< 0){
+                    return -errno;
+                }
             }
 
             // go ahead and make our subdir here now (good for both N-1 & N-N):
@@ -1330,14 +1339,6 @@ int Container::makeMeta( const string &path, mode_t type, mode_t mode ) {
         errno = ENOSYS;
     }
     return ( ret == 0 || errno == EEXIST ) ? 0 : -1;
-}
-
-// this returns the path to the metadir
-// don't ever assume that this exists bec it's possible
-// that it doesn't yet
-string Container::getMetaDirPath( const string& strPath ) {
-    string metadir( strPath + "/" + METADIR ); 
-    return metadir;
 }
 
 string Container::getAccessFilePath( const string& path ) {
