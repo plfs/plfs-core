@@ -567,7 +567,7 @@ int Index::global_from_stream(void *addr) {
     plfs_debug("%s of %s now parsing data chunk paths\n",
             __FUNCTION__,physical_path.c_str());
     vector<string> chunk_paths;
-    tokenize((char*)addr,"\n",chunk_paths); // might be inefficient...
+    Util::tokenize((char*)addr,"\n",chunk_paths); // might be inefficient...
     for( size_t i = 0; i < chunk_paths.size(); i++ ) {
         if(chunk_paths[i].size()<7) continue; // WTF does <7 mean???
         ChunkFile cf;
@@ -600,7 +600,7 @@ int Index::debug_from_stream(void *addr){
     plfs_debug("%s of %s now parsing data chunk paths\n",
                 __FUNCTION__,physical_path.c_str());
     vector<string> chunk_paths;
-    tokenize((char*)addr,"\n",chunk_paths); // might be inefficient...
+    Util::tokenize((char*)addr,"\n",chunk_paths); // might be inefficient...
     for( size_t i = 0; i < chunk_paths.size(); i++ ) {
         plfs_debug("Chunk path:%d is :%s\n",i,chunk_paths[i].c_str());
     }

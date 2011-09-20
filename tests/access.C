@@ -11,17 +11,13 @@
 #include <unistd.h>
 #include <assert.h>
 
-#include <string>
-using namespace std;
-
-// To build this, you'll need environment variables:
-// CPLUS_INCLUDE_PATH
-// DYLD_LIBRARY_PATH
-// that point to plfs.h, plfs/Util.h, and libplfs* files
 #include <plfs.h>
-#include <plfs/Util.h>
+#include <Util.h>
 
-#define TRUE 1
+#include <string>
+#include <vector>
+#include <iostream>
+using namespace std;
 
 void
 Usage( char *prog, int line ) {

@@ -51,10 +51,11 @@ rename access
 access_SOURCES = \
 access.C
 
-access_CXXFLAGS =
+access_CXXFLAGS = \
+	-I../src
 
 access_LDFLAGS = \
-	-lplfs
+	-lplfs -L../src
 
 rename_SOURCES = \
 rename.C

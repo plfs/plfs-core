@@ -497,7 +497,7 @@ Container::indices_from_subdir(string path, vector<IndexFileInfo> &indices) {
         // unpack the file name into components (should be separate func)
         // ugh, this should be encapsulated.  if we ever change format 
         // of index filename, this will break.
-        tokenize(itr->c_str(),".",tokens);
+        Util::tokenize(itr->c_str(),".",tokens);
         str_time_stamp+=tokens[2];
         str_time_stamp+=".";
         str_time_stamp+=tokens[3];

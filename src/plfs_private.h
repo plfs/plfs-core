@@ -17,9 +17,6 @@ using namespace std;
         Util::OpenError(__FILE__,__FUNCTION__,__LINE__,pid,errno);\
     }
 
-vector<string> &tokenize(const string& str,const string& delimiters,
-        vector<string> &tokens);
-
 typedef struct {
     string mnt_pt;  // the logical mount point
     string *statfs; // where to resolve statfs calls
