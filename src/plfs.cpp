@@ -194,7 +194,7 @@ expandPath(string logical, ExpansionInfo *exp_info,
     PlfsMount *pm = find_mount_point_using_tokens(pconf,logical_tokens,
             mnt_pt_found);
     if(!mnt_pt_found) {
-        if (depth==0) {
+        if (depth==0 && logical[0]!='/') {
             // here's another weird thing
             // sometimes users want to do cd /mnt/plfs/johnbent/dir
             // plfs_version ./file
@@ -657,7 +657,49 @@ plfs_access( const char *logical, int mask ) {
     PLFS_ENTER2(PLFS_PATH_NOTREQUIRED); 
     if (expansion_info.expand_error) {
         ret = retValue(Util::Access(logical,mask));
+        if (ret==-ENOENT) {
+            // this might be the weird thing where user has path /mnt/plfs/file
+            // and they are calling plfs_access(/mnt) AND they are on a machine
+            // without FUSE and therefore /mnt doesn't actually exist
+            // calls to /mnt/plfs/file will be resolved by plfs because that is
+            // a virtual PLFS path that PLFS knows how to resolve but /mnt is
+            // not a virtual PLFS path.  So the really correct thing to do 
+            // would be to return a semantic error like EDEVICE which means
+            // cross-device error.  But code team is a whiner who doesn't want
+            // to write code.  So the second best thing to do is to check /mnt
+            // for whether it is a substring of any of our valid mount points
+            PlfsConf *pconf = get_plfs_conf();
+            map<string,PlfsMount*>::iterator itr;
+            for(itr=pconf->mnt_pts.begin();itr!=pconf->mnt_pts.end();itr++){
+                // ok, check to see if the request target matches a mount point
+                // can't just do a substring bec maybe a mount point is /mnt
+                // and they're asking for /m.  So tokenize and compare tokens
+                string this_mnt = itr->first;
+                vector<string> mnt_tokens;
+                vector<string> target_tokens;
+                Util::tokenize(this_mnt,"/",mnt_tokens);
+                Util::tokenize(logical,"/",target_tokens);
+                vector<string> token_itr;
+                bool match = true;
+                for(size_t i=0; i<target_tokens.size(); i++) {
+                    if (i>=mnt_tokens.size()) break; // no good
+                    plfs_debug("%s: compare %s and %s\n",
+                            __FUNCTION__,mnt_tokens[i].c_str(),
+                            target_tokens[i].c_str());
+                    if (mnt_tokens[i]!=target_tokens[i]) {
+                        match = false;
+                        break;
+                    }
+                }
+                if (match) {
+                    ret = 0;
+                    break;
+                }
+            }
+        }
     } else {
+        // oh look.  someone here is using PLFS for its intended purpose to 
+        // access an actual PLFS entry.  And look, it's so easy to handle!
         AccessOp op(mask);
         ret = plfs_file_operation(logical,op);
     }
