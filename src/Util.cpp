@@ -118,30 +118,6 @@ Util::Debug( const char *format, ... ) {
     va_end( args );
 }
 
-// function that tokenizes a string into a set of strings based on set of delims
-vector<string> &Util::tokenize(const string& str,const string& delimiters,
-        vector<string> &tokens)
-{
-	// skip delimiters at beginning.
-    string::size_type lastPos = str.find_first_not_of(delimiters, 0);
-    	
-	// find first "non-delimiter".
-    string::size_type pos = str.find_first_of(delimiters, lastPos);
-
-    while (string::npos != pos || string::npos != lastPos) {
-        // found a token, add it to the vector.
-        tokens.push_back(str.substr(lastPos, pos - lastPos));
-		
-        // skip delimiters.  Note the "not_of"
-        lastPos = str.find_first_not_of(delimiters, pos);
-		
-        // find next "non-delimiter"
-        pos = str.find_first_of(delimiters, lastPos);
-    }
-
-	return tokens;
-}
-
 void
 Util::Debug( const char *format, va_list args ) {
     static FILE *debugfile = NULL;
@@ -170,6 +146,30 @@ Util::Debug( const char *format, va_list args ) {
 void Util::Debug( const char *format, ... ) { return; }
 void Util::Debug( const char *format, va_list args ) { return; }
 #endif
+
+// function that tokenizes a string into a set of strings based on set of delims
+vector<string> &Util::tokenize(const string& str,const string& delimiters,
+        vector<string> &tokens)
+{
+	// skip delimiters at beginning.
+    string::size_type lastPos = str.find_first_not_of(delimiters, 0);
+    	
+	// find first "non-delimiter".
+    string::size_type pos = str.find_first_of(delimiters, lastPos);
+
+    while (string::npos != pos || string::npos != lastPos) {
+        // found a token, add it to the vector.
+        tokens.push_back(str.substr(lastPos, pos - lastPos));
+		
+        // skip delimiters.  Note the "not_of"
+        lastPos = str.find_first_not_of(delimiters, pos);
+		
+        // find next "non-delimiter"
+        pos = str.find_first_of(delimiters, lastPos);
+    }
+
+	return tokens;
+}
 
 void
 Util::SeriousError( string msg, pid_t pid ) {
