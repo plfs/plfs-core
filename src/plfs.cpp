@@ -1668,7 +1668,7 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode,
 
     if ( ret == 0 && flags & O_TRUNC ) {
         // truncating an open file
-        ret = plfs_trunc( NULL, logical, 0,true );
+        ret = plfs_trunc( NULL, logical, 0,(int)true );
         EISDIR_DEBUG;
     }
 
@@ -2085,7 +2085,7 @@ plfs_buildtime( ) {
 // be nice to use new FileOp class for this somehow
 // returns 0 or -errno
 int 
-plfs_trunc(Plfs_fd *of, const char *logical, off_t offset, bool open_file) {
+plfs_trunc(Plfs_fd *of, const char *logical, off_t offset, int open_file) {
     PLFS_ENTER;
     mode_t mode = 0;
     if ( ! is_plfs_file( logical, &mode ) ) {
@@ -2109,7 +2109,7 @@ plfs_trunc(Plfs_fd *of, const char *logical, off_t offset, bool open_file) {
             // this is easy, just remove all droppings
             // this now removes METADIR droppings instead of incorrectly 
             // truncating them
-            ret = truncateFile(logical,open_file);
+            ret = truncateFile(logical,(bool)open_file);
         }
     } else {
             // either at existing end, before it, or after it
