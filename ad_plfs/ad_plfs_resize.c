@@ -20,7 +20,7 @@ void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code)
      * result to the others */
     MPI_Comm_rank(fd->comm, &rank);
     if (rank == fd->hints->ranklist[0]) {
-	err = plfs_trunc(fd->fs_ptr, fd->filename, size);
+	err = plfs_trunc(fd->fs_ptr, fd->filename, size, 1);
     }
     MPI_Bcast(&err, 1, MPI_INT, 0, fd->comm);
 
