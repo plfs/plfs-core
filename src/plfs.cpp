@@ -472,8 +472,10 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
         canonical_backend = get_backend(exp_info);
         canonical_hostdir = Container::getHostDirPath(canonical,hostname);
 
-        // make the shadow container and hostdir
-        plfs_debug("Making shadow hostdir for %s at %s\n",logical.c_str(),
+        // make the shadow container and hostdir (it might be canonical)
+        plfs_debug("Making %s hostdir for %s at %s\n",
+                shadow==canonical?"canonical":"shadow",
+                logical.c_str(),
                 shadow.c_str());
         ret =Container::makeHostDir(shadow,hostname,mode,PARENT_ABSENT);
         if (ret==-EISDIR||ret==-EEXIST) {
@@ -481,27 +483,29 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
             ret = 0;
         }
 
-        // check everything as expected.  If not, loop now and deal with error 
-        if (shadow==canonical || ret != 0) {
+        if (ret!=0) {
             plfs_debug("Something weird in %s for %s.  Retrying.\n",
                     __FUNCTION__, shadow.c_str());
             continue; 
         }
 
-        // once we are here, we have the shadow and its hostdir created
-        // link the shadow hostdir into its canonical location
-        // some errors are OK and indicate merely that we lost a race to sibling
-        plfs_debug("Need to link %s into %s (hostdir ret %d)\n", 
-                shadow_hostdir.c_str(), canonical.c_str(),ret);
-        ret = Container::createMetalink(canonical_backend,shadow_backend,
-                canonical_hostdir);
-        if (ret==-EISDIR) {
-            ret = 0; // a sibling raced us and made the directory for us
-            wf->setPath(canonical);
-        } else if (ret==-EEXIST||ret==0) {
-            ret = 0; // either a sibling raced us and made the link or we did
-            wf->setPath(shadow);    // change WriteFile to point at shadow
-        } 
+        // once we are here, we have the hostdir created
+        // if it's in a shadow container, then link it in 
+        if (shadow!=canonical) {
+            // link the shadow hostdir into its canonical location
+            // some errors are OK: indicate merely that we lost race to sibling
+            plfs_debug("Need to link %s into %s (hostdir ret %d)\n", 
+                    shadow_hostdir.c_str(), canonical.c_str(),ret);
+            ret = Container::createMetalink(canonical_backend,shadow_backend,
+                    canonical_hostdir);
+            if (ret==-EISDIR) {
+                ret = 0; // a sibling raced us and made the directory for us
+                wf->setPath(canonical);
+            } else if (ret==-EEXIST||ret==0) {
+                ret = 0; // either a sibling raced us and made link or we did
+                wf->setPath(shadow);    // change WriteFile to point at shadow
+            } 
+        }
     }
 
     // all done.  we return either -errno or number of writers.  
@@ -1663,7 +1667,8 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode,
     }
 
     if ( ret == 0 && flags & O_TRUNC ) {
-        ret = plfs_trunc( NULL, logical, 0 );
+        // truncating an open file
+        ret = plfs_trunc( NULL, logical, 0,true );
         EISDIR_DEBUG;
     }
 
@@ -1920,8 +1925,8 @@ plfs_sync( Plfs_fd *pfd, pid_t pid ) {
 //
 // the TruncateOp internally does unlinks 
 int 
-truncateFile(const char *logical) {
-    TruncateOp op;
+truncateFile(const char *logical,bool open_file) {
+    TruncateOp op(open_file);
     op.ignore(ACCESSFILE);
     op.ignore(OPENPREFIX);
     op.ignore(VERSIONPREFIX);
@@ -2080,7 +2085,7 @@ plfs_buildtime( ) {
 // be nice to use new FileOp class for this somehow
 // returns 0 or -errno
 int 
-plfs_trunc(Plfs_fd *of, const char *logical, off_t offset) {
+plfs_trunc(Plfs_fd *of, const char *logical, off_t offset, bool open_file) {
     PLFS_ENTER;
     mode_t mode = 0;
     if ( ! is_plfs_file( logical, &mode ) ) {
@@ -2104,7 +2109,7 @@ plfs_trunc(Plfs_fd *of, const char *logical, off_t offset) {
             // this is easy, just remove all droppings
             // this now removes METADIR droppings instead of incorrectly 
             // truncating them
-            ret = truncateFile(logical);
+            ret = truncateFile(logical,open_file);
         }
     } else {
             // either at existing end, before it, or after it

@@ -102,7 +102,8 @@ ChownOp::do_op(const char *path, unsigned char /* isfile */ ) {
     return Util::Chown(path,u,g);
 }
 
-TruncateOp::TruncateOp() {
+TruncateOp::TruncateOp(bool open_file) {
+    this->open_file = open_file;
     // it's possible that we lost a race and some other proc already removed
     ignoreErrno(ENOENT);
 }
@@ -127,7 +128,11 @@ TruncateOp::do_op(const char *path, unsigned char isfile) {
 
     // we made it here, we don't ignore it
     // do we want to do an unlink or a truncate?
-    return Util::Unlink(path);
+    if (open_file) {
+        return Util::Truncate(path,0);
+    } else {
+        return Util::Unlink(path);
+    }
 }
 
 void

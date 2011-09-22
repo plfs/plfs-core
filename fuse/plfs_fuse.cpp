@@ -396,7 +396,7 @@ int Plfs::f_ftruncate(const char *path, off_t offset, struct fuse_file_info *fi)
 {
     PLFS_ENTER; GET_OPEN_FILE;
     if(of) plfs_sync(of,fuse_get_context()->pid); // flush any index buffers
-    ret = plfs_trunc( of, strPath.c_str(), offset );
+    ret = plfs_trunc( of, strPath.c_str(), offset, true );
     PLFS_EXIT;
 }
 
@@ -404,7 +404,7 @@ int Plfs::f_ftruncate(const char *path, off_t offset, struct fuse_file_info *fi)
 // return 0 or -errno 
 int Plfs::f_truncate( const char *path, off_t offset ) {
     PLFS_ENTER;
-    ret = plfs_trunc( NULL, strPath.c_str(), offset );
+    ret = plfs_trunc( NULL, strPath.c_str(), offset, false );
     PLFS_EXIT;
 }
 

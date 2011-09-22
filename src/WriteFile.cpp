@@ -337,7 +337,9 @@ int WriteFile::openFile( string physicalpath, mode_t mode ) {
     mode_t old_mode=umask(0);
     int flags = O_WRONLY | O_APPEND | O_CREAT;
     int fd = Util::Open( physicalpath.c_str(), flags, mode );
-    Util::Debug("open %s : %d %s\n", physicalpath.c_str(), 
+    Util::Debug("%s.%s open %s : %d %s\n", 
+            __FILE__, __FUNCTION__, 
+            physicalpath.c_str(), 
             fd, ( fd < 0 ? strerror(errno) : "" ) );
     if ( fd >= 0 ) paths[fd] = physicalpath;    // remember so restore works
     umask(old_mode);

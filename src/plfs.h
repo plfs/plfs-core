@@ -173,7 +173,7 @@ int plfs_symlink( const char *path, const char *to );
 int plfs_sync( Plfs_fd *, pid_t );
 
 /* Plfs_fd can be NULL, but then path must be valid */
-int plfs_trunc( Plfs_fd *, const char *path, off_t );
+int plfs_trunc( Plfs_fd *, const char *path, off_t, bool open_file );
 
 int plfs_unlink( const char *path );
 

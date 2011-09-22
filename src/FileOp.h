@@ -66,18 +66,20 @@ UtimeOp : public FileOp {
         utimbuf *ut;
 };
 
-// this class doesn't actually truncate any physical files
-// instead it is used to truncate a logical plfs file
-// so for each file, it just removes it unless it should ignore it
+// this class is used to truncate to 0
+// if the file is open, it truncates each physical file to 0
+// if the file is closed, it unlinks all physical files
+// the caller should tell it to ignore special files
 class
 TruncateOp : public FileOp {
     public:
-        TruncateOp();
+        TruncateOp(bool open_file);
         int do_op(const char *, unsigned char);
         const char *name() { return "TruncateOp"; }
         void ignore(string);
     private:
         vector<string> ignores;
+        bool open_file;
 };
 
 class
