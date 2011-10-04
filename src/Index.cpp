@@ -557,13 +557,6 @@ int Index::global_from_stream(void *addr) {
     // then skip past the entries
     addr = (void*)&(entries[quant]);
 
-    // now read in the vector of chunk files
-    // oh shit.  this code needs work now.  it sets the chunk paths
-    // up using the top-level container path.  but some of the 
-    // chunk paths are metalinks so it will be difficult to
-    // reconstruct.  We can either make it so that it uses the
-    // actual path to shadowed subdirs or that it deals with
-    // metalinks when we try later to opendir them
     plfs_debug("%s of %s now parsing data chunk paths\n",
             __FUNCTION__,physical_path.c_str());
     vector<string> chunk_paths;
@@ -571,7 +564,11 @@ int Index::global_from_stream(void *addr) {
     for( size_t i = 0; i < chunk_paths.size(); i++ ) {
         if(chunk_paths[i].size()<7) continue; // WTF does <7 mean???
         ChunkFile cf;
-        cf.path = physical_path + "/" + chunk_paths[i];
+        // we used to strip the physical path off in global_to_stream
+        // and add it back here.  See comment in global_to_stream for why 
+        // we don't do that anymore
+        //cf.path = physical_path + "/" + chunk_paths[i];
+        cf.path = chunk_paths[i];
         cf.fd = -1;
         chunk_map.push_back(cf);
     }
@@ -646,7 +643,22 @@ int Index::global_to_stream(void **buffer,size_t *length) {
     // as well.
     ostringstream chunks;
     for(unsigned i = 0; i < chunk_map.size(); i++ ) {
-        chunks << chunk_map[i].path.substr(physical_path.length()) << endl;
+        /*
+           // we used to optimize a bit by stripping the part of the path
+           // up to the hostdir.  But now this is problematic due to backends
+           // if backends have different lengths then this strip isn't correct
+           // the physical path is to canonical but some of the chunks might be
+           // shadows.  If the length of the canonical_backend isn't the same
+           // as the length of the shadow, then this code won't work.
+           // additionally, we saw that sometimes we had extra slashes '///' in
+           // the paths.  That also breaks this.
+           // so just put full path in.  Makes it a bit larger though ....
+        string chunk_path = chunk_map[i].path.substr(physical_path.length());
+        plfs_debug("%s: constructed %s from %s\n", __FUNCTION__, 
+                chunk_path.c_str(), chunk_map[i].path.c_str());
+        chunks << chunk_path << endl;
+        */
+        chunks << chunk_map[i].path << endl;
     }
     chunks << '\0'; // null term the file
     size_t chunks_length = chunks.str().length();
