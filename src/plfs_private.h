@@ -32,6 +32,7 @@ typedef struct {
     size_t buffer_mbs;  // how many mbs to buffer for write indexing
     map<string,PlfsMount*> mnt_pts;
     bool direct_io; // a flag FUSE needs.  Sorry ADIO and API for the wasted bit
+    bool test_metalink; // for developers only
     string *err_msg;
     string *global_summary_dir;
 } PlfsConf;

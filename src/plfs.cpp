@@ -331,6 +331,9 @@ plfs_dump_config(int check_dirs) {
         if(check_dirs) ret = plfs_check_dir("global_summary_dir",
                 pconf->global_summary_dir->c_str(),ret);
     }
+    if (pconf->test_metalink) {
+        cout << "Test metalink: TRUE" << endl;
+    }
     map<string,PlfsMount*>::iterator itr; 
     vector<string>::iterator bitr;
     for(itr=pconf->mnt_pts.begin();itr!=pconf->mnt_pts.end();itr++) {
@@ -1313,6 +1316,7 @@ set_default_confs(PlfsConf *pconf) {
     pconf->err_msg = NULL;
     pconf->buffer_mbs = 64;
     pconf->global_summary_dir = NULL;
+    pconf->test_metalink = 0;
 }
 
 // set defaults
@@ -1365,6 +1369,14 @@ parse_conf(FILE *fp, string file, PlfsConf *pconf) {
             }
         } else if (strcmp(key,"global_summary_dir")==0) {
             pconf->global_summary_dir = new string(value); 
+        } else if (strcmp(key,"test_metalink")==0) {
+            pconf->test_metalink = atoi(value); 
+            if (pconf->test_metalink) {
+                fprintf(stderr,"WARNING: Running in testing mode with"
+                    " test_metalink.  If this is a production installation"
+                    " or if performance is important, pls edit %s to"
+                    " remove the test_metalink directive\n", file.c_str());
+            }
         } else if (strcmp(key,"num_hostdirs")==0) {
             pconf->num_hostdirs = atoi(value);
             if (pconf->num_hostdirs <= 0) {
@@ -1733,9 +1745,8 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode,
         }
 
         // can't cache index if error or if in O_RDWR
-        // actually let's cache index even if we're in O_RDWR
-        // bec some apps do that for reads and the performance
-        // penalty is too large
+        // be nice to be able to cache but trying to do so
+        // breaks things.  someone should fix this one day
         if (index) {
             bool delete_index = false;
             if (ret!=0) delete_index = true;

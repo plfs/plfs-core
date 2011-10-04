@@ -74,6 +74,13 @@ so they can use this command to force PLFS to forward statfs to a path other
 than the backends which won't hang.  Optional.
 .RE
 
+.B
+test_metalink
+.RS
+This is only for developers to do testing.  It won't be explained here.  If
+you really want to know what it does, please read the code.  Otherwise, do
+not use this directive.
+
 Note that the mount_point and backend may be specified multiple times in the same file.
 
 .br 

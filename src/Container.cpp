@@ -1253,16 +1253,14 @@ int Container::makeTopLevel( const string &expanded_path,
             // will hash by node to create their subdir which may go in 
             // canonical or may go in a shadow
 
-            // if you want to test metalink stuff on a single node, then
-            // don't create the hostdir now.  later when it's created it
-            // will be created by hashing on node and is therefore likely to 
-            // be created in a shadow container
-            bool test_metalink = false;
-            if (test_metalink) {
-                fprintf(stderr,"Warning.  This PLFS code is experimental.  "
-                    "You should not see this message.  Pls fix %s %d\n",
-                    __FILE__, __LINE__);
-            } else {
+            // this is a simple way for developers to test metalink stuff
+            // without running N-1.  Don't create subdir now.  Later when
+            // it is created lazily, it will probably be hashed to shadow
+            // and a metalink will be put in canonical.  We don't want to
+            // run like this in development though bec for N-N we always
+            // want to put the hostdir in canonical and not create shadows
+            PlfsConf *pconf = get_plfs_conf();    
+            if (! pconf->test_metalink) {
                 if (makeHostDir(expanded_path,hostname,mode,PARENT_CREATED)<0) {
                     return -errno;
                 }
