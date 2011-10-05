@@ -1498,11 +1498,13 @@ int plfs_expand_path(char *logical,char **physical){
 
 // Function used when #hostdirs>#procs
 int plfs_hostdir_rddir(void **index_stream,char *targets,int rank,
-        char *top_level){
+        char *top_level)
+{
     size_t stream_sz;
     string path;
     vector<string> directories;
     vector<IndexFileInfo> index_droppings;
+    int ret = 0;
 
     plfs_debug("Rank |%d| targets %s\n",rank,targets);
     Util::tokenize(targets,"|",directories);
@@ -1512,7 +1514,13 @@ int plfs_hostdir_rddir(void **index_stream,char *targets,int rank,
     unsigned count=0;
     while(count<directories.size()){  // why isn't this a for loop?
         path=directories[count];
-        int ret = Container::indices_from_subdir(path,index_droppings);
+
+        // resolve it if metalink.  otherwise unchanged.
+        string resolved;
+        ret = Container::resolveMetalink(path,resolved);
+        if (ret==0) path = resolved;
+   
+        ret = Container::indices_from_subdir(path,index_droppings);
         if (ret!=0) return ret;
         index_droppings.erase(index_droppings.begin());
         Index tmp(top_level);
@@ -1526,15 +1534,21 @@ int plfs_hostdir_rddir(void **index_stream,char *targets,int rank,
 
 // Returns size of the hostdir stream entries
 // or -errno
-int plfs_hostdir_zero_rddir(void **entries,const char* path,int rank){
+int plfs_hostdir_zero_rddir(void **entries,const char* c_path,int rank){
     vector<IndexFileInfo> index_droppings;
-    int size;
+    int size,ret;
     IndexFileInfo converter;
+    string path = c_path;
+
+    // resolve it if metalink.  otherwise unchanged.
+    string resolved;
+    ret = Container::resolveMetalink(path,resolved);
+    if (ret==0) path = resolved;
     
-    int ret = Container::indices_from_subdir(path,index_droppings);
+    ret = Container::indices_from_subdir(path,index_droppings);
     if (ret!=0) return ret;
     plfs_debug("Found [%d] index droppings in %s\n",
-                index_droppings.size(),path);
+                index_droppings.size(),path.c_str());
     *entries=converter.listToStream(index_droppings,&size);
     return size;
 }

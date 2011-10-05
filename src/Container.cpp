@@ -469,14 +469,9 @@ const char *Container::version(const string &path) {
 int
 Container::indices_from_subdir(string path, vector<IndexFileInfo> &indices) {
 
-    // resolve it if metalink.  otherwise unchanged.
-    string resolved;
-    int ret = resolveMetalink(path,resolved);
-    if (ret==0) path = resolved;
-
     // collect the indices from subdir
     vector<string> index_files;
-    ret = collectIndices(path,index_files,false);
+    int ret = collectIndices(path,index_files,false);
     if (ret!=0) return ret;
 
     // I need the path so I am going to try this out

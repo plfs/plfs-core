@@ -409,15 +409,20 @@ void *Index::mapIndex( string hostindex, int *fd, off_t *length ) {
     void *addr;
     *fd = Util::Open( hostindex.c_str(), O_RDONLY );
     if ( *fd < 0 ) {
-        return NULL;
+        plfs_debug("%s WTF open: %s\n", __FUNCTION__, strerror(errno));
+        return (void*)-1;
     }
     // lseek doesn't always see latest data if panfs hasn't flushed
     // could be a zero length chunk although not clear why that gets
     // created.  
     Util::Lseek( *fd, 0, SEEK_END, length );
-    if ( *length <= 0 ) {
+    if ( *length == 0 ) {
         plfs_debug("%s is a zero length index file\n", hostindex.c_str() );
         return NULL;
+    }
+    if (length < 0) {
+        plfs_debug("%s WTF lseek: %s\n", __FUNCTION__, strerror(errno));
+        return (void*)-1; 
     }
 
     Util::Mmap(*length,*fd,&addr);
