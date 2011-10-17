@@ -67,7 +67,8 @@ if (! -x $plfs ) then
   exit 1
 endif
 
-set mnt_pt = `awk '/^mount_point/ {print $2}' ~/.plfsrc | tail -1`
+set plfs_bin = `dirname $plfs`
+set mnt_pt = `$plfs_bin/plfs_check_config | awk '/^Mount Point/ {print $3}' | tail -1 | sed 's/:$//'`
 set mount  = "$plfs $mnt_pt -o direct_io" 
 
 if ( -x $pexec ) then
