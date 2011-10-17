@@ -1,10 +1,10 @@
 #! /bin/tcsh -f
 
 set OMPI_VERSION = 1.4.3
-set adio_path = /tmp/ompi-${OMPI_VERSION}/ompi/mca/io/romio/romio/adio
+set adio_path = /tmp/${USER}-ompi-${OMPI_VERSION}/ompi/mca/io/romio/romio/adio
 set patch = ad-patches/openmpi/ompi-1.4.3-plfs.patch
 
-\rm -rf $adio_path
+\rm -rf /tmp/${USER}-ompi-${OMPI_VERSION}
 mkdir -p $adio_path
 cp -rf ad_plfs $adio_path
 # when make dist calls us, it first copies Makefile.am.ompi to /tmp
@@ -19,6 +19,6 @@ foreach file ( ad_plfs/*.[ch] ad_plfs/Makefile.am )
   echo "Creating patch for $file"
   diff -Naur openmpi-1.4.3/ompi/mca/io/romio/romio/adio/$file $adio_path/$file >> $patch
 end
-\rm -rf $adio_path
+\rm -rf /tmp/${USER}-ompi-${OMPI_VERSION}
 
 echo Your patchfile is `pwd`/$patch 
