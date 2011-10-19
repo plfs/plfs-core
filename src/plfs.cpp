@@ -1276,8 +1276,9 @@ plfs_init(PlfsConf *pconf) {
 // also tokenizes the mount point to set up find_mount_point 
 // returns an error string if there's any problems
 string *
-insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt, string file) {
-    static set<string> backends;
+insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt, string file, 
+        set<string> &backends) 
+{
     string *error = NULL;
     pair<map<string,PlfsMount*>::iterator, bool> insert_ret; 
     if( pmnt->backends.size() == 0 ) {
@@ -1308,6 +1309,7 @@ insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt, string file) {
     return error;
 }
 
+// set defaults
 void
 set_default_confs(PlfsConf *pconf) {
     pconf->num_hostdirs = 32;
@@ -1319,12 +1321,13 @@ set_default_confs(PlfsConf *pconf) {
     pconf->test_metalink = 0;
 }
 
-// set defaults
 PlfsConf *
 parse_conf(FILE *fp, string file, PlfsConf *pconf) {
+    pair<set<string>::iterator, bool> insert_ret; 
+    set<string> backends;
+
     if (!pconf) pconf = new PlfsConf;
     set_default_confs(pconf);
-    pair<set<string>::iterator, bool> insert_ret; 
     insert_ret = pconf->files.insert(file);
     PlfsMount *pmnt = NULL;
     plfs_debug("Parsing %s\n", file.c_str());
@@ -1339,9 +1342,9 @@ parse_conf(FILE *fp, string file, PlfsConf *pconf) {
     int line = 0;
     while(fgets(input,8192,fp)) {
         line++;
-        plfs_debug("Read %s %s (%d)\n", key, value,line);
         if (input[0]=='\n' || input[0] == '\r' || input[0]=='#') continue;
         sscanf(input, "%s %s\n", key, value);
+        plfs_debug("Read %s %s (%d)\n", key, value,line);
         if( strstr(value,"//") != NULL ) {
             pconf->err_msg = new string("Double slashes '//' are bad");
             break;
@@ -1388,9 +1391,10 @@ parse_conf(FILE *fp, string file, PlfsConf *pconf) {
         } else if (strcmp(key,"mount_point")==0) {
             // clear and save the previous one
             if (pmnt) {
-                pconf->err_msg = insert_mount_point(pconf,pmnt,file);
+                pconf->err_msg = insert_mount_point(pconf,pmnt,file,backends);
                 if(pconf->err_msg) break;
             }
+            plfs_debug("Creating mount_point %s\n",value);
             pmnt = new PlfsMount;
             pmnt->mnt_pt = value;
             pmnt->statfs = NULL;
@@ -1416,14 +1420,15 @@ parse_conf(FILE *fp, string file, PlfsConf *pconf) {
             break;
         }
     }
-    plfs_debug("Got EOF from parsing conf\n");
+    plfs_debug("Got EOF from parsing conf %s\n",file.c_str());
 
     // save the current mount point
+    plfs_debug("%x %x\n",pconf->err_msg,pmnt);
     if (!pconf->err_msg && pmnt) {
-        pconf->err_msg = insert_mount_point(pconf,pmnt,file);
+        pconf->err_msg = insert_mount_point(pconf,pmnt,file,backends);
     }
 
-    if (pconf->mnt_pts.size()<=0) {
+    if (!pconf->err_msg && pconf->mnt_pts.size()<=0) {
         pconf->err_msg = new string("No mount points defined.");
     }
 
