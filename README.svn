@@ -1,13 +1,18 @@
-To make a branch:
+1) To make a branch:
 > svn copy trunk branches/mybranch
 
-To merge the branch into the trunk:
+2) To see what has happened in the trunk see the branch was made:
+> svn log --verbose --stop-on-copy https://plfs.svn.sourceforge.net/svnroot/plfs/branches/ssdn # shows which svnversion it was branched from
+> cd trunk
+> svn log --verbose -r XXX:HEAD # where XXX is the svnversion discovered above
+
+3) To merge the branch into the trunk:
 > cd trunk
 > svn merge https://plfs.svn.sourceforge.net/svnroot/plfs/trunk \
    https://plfs.svn.sourceforge.net/svnroot/plfs/branches/distributed_metadata \
    .
 
-Old way to merge a branch that worked horribly.  Although I did use this 
+4) Old way to merge a branch that worked horribly.  Although I did use this 
 to merge the trunk into the branch and that worked OK.  The above command
 is what worked much better.  This method below always caused lots of conflicts.
 To diff/merge a branch:
