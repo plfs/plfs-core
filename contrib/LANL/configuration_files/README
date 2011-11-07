@@ -1,0 +1,16 @@
+plfsrc.* Files:
+---------------
+Here are the plfsrc files that get included to the system (e.g. cerillos, turing, etc.) and fta plfsrc files.
+It is assumed that all these files are placed in "/etc" as "/etc/plfsrc".
+
+All the ".old" files are in the format for PLFS versions prior to PLFS 2.1. The files without the ".old"
+extension are for PLFS 2.1.
+
+The "mount_point" directives in the plfsrc.<network-color>.scratch* (there's also a .red.mile) have the mount
+point names that need to get FUSE mounted and that users will reference to use them.
+
+
+plfs.sysconfig.* Files
+----------------------
+These files define the PLFS FUSE mount points and their parameters for the systems. It is assumed that these
+files are placed in "/etc/sysconfig" as "/etc/sysconfig/plfs".

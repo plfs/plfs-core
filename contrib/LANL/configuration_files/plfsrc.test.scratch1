@@ -1,0 +1,4 @@
+mount_point /plfs/scratch1
+
+# these must be full paths, can be just a single one
+backends /panfs/scratch1/vol1/.plfs_store

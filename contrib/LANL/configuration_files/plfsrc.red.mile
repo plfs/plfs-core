@@ -1,0 +1,5 @@
+# this must match where FUSE is mounted and the logical paths passed to ADIO
+mount_point /plfs/mile
+
+# these must be full paths, can be just a single one
+backends /panfs/mile/vol1/.plfs_store,/panfs/mile/vol2/.plfs_store,/panfs/mile/vol3/.plfs_store,/panfs/mile/vol4/.plfs_store

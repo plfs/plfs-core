@@ -1,0 +1,5 @@
+# this must match where FUSE is mounted and the logical paths passed to ADIO
+mount_point /plfs/scratch
+
+# these must be full paths, can be just a single one
+backends /panfs/scratch/vol1/.plfs_store,/panfs/scratch/vol2/.plfs_store,/panfs/scratch/vol3/.plfs_store,/panfs/scratch/vol4/.plfs_store,/panfs/scratch/vol5/.plfs_store,/panfs/scratch/vol6/.plfs_store,/panfs/scratch/vol7/.plfs_store,/panfs/scratch/vol8/.plfs_store,/panfs/scratch/vol9/.plfs_store

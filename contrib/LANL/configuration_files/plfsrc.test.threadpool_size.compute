@@ -1,0 +1,22 @@
+###############
+# threadpool_size:
+# this should be related to how many threads you want running on a machine
+###############
+#
+# Official rule:
+# If compute node, 1.  If FTA, 16.
+# 
+# Explanation:
+# We observed that for two different read operations, the FTA performance was
+# very low due to a lack of concurrency resulting in too few PanFS components
+# being engaged.  One operation was reading all the multiple index files within
+# the container which PLFS does on the read open().  The second was reading from
+# multiple data files within the container to fill in a large logical read.  We
+# then added threads to increase concurrency, engage more PanFS hardware, and got
+# much better results.  But we assume that large jobs run on the compute nodes so
+# we don't want to add even more concurrency since the large number of PE's
+# should provide sufficient concurrency to engage all of the PanFS hardware; in
+# fact, adding more streams can hurt per client PanFS performance.  This is just
+# a performance hint; it can be set to any value without affecting correctness.
+
+threadpool_size 1
