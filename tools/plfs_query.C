@@ -9,7 +9,7 @@ using namespace std;
 #include "COPYRIGHT.h"
 
 void show_usage(char* app_name) {
-	fprintf(stderr, "Usage: %s <filename>\n", app_name);
+	fprintf(stderr, "Usage: %s <filename | -verison>\n", app_name);
 }
 
 int main (int argc, char **argv) {
@@ -18,7 +18,12 @@ int main (int argc, char **argv) {
 	char *target;
 	bool found_target = false;
 	for (i = 1; i < argc; i++) {
-		if (strcmp(argv[i], "-force") == 0) {
+		if (strcmp(argv[i], "-version") == 0) {
+			// print version that was used to build this
+			printf("PLFS library:\n\t%s (SVN %s, Built %s)\n", 
+				plfs_tag(), plfs_version(), plfs_buildtime());
+			exit(0);
+		} else if (strcmp(argv[i], "-force") == 0) {
 			force = true;
 		} else if (!found_target) {
 			target = argv[i];
