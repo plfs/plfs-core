@@ -88,5 +88,5 @@ libplfs_la_CXXFLAGS = \
 @PLFS_DEBUG_CXXFLAGS@
 
 libplfs_la_LDFLAGS = \
-@PTHREAD_LIBS@ \
--release @VERSION@ 
+@PTHREAD_LIBS@
+
