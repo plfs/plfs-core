@@ -1407,6 +1407,7 @@ static void setup_mlog(PlfsConf *pconf) {
         mlog_setmasks(pconf->mlog_setmasks);
 
     mlog(PLFS_INFO, "mlog init complete");
+#if 0
     /* XXXCDC: FOR LEVEL DEBUG */
     mlog(PLFS_EMERG, "test emergy log");
     mlog(PLFS_ALERT, "test alert log");
@@ -1416,6 +1417,7 @@ static void setup_mlog(PlfsConf *pconf) {
     mlog(PLFS_NOTE, "test note log");
     mlog(PLFS_INFO, "test info log");
     /* XXXCDC: END LEVEL DEBUG */
+#endif
 
     return;
 }
