@@ -1,0 +1,3 @@
+#PLFS_MNT='/plfs/scratch5_1 /plfs_scratch5_2'
+PLFS_MNT='/plfs/scratch4_1 /plfs/scratch4_2 /plfs/scratch5_1 /plfs_scratch5_2'
+PLFSOPTS='-o direct_io,allow_other'

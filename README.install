@@ -6,6 +6,13 @@
    this.  Any old plfsrc's containing this directive need to be edited
    beforing updating to 2.0 or above.
 
+0.0) if you are a developer and check out PLFS code from sourceforge, you 
+will need to run ./autogen.sh which will probably complain about version
+build tool versions.  We do supply a Makefile.tools which tries to download,
+configure, and install the correct versions of these tools in buildtools/bin.
+So you can do 'make -f Makefile.tools' and then prefix `pwd`/buildtools/bin 
+to your PATH environment.
+
 1) To install PLFS as a FUSE filesystem.
 
   0) you'll need to have fuse installed and have /dev/libfuse loaded
@@ -24,14 +31,19 @@
   you are instead building from a distribution tarball, you can skip that
   line.  Please note that all other patch files have 
   been deprecated.  You must use the two patch files below.
-  > make install (plfs)
+  > make install of plfs 
+  > XXXXXXX # see below
   > get openmpi-1.4.3
   > cd openmpi-1.4.3
-  > patch -pl < /path/to/plfs/ad-patches/openmpi/ompi-1.4.3-plfs-prep.patch
-  >>>> ./scripts/make_plfs_patch  # developers only
+  > patch -p1 < /path/to/plfs/ad-patches/openmpi/ompi-1.4.3-plfs-prep.patch
   > patch -p1 < /path/to/plfs/ad-patches/openmpi/ompi-1.4.3-plfs.patch
-  > autogen.sh since we patched a Makefile.am
+  > ./autogen.sh # since we patched a Makefile.am
   > ./configure; make
+
+[XXXXXX If you are a user and downloaded a distribution tarball, then skip
+this.  If, on the other hand, you are a developer and you checked out the
+source, at this point you need to run ./scripts/make_plfs_patch.  This will
+build the patch file needed for the next steps.] 
 
   One tricky bit is that you have to make sure that your mpi build knows 
   how to find your plfs.h and your libplfs files.  We do that with a 

@@ -1,0 +1,2 @@
+PLFS_MNT='/plfs/mile /plfs/scratch /plfs/scratch2 /plfs/scratch3 /plfs/scratch6'
+PLFSOPTS='-o allow_other'

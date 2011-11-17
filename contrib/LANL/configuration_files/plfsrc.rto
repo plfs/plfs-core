@@ -1,0 +1,67 @@
+###############
+# plfsrc rules
+###############
+# 
+# Official rule:
+# The backends directive is IMMUTABLE.  Once a mount point is defined, the
+# backends can NEVER be changed.  If multiple machines (e.g. FTA's and multiple
+# clusters) share a PLFS mount point, they must all define the same exact set of
+# backends in the same exact ordering.
+# 
+# All other directives are merely hints and can be set to any value without
+# affecting correctness. 
+# 
+# Explanation:
+# Once a mount point is assigned a set of backends, the mapping between that
+# mount point and that set of backends can NEVER be changed.  Changing backends
+# for an existing mount point WILL ORPHAN files on that mount point.  If multiple
+# clusters and FTA's share a PLFS mount point, they MUST have the same exact set
+# of backends, in the same exact order, defined for that mount point.
+# 
+# NO OTHER values in the plfsrc affect correctness.  They are just hints to help
+# with performance.  Therefore we can safely have different values for
+# threadpool_size and num_hostdirs on different machines even if those machines
+# share a mount point.  We can change values for threadpool_size and num_hostdirs
+# whenever we want.  Existing files will not be adversely affected in any way
+# although performance may change.
+
+
+#################
+# num_hostdirs:
+# this should be square root of total number of compute nodes
+#################
+# 
+# Official rule:
+# Let N be the size in PE's of the largest job that will be run on the system.
+# Let S be the sqrt of that.
+# Let P be the lowest prime number greater than or equal to S.
+# Set num_hostdirs to be P.
+# 
+# For example, say that the largest job that can be run on cluster C is 10K PEs.
+# num_hostdirs should be set to 101.
+# 
+# Explanation:
+# 
+# PLFS stores file data and file metadata in a PLFS structure called a container
+# which is built using directories and files on an underlying file system.  The
+# number of files within a container is basically equal to the number of PE's
+# that wrote the file.  We store these files within subdirs within the container.
+# At exascale, we might have a billion cores and we cannot put a billion files in
+# a single directory.  Therefore we use num_hostdirs to create a balanced internal
+# hierarchy within the container.  If there are 10K PE's, this means that we will
+# have 100 hostdirs and each of those hostdirs will have 100 files in them.  However,
+# the distribution of files into subdirs is not deterministic; rather we rely on
+# hashing.  Hashing plays well with prime numbers; that's why we do the prime number
+# bit.
+# 
+# [This means that for 1B cores, we will have about 30K files per directory.  We
+# might need to move to a 3 level hierarchy for exascale.]
+
+num_hostdirs 7
+
+include /etc/plfsrc.red.mile
+include /etc/plfsrc.red.scratch
+include /etc/plfsrc.red.scratch2
+include /etc/plfsrc.red.scratch3
+include /etc/plfsrc.red.scratch6
+include /etc/plfsrc.red.threadpool_size.compute

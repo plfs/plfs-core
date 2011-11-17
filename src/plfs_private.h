@@ -4,9 +4,10 @@
 #include "plfs_internal.h"
 #include "mlogfacs.h"
 
-#include <vector>
-#include <string>
 #include <map>
+#include <set>
+#include <string>
+#include <vector>
 using namespace std;
 
 #define SVNVERS $Rev$
@@ -17,9 +18,6 @@ using namespace std;
         Util::OpenError(__FILE__,__FUNCTION__,__LINE__,pid,errno);\
     }
 
-vector<string> &tokenize(const string& str,const string& delimiters,
-        vector<string> &tokens);
-
 typedef struct {
     string mnt_pt;  // the logical mount point
     string *statfs; // where to resolve statfs calls
@@ -29,12 +27,14 @@ typedef struct {
 } PlfsMount;
 
 typedef struct {
-    string file;
+    set<string> files;     /* to detect recursive includes in plfsrc */
+    set<string> backends;  /* to detect a backend being reused in plfsrc */
     size_t num_hostdirs;
     size_t threadpool_size;
     size_t buffer_mbs;  // how many mbs to buffer for write indexing
     map<string,PlfsMount*> mnt_pts;
     bool direct_io; // a flag FUSE needs.  Sorry ADIO and API for the wasted bit
+    bool test_metalink; // for developers only
     string *err_msg;
     string *global_summary_dir;
 

@@ -24,51 +24,120 @@ blkcnt_t Container::bytesToBlocks( size_t total_bytes ) {
     //return (blkcnt_t)((total_bytes + BLKSIZE - 1) & ~(BLKSIZE-1));
 }
 
-bool checkMask(int mask,int value) {
-    return (mask&value||mask==value);
-}
+// somehow a file is not in its canonical location.  make it so.
+// this function does recurse on the meta dir bec we need all those empty files
+// moved as well.
+// by the way, it's easier to think about this sometimes if you think of the
+// from_backend as a shadow container to the to_backend which is now canonical
+// returns 0 or -errno
+int
+Container::transferCanonical(const string &from, const string &to,
+        const string &from_backend, const string &to_backend, mode_t mode) {
+    int ret = 0;
 
-int Container::Access( const string &path, int mask ) {
-    // there used to be some concern here that the accessfile might not
-    // exist yet but the way containers are made ensures that an accessfile
-    // will exist if the container exists
-    
-    // doing just Access is insufficient when plfs daemon run as root
-    // root can access everything.  so, we must also try the open
-   
-    mode_t open_mode;
-    int ret;
-    errno = 0;
-    bool mode_set=false;
-    string accessfile = getAccessFilePath(path);
 
-    mlog(CON_DAPI, "%s Check existence of %s", __FUNCTION__,
-         accessfile.c_str());
-    ret = Util::Access( accessfile.c_str(), F_OK );
-    if ( ret == 0 ) {
-        // at this point, we know the file exists
-        if(checkMask(mask,W_OK|R_OK)){
-            open_mode = O_RDWR;
-            mode_set=true;
-        } else if(checkMask(mask,R_OK)||checkMask(mask,X_OK)) {
-            open_mode = O_RDONLY;
-            mode_set=true;
-        } else if(checkMask(mask,W_OK)){
-            open_mode = O_WRONLY;
-            mode_set=true;
-        } else if(checkMask(mask,F_OK)){
-            return 0;   // we already know this
-        }
-        assert(mode_set);
-    
-        mlog(CON_DCOMMON, "The file exists attempting open");
-        ret = Util::Open(accessfile.c_str(),open_mode);
-        mlog(CON_DAPI, "Open returns %d",ret);
-        if(ret >= 0 ) {
-            ret = Util::Close(ret);
+    //  foreach entry in from:
+    //    if empty file: create file w/ same name in to; remove
+    //    if symlink: create identical symlink in to; remove
+    //    if directory: 
+    //      if meta: recurse 
+    //      if subdir: create metalink in to to it
+    //    else assert(0): there should be nothing else
+
+    // set up our operators
+    mlog(CON_DAPI, "%s need to transfer from %s into %s",
+            __FUNCTION__, from.c_str(), to.c_str());
+    map<string,unsigned char> entries;
+    map<string,unsigned char>::iterator itr;
+    string old_path, new_path;
+    ReaddirOp rop(&entries,NULL,false,true); 
+    UnlinkOp uop;
+    CreateOp cop(mode);
+    cop.ignoreErrno(EEXIST);
+    cop.ignoreErrno(EISDIR);
+
+    // do the readdir of old to get the list of things that need to be moved
+    ret = rop.op(from.c_str(),DT_DIR);
+    if ( ret != 0) return ret; 
+
+    // then make sure there is a directory in the right place
+    ret = cop.op(to.c_str(),DT_DIR);
+    if ( ret != 0) return ret; 
+
+    // now transfer all contents from old to new 
+    for(itr=entries.begin();itr!=entries.end() && ret==0;itr++) {
+        // set up full paths
+        old_path = from;    old_path += "/"; old_path += itr->first;
+        new_path = to; new_path += "/"; new_path += itr->first;;
+        switch(itr->second){
+            case DT_REG:
+                // all top-level files within container are zero-length
+                // except for global index.  We should really copy global
+                // index over.  Someone do that later.  Now we just ophan it.
+                // for the zero length ones, just create them new, delete old.
+                if (Util::Filesize(old_path.c_str())==0) {
+                    ret = cop.op(new_path.c_str(),DT_REG);
+                    if (ret==0) ret = uop.op(old_path.c_str(),DT_REG);
+                } else {
+                    if(istype(itr->first,GLOBALINDEX)) {
+                        // here is where we should copy the thing
+                        // for now we're just losing the global index
+                    } else {
+                        // something unexpected in container
+                        assert(0 && itr->first==""); 
+                    }
+                }
+                break;
+            case DT_LNK:
+                {
+                    // we are transferring the canonical stuff from:
+                    // 'from' into 'to'
+                    // here we have found a metalink within 'from' to some 3rd
+                    // container 'other'
+                    // we need to recreate this metalink to 'other' into 'to'
+                    // do check to make sure that 'other' is not 'to'
+                    // in which case no need to recreate. 
+                    size_t sz;  // we don't need this
+                    string canonical_backend = to_backend;
+                    string other_backend; 
+                    ret = readMetalink(old_path,other_backend,sz);
+                    if (ret==0 && canonical_backend!=other_backend) {
+                        ret = createMetalink(canonical_backend,other_backend,
+                                new_path);
+                    }
+                    if (ret==0) ret = uop.op(old_path.c_str(),DT_LNK);
+                }
+                break;
+            case DT_DIR:
+                // two types of dir.  meta dir and host dir
+                if (istype(itr->first,METADIR)) {
+                    ret = transferCanonical(old_path,new_path,
+                            from_backend,to_backend,mode);
+                } else if (istype(itr->first,HOSTDIRPREFIX)) {
+                    // in this case what happens is that the former canonical
+                    // container is now a shadow container.  So link its 
+                    // physical subdirs into the new canonical location.
+                    string canonical_backend = to_backend;
+                    string shadow_backend = from_backend;
+                    ret = createMetalink(canonical_backend,shadow_backend,
+                            new_path); 
+                } else {
+                    // something unexpected if we're here
+                    // try including the string in the assert so we get 
+                    // a printout maybe of the offensive string
+                    assert(0 && itr->first==""); 
+                }
+                break;
+            default:
+                mlog(CON_CRIT, "WTF? %s %d",__FUNCTION__,__LINE__);
+                assert(0);  
+                ret = -ENOSYS;
+                break;
         }
     }
-    return ret; 
+
+    // we did everything we could.  Hopefully that's enough.
+    return ret;
 }
 
 size_t Container::hashValue( const char *str ) {
@@ -130,11 +199,15 @@ bool Container::isContainer( const string &physical_path, mode_t *mode ) {
             if ( ret == 0 && mode ) {
                 mlog(CON_DCOMMON, "%s %s is a container", __FUNCTION__,
                         physical_path.c_str());
-                if (mode) *mode = fileMode(*mode); 
+                // something weird here.  it should be: *mode = buf.st_mode;
+                // but then the rename has a weird error.
+                // but leaving it like this adds an execute bit to renamed files
+                if (mode) *mode = buf.st_mode; //fileMode(*mode); 
             }
             return ( ret == 0 ? true : false );    
         } else {
             // it's a regular file, or a link, or something
+            // mode is already set above
             return false;
         }
     } else {    
@@ -142,6 +215,8 @@ bool Container::isContainer( const string &physical_path, mode_t *mode ) {
             // in which case return an empty mode as well bec this means
             // that the caller lacks permission to stat the thing
         if ( mode ) *mode = 0;  // ENOENT
+        mlog(CON_DCOMMON, "%s on %s: returning false",
+                __FUNCTION__,physical_path.c_str());
         return false;
     }
 
@@ -313,7 +388,9 @@ int Container::populateIndex(const string &path, Index *index,bool use_global) {
     return ret;
 }
 
-int Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index,string path){
+int Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index,
+        string path)
+{
     
     int ret=0;
     if ( tasks.empty() ) {
@@ -392,18 +469,14 @@ const char *Container::version(const string &path) {
     return "0.1.6";  // no version file or dir found
 }
 
-vector<IndexFileInfo> Container::hostdir_index_read(const char *path){
-    
-    set<string> entries;
-    vector<IndexFileInfo> index_droppings;
-    ReaddirOp op(NULL,&entries,false,true);
-    op.filter(INDEXPREFIX);
-    int ret = op.op(path,DT_DIR);
-    if (ret!=0) {
-        mlog(CON_DRARE, "ReaddirOp error in hostdir %s directory reader: %s",
-                path,strerror(-ret));
-        return index_droppings;
-    }
+// added the code where it handles metalinks by trying again on error
+int
+Container::indices_from_subdir(string path, vector<IndexFileInfo> &indices) {
+
+    // collect the indices from subdir
+    vector<string> index_files;
+    int ret = collectIndices(path,index_files,false);
+    if (ret!=0) return ret;
 
     // I need the path so I am going to try this out
     // Should always be the first element
@@ -411,35 +484,38 @@ vector<IndexFileInfo> Container::hostdir_index_read(const char *path){
     path_holder.timestamp=-1;
     path_holder.hostname=path;
     path_holder.id=-1;
-    index_droppings.push_back(path_holder);
+    indices.push_back(path_holder);
 
      // Start reading the directory
-    for(set<string>::iterator itr=entries.begin(); itr!=entries.end(); itr++) {
-        // unpack the file name into components (should be separate func)
+    vector<string>::iterator itr;
+    for(itr = index_files.begin(); itr!=index_files.end(); itr++){
         string str_time_stamp;
         vector<string> tokens;
         IndexFileInfo index_dropping;
             
-        tokenize(itr->c_str(),".",tokens);
+        // unpack the file name into components (should be separate func)
+        // ugh, this should be encapsulated.  if we ever change format 
+        // of index filename, this will break.
+        Util::tokenize(itr->c_str(),".",tokens);
         str_time_stamp+=tokens[2];
         str_time_stamp+=".";
         str_time_stamp+=tokens[3];
         index_dropping.timestamp = strtod(str_time_stamp.c_str(),NULL);
             
-        int left_over = (tokens.size()-1)-5;
+        int left_over = (tokens.size()-1)-5;    // WTF is 5?!?!?
             
         // Hostname can contain "."
         int count;
         for(count=0;count<=left_over;count++){
-            index_dropping.hostname+=tokens[4+count];
+            index_dropping.hostname+=tokens[4+count];   // WTF is 4?!?!?
             if(count!=left_over) index_dropping.hostname+=".";
         }
-        index_dropping.id=atoi(tokens[5+left_over].c_str());
+        index_dropping.id=atoi(tokens[5+left_over].c_str());    // WTF is 5?!?!?!
         mlog(CON_DCOMMON, "Pushing path %s into index list from %s",
                 index_dropping.hostname.c_str(), itr->c_str());
-        index_droppings.push_back(index_dropping);
+        indices.push_back(index_dropping);
     }
-    return index_droppings;
+    return 0;
 }
 
 Index Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
@@ -477,13 +553,135 @@ Index Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
 
 }
 
+// returns 0 or -errno
+int Container::createMetalink(
+        const string &canonical_backend, 
+        const string &shadow_backend,
+        const string &canonical_hostdir)
+{
+    int ret = 0; 
+    ostringstream oss;
+    oss << canonical_backend.size() << shadow_backend;
+    ret = Util::Symlink(oss.str().c_str(),canonical_hostdir.c_str());
+    mlog(CON_DAPI, "%s: wrote %s into %s: %d", 
+            __FUNCTION__, oss.str().c_str(), canonical_hostdir.c_str(), ret);
+    return Util::retValue(ret);
+}
+
+// this function reads a metalink and replaces the canonical backend
+// in the metalink path with the shadow backend that it reads from the metalink
+// Example: we have a metalink at a physical path
+// e.g. /panfs/volume65/.plfs_store/johnbent/projectA/data/exp1.dat
+// we readlink it and get something like XY where X is int and Y is string
+// e.g. 27/panfs/volume13/.plfs_store
+// so we strip the first X chars of metalink, and save remainder 
+// e.g. /johnbent/projectA/data/expl1.dat
+// we then preface this with the string we read from readlink
+// e.g. /panfs/volume13/.plfs_store/johnbent/projectA/data/exp1.dat
+//
+// it's OK to fail: we use this to check if things are metalinks
+// returns 0 or -errno
+int Container::resolveMetalink(const string &metalink, string &resolved) {
+    size_t canonical_backend_length;
+    int ret = 0;
+    mlog(CON_DAPI, "%s resolving %s", __FUNCTION__, metalink.c_str());
+
+    ret = readMetalink(metalink,resolved,canonical_backend_length);
+    if (ret==0) {
+        resolved += '/'; // be safe.  we'll probably end up with 3 '///'  
+        resolved += metalink.substr(canonical_backend_length);
+    }
+    mlog(CON_DAPI, "%s: resolved %s into %s", 
+            __FUNCTION__,metalink.c_str(), resolved.c_str());
+    return ret;
+}
+
+// ok a metalink is a link at path P pointing to a shadow subdir at path S/L
+// P is comprised of B/L where B is canonical backend 
+// and L is remainder of path all the way to subdir
+// the contents of the metalink are XS where X is stringlen of B and S 
+// to get L we just remove the first X bytes from P
+// then we can easily get S/L 
+// returns 0 or -errno
+int Container::readMetalink(const string &P, string &S, size_t &X) {
+    istringstream iss;
+    char buf[METALINK_MAX];
+
+    int ret = Util::Readlink(P.c_str(),buf,METALINK_MAX);
+    if (ret<=0) {
+        // it's OK to fail: we use this to check if things are metalinks
+        mlog(CON_DCOMMON, "readlink %s failed: %s",P.c_str(),strerror(errno));
+        return Util::retValue(ret);
+    } else {
+        buf[ret] = '\0';
+        ret = 0;
+    }
+
+    // so read the info out of the symlink
+    iss.str(buf);
+    iss >> X;
+    iss >> S; 
+    return ret;
+}
+
+int Container::collectIndices(const string &physical, vector<string> &indices,
+        bool full_path) {
+    vector<string> filters;
+    filters.push_back(INDEXPREFIX);
+    filters.push_back(HOSTDIRPREFIX);
+    return collectContents(physical,indices,filters,full_path);
+}
+
+// this function collects all droppings from a container
+// it makes two assumptions about how containers are structured:
+// 1) it knows how to deal with metalinks
+// 2) containers are only one directory level deep
+// it'd be nice if the only place that container structure was understood
+// was in this class.  but I don't think that's quite true.
+// That's our goal though!
+int Container::collectContents(const string &physical,
+        vector<string> &files, vector<string> &filters, bool full_path) 
+{
+    map<string,unsigned char> entries;
+    map<string,unsigned char>::iterator e_itr;
+    vector<string>::iterator f_itr;
+    ReaddirOp rop(&entries,NULL,full_path,true);
+    int ret = 0;
+
+    // set up and use our ReaddirOp to get all entries out of top-level
+    for(f_itr=filters.begin(); f_itr!=filters.end(); f_itr++) {
+        rop.filter(*f_itr);
+    }
+    mlog(CON_DAPI, "%s on %s", __FUNCTION__, physical.c_str());
+    ret = rop.op(physical.c_str(),DT_DIR);
+
+    // now for each entry we found: descend into dirs, resolve metalinks and
+    // then descend, save files.
+    for(e_itr = entries.begin(); ret==0 && e_itr != entries.end(); e_itr++) {
+        if(e_itr->second==DT_DIR) { 
+            ret = Container::collectContents(e_itr->first,files,filters,true);
+        } else if (e_itr->second==DT_LNK) { 
+            string resolved;
+            ret = Container::resolveMetalink(e_itr->first,resolved);
+            if (ret==0) {
+                ret = Container::collectContents(resolved,files,filters,true);
+            }
+        } else if (e_itr->second==DT_REG) {
+            files.push_back(e_itr->first);
+        } else {
+            assert(0);
+        }
+
+    }
+    return ret;
+}
+
 // this function traverses the container, finds all the index droppings,
 // and aggregates them into a global in-memory index structure
 // returns 0 or -errno
 int Container::aggregateIndices(const string &path, Index *index) {
-    vector<string> files, dirs;
-    bool follow_links = true;
-    int ret = Util::traverseDirectoryTree(path.c_str(),files,dirs,follow_links);
+    vector<string> files; 
+    int ret = collectIndices(path,files,true);
     if (ret!=0) return -errno;
 
     IndexerTask task;
@@ -491,13 +689,13 @@ int Container::aggregateIndices(const string &path, Index *index) {
 
     mlog(CON_DAPI, "In %s", __FUNCTION__);
     
-    // create the list of tasks
+    // create the list of tasks.  A task is reading one index file.
     for(vector<string>::iterator itr=files.begin();itr!=files.end();itr++) {
         string filename; // find just the filename
         size_t lastslash = itr->rfind('/');
         filename = itr->substr(lastslash+1,itr->npos);
 
-        if (filename.compare(0,strlen(INDEXPREFIX),INDEXPREFIX)==0) {
+        if (istype(filename,INDEXPREFIX)) {
             task.path = (*itr);
             tasks.push_back(task);
             mlog(CON_DCOMMON, "Ag indices path is %s",path.c_str());
@@ -567,6 +765,7 @@ string Container::getGlobalIndexPath( const string &physical ) {
     return oss.str();
 }
 
+// this function is weird currently.  We have no global chunks...
 string Container::getGlobalChunkPath( const string &physical ) {
     ostringstream oss;
     oss << physical << "/" << GLOBALCHUNK;
@@ -709,11 +908,22 @@ string Container::fetchMeta( const string &metafile_name,
     return host;
 }
 
+// this returns the path to the metadir
+// don't ever assume that this exists bec it's possible
+// that it doesn't yet
+string Container::getMetaDirPath( const string& strPath ) {
+    string metadir( strPath + "/" + METADIR ); 
+    return metadir;
+}
+
+// open hosts and meta dir currently share a name
 string Container::getOpenHostsDir( const string &path ) {
-    string openhostsdir( path );
-    openhostsdir += "/";
-    openhostsdir += METADIR; // OPENHOSTDIR;
-    return openhostsdir;
+    return getMetaDirPath(path);
+}
+
+// simple function to see if a dropping is a particular type such as OPENPREFIX
+bool Container::istype(const string &dropping, const char *type) {
+    return (dropping.compare(0,strlen(type),type)==0);
 }
 
 // a function that reads the open hosts dir to discover which hosts currently
@@ -723,7 +933,7 @@ int Container::discoverOpenHosts(set<string> &entries, set<string> &openhosts){
     set<string>::iterator itr;
     string host;
     for(itr=entries.begin();itr!=entries.end();itr++) {
-        if (itr->compare(0,strlen(OPENPREFIX),OPENPREFIX) == 0) {
+        if (istype(*itr,OPENPREFIX)) {
             host = (*itr);
             host.erase(0,strlen(OPENPREFIX));
             host.erase(host.rfind("."), host.size());
@@ -823,9 +1033,9 @@ int Container::getattr( const string &path, struct stat *stbuf ) {
     // first get the set of all open hosts
     discoverOpenHosts(entries, openHosts);
 
-    // then consider the valid set of all meta droppings 
+    // then consider the valid set of all meta droppings (not open droppings)
     for(itr=entries.begin();itr!=entries.end();itr++) {
-        if(itr->compare(0,strlen(OPENPREFIX),OPENPREFIX)==0) continue;
+        if (istype(*itr,OPENPREFIX)) continue;
         off_t last_offset;
         size_t total_bytes;
         struct timespec time;
@@ -854,30 +1064,32 @@ int Container::getattr( const string &path, struct stat *stbuf ) {
 
     // if we're using cached data we don't do this part unless there
     // were open hosts
-    // it's so tempting to use ReaddirOp here....  We could easily do it
-    // to get the list of index files but does it add memory overhead
-    // or latency?  
-    const char *prefix   = INDEXPREFIX;
     int chunks = 0;
     if ( openHosts.size() > 0 ) {
-        string dropping; 
-        blkcnt_t index_blocks = 0, data_blocks = 0;
-        off_t    index_size = 0, data_size = 0;
-        DIR *td = NULL, *hd = NULL; struct dirent *tent = NULL;
-        while((ret=nextdropping(path,&dropping,prefix,&td,&hd,&tent))==1) {
-            string host = hostFromChunk(dropping, prefix);
-            if (validMeta.find(host) != validMeta.end()) {
-                // hmm, maybe we should also be checking in openHosts
-                mlog(CON_DCOMMON, "Used stashed stat info for %s",
-                     host.c_str() );
-                continue;
-            } else {
-                chunks++;
-            }
+        // we used to use the very cute nextdropping code which maintained
+        // open readdir handles and just iterated one at a time through
+        // all the contents of a container
+        // but the new metalink stuff makes that hard.  So lets use our
+        // helper functions which will make memory overheads....
+        vector<string> indices;
+        vector<string>::iterator itr;
+        ret = collectIndices(path,indices,true);
+        chunks = indices.size();
+        for(itr=indices.begin(); itr!=indices.end() && ret==0; itr++) {
+            string dropping = *itr;
+            string host = hostFromChunk(dropping,INDEXPREFIX);
 
-            // we'll always stat the dropping to get at least the timestamp
-            // if it's an index dropping then we'll read it
-            // it it's a data dropping, we'll just use more stat info
+            // need to read index data when host_is_open OR not cached
+            bool host_is_open;
+            bool host_is_cached;
+            bool use_this_index;
+            host_is_open = (openHosts.find(host) != openHosts.end());
+            host_is_cached = (validMeta.find(host) != validMeta.end());
+            use_this_index = (host_is_open || !host_is_cached);
+            if (!use_this_index) continue;
+
+            // stat the dropping to get the timestamps
+            // then read the index info 
             struct stat dropping_st;
             if (Util::Lstat(dropping.c_str(), &dropping_st) < 0 ) {
                 ret = -errno;
@@ -889,21 +1101,14 @@ int Container::getattr( const string &path, struct stat *stbuf ) {
             stbuf->st_atime = max(dropping_st.st_atime, stbuf->st_atime);
             stbuf->st_mtime = max(dropping_st.st_mtime, stbuf->st_mtime);
 
-            if ( dropping.find(DATAPREFIX) != dropping.npos ) {
-                mlog(CON_DCOMMON, "Getting stat info from data dropping");
-                data_blocks += dropping_st.st_blocks;
-                data_size   += dropping_st.st_size;
-            } else {
-                mlog(CON_DCOMMON, "Getting stat info from index dropping");
-                Index index(path);
-                index.readIndex( dropping ); 
-                index_blocks     += bytesToBlocks( index.totalBytes() );
-                index_size        = max(index.lastOffset(), index_size);
-            }
+            mlog(CON_DCOMMON, "Getting stat info from index dropping");
+            Index index(path);
+            index.readIndex(dropping); 
+            stbuf->st_blocks += bytesToBlocks( index.totalBytes() );
+            stbuf->st_size   = max(stbuf->st_size, index.lastOffset());
         }
-        stbuf->st_blocks += max(data_blocks, index_blocks);
-        stbuf->st_size   = max(stbuf->st_size, max(data_size, index_size));
     }
+
     ostringstream oss;
     oss  << "Examined " << chunks << " droppings:"
          << path << " total size " << stbuf->st_size <<  ", usage "
@@ -1030,8 +1235,11 @@ int Container::makeTopLevel( const string &expanded_path,
             if ( makeSubdir(getMetaDirPath(expanded_path), mode ) < 0){
                 return -errno;
             }
-            if ( makeSubdir( getOpenHostsDir(expanded_path), mode )< 0){
-                return -errno;
+            if (getOpenHostsDir(expanded_path)!=getMetaDirPath(expanded_path)){
+                // as of 2.0, the openhostsdir and the metadir are the same dir
+                if ( makeSubdir( getOpenHostsDir(expanded_path), mode )< 0){
+                    return -errno;
+                }
             }
 
             // go ahead and make our subdir here now (good for both N-1 & N-N):
@@ -1042,8 +1250,18 @@ int Container::makeTopLevel( const string &expanded_path,
             // subdir directly in the canonical location.  Everyone else
             // will hash by node to create their subdir which may go in 
             // canonical or may go in a shadow
-            if (makeHostDir(expanded_path,hostname,mode,PARENT_CREATED)  < 0){
-                return -errno;
+
+            // this is a simple way for developers to test metalink stuff
+            // without running N-1.  Don't create subdir now.  Later when
+            // it is created lazily, it will probably be hashed to shadow
+            // and a metalink will be put in canonical.  We don't want to
+            // run like this in development though bec for N-N we always
+            // want to put the hostdir in canonical and not create shadows
+            PlfsConf *pconf = get_plfs_conf();    
+            if (! pconf->test_metalink) {
+                if (makeHostDir(expanded_path,hostname,mode,PARENT_CREATED)<0) {
+                    return -errno;
+                }
             }
 
                 // make the version stuff here?  this means that it is 
@@ -1119,14 +1337,6 @@ int Container::makeMeta( const string &path, mode_t type, mode_t mode ) {
     return ( ret == 0 || errno == EEXIST ) ? 0 : -1;
 }
 
-// this returns the path to the metadir
-// don't ever assume that this exists bec it's possible
-// that it doesn't yet
-string Container::getMetaDirPath( const string& strPath ) {
-    string metadir( strPath + "/" + METADIR ); 
-    return metadir;
-}
-
 string Container::getAccessFilePath( const string& path ) {
     string accessfile( path + "/" + ACCESSFILE );
     return accessfile;
@@ -1146,6 +1356,8 @@ size_t Container::getHostDirId( const string &hostname ) {
     return (hashValue(hostname.c_str())%pconf->num_hostdirs);
 }
 
+// this function is maybe one easy place where we can fix things
+// if the hostdir path includes a symlink....
 string Container::getHostDirPath( const string & expanded_path, 
         const string & hostname )
 {
@@ -1197,13 +1409,15 @@ int Container::createHelper(const string &expanded_path, const string &hostname,
 
         // first the top level container
     double begin_time, end_time;
+    bool existing_container = false;
     int res = 0;
     mode_t existing_mode = 0;
     res = isContainer( expanded_path.c_str(), &existing_mode );
     // check if someone is trying to overwrite a directory?
     if (!res && S_ISDIR(existing_mode)) res = -EISDIR;    
+    existing_container = res;
 
-    if (!res) {
+    if (res==0) { 
         mlog(CON_DCOMMON, "Making top level container %s %x", 
                 expanded_path.c_str(),mode);
         begin_time = time(NULL);
@@ -1218,7 +1432,10 @@ int Container::createHelper(const string &expanded_path, const string &hostname,
                     expanded_path.c_str(), strerror(errno));
         }
     }
-    return res;
+
+    // hmm.  what should we do if someone calls create on an existing object
+    // I think we need to return success since ADIO expects this
+    return (existing_container ? 0 : res);
 }
 
 // This should be in a mutex if multiple procs on the same node try to create
@@ -1268,6 +1485,8 @@ struct dirent *Container::getnextent( DIR *dir, const char *prefix ) {
 // augmenting the ReaddirOp to take a function pointer (or a FileOp instance)
 // but that's a bit complicated as well.  This code isn't bad just a bit complex
 // this returns 0 if done.  1 if OK.  -errno if a problem
+// TODO: some code here will need to be fixed for metalink stuff 
+// currently only used by Truncate.
 int Container::nextdropping( const string& physical_path, 
         string *droppingpath, const char *dropping_type,
         DIR **topdir, DIR **hostdir, struct dirent **topent ) 
@@ -1400,7 +1619,7 @@ Container::truncateMeta(const string &path, off_t offset){
     }
 
     for(set<string>::iterator itr=entries.begin();itr!=entries.end();itr++) {
-        if (itr->compare(0,strlen(OPENPREFIX),OPENPREFIX)==0) continue;
+        if (istype(*itr,OPENPREFIX)) continue; // don't remove open droppings
 		string full_path( meta_path ); full_path+="/"; full_path+=(*itr);
 		off_t last_offset;
 		size_t total_bytes;

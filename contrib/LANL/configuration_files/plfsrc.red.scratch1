@@ -1,0 +1,17 @@
+# this must match where FUSE is mounted and the logical paths passed to ADIO
+mount_point /plfs/scratch1_1
+
+# these must be full paths, can be just a single one
+backends /panfs/scratch1/vol1/.plfs_store,/panfs/scratch1/vol2/.plfs_store,/panfs/scratch1/vol3/.plfs_store,/panfs/scratch1/vol4/.plfs_store,/panfs/scratch1/vol5/.plfs_store,/panfs/scratch1/vol6/.plfs_store,/panfs/scratch1/vol7/.plfs_store,/panfs/scratch1/vol8/.plfs_store,/panfs/scratch1/vol9/.plfs_store,/panfs/scratch1/vol10/.plfs_store,/panfs/scratch1/vol11/.plfs_store,/panfs/scratch1/vol12/.plfs_store,/panfs/scratch1/vol13/.plfs_store,/panfs/scratch1/vol14/.plfs_store,/panfs/scratch1/vol15/.plfs_store,/panfs/scratch1/vol16/.plfs_store,/panfs/scratch1/vol17/.plfs_store,/panfs/scratch1/vol18/.plfs_store,/panfs/scratch1/vol19/.plfs_store,/panfs/scratch1/vol20/.plfs_store,/panfs/scratch1/vol21/.plfs_store,/panfs/scratch1/vol22/.plfs_store,/panfs/scratch1/vol23/.plfs_store,/panfs/scratch1/vol24/.plfs_store,/panfs/scratch1/vol25/.plfs_store,/panfs/scratch1/vol26/.plfs_store,/panfs/scratch1/vol27/.plfs_store,/panfs/scratch1/vol28/.plfs_store,/panfs/scratch1/vol29/.plfs_store,/panfs/scratch1/vol30/.plfs_store
+
+# this must match where FUSE is mounted and the logical paths passed to ADIO
+mount_point /plfs/scratch1_2
+
+# these must be full paths, can be just a single one
+backends /panfs/scratch1/vol31/.plfs_store,/panfs/scratch1/vol32/.plfs_store,/panfs/scratch1/vol33/.plfs_store,/panfs/scratch1/vol34/.plfs_store,/panfs/scratch1/vol35/.plfs_store,/panfs/scratch1/vol36/.plfs_store,/panfs/scratch1/vol37/.plfs_store,/panfs/scratch1/vol38/.plfs_store,/panfs/scratch1/vol39/.plfs_store,/panfs/scratch1/vol40/.plfs_store,/panfs/scratch1/vol41/.plfs_store,/panfs/scratch1/vol42/.plfs_store,/panfs/scratch1/vol43/.plfs_store,/panfs/scratch1/vol44/.plfs_store,/panfs/scratch1/vol45/.plfs_store,/panfs/scratch1/vol46/.plfs_store,/panfs/scratch1/vol47/.plfs_store,/panfs/scratch1/vol48/.plfs_store,/panfs/scratch1/vol49/.plfs_store,/panfs/scratch1/vol50/.plfs_store,/panfs/scratch1/vol51/.plfs_store,/panfs/scratch1/vol52/.plfs_store,/panfs/scratch1/vol53/.plfs_store,/panfs/scratch1/vol54/.plfs_store,/panfs/scratch1/vol55/.plfs_store,/panfs/scratch1/vol56/.plfs_store,/panfs/scratch1/vol57/.plfs_store,/panfs/scratch1/vol58/.plfs_store,/panfs/scratch1/vol59/.plfs_store,/panfs/scratch1/vol60/.plfs_store
+
+# this must match where FUSE is mounted and the logical paths passed to ADIO
+mount_point /plfs/scratch1_3
+
+# these must be full paths, can be just a single one
+backends /panfs/scratch1/vol61/.plfs_store,/panfs/scratch1/vol62/.plfs_store,/panfs/scratch1/vol63/.plfs_store,/panfs/scratch1/vol64/.plfs_store,/panfs/scratch1/vol65/.plfs_store,/panfs/scratch1/vol66/.plfs_store,/panfs/scratch1/vol67/.plfs_store,/panfs/scratch1/vol68/.plfs_store,/panfs/scratch1/vol69/.plfs_store,/panfs/scratch1/vol70/.plfs_store,/panfs/scratch1/vol71/.plfs_store,/panfs/scratch1/vol72/.plfs_store,/panfs/scratch1/vol73/.plfs_store,/panfs/scratch1/vol74/.plfs_store,/panfs/scratch1/vol75/.plfs_store,/panfs/scratch1/vol76/.plfs_store,/panfs/scratch1/vol77/.plfs_store,/panfs/scratch1/vol78/.plfs_store,/panfs/scratch1/vol79/.plfs_store,/panfs/scratch1/vol80/.plfs_store,/panfs/scratch1/vol81/.plfs_store,/panfs/scratch1/vol82/.plfs_store,/panfs/scratch1/vol83/.plfs_store,/panfs/scratch1/vol84/.plfs_store,/panfs/scratch1/vol85/.plfs_store,/panfs/scratch1/vol86/.plfs_store,/panfs/scratch1/vol87/.plfs_store,/panfs/scratch1/vol88/.plfs_store,/panfs/scratch1/vol89/.plfs_store,/panfs/scratch1/vol90/.plfs_store

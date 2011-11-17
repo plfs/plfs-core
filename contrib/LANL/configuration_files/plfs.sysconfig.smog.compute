@@ -1,0 +1,2 @@
+PLFS_MNT='/plfs/scratch1 /plfs/scratch2'
+PLFSOPTS='-o direct_io,allow_other'

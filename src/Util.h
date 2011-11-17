@@ -93,6 +93,9 @@ class Util {
         static ssize_t Write( int, const void *, size_t );
 
             // other misc stuff
+        static vector<string> &tokenize(    const string& str,
+                                            const string& delimiters,
+                                            vector<string> &tokens);
         static void SeriousError(string,pid_t);
         static void OpenError(const char*, const char*,int,int,pid_t);
         static bool exists( const char* );
@@ -107,7 +110,7 @@ class Util {
         static char *hostname();
         static int retValue( int res );
         static int traverseDirectoryTree(const char *physical, 
-                vector<string> &files, vector<string> &dirs, bool follow_links);
+            vector<string> &files, vector<string> &dirs, vector<string>&links);
     private:
         static void addBytes( string, size_t );
         static string timeToString(      HASH_MAP<string,double>::iterator,

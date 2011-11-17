@@ -581,17 +581,17 @@ void split_and_merge(ADIO_File fd,int rank,int extra_rank,
     MPI_Comm_split(fd->comm,color,rank,&hostdir_zeros_comm);
     // Hostdir zeros
     if(!new_rank) {
-        char *fn_ptr;
+        char *subdir;
         // Broadcast the bitmap to the leaders
         BITMAP_PRINT;
         bcast_bitmap(hostdir_zeros_comm,rank);
         BITMAP_PRINT;
         // Convert my group index into the dir I should read
-        fn_ptr= bitmap_to_dirname(bitmap,group_index,filename,0,np);
+        subdir= bitmap_to_dirname(bitmap,group_index,filename,0,np);
         // Hostdir zero reads the hostdir and converts into a list
-        buf_sz=plfs_hostdir_zero_rddir((void **)&index_files,fn_ptr,rank);
+        buf_sz=plfs_hostdir_zero_rddir((void **)&index_files,subdir,rank);
         check_stream(buf_sz,rank);
-        free(fn_ptr);
+        free(subdir);
     }
     // Send the size of the hostdir file list
     MPIBCAST(&buf_sz,1,MPI_INT,0,hostdir_comm);
@@ -701,6 +701,9 @@ void host_list_print(int line, Bitmap* bitmap){
 }
 
 // Function that reads in the hostdirs and sets the bitmap 
+// this function still works even with metalink stuff
+// probably though we should make an opaque function in
+// Container.cpp that encapsulates this....
 // returns -errno if the opendir fails
 // returns -EISDIR if it's actually a directory and not a file
 // returns a positive number otherwise as even an empty container

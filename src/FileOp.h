@@ -20,15 +20,28 @@ using namespace std;
 class
 FileOp {
     public:
+        // first arg to op is path, second is type of path
         int op(const char *, unsigned char type); // ret 0 or -errno
         virtual const char *name() = 0;
-        bool onlyAccessFile() {return false;}
+        virtual bool onlyAccessFile() {return false;}
         void ignoreErrno(int Errno); // can register errno's to be ignored
         virtual int do_op(const char*, unsigned char type) = 0;
+        virtual ~FileOp() {}
     protected:
         int retValue(int ret);
     private:
         set<int> ignores;
+};
+
+class
+AccessOp : public FileOp {
+    public:
+        AccessOp(int);
+        int do_op(const char*, unsigned char);
+        bool onlyAccessFile() {return true;}
+        const char *name() { return "AccessOp"; }
+    private:
+        int mask;
 };
 
 class
@@ -53,18 +66,20 @@ UtimeOp : public FileOp {
         utimbuf *ut;
 };
 
-// this class doesn't actually truncate any physical files
-// instead it is used to truncate a logical plfs file
-// so for each file, it just removes it unless it should ignore it
+// this class is used to truncate to 0
+// if the file is open, it truncates each physical file to 0
+// if the file is closed, it unlinks all physical files
+// the caller should tell it to ignore special files
 class
 TruncateOp : public FileOp {
     public:
-        TruncateOp();
+        TruncateOp(bool open_file);
         int do_op(const char *, unsigned char);
         const char *name() { return "TruncateOp"; }
         void ignore(string);
     private:
         vector<string> ignores;
+        bool open_file;
 };
 
 class

@@ -397,19 +397,25 @@ int Index::flush() {
 
 // takes a path and returns a ptr to the mmap of the file 
 // also computes the length of the file
+// Update: seems to work with metalink
 void *Index::mapIndex( string hostindex, int *fd, off_t *length ) {
     void *addr;
     *fd = Util::Open( hostindex.c_str(), O_RDONLY );
     if ( *fd < 0 ) {
-        return NULL;
+        mlog(IDX_DRARE, "%s WTF open: %s", __FUNCTION__, strerror(errno));
+        return (void*)-1;
     }
     // lseek doesn't always see latest data if panfs hasn't flushed
     // could be a zero length chunk although not clear why that gets
     // created.  
     Util::Lseek( *fd, 0, SEEK_END, length );
-    if ( *length <= 0 ) {
+    if ( *length == 0 ) {
         mlog(IDX_DRARE, "%s is a zero length index file", hostindex.c_str());
         return NULL;
+    }
+    if (length < 0) {
+        mlog(IDX_DRARE, "%s WTF lseek: %s", __FUNCTION__, strerror(errno));
+        return (void*)-1; 
     }
 
     Util::Mmap(*length,*fd,&addr);
@@ -549,15 +555,18 @@ int Index::global_from_stream(void *addr) {
     // then skip past the entries
     addr = (void*)&(entries[quant]);
 
-    // now read in the vector of chunk files
     mlog(IDX_DCOMMON, "%s of %s now parsing data chunk paths",
             __FUNCTION__,physical_path.c_str());
     vector<string> chunk_paths;
-    tokenize((char*)addr,"\n",chunk_paths); // might be inefficient...
+    Util::tokenize((char*)addr,"\n",chunk_paths); // might be inefficient...
     for( size_t i = 0; i < chunk_paths.size(); i++ ) {
-        if(chunk_paths[i].size()<7) continue;
+        if(chunk_paths[i].size()<7) continue; // WTF does <7 mean???
         ChunkFile cf;
-        cf.path = physical_path + "/" + chunk_paths[i];
+        // we used to strip the physical path off in global_to_stream
+        // and add it back here.  See comment in global_to_stream for why 
+        // we don't do that anymore
+        //cf.path = physical_path + "/" + chunk_paths[i];
+        cf.path = chunk_paths[i];
         cf.fd = -1;
         chunk_map.push_back(cf);
     }
@@ -586,7 +595,7 @@ int Index::debug_from_stream(void *addr){
     mlog(IDX_DCOMMON, "%s of %s now parsing data chunk paths",
                 __FUNCTION__,physical_path.c_str());
     vector<string> chunk_paths;
-    tokenize((char*)addr,"\n",chunk_paths); // might be inefficient...
+    Util::tokenize((char*)addr,"\n",chunk_paths); // might be inefficient...
     for( size_t i = 0; i < chunk_paths.size(); i++ ) {
         mlog(IDX_DCOMMON, "Chunk path:%d is :%s",i,chunk_paths[i].c_str());
     }
@@ -624,9 +633,30 @@ int Index::global_to_stream(void **buffer,size_t *length) {
     // first build the vector of chunk paths, trim them to relative
     // to the container so they're smaller and still valid after rename
     // this gets written last but compute it first to compute length
+    // the problem is that some of them might contain symlinks!
+    // maybe we can handle this in one single place.  If we can find
+    // the one single place where we open the data chunk we can handle
+    // an error there possibly and reconstruct the full path.  Oh but
+    // we also have to find the place where we open the index chunks
+    // as well.
     ostringstream chunks;
     for(unsigned i = 0; i < chunk_map.size(); i++ ) {
-        chunks << chunk_map[i].path.substr(physical_path.length()) << endl;
+        /*
+           // we used to optimize a bit by stripping the part of the path
+           // up to the hostdir.  But now this is problematic due to backends
+           // if backends have different lengths then this strip isn't correct
+           // the physical path is to canonical but some of the chunks might be
+           // shadows.  If the length of the canonical_backend isn't the same
+           // as the length of the shadow, then this code won't work.
+           // additionally, we saw that sometimes we had extra slashes '///' in
+           // the paths.  That also breaks this.
+           // so just put full path in.  Makes it a bit larger though ....
+        string chunk_path = chunk_map[i].path.substr(physical_path.length());
+        mlog(IDX_DCOMMON, "%s: constructed %s from %s", __FUNCTION__, 
+                chunk_path.c_str(), chunk_map[i].path.c_str());
+        chunks << chunk_path << endl;
+        */
+        chunks << chunk_map[i].path << endl;
     }
     chunks << '\0'; // null term the file
     size_t chunks_length = chunks.str().length();
@@ -760,7 +790,7 @@ int Index::handleOverlap(ContainerEntry &incoming,
         findSplits(first->second,splits);
         if ( first == global_index.begin() ) break;
     }
-    for(;(last != global_index.end()) && (last->second.overlap(incoming)); last++ ){
+    for(;(last!=global_index.end()) && (last->second.overlap(incoming));last++){
         findSplits(last->second,splits);
     }
     findSplits(incoming,splits);  // get split points from incoming as well
@@ -956,8 +986,10 @@ int Index::setChunkFd( pid_t chunk_id, int fd ) {
     return 0;
 }
 
+// this is a helper function to globalLookup which returns information
+// identifying the physical location of some piece of data
 // we found a chunk containing an offset, return necessary stuff 
-// this opens an fd to the chunk if necessary
+// this does not open the fd to the chunk however 
 int Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len, 
         off_t shift, string &path, pid_t *chunk_id, ContainerEntry *entry ) 
 {
@@ -966,17 +998,18 @@ int Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
     *chunk_len  = entry->length       - shift;
     *chunk_id   = entry->id;
     if( cf_ptr->fd < 0 ) {
-        /*
-        cf_ptr->fd = Util::Open(cf_ptr->path.c_str(), O_RDONLY);
-        if ( cf_ptr->fd < 0 ) {
-            mlog(IDX_DRARE, "WTF? Open of %s: %s", 
-                    cf_ptr->path.c_str(), strerror(errno) );
-            return -errno;
-        } 
-        */
         // I'm not sure why we used to open the chunk file here and
         // now we don't.  If you figure it out, pls explain it here.
         // we must have done the open elsewhere.  But where and why not here?
+        // ok, I figured it out (johnbent 8/27/2011):
+        // this function is a helper to globalLookup which returns information
+        // about in which physical data chunk some logical data resides
+        // we stash that location info here but don't do the open.  we changed
+        // this when we made reads be multi-threaded.  since we postpone the
+        // opens and do them in the threads we give them a better chance to
+        // be parallelized.  However, it turns out that the opens are then
+        // later mutex'ed so they're actually parallized.  But we've done the
+        // best that we can here at least.
         mlog(IDX_DRARE, "Not opening chunk file %s yet", cf_ptr->path.c_str());
     }
     mlog(IDX_DCOMMON, "Will read from chunk %s at off %ld (shift %ld)",

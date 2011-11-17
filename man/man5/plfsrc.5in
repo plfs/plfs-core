@@ -13,6 +13,12 @@ Path names must be fully qualified.  Note that all keywords should be in lower-c
 The possible keywords and their meanings are as follows:
 
 .B
+include
+.RS
+This allows multiple plfsrc files to be parsed.  This is useful if you want to define global values and then put individual mount points in individual plfsrc files.  You might do so if some mount points are shared on diffent clusters (e.g. at LANL we have compute nodes and file transfer nodes and we want different global values for things like threadpool_size but we want to ensure that their mount points are the same so we have individual plfsrc files for each but then include the same plfsrc files that define shared mount points.
+.RE
+
+.B
 num_hostdirs
 .RS
 This should be the square root of the total number of compute nodes typically expected to participate in a job.  Optional.  Default is 32.  Max is 1024.
@@ -67,6 +73,13 @@ then hang.  But the LANL admins don't want anything in the boot cycle to hang
 so they can use this command to force PLFS to forward statfs to a path other
 than the backends which won't hang.  Optional.
 .RE
+
+.B
+test_metalink
+.RS
+This is only for developers to do testing.  It won't be explained here.  If
+you really want to know what it does, please read the code.  Otherwise, do
+not use this directive.
 
 Note that the mount_point and backend may be specified multiple times in the same file.
 

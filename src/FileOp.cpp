@@ -5,6 +5,7 @@
 #include "Util.h"
 #include "Container.h"
 #include "mlogfacs.h"
+#include "plfs.h"
 
 int
 FileOp::op(const char *path, unsigned char type) {
@@ -26,6 +27,72 @@ FileOp::retValue(int ret) {
     return ret;
 }
 
+AccessOp::AccessOp(int mask) {
+    this->mask = mask;
+}
+
+// helper function for Access
+bool checkMask(int mask,int value) {
+    return (mask&value||mask==value);
+}
+
+// helper function for AccessOp
+// this used to be in Container since Container was the one that did
+// the lookup for us of the access file from the container name
+// but now plfs_file_operation is doing that so this code isn't appropriate
+// in container.  really it should just be embedded in AccessOp::op() but
+// then I'd have to mess with indentation
+int Access( const string &path, int mask ) {
+    // there used to be some concern here that the accessfile might not
+    // exist yet but the way containers are made ensures that an accessfile
+    // will exist if the container exists
+    
+    // doing just Access is insufficient when plfs daemon run as root
+    // root can access everything.  so, we must also try the open
+   
+    mode_t open_mode;
+    int ret;
+    errno = 0;
+    bool mode_set=false;
+    string accessfile = path; 
+
+    mlog(FOP_DAPI, "%s Check existence of %s",__FUNCTION__,accessfile.c_str());
+    ret = Util::Access( accessfile.c_str(), F_OK );
+    if ( ret == 0 ) {
+        // at this point, we know the file exists
+        if(checkMask(mask,W_OK|R_OK)){
+            open_mode = O_RDWR;
+            mode_set=true;
+        } else if(checkMask(mask,R_OK)||checkMask(mask,X_OK)) {
+            open_mode = O_RDONLY;
+            mode_set=true;
+        } else if(checkMask(mask,W_OK)){
+            open_mode = O_WRONLY;
+            mode_set=true;
+        } else if(checkMask(mask,F_OK)){
+            return 0;   // we already know this
+        }
+        assert(mode_set);
+    
+        mlog(FOP_DCOMMON, "The file exists attempting open");
+        ret = Util::Open(accessfile.c_str(),open_mode);
+        mlog(FOP_DCOMMON, "Open returns %d",ret);
+        if(ret >= 0 ) {
+            ret = Util::Close(ret);
+        }
+    }
+    return ret; 
+}
+
+int
+AccessOp::do_op(const char *path, unsigned char isfile) {
+    if (isfile==DT_DIR || isfile==DT_LNK)
+        return Util::Access(path,mask);
+    else if (isfile==DT_REG)
+        return Access(path,mask);
+    else return -ENOSYS; // what else could it be? 
+}
+
 ChownOp::ChownOp(uid_t u, gid_t g) {
     this->u = u;
     this->g = g;
@@ -36,7 +103,8 @@ ChownOp::do_op(const char *path, unsigned char /* isfile */ ) {
     return Util::Chown(path,u,g);
 }
 
-TruncateOp::TruncateOp() {
+TruncateOp::TruncateOp(bool open_file) {
+    this->open_file = open_file;
     // it's possible that we lost a race and some other proc already removed
     ignoreErrno(ENOENT);
 }
@@ -61,7 +129,11 @@ TruncateOp::do_op(const char *path, unsigned char isfile) {
 
     // we made it here, we don't ignore it
     // do we want to do an unlink or a truncate?
-    return Util::Unlink(path);
+    if (open_file) {
+        return Util::Truncate(path,0);
+    } else {
+        return Util::Unlink(path);
+    }
 }
 
 void
@@ -141,7 +213,11 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */ ) {
             bool match = false;
             set<string>::iterator itr;
             for(itr=filters.begin();itr!=filters.end();itr++){
-                if(itr->compare(0,strlen(ent->d_name),ent->d_name)==0) {
+                mlog(FOP_DCOMMON, "%s checking first %d of filter %s on %s",
+                        __FUNCTION__, itr->length(), itr->c_str(), ent->d_name);
+                // don't know why itr->compare isn't working.  driving me nuts.
+                //if(itr->compare(0,itr->length()-1,ent->d_name)==0) {
+                if(strncmp(itr->c_str(),ent->d_name,itr->length()-1)==0) {
                     match = true;
                     break;
                 }
@@ -151,6 +227,7 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */ ) {
         string file;
         if (expand) { file = path; file += "/"; file += ent->d_name; }
         else { file = ent->d_name; }
+        mlog(FOP_DCOMMON, "%s inserting %s", __FUNCTION__, file.c_str());
         if (entries) (*entries)[file] = (ent->d_type != DT_UNKNOWN) ? 
                                          ent->d_type :
                                          determine_type(path, ent->d_name);
@@ -169,11 +246,14 @@ RmdirOp::do_op(const char *path, unsigned char /* isfile */ ) {
 
 int
 CreateOp::do_op(const char *path, unsigned char isfile ) {
-    if (isfile==DT_DIR)
-        return Util::Mkdir(path,m);
-    else if (isfile==DT_REG)
+    if (isfile==DT_DIR) {
+        mode_t mode = Container::dirMode(m); 
+        return Util::Mkdir(path,mode);
+    } else if (isfile==DT_REG) {
         return Util::Creat(path,m);
-    else assert(0);
+    } else {
+        assert(0);
+    }
     return -ENOSYS;
 }
 

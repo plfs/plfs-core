@@ -12,7 +12,12 @@
 #include <string>
 using namespace std;
 
-WriteFile::WriteFile( string path, string hostname, 
+// the path here is a physical path.  A WriteFile just uses one hostdir.
+// so the path sent to WriteFile should be the physical path to the
+// shadow or canonical container (i.e. not relying on symlinks)
+// anyway, this should all happen above WriteFile and be transparent to
+// WriteFile.  This comment is for educational purposes only.
+WriteFile::WriteFile(string path, string hostname, 
         mode_t mode, size_t buffer_mbs ) : Metadata::Metadata() 
 {
     this->physical_path     = path;
@@ -260,18 +265,19 @@ ssize_t WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid){
     return ( ret >= 0 ? written : -errno );
 }
 
+// this assumes that the hostdir exists and is full valid path
 // returns 0 or -errno
 int WriteFile::openIndex( pid_t pid ) {
     int ret = 0;
     string index_path;
-    int fd = openIndexFile( physical_path, hostname, pid, DROPPING_MODE ,
+    int fd = openIndexFile(physical_path, hostname, pid, DROPPING_MODE,
             &index_path);
     if ( fd < 0 ) {
         ret = -errno;
     } else {
-        Util::MutexLock(   &index_mux , __FUNCTION__);
-        index = new Index( physical_path, fd );
-        Util::MutexUnlock( &index_mux, __FUNCTION__ );
+        Util::MutexLock(&index_mux , __FUNCTION__);
+        index = new Index(physical_path, fd);
+        Util::MutexUnlock(&index_mux, __FUNCTION__);
         mlog(WF_DAPI, "In open Index path is %s",index_path.c_str());
         index->index_path=index_path;
         if(index_buffer_mbs) index->startBuffering();
@@ -316,7 +322,9 @@ int WriteFile::truncate( off_t offset ) {
     return 0;
 }
 
-int WriteFile::openIndexFile( string path, string host, pid_t p, mode_t m ,string* index_path) {
+int WriteFile::openIndexFile(string path, string host, pid_t p, mode_t m,
+        string* index_path) 
+{
     *index_path = Container::getIndexPath(path,host,p,createtime);
     return openFile(*index_path,m);
 }
@@ -330,13 +338,16 @@ int WriteFile::openFile( string physicalpath, mode_t mode ) {
     mode_t old_mode=umask(0);
     int flags = O_WRONLY | O_APPEND | O_CREAT;
     int fd = Util::Open( physicalpath.c_str(), flags, mode );
-    mlog(WF_DAPI, "open %s : %d %s", physicalpath.c_str(), 
+    mlog(WF_DAPI, "%s.%s open %s : %d %s", 
+            __FILE__, __FUNCTION__, 
+            physicalpath.c_str(), 
             fd, ( fd < 0 ? strerror(errno) : "" ) );
     if ( fd >= 0 ) paths[fd] = physicalpath;    // remember so restore works
     umask(old_mode);
     return ( fd >= 0 ? fd : -errno );
 }
 
+// we call this after any calls to f_truncate
 // if fuse::f_truncate is used, we will have open handles that get messed up
 // in that case, we need to restore them
 // what if rename is called and then f_truncate?

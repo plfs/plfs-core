@@ -73,13 +73,23 @@ class Container {
         static mode_t containerMode(  mode_t );
         static int makeHostDir(const string &path, const string &host, 
                 mode_t mode, parentStatus);
+        static int transferCanonical(const string &from,
+                const string &to, const string &from_backend,
+                const string &to_backend, mode_t);
 
         static int getattr( const string &, struct stat * );
 
         static mode_t getmode( const string & );
         static int Utime( const string &path, const struct utimbuf *buf );
         static int Truncate( const string &, off_t );
-        static int Access( const string &path, int mask );
+        //static int Access( const string &path, int mask );
+
+        static int createMetalink(const string &,const string &,const string &);
+        static int readMetalink(const string &,string &, size_t &);
+        static int resolveMetalink(const string &, string &);
+        static int collectIndices(const string &path, vector<string> &indices,bool);
+        static int collectContents(const string &path,
+            vector<string> &files, vector<string> &filters,bool);
 
         static int flattenIndex( const string &, Index * );
         static int populateIndex(const string &,Index *,bool use_cached_global);
@@ -100,7 +110,7 @@ class Container {
                                  int rank, int ranks_per_comm,string path);
         static int indexTaskManager(deque<IndexerTask> &tasks,
                                         Index *index,string path);
-        static vector<IndexFileInfo> hostdir_index_read(const char *path);
+        static int indices_from_subdir(string,vector<IndexFileInfo>&);
         static const char *version(const string &path);
     private:
             // static stuff
@@ -122,6 +132,7 @@ class Container {
         static struct dirent *getnextent( DIR *dir, const char *prefix );
         static int makeMeta( const string &path, mode_t type, mode_t mode );
         static int ignoreNoEnt( int ret );
+        static bool istype(const string &dropping, const char *type);
 };
 
 #endif

@@ -93,7 +93,6 @@ class Plfs : public fusexx::fuse<Plfs> {
 		// Notice that they aren't static, 
         // i.e. they belong to an instantiated object
         // shoot.  
-        //HASH_MAP<string, WriteFile *> write_files;  // hash_map is better
         HASH_MAP<string, mode_t>      known_modes;  // cache when possible
         // private for debugging
         int extra_attempts;         // # failures on makeContainer were retried

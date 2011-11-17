@@ -1,0 +1,55 @@
+#! /bin/tcsh
+
+
+# this test is a reproducer of a bug first found in 2.0.1
+# in which rmdir of a non-empty
+# directory would corrupt the directory
+
+# this test does this:
+# mkdir foo
+# touch foo/foo
+# rmdir foo
+# ls foo/foo
+# rm foo/foo
+# rmdir foo
+
+if ("X" == "X$1") then
+  echo "Usage: $0 existing_directory"
+  exit 1
+endif
+
+if ( ! -d $1 ) then
+  echo "Usage: $1 is not an existing directory"
+  exit 1
+endif
+
+# make a uniq directory
+# could maybe use mktemp
+set dir = $1/`date +%s`
+mkdir $dir 
+if ($? != 0 ) exit $?
+
+# now touch a file in it
+set file = $dir/foo
+touch $file 
+if ($? != 0 ) exit $?
+
+# now attempt to remove the directory.  should fail
+rmdir $dir >& /dev/null
+if ($? != 1) then
+  echo "$0: rmdir of $dir unexpectedly succeeded.  Error"
+  exit 1
+endif
+
+# now ensure that we can still see the file
+ls $file >& /dev/null
+if ($? != 0) exit $?
+
+# now remove the file and then the directory
+/bin/rm $file
+if ($? != 0) exit $?
+rmdir $dir
+if ($? != 0) exit $?
+
+# success!
+exit 0

@@ -110,6 +110,30 @@ using namespace std;
                         EXIT_SHARED;
 #endif
 
+// function that tokenizes a string into a set of strings based on set of delims
+vector<string> &Util::tokenize(const string& str,const string& delimiters,
+        vector<string> &tokens)
+{
+	// skip delimiters at beginning.
+    string::size_type lastPos = str.find_first_not_of(delimiters, 0);
+    	
+	// find first "non-delimiter".
+    string::size_type pos = str.find_first_of(delimiters, lastPos);
+
+    while (string::npos != pos || string::npos != lastPos) {
+        // found a token, add it to the vector.
+        tokens.push_back(str.substr(lastPos, pos - lastPos));
+		
+        // skip delimiters.  Note the "not_of"
+        lastPos = str.find_first_not_of(delimiters, pos);
+		
+        // find next "non-delimiter"
+        pos = str.find_first_of(delimiters, lastPos);
+    }
+
+	return tokens;
+}
+
 void
 Util::SeriousError( string msg, pid_t pid ) {
     string filename = getenv("HOME");
@@ -223,7 +247,7 @@ void Util::addBytes( string function, size_t size ) {
 // useful for gathering the contents of a container
 int
 Util::traverseDirectoryTree(const char *path, vector<string> &files,
-        vector<string> &dirs, bool fol_links) 
+        vector<string> &dirs, vector<string> &links) 
 {
     ENTER_PATH;
     mlog(UT_DAPI, "%s on %s", __FUNCTION__, path);
@@ -237,9 +261,13 @@ Util::traverseDirectoryTree(const char *path, vector<string> &files,
     dirs.push_back(path); // save the top dir
 
     for(itr = entries.begin(); itr != entries.end() && ret==0; itr++) {
-        if (itr->second == DT_DIR || (fol_links &&itr->second == DT_LNK)) 
-            ret=traverseDirectoryTree(itr->first.c_str(),files,dirs,fol_links);
-        else files.push_back(itr->first);
+        if (itr->second == DT_DIR) {
+            ret=traverseDirectoryTree(itr->first.c_str(),files,dirs,links);
+        } else if (itr->second == DT_LNK) {
+            links.push_back(itr->first);
+        } else {
+            files.push_back(itr->first);
+        }
     }
 
     EXIT_UTIL;

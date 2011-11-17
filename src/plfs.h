@@ -25,7 +25,6 @@ typedef enum {
 
 typedef struct{
     char *index_stream; /* Index stream passed in from another proc */
-    int  mpi;           /* Flag indicating that mpi is being used   */
     int  buffer_index;  /* Buffer index yes/no                      */
     plfs_interface pinter;
 } Plfs_open_opt;
@@ -116,9 +115,6 @@ int plfs_index_stream(Plfs_fd **pfd, char ** buffer);
 int plfs_merge_indexes(Plfs_fd **pfd, char *index_streams, 
                         int *index_sizes, int procs);
 
-/* Have ADIO set a flag indicating that MPI is being used*/
-int plfs_set_mpi(Plfs_fd **pfd);
-
 int plfs_link( const char *path, const char *to );
 
 /* the void * should be a string */
@@ -153,8 +149,9 @@ int plfs_readlink( const char *path, char *buf, size_t bufsize );
 /* 
    recover a lost plfs file (which can happen if plfsrc is ever improperly
    modified
+   d_type can be DT_DIR, DT_REG, DT_UNKNOWN
 */
-int plfs_recover( const char *path );
+int plfs_recover(const char *path);
 
 int plfs_rename( const char *from, const char *to );
 
@@ -176,7 +173,7 @@ int plfs_symlink( const char *path, const char *to );
 int plfs_sync( Plfs_fd *, pid_t );
 
 /* Plfs_fd can be NULL, but then path must be valid */
-int plfs_trunc( Plfs_fd *, const char *path, off_t );
+int plfs_trunc( Plfs_fd *, const char *path, off_t, int open_file );
 
 int plfs_unlink( const char *path );
 

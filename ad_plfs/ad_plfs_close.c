@@ -200,12 +200,13 @@ void reduce_meta(ADIO_File afd, Plfs_fd *fd,const char * filename,
     struct stat buf;
     size_t glbl_tot_byt=0;
     int size_only=1;    // lazy stat
+    long long tmp_buf;
     
     plfs_getattr(fd,filename,&buf,size_only);
-    MPI_Reduce(&(buf.st_size),&(close_opt->last_offset),1,
-            MPI_LONG_LONG,MPI_MAX,0,afd->comm);
-    MPI_Reduce(&(buf.st_blocks),&glbl_tot_byt,1,MPI_LONG_LONG,MPI_SUM,0,
-            afd->comm); 
+    MPI_Reduce(&(buf.st_size),&tmp_buf,1,MPI_LONG_LONG,MPI_MAX,0,afd->comm);
+    close_opt->last_offset = (off_t)tmp_buf;
+    MPI_Reduce(&(buf.st_blocks),&tmp_buf,1,MPI_LONG_LONG,MPI_SUM,0,afd->comm); 
+    glbl_tot_byt = (size_t)tmp_buf;
     close_opt->total_bytes=glbl_tot_byt*BLKSIZE;
     close_opt->valid_meta=1;
 }

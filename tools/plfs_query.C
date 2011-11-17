@@ -2,13 +2,14 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string>
+#include <vector>
 using namespace std;
 
 #include "plfs.h"
 #include "COPYRIGHT.h"
 
 void show_usage(char* app_name) {
-	fprintf(stderr, "Usage: %s <filename>\n", app_name);
+	fprintf(stderr, "Usage: %s <filename | -verison>\n", app_name);
 }
 
 int main (int argc, char **argv) {
@@ -17,7 +18,12 @@ int main (int argc, char **argv) {
 	char *target;
 	bool found_target = false;
 	for (i = 1; i < argc; i++) {
-		if (strcmp(argv[i], "-force") == 0) {
+		if (strcmp(argv[i], "-version") == 0) {
+			// print version that was used to build this
+			printf("PLFS library:\n\t%s (SVN %s, Built %s)\n", 
+				plfs_tag(), plfs_version(), plfs_buildtime());
+			exit(0);
+		} else if (strcmp(argv[i], "-force") == 0) {
 			force = true;
 		} else if (!found_target) {
 			target = argv[i];
@@ -40,12 +46,16 @@ int main (int argc, char **argv) {
     }
 
     string backend;
-    int ret = plfs_locate(target,(void*)&backend);
+    vector<string> files;
+    int ret = plfs_locate(target,(void*)&files);
     if ( ret != 0 ) {
         fprintf(stderr, "Couldn't query %s: %s\n",
                 target, strerror(-ret));
     } else {
-        printf("%s is located at %s\n",target,backend.c_str());
+        vector<string>::iterator itr;
+        for(itr=files.begin(); itr!=files.end(); itr++) {
+            printf("%s\n",itr->c_str());
+        }
     }
     exit( ret );
 }
