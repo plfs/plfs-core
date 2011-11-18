@@ -4,13 +4,14 @@
 #include "FileOp.h"
 #include "Util.h"
 #include "Container.h"
+#include "mlogfacs.h"
 #include "plfs.h"
 
 int
 FileOp::op(const char *path, unsigned char type) {
     // the parent function is just a wrapper to insert a debug message 
     int ret = retValue(do_op(path,type));
-    Util::Debug("FileOp:%s on %s: %d\n",name(),path,ret);
+    mlog(FOP_DAPI, "FileOp:%s on %s: %d",name(),path,ret);
     return ret;
 }
 
@@ -55,7 +56,7 @@ int Access( const string &path, int mask ) {
     bool mode_set=false;
     string accessfile = path; 
 
-    plfs_debug("%s Check existence of %s\n",__FUNCTION__,accessfile.c_str());
+    mlog(FOP_DAPI, "%s Check existence of %s",__FUNCTION__,accessfile.c_str());
     ret = Util::Access( accessfile.c_str(), F_OK );
     if ( ret == 0 ) {
         // at this point, we know the file exists
@@ -73,9 +74,9 @@ int Access( const string &path, int mask ) {
         }
         assert(mode_set);
     
-        plfs_debug("The file exists attempting open\n");
+        mlog(FOP_DCOMMON, "The file exists attempting open");
         ret = Util::Open(accessfile.c_str(),open_mode);
-        plfs_debug("Open returns %d\n",ret);
+        mlog(FOP_DCOMMON, "Open returns %d",ret);
         if(ret >= 0 ) {
             ret = Util::Close(ret);
         }
@@ -212,7 +213,7 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */ ) {
             bool match = false;
             set<string>::iterator itr;
             for(itr=filters.begin();itr!=filters.end();itr++){
-                plfs_debug("%s checking first %d of filter %s on %s\n",
+                mlog(FOP_DCOMMON, "%s checking first %d of filter %s on %s",
                         __FUNCTION__, itr->length(), itr->c_str(), ent->d_name);
                 // don't know why itr->compare isn't working.  driving me nuts.
                 //if(itr->compare(0,itr->length()-1,ent->d_name)==0) {
@@ -226,7 +227,7 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */ ) {
         string file;
         if (expand) { file = path; file += "/"; file += ent->d_name; }
         else { file = ent->d_name; }
-        plfs_debug("%s inserting %s\n", __FUNCTION__, file.c_str());
+        mlog(FOP_DCOMMON, "%s inserting %s", __FUNCTION__, file.c_str());
         if (entries) (*entries)[file] = (ent->d_type != DT_UNKNOWN) ? 
                                          ent->d_type :
                                          determine_type(path, ent->d_name);

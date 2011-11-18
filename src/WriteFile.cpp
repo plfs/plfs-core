@@ -39,7 +39,7 @@ void WriteFile::setPath ( string p ) {
 }
 
 WriteFile::~WriteFile() {
-    Util::Debug("Delete self %s\n", physical_path.c_str() );
+    mlog(WF_DAPI, "Delete self %s", physical_path.c_str() );
     Close();
     if ( index ) {
         closeIndex();
@@ -91,7 +91,7 @@ int WriteFile::addWriter( pid_t pid, bool child ) {
     int writers = incrementOpens(0); 
     if ( ret == 0 && ! child ) writers = incrementOpens(1);
     max_writers++;
-    Util::Debug("%s (%d) on %s now has %d writers\n", 
+    mlog(WF_DAPI, "%s (%d) on %s now has %d writers", 
             __FUNCTION__, pid, physical_path.c_str(), writers );
     Util::MutexUnlock( &data_mux, __FUNCTION__ );
     return ( ret == 0 ? writers : ret );
@@ -108,7 +108,7 @@ size_t WriteFile::numWriters( ) {
             check += pids_itr->second.writers;
         }
         if ( writers != check ) {
-            Util::Debug("%s %d not equal %d\n", __FUNCTION__, 
+            mlog(WF_DRARE, "%s %d not equal %d", __FUNCTION__, 
                     writers, check ); 
             assert( writers==check );
         }
@@ -131,8 +131,8 @@ struct OpenFd * WriteFile::getFd( pid_t pid ) {
         oss << __FILE__ << ":" << __FUNCTION__ << " found fd " 
             << itr->second->fd << " with writers " 
             << itr->second->writers
-            << " from pid " << pid << endl;
-        Util::Debug("%s", oss.str().c_str() );
+            << " from pid " << pid;
+        mlog(WF_DCOMMON, "%s", oss.str().c_str() );
 	*/
         ofd = &(itr->second);
     } else {
@@ -148,17 +148,17 @@ struct OpenFd * WriteFile::getFd( pid_t pid ) {
             // try to find the parent pid and look for it
             // we need this code because we've seen in FUSE that an open
             // is done by a parent but then a write comes through as the child
-            Util::Debug("%s WARNING pid %d is not mapped. "
-                    "Borrowing fd %d from pid %d\n",
+            mlog(WF_DRARE, "%s WARNING pid %d is not mapped. "
+                    "Borrowing fd %d from pid %d",
                     __FILE__, (int)pid, (int)fds.begin()->second->fd,
                     (int)fds.begin()->first );
             ofd = fds.begin()->second;
         } else {
-            Util::Debug("%s no fd to give to %d\n", __FILE__, (int)pid);
+            mlog(WF_DCOMMON, "%s no fd to give to %d", __FILE__, (int)pid);
             ofd = NULL;
         }
         */
-        Util::Debug("%s no fd to give to %d\n", __FILE__, (int)pid);
+        mlog(WF_DCOMMON, "%s no fd to give to %d", __FILE__, (int)pid);
         ofd = NULL;
     }
     return ofd;
@@ -169,7 +169,7 @@ int WriteFile::closeFd( int fd ) {
     paths_itr = paths.find( fd );
     string path = ( paths_itr == paths.end() ? "ENOENT?" : paths_itr->second );
     int ret = Util::Close( fd );
-    Util::Debug("%s:%s closed fd %d for %s: %d %s\n",
+    mlog(WF_DAPI, "%s:%s closed fd %d for %s: %d %s",
             __FILE__, __FUNCTION__, fd, path.c_str(), ret, 
             ( ret != 0 ? strerror(errno) : "success" ) );
     paths.erase ( fd );
@@ -187,7 +187,7 @@ int WriteFile::removeWriter( pid_t pid ) {
         // this is strange but sometimes fuse does weird things w/ pids
         // if the writers goes zero, when this struct is freed, everything
         // gets cleaned up
-        Util::Debug("%s can't find pid %d\n", __FUNCTION__, pid );
+        mlog(WF_CRIT, "%s can't find pid %d", __FUNCTION__, pid );
         assert( 0 );
     } else {
         ofd->writers--;
@@ -196,7 +196,7 @@ int WriteFile::removeWriter( pid_t pid ) {
             fds.erase( pid );
         }
     }
-    Util::Debug("%s (%d) on %s now has %d writers: %d\n", 
+    mlog(WF_DAPI, "%s (%d) on %s now has %d writers: %d", 
             __FUNCTION__, pid, physical_path.c_str(), writers, ret );
     Util::MutexUnlock( &data_mux, __FUNCTION__ );
     return ( ret == 0 ? writers : ret );
@@ -252,7 +252,8 @@ ssize_t WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid){
                 // Check if the index has grown too large stop buffering
                 if(index->memoryFootprintMBs() > index_buffer_mbs) {
                     index->stopBuffering();
-                    plfs_debug("The index grew too large, no longer buffering");
+                    mlog(WF_DCOMMON, "The index grew too large, "
+                         "no longer buffering");
                 }
             }
             if (ret >= 0) addWrite(offset, size); // track our own metadata
@@ -277,7 +278,7 @@ int WriteFile::openIndex( pid_t pid ) {
         Util::MutexLock(&index_mux , __FUNCTION__);
         index = new Index(physical_path, fd);
         Util::MutexUnlock(&index_mux, __FUNCTION__);
-        plfs_debug("In open Index path is %s\n",index_path.c_str());
+        mlog(WF_DAPI, "In open Index path is %s",index_path.c_str());
         index->index_path=index_path;
         if(index_buffer_mbs) index->startBuffering();
     }
@@ -337,7 +338,7 @@ int WriteFile::openFile( string physicalpath, mode_t mode ) {
     mode_t old_mode=umask(0);
     int flags = O_WRONLY | O_APPEND | O_CREAT;
     int fd = Util::Open( physicalpath.c_str(), flags, mode );
-    Util::Debug("%s.%s open %s : %d %s\n", 
+    mlog(WF_DAPI, "%s.%s open %s : %d %s", 
             __FILE__, __FUNCTION__, 
             physicalpath.c_str(), 
             fd, ( fd < 0 ? strerror(errno) : "" ) );
@@ -362,7 +363,7 @@ int WriteFile::restoreFds( ) {
     // reg ex changes to all the paths
     assert( ! has_been_renamed );
 
-    plfs_debug("Entering %s\n",__FUNCTION__);
+    mlog(WF_DAPI, "Entering %s",__FUNCTION__);
     
     // first reset the index fd
     if ( index ) {
@@ -395,6 +396,6 @@ int WriteFile::restoreFds( ) {
     // normally we return ret at the bottom of our functions but this
     // function had so much error handling, I just cut out early on any 
     // error.  therefore, if we get here, it's happy days!
-    plfs_debug("Exiting %s\n",__FUNCTION__);
+    mlog(WF_DAPI, "Exiting %s",__FUNCTION__);
     return 0;
 }

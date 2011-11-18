@@ -96,8 +96,6 @@ class Util {
         static vector<string> &tokenize(    const string& str,
                                             const string& delimiters,
                                             vector<string> &tokens);
-        static void Debug( const char *format, ... );
-        static void Debug( const char *format, va_list );
         static void SeriousError(string,pid_t);
         static void OpenError(const char*, const char*,int,int,pid_t);
         static bool exists( const char* );

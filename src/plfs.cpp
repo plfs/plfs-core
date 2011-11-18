@@ -1,3 +1,6 @@
+
+#define MLOG_FACSARRAY   /* need to define before include mlog .h files */
+
 #include "plfs.h"
 #include "plfs_private.h"
 #include "Index.h"
@@ -18,6 +21,9 @@
 #include <vector>
 #include <sstream>
 #include <stdlib.h>
+
+#include <syslog.h>    /* for mlog init */
+
 using namespace std;
 
 // TODO:
@@ -60,7 +66,7 @@ typedef struct {
  int ret = 0;\
  ExpansionInfo expansion_info; \
  string path = expandPath(logical,&expansion_info,HASH_BY_FILENAME,-1,0); \
- plfs_debug("EXPAND in %s: %s->%s\n",__FUNCTION__,logical,path.c_str()); \
+ mlog(INT_DAPI, "EXPAND in %s: %s->%s",__FUNCTION__,logical,path.c_str()); \
  if (expansion_info.expand_error && X==PLFS_PATH_REQUIRED) { \
      PLFS_EXIT(-ENOENT); \
  } \
@@ -89,6 +95,10 @@ typedef struct {
     pthread_mutex_t mux;    // to lock the queue
 } ReaderArgs;
 
+PlfsConf *parse_conf(FILE *fp, string file, PlfsConf *pconf);
+static void parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
+                              char *key, char *value);
+
 // the expansion info doesn't include a string for the backend
 // to save a bit of space (probably an unnecessary optimization but anyway)
 // it just includes an offset into the backend arrary
@@ -112,7 +122,7 @@ size_t plfs_gethostdir_id(char *hostname) {
 
 PlfsMount *
 find_mount_point(PlfsConf *pconf, const string &logical, bool &found) {
-    plfs_debug("Searching for mount point matching %s\n", logical.c_str());
+    mlog(INT_DAPI,"Searching for mount point matching %s", logical.c_str());
     vector<string> logical_tokens;
     Util::tokenize(logical,"/",logical_tokens);
     return find_mount_point_using_tokens(pconf,logical_tokens,found);
@@ -127,7 +137,7 @@ find_mount_point_using_tokens(PlfsConf *pconf,
         if (itr->second->mnt_tokens.size() > logical_tokens.size() ) continue;
         for(unsigned i = 0; i < itr->second->mnt_tokens.size(); i++) {
             /*
-            plfs_debug("%s: %s =?= %s\n", __FUNCTION__,
+            mlog(INT_DCOMMON, "%s: %s =?= %s", __FUNCTION__,
                   itr->second->mnt_tokens[i].c_str(),logical_tokens[i].c_str());
           */
             if (itr->second->mnt_tokens[i] != logical_tokens[i]) {
@@ -171,10 +181,10 @@ expandPath(string logical, ExpansionInfo *exp_info,
         }
     }
     if ( pconf->err_msg ) {
-      plfs_debug("PlfsConf error: %s\n", pconf->err_msg->c_str());
-      exp_info->expand_error = true;
-      exp_info->Errno = -EINVAL;
-      return "INVALID";
+        mlog(INT_ERR, "PlfsConf error: %s", pconf->err_msg->c_str());
+        exp_info->expand_error = true;
+        exp_info->Errno = -EINVAL;
+        return "INVALID";
     }
 
     // rip off an adio prefix if passed.  Not sure how important this is
@@ -184,7 +194,7 @@ expandPath(string logical, ExpansionInfo *exp_info,
     if (prefix_length==-1) prefix_length = strlen(adio_prefix);
     if (logical.compare(0,prefix_length,adio_prefix)==0) {
         logical = logical.substr(prefix_length,logical.size());
-        plfs_debug("Ripping %s -> %s\n", adio_prefix,logical.c_str());
+        mlog(INT_DCOMMON, "Ripping %s -> %s", adio_prefix,logical.c_str());
     }
 
     // find the appropriate PlfsMount from the PlfsConf
@@ -234,13 +244,14 @@ expandPath(string logical, ExpansionInfo *exp_info,
     // if a parent dir is renamed, then children files are orphaned
     string remaining = ""; 
     string filename = "/"; 
-    plfs_debug("Trim mnt %s from path %s\n",pm->mnt_pt.c_str(),logical.c_str());
+    mlog(INT_DCOMMON, "Trim mnt %s from path %s",pm->mnt_pt.c_str(),
+         logical.c_str());
     for(unsigned i = pm->mnt_tokens.size(); i < logical_tokens.size(); i++ ) {
         remaining += "/";
         remaining += logical_tokens[i]; 
         if (i+1==logical_tokens.size()) filename = logical_tokens[i];
     }
-    plfs_debug("Remaining path is %s (hash on %s)\n", 
+    mlog(INT_DCOMMON, "Remaining path is %s (hash on %s)", 
             remaining.c_str(),filename.c_str());
 
     // choose a backend unless the caller explicitly requested one
@@ -261,7 +272,7 @@ expandPath(string logical, ExpansionInfo *exp_info,
     }
     exp_info->which_backend %= pm->backends.size();
     string expanded = get_backend(*exp_info) + "/" + remaining;
-    plfs_debug("%s: %s -> %s (%d.%d)\n", __FUNCTION__, 
+    mlog(INT_DCOMMON, "%s: %s -> %s (%d.%d)", __FUNCTION__, 
             logical.c_str(), expanded.c_str(),
             hash_method,exp_info->which_backend);
     return expanded;
@@ -415,7 +426,7 @@ plfs_create( const char *logical, mode_t mode, int flags, pid_t pid ) {
     // that fails the S_ISREG check... change to just check for fifo
     //if (!S_ISREG(mode)) {  // e.g. mkfifo might need to be handled differently
     if (S_ISFIFO(mode)) {
-        plfs_debug("%s on non-regular file %s?\n",__FUNCTION__, logical);
+        mlog(PLFS_DRARE, "%s on non-regular file %s?",__FUNCTION__, logical);
         return -ENOSYS;
     }
 
@@ -506,7 +517,7 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
         if (using_shadow) { // case 1 skips this
             // link the shadow hostdir into its canonical location
             // some errors are OK: indicate merely that we lost race to sibling
-            plfs_debug("Need to link %s into %s (hostdir ret %d)\n", 
+            mlog(INT_DCOMMON, "Need to link %s into %s (hostdir ret %d)", 
                     shadow_hostdir.c_str(), canonical.c_str(),ret);
             ret = Container::createMetalink(canonical_backend,shadow_backend,
                     canonical_hostdir);
@@ -527,7 +538,7 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
     
         // make the shadow container and hostdir (it might be canonical)
         if (ret==0) {
-            plfs_debug("Making %s hostdir for %s at %s\n",
+            mlog(INT_DCOMMON, "Making %s hostdir for %s at %s",
                 shadow==canonical?"canonical":"shadow",
                 logical.c_str(),
                 shadow.c_str());
@@ -545,7 +556,7 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
         }
 
         if (ret!=0) {
-            plfs_debug("Something weird in %s for %s.  Retrying.\n",
+            mlog(INT_DRARE, "Something weird in %s for %s.  Retrying.",
                     __FUNCTION__, shadow.c_str());
             continue; 
         }
@@ -636,7 +647,7 @@ plfs_file_operation(const char *logical, FileOp &op) {
     // other ops, order doesn't matter.
     vector<string>::reverse_iterator ritr;
     for(ritr = files.rbegin(); ritr != files.rend() && ret == 0; ++ritr) {
-        plfs_debug("%s on %s\n",__FUNCTION__,ritr->c_str());
+        mlog(INT_DCOMMON, "%s on %s",__FUNCTION__,ritr->c_str());
         ret = op.op(ritr->c_str(),DT_REG);
     }
     for(ritr = links.rbegin(); ritr != links.rend() && ret == 0; ++ritr) {
@@ -645,7 +656,7 @@ plfs_file_operation(const char *logical, FileOp &op) {
     for(ritr = dirs.rbegin(); ritr != dirs.rend() && ret == 0; ++ritr) {
         ret = op.op(ritr->c_str(),DT_DIR);
     }
-    plfs_debug("%s: ret %d\n", __FUNCTION__,ret);
+    mlog(INT_DAPI, "%s: ret %d", __FUNCTION__,ret);
     PLFS_EXIT(ret);
 }
 
@@ -671,19 +682,6 @@ is_plfs_directory(const char *logical, mode_t *mode) {
     PLFS_ENTER;
     PLFS_EXIT(ret);
 }
-
-#ifdef PLFS_DEBUG_ON
-void 
-plfs_debug( const char *format, ... ) {
-    va_list args;
-    va_start(args, format);
-    Util::Debug(format, args);
-    va_end( args );
-}
-#else
-void 
-plfs_debug( const char *format, ... ) { }
-#endif
 
 void 
 plfs_serious_error(const char *msg,pid_t pid ) {
@@ -730,7 +728,7 @@ plfs_access( const char *logical, int mask ) {
                 bool match = true;
                 for(size_t i=0; i<target_tokens.size(); i++) {
                     if (i>=mnt_tokens.size()) break; // no good
-                    plfs_debug("%s: compare %s and %s\n",
+                    mlog(INT_DCOMMON, "%s: compare %s and %s",
                             __FUNCTION__,mnt_tokens[i].c_str(),
                             target_tokens[i].c_str());
                     if (mnt_tokens[i]!=target_tokens[i]) {
@@ -784,7 +782,7 @@ plfs_iterate_backends(const char *logical, FileOp &op) {
     if ( (ret = find_all_expansions(logical,exps)) != 0 ) PLFS_EXIT(ret);
     for(itr = exps.begin(); itr != exps.end() && ret == 0; itr++ ){
         ret = op.op(itr->c_str(),DT_DIR);
-        plfs_debug("%s on %s: %d\n",op.name(),itr->c_str(),ret);
+        mlog(INT_DCOMMON, "%s on %s: %d",op.name(),itr->c_str(),ret);
     }
     PLFS_EXIT(ret);
 }
@@ -809,7 +807,7 @@ plfs_rename( const char *logical, const char *to ) {
     string new_canonical;
     string new_canonical_backend;
 
-    plfs_debug("%s: %s -> %s\n", __FUNCTION__, logical, to);
+    mlog(INT_DAPI, "%s: %s -> %s", __FUNCTION__, logical, to);
 
     // first check if there is a file already at dst.  If so, remove it
     ExpansionInfo exp_info;
@@ -837,7 +835,8 @@ plfs_rename( const char *logical, const char *to ) {
         int err = retValue(Util::Rename(srcs[i].c_str(),dsts[i].c_str()));
         if (err == -ENOENT) err = 0;  // a file might not be distributed on all 
         if (err != 0) ret = err;  // keep trying but save the error
-        plfs_debug("rename %s to %s: %d\n",srcs[i].c_str(),dsts[i].c_str(),err);
+        mlog(INT_DCOMMON, "rename %s to %s: %d",
+             srcs[i].c_str(),dsts[i].c_str(),err);
     }
 
     // if it's a file whose canonical location has moved, recover it
@@ -883,8 +882,8 @@ plfs_rmdir( const char *logical ) {
 
     // check if we started deleting non-empty dirs, if so, restore
     if (ret==-ENOTEMPTY) {
-        plfs_debug("Started removing a non-empty directory %s. Will restore.\n",
-                        logical);
+        mlog(PLFS_DRARE, "Started removing a non-empty directory %s. "
+             "Will restore.", logical);
         CreateOp op(mode);
         op.ignoreErrno(EEXIST);
         plfs_iterate_backends(logical,op); // don't overwrite ret 
@@ -903,7 +902,7 @@ int
 mkdir_dash_p(const string &path, bool parent_only) {
     string recover_path; 
     vector<string> canonical_tokens;
-    plfs_debug("%s on %s\n",__FUNCTION__,path.c_str());
+    mlog(INT_DAPI, "%s on %s",__FUNCTION__,path.c_str());
     Util::tokenize(path,"/",canonical_tokens);
     size_t last = canonical_tokens.size();
     if (parent_only) last--;
@@ -970,15 +969,16 @@ plfs_recover(const char *logical) {
     // we still need to keep looking bec it might be a shadow container
     canonical = path;
     canonical_backend = get_backend(expansion_info);
-    plfs_debug("%s Canonical location should be %s\n", __FUNCTION__,
+    mlog(PLFS_DAPI, "%s Canonical location should be %s", __FUNCTION__,
             canonical.c_str());
     isfile = (int) Container::isContainer(path,&canonical_mode); 
     if (isfile) {
-        plfs_debug("%s %s is already in canonical location\n",__FUNCTION__,
-                canonical.c_str());
+        mlog(PLFS_DCOMMON, "%s %s is already in canonical location",
+             __FUNCTION__, canonical.c_str());
         PLFS_EXIT(-EEXIST);
     }
-    plfs_debug("%s %s may not be in canonical location\n",__FUNCTION__,logical);
+    mlog(PLFS_DCOMMON, "%s %s may not be in canonical location",
+         __FUNCTION__,logical);
 
     // ok, it's not at the canonical location
     // check all the other backends to see if they have it 
@@ -1002,7 +1002,7 @@ plfs_recover(const char *logical) {
         } else if (S_ISDIR(former_mode)) {
             isdir = found = true;
         }
-        plfs_debug("%s query %s: %s\n", __FUNCTION__, possible.c_str(),
+        mlog(PLFS_DCOMMON, "%s query %s: %s", __FUNCTION__, possible.c_str(),
                 (isfile?"file":isdir?"dir":"ENOENT"));
     }
     if (!found) PLFS_EXIT(-ENOENT);
@@ -1099,7 +1099,7 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
             }
 
             // remember this task
-            plfs_debug("%s", oss.str().c_str() ); 
+            mlog(INT_DCOMMON, "%s", oss.str().c_str() ); 
             tasks->push_back(task);
         }
         // when chunk_length is 0, that means EOF
@@ -1128,7 +1128,7 @@ perform_read_task( ReadTask *task, Index *index ) {
                 // them before we get here
                 task->fd = Util::Open(task->path.c_str(), O_RDONLY);
                 if ( task->fd < 0 ) {
-                    plfs_debug("WTF? Open of %s: %s\n", 
+                    mlog(INT_ERR, "WTF? Open of %s: %s", 
                         task->path.c_str(), strerror(errno) );
                     return -errno;
                 }
@@ -1148,7 +1148,7 @@ perform_read_task( ReadTask *task, Index *index ) {
                     Util::Close(task->fd);
                     task->fd = existing; // already stashed by someone else
                 }
-                plfs_debug("Opened fd %d for %s and %s stash it\n", 
+                mlog(INT_DCOMMON, "Opened fd %d for %s and %s stash it", 
                     task->fd, task->path.c_str(), won_race ? "did" : "did not");
             }
         }
@@ -1157,8 +1157,8 @@ perform_read_task( ReadTask *task, Index *index ) {
     }
     ostringstream oss;
     oss << "\t READ TASK: offset " << task->chunk_offset << " len "
-         << task->length << " fd " << task->fd << ": ret " << ret<< endl;
-    plfs_debug("%s", oss.str().c_str() ); 
+        << task->length << " fd " << task->fd << ": ret " << ret;
+    mlog(INT_DCOMMON, "%s", oss.str().c_str() ); 
     PLFS_EXIT(ret);
 }
 
@@ -1221,18 +1221,18 @@ plfs_reader(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
         args.tasks = &tasks;
         pthread_mutex_init( &(args.mux), NULL );
         size_t num_threads = min(pconf->threadpool_size,tasks.size());
-        plfs_debug("%d THREADS to %ld\n", num_threads, offset);
+        mlog(INT_DCOMMON, "plfs_reader %d THREADS to %ld", num_threads, offset);
         ThreadPool threadpool(num_threads,reader_thread, (void*)&args);
         error = threadpool.threadError();   // returns errno
         if ( error ) {
-            plfs_debug("THREAD pool error %s\n", strerror(error) );
+            mlog(INT_DRARE, "THREAD pool error %s", strerror(error) );
             error = -error;       // convert to -errno
         } else {
             vector<void*> *stati    = threadpool.getStati();
             for( size_t t = 0; t < num_threads; t++ ) {
                 void *status = (*stati)[t];
                 ret = (ssize_t)status;
-                plfs_debug("Thread %d returned %d\n", (int)t,int(ret));
+                mlog(INT_DCOMMON, "Thread %d returned %d", (int)t,int(ret));
                 if ( ret < 0 ) error = ret;
                 else total += ret;
             }
@@ -1258,7 +1258,7 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
     Index *index = pfd->getIndex(); 
     ssize_t ret = 0;
 
-    plfs_debug("Read request on %s at offset %ld for %ld bytes\n",
+    mlog(PLFS_DAPI, "Read request on %s at offset %ld for %ld bytes",
             pfd->getPath(),long(offset),long(size));
 
     // possible that we opened the file as O_RDWR
@@ -1280,7 +1280,7 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
         ret = plfs_reader(pfd,buf,size,offset,index);
     }
 
-    plfs_debug("Read request on %s at offset %ld for %ld bytes: ret %ld\n",
+    mlog(PLFS_DAPI, "Read request on %s at offset %ld for %ld bytes: ret %ld",
             pfd->getPath(),long(offset),long(size),long(ret));
 
 
@@ -1296,7 +1296,7 @@ plfs_read( Plfs_fd *pfd, char *buf, size_t size, off_t offset ) {
             pfd->unlockIndex();
         }
         if (delete_index) delete(index);
-        plfs_debug("%s %s freshly created index for %s\n",
+        mlog(PLFS_DCOMMON, "%s %s freshly created index for %s",
             __FUNCTION__, delete_index?"removing":"caching", pfd->getPath());
     }
 
@@ -1312,20 +1312,129 @@ plfs_init(PlfsConf *pconf) {
     return(exp_info.expand_error ? false : true);
 }
 
+/**
+ * plfs_mlogargs: manage mlog command line args (override plfsrc).
+ *
+ * @param mlargc argc (in if mlargv, out if !mlargv)
+ * @param mlargv NULL if reading back old value, otherwise value to save
+ * @return the mlog argv[]
+ */
+char **plfs_mlogargs(int *mlargc, char **mlargv) {
+    static int mlac = 0;
+    static char **mlav = NULL;
+
+    if (mlargv) {
+        mlac = *mlargc;    /* read back */
+        mlav = mlargv;
+    } else {
+        *mlargc = mlac;    /* set */
+    }
+
+    return(mlav);
+}
+
+/**
+ * plfs_mlogtag: allow override of default mlog tag for apps that
+ * can support it.
+ *
+ * @param newtag the new tag to use, or NULL just to read the tag
+ * @return the current tag
+ */
+char *plfs_mlogtag(char *newtag) {
+    static char *tag = NULL;
+    if (newtag)
+        tag = newtag;
+    return((tag) ? tag : (char *)"plfs");
+}
+
+/**
+ * setup_mlog: setup and open the mlog, as per default config, augmented
+ * by plfsrc, and then by command line args
+ *
+ * XXX: we call parse_conf_keyval with a NULL pmntp... shouldn't be
+ * a problem because we restrict the parser to "mlog_" style key values
+ * (so it will never touch that).
+ *
+ * @param pconf the config we are going to use
+ */
+static void setup_mlog(PlfsConf *pconf) {
+    int mac, lcv;
+    char **mav, *start;
+
+    /* recover command line arg key/value pairs, if any */
+    mav = plfs_mlogargs(&mac, NULL);
+    if (mac) {
+        for (lcv = 0 ; lcv < mac ; lcv += 2) {
+            start = mav[lcv];
+            if (start[0] == '-' && start[1] == '-')
+                start += 2;   /* skip "--" */
+            parse_conf_keyval(pconf, NULL, NULL, start, mav[lcv+1]);
+            if (pconf->err_msg) {
+                mlog(MLOG_WARN, "ignore cmd line %s flag: %s", start,
+                     pconf->err_msg->c_str());
+                delete pconf->err_msg;
+                pconf->err_msg = NULL;
+            }
+        }
+    }
+
+    /* shutdown early mlog config so we can replace with the real one ... */
+    mlog_close();
+
+    /* now we are ready to mlog_open ... */
+    if (mlog_open(plfs_mlogtag(NULL),
+                  /* don't count the null at end of mlog_facsarray */
+                  sizeof(mlog_facsarray)/sizeof(mlog_facsarray[0]) - 1,
+                  pconf->mlog_defmask, pconf->mlog_stderrmask,
+                  pconf->mlog_file, pconf->mlog_msgbuf_size,
+                  pconf->mlog_flags, pconf->mlog_syslogfac) < 0) {
+
+        fprintf(stderr, "mlog_open: failed.  Check mlog params.\n");
+        /* XXX: keep going without log?   or abort/exit? */
+        exit(1);
+    }
+
+    /* name facilities */
+    for (lcv = 0; mlog_facsarray[lcv] != NULL ; lcv++) {
+        /* can't fail, as we preallocated in mlog_open() */
+        if (lcv == 0)
+            continue;    /* don't mess with the default facility */
+        (void) mlog_namefacility(lcv, (char *)mlog_facsarray[lcv]);
+    }
+
+    /* finally handle any mlog_setmasks() calls */
+    if (pconf->mlog_setmasks)
+        mlog_setmasks(pconf->mlog_setmasks);
+
+    mlog(PLFS_INFO, "mlog init complete");
+#if 0
+    /* XXXCDC: FOR LEVEL DEBUG */
+    mlog(PLFS_EMERG, "test emergy log");
+    mlog(PLFS_ALERT, "test alert log");
+    mlog(PLFS_CRIT, "test crit log");
+    mlog(PLFS_ERR, "test err log");
+    mlog(PLFS_WARN, "test warn log");
+    mlog(PLFS_NOTE, "test note log");
+    mlog(PLFS_INFO, "test info log");
+    /* XXXCDC: END LEVEL DEBUG */
+#endif
+
+    return;
+}
+
 // inserts a mount point into a plfs conf structure
 // also tokenizes the mount point to set up find_mount_point 
 // returns an error string if there's any problems
 string *
-insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt, string file, 
-        set<string> &backends) 
+insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt, char *file)
 {
     string *error = NULL;
     pair<map<string,PlfsMount*>::iterator, bool> insert_ret; 
     if( pmnt->backends.size() == 0 ) {
         error = new string("No backends specified for mount point");
     } else {
-        plfs_debug("Inserting mount point %s as discovered in %s\n",
-                pmnt->mnt_pt.c_str(),file.c_str());
+        mlog(INT_DCOMMON, "Inserting mount point %s as discovered in %s",
+                pmnt->mnt_pt.c_str(),file);
         insert_ret = pconf->mnt_pts.insert(
                 pair<string,PlfsMount*>(pmnt->mnt_pt,pmnt));
         if (!insert_ret.second) {
@@ -1336,7 +1445,7 @@ insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt, string file,
         vector<string>::iterator itr;
         for(itr=pmnt->backends.begin();itr!=pmnt->backends.end();itr++) {
             pair<set<string>::iterator,bool> insert_ret2;
-            insert_ret2 = backends.insert(*itr);
+            insert_ret2 = pconf->backends.insert(*itr);
             if (!insert_ret2.second) {
                 error = new string("Backend illegally used more than once: ");
                 error->append(*itr);
@@ -1359,18 +1468,187 @@ set_default_confs(PlfsConf *pconf) {
     pconf->buffer_mbs = 64;
     pconf->global_summary_dir = NULL;
     pconf->test_metalink = 0;
+
+    /* default mlog settings */
+    pconf->mlog_flags = 0;
+    pconf->mlog_defmask = MLOG_WARN;
+    pconf->mlog_stderrmask = MLOG_CRIT;
+    pconf->mlog_file = NULL;
+    pconf->mlog_msgbuf_size = 4096;
+    pconf->mlog_syslogfac = LOG_USER;
+    pconf->mlog_setmasks = NULL;
 }
 
+/**
+ * parse_conf_keyval: parse a single conf key/value entry.  void, but will
+ * set pconf->err_msg on error.
+ *
+ * @param pconf the pconf we are loading into
+ * @param pmntp pointer to current mount pointer
+ * @param key the key value
+ * @param value the value of the key
+ */
+static void parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
+                              char *key, char *value) {
+    int v;
+
+    if(strcmp(key,"index_buffer_mbs")==0) {
+        pconf->buffer_mbs = atoi(value);
+        if (pconf->buffer_mbs <0) {
+            pconf->err_msg = new string("illegal negative value");
+        }
+    } else if(strcmp(key,"include")==0) {
+        FILE *include = fopen(value,"r");
+        if ( include == NULL ) {
+            pconf->err_msg = new string("open include file failed");
+        } else {
+            pconf = parse_conf(include, value, pconf);  // recurse
+            fclose(include);
+        }
+    } else if(strcmp(key,"threadpool_size")==0) {
+        pconf->threadpool_size = atoi(value);
+        if (pconf->threadpool_size <=0) {
+            pconf->err_msg = new string("illegal negative value");
+        }
+    } else if (strcmp(key,"global_summary_dir")==0) {
+        pconf->global_summary_dir = new string(value); 
+    } else if (strcmp(key,"test_metalink")==0) {
+        pconf->test_metalink = atoi(value); 
+        if (pconf->test_metalink) {
+            fprintf(stderr,"WARNING: Running in testing mode with"
+                " test_metalink.  If this is a production installation"
+                " or if performance is important, pls edit %s to"
+                " remove the test_metalink directive\n", file);
+        }
+    } else if (strcmp(key,"num_hostdirs")==0) {
+        pconf->num_hostdirs = atoi(value);
+        if (pconf->num_hostdirs <= 0) {
+            pconf->err_msg = new string("illegal negative value");
+        }
+        if (pconf->num_hostdirs > MAX_HOSTDIRS) 
+            pconf->num_hostdirs = MAX_HOSTDIRS;
+    } else if (strcmp(key,"mount_point")==0) {
+        // clear and save the previous one
+        if (*pmntp) {
+            pconf->err_msg = insert_mount_point(pconf,*pmntp,file);
+        }
+        if (!pconf->err_msg) {
+            *pmntp = new PlfsMount;
+            (*pmntp)->mnt_pt = value;
+            (*pmntp)->statfs = NULL;
+            Util::tokenize((*pmntp)->mnt_pt,"/",(*pmntp)->mnt_tokens);
+        }
+    } else if (strcmp(key,"statfs")==0) {
+        if( !*pmntp ) {
+            pconf->err_msg = new string("No mount point yet declared");
+        }
+        (*pmntp)->statfs = new string(value);
+    } else if (strcmp(key,"backends")==0) {
+        if( !*pmntp ) {
+            pconf->err_msg = new string("No mount point yet declared");
+        } else {
+            mlog(MLOG_DBG, "Gonna tokenize %s", value);
+            Util::tokenize(value,",",(*pmntp)->backends); 
+            (*pmntp)->checksum = (unsigned)Container::hashValue(value);
+        }
+    } else if (strcmp(key, "mlog_stderr") == 0) {
+        v = atoi(value);
+        if (v)
+            pconf->mlog_flags |= MLOG_STDERR;
+        else
+            pconf->mlog_flags &= ~MLOG_STDERR;
+    } else if (strcmp(key, "mlog_ucon") == 0) {
+        v = atoi(value);
+        if (v)
+            pconf->mlog_flags |= (MLOG_UCON_ON|MLOG_UCON_ENV);
+        else
+            pconf->mlog_flags &= ~(MLOG_UCON_ON|MLOG_UCON_ENV);
+    } else if (strcmp(key, "mlog_syslog") == 0) {
+        v = atoi(value);
+        if (v)
+            pconf->mlog_flags |= MLOG_SYSLOG;
+        else
+            pconf->mlog_flags &= ~MLOG_SYSLOG;
+    } else if (strcmp(key, "mlog_defmask") == 0) {
+        pconf->mlog_defmask = mlog_str2pri(value);
+        if (v < 0) {
+            pconf->err_msg = new string("Bad mlog_defmask value");
+        }
+    } else if (strcmp(key, "mlog_stderrmask") == 0) {
+        pconf->mlog_stderrmask = mlog_str2pri(value);
+        if (v < 0) {
+            pconf->err_msg = new string("Bad mlog_stderrmask value");
+        }
+    } else if (strcmp(key, "mlog_file") == 0) {
+        pconf->mlog_file = strdup(value);
+        if (pconf->mlog_file == NULL) {
+            /*
+             * XXX: strdup fails, new will too, and we don't handle
+             * exceptions... so we'll assert here.
+             */
+            pconf->err_msg = new string("Unable to malloc mlog_file");
+
+        }
+    } else if (strcmp(key, "mlog_msgbuf_size") == 0) {
+        pconf->mlog_msgbuf_size = atoi(value);
+        /*
+         * 0 means disable it.  negative non-zero values or very
+         * small positive numbers don't make sense, so disallow.
+         */
+        if (pconf->mlog_msgbuf_size < 0 ||
+            (pconf->mlog_msgbuf_size > 0 &&
+             pconf->mlog_msgbuf_size < 256)) {
+            pconf->err_msg = new string("Bad mlog_msgbuf_size");
+        }
+    } else if (strcmp(key, "mlog_syslogfac") == 0) {
+        if (strncmp(value, "LOCAL", 5) != 0) {
+            pconf->err_msg = new string("mlog_syslogfac must be LOCALn");
+            return;
+        }
+        v = atoi(&value[5]);
+        switch (v) {
+        case 0: v = LOG_LOCAL0; break;
+        case 1: v = LOG_LOCAL1; break;
+        case 2: v = LOG_LOCAL2; break;
+        case 3: v = LOG_LOCAL3; break;
+        case 4: v = LOG_LOCAL4; break;
+        case 5: v = LOG_LOCAL5; break;
+        case 6: v = LOG_LOCAL6; break;
+        case 7: v = LOG_LOCAL7; break;
+        default: v = -1;
+        }
+        if (v == -1) {
+            pconf->err_msg = new string("bad mlog_syslogfac value");
+            return;
+        }
+        pconf->mlog_syslogfac = v;
+    } else if (strcmp(key, "mlog_setmasks") == 0) {
+        pconf->mlog_setmasks = strdup(value);
+        if (pconf->mlog_setmasks == NULL) {
+            /*
+             * XXX: strdup fails, new will too, and we don't handle
+             * exceptions... so we'll assert here.
+             */
+            pconf->err_msg = new string("Unable to malloc mlog_setmasks");
+        }
+    } else {
+        ostringstream error_msg;
+        error_msg << "Unknown key " << key;
+        pconf->err_msg = new string(error_msg.str());
+    }
+}
+ 
 PlfsConf *
 parse_conf(FILE *fp, string file, PlfsConf *pconf) {
     pair<set<string>::iterator, bool> insert_ret; 
-    set<string> backends;
 
-    if (!pconf) pconf = new PlfsConf;
-    set_default_confs(pconf);
+    if (!pconf) {
+        pconf = new PlfsConf; /* XXX: and if new/malloc fails? */
+        set_default_confs(pconf);
+    }
     insert_ret = pconf->files.insert(file);
     PlfsMount *pmnt = NULL;
-    plfs_debug("Parsing %s\n", file.c_str());
+    mlog(MLOG_DBG, "Parsing %s", file.c_str());
     if (insert_ret.second == false) {
         pconf->err_msg = new string("include file included more than once");
         return pconf;
@@ -1384,88 +1662,21 @@ parse_conf(FILE *fp, string file, PlfsConf *pconf) {
         line++;
         if (input[0]=='\n' || input[0] == '\r' || input[0]=='#') continue;
         sscanf(input, "%s %s\n", key, value);
-        plfs_debug("Read %s %s (%d)\n", key, value,line);
+        mlog(MLOG_DBG, "Read %s %s (%d)", key, value,line);
         if( strstr(value,"//") != NULL ) {
             pconf->err_msg = new string("Double slashes '//' are bad");
             break;
         }
-        if(strcmp(key,"index_buffer_mbs")==0) {
-            pconf->buffer_mbs = atoi(value);
-            if (pconf->buffer_mbs <0) {
-                pconf->err_msg = new string("illegal negative value");
-                break;
-            }
-        } else if(strcmp(key,"include")==0) {
-            FILE *include = fopen(value,"r");
-            if ( include == NULL ) {
-                pconf->err_msg = new string("open include file failed");
-                break;
-            }
-            pconf = parse_conf(include, value, pconf);  // recurse
-            fclose(include);
-            if (pconf->err_msg) break;
-        } else if(strcmp(key,"threadpool_size")==0) {
-            pconf->threadpool_size = atoi(value);
-            if (pconf->threadpool_size <=0) {
-                pconf->err_msg = new string("illegal negative value");
-                break;
-            }
-        } else if (strcmp(key,"global_summary_dir")==0) {
-            pconf->global_summary_dir = new string(value); 
-        } else if (strcmp(key,"test_metalink")==0) {
-            pconf->test_metalink = atoi(value); 
-            if (pconf->test_metalink) {
-                fprintf(stderr,"WARNING: Running in testing mode with"
-                    " test_metalink.  If this is a production installation"
-                    " or if performance is important, pls edit %s to"
-                    " remove the test_metalink directive\n", file.c_str());
-            }
-        } else if (strcmp(key,"num_hostdirs")==0) {
-            pconf->num_hostdirs = atoi(value);
-            if (pconf->num_hostdirs <= 0) {
-                pconf->err_msg = new string("illegal negative value");
-                break;
-            }
-            if (pconf->num_hostdirs > MAX_HOSTDIRS) 
-                pconf->num_hostdirs = MAX_HOSTDIRS;
-        } else if (strcmp(key,"mount_point")==0) {
-            // clear and save the previous one
-            if (pmnt) {
-                pconf->err_msg = insert_mount_point(pconf,pmnt,file,backends);
-                if(pconf->err_msg) break;
-            }
-            plfs_debug("Creating mount_point %s\n",value);
-            pmnt = new PlfsMount;
-            pmnt->mnt_pt = value;
-            pmnt->statfs = NULL;
-            Util::tokenize(pmnt->mnt_pt,"/",pmnt->mnt_tokens);
-        } else if (strcmp(key,"statfs")==0) {
-            if( !pmnt ) {
-                pconf->err_msg = new string("No mount point yet declared");
-                break;
-            }
-            pmnt->statfs = new string(value);
-        } else if (strcmp(key,"backends")==0) {
-            if( !pmnt ) {
-                pconf->err_msg = new string("No mount point yet declared");
-                break;
-            }
-            plfs_debug("Gonna tokenize %s\n", value);
-            Util::tokenize(value,",",pmnt->backends); 
-            pmnt->checksum = (unsigned)Container::hashValue(value);
-        } else {
-            ostringstream error_msg;
-            error_msg << "Unknown key " << key;
-            pconf->err_msg = new string(error_msg.str());
+        parse_conf_keyval(pconf, &pmnt, (char *)file.c_str(), key, value);
+        if (pconf->err_msg)
             break;
-        }
     }
-    plfs_debug("Got EOF from parsing conf %s\n",file.c_str());
+    mlog(MLOG_DBG, "Got EOF from parsing conf %s",file.c_str());
 
     // save the current mount point
-    plfs_debug("%x %x\n",pconf->err_msg,pmnt);
+    mlog(INT_DCOMMON, "%x %x\n",pconf->err_msg,pmnt);
     if (!pconf->err_msg && pmnt) {
-        pconf->err_msg = insert_mount_point(pconf,pmnt,file,backends);
+        pconf->err_msg = insert_mount_point(pconf,pmnt,(char*)file.c_str());
     }
 
     if (!pconf->err_msg && pconf->mnt_pts.size()<=0) {
@@ -1473,7 +1684,7 @@ parse_conf(FILE *fp, string file, PlfsConf *pconf) {
     }
 
     if(pconf->err_msg) {
-        plfs_debug("Error in the conf file: %s\n", pconf->err_msg->c_str());
+        mlog(MLOG_DBG, "Error in the conf file: %s", pconf->err_msg->c_str());
         ostringstream error_msg;
         error_msg << "Parse error in " << file << " line " << line << ": "
             << pconf->err_msg->c_str() << endl;
@@ -1484,7 +1695,7 @@ parse_conf(FILE *fp, string file, PlfsConf *pconf) {
     // be nice to check at make sure we have at least one mount point
 
     assert(pconf);
-    plfs_debug("Successfully parsed conf file\n");
+    mlog(MLOG_DBG, "Successfully parsed conf file");
     return pconf;
 }
 
@@ -1497,9 +1708,21 @@ parse_conf(FILE *fp, string file, PlfsConf *pconf) {
 // in adio, there are no threads.  should be OK.  
 PlfsConf*
 get_plfs_conf() {
-    static PlfsConf *pconf = NULL;
+    static PlfsConf *pconf = NULL;   /* note static */
     if (pconf ) return pconf;
 
+    /*
+     * bring up a simple mlog here so we can collect early error messages
+     * before we've got access to all the mlog config info from file.
+     * we'll replace with the proper settings once we've got the conf
+     * file loaded and the command line args parsed...
+     */
+#ifdef PLFS_DEBUG_ON
+    (void)mlog_open((char *)"plfsinit", 0, MLOG_DBG, MLOG_DBG, NULL, 0, 0, 0);
+#else
+    (void)mlog_open((char *)"plfsinit", 0, MLOG_WARN, MLOG_WARN, NULL, 0, 0, 0);
+#endif
+    
     map<string,string> confs;
     vector<string> possible_files;
 
@@ -1531,6 +1754,10 @@ get_plfs_conf() {
         break;
     }
 
+    if (pconf) {
+        setup_mlog(pconf);
+    }
+    
     return pconf;
 }
 
@@ -1551,7 +1778,7 @@ int plfs_hostdir_rddir(void **index_stream,char *targets,int rank,
     vector<IndexFileInfo> index_droppings;
     int ret = 0;
 
-    plfs_debug("Rank |%d| targets %s\n",rank,targets);
+    mlog(INT_DCOMMON, "Rank |%d| targets %s",rank,targets);
     Util::tokenize(targets,"|",directories);
 
     // Path is extremely important when converting to stream
@@ -1592,7 +1819,7 @@ int plfs_hostdir_zero_rddir(void **entries,const char* c_path,int rank){
     
     ret = Container::indices_from_subdir(path,index_droppings);
     if (ret!=0) return ret;
-    plfs_debug("Found [%d] index droppings in %s\n",
+    mlog(INT_DCOMMON, "Found [%d] index droppings in %s",
                 index_droppings.size(),path.c_str());
     *entries=converter.listToStream(index_droppings,&size);
     return size;
@@ -1611,14 +1838,15 @@ int plfs_parindex_read(int rank,int ranks_per_comm,void *index_files,
 
     // Get out the path and clear the path holder
     path=cvt_list[0].hostname;
-    plfs_debug("Hostdir path pushed on the list %s\n",path.c_str());
-    plfs_debug("Path: %s used for Index file in parindex read\n",top_level);
+    mlog(INT_DCOMMON, "Hostdir path pushed on the list %s",path.c_str());
+    mlog(INT_DCOMMON, "Path: %s used for Index file in parindex read",
+         top_level);
     Index index(top_level);
     cvt_list.erase(cvt_list.begin());
     //Everything seems fine at this point
-    plfs_debug("Rank |%d| List Size|%d|\n",rank,cvt_list.size());
+    mlog(INT_DCOMMON, "Rank |%d| List Size|%d|",rank,cvt_list.size());
     index=Container::parAggregateIndices(cvt_list,rank,ranks_per_comm,path);
-    plfs_debug("Ranks |%d| About to convert global to stream\n",rank);
+    mlog(INT_DCOMMON, "Ranks |%d| About to convert global to stream",rank);
     // Don't forget to trick global to stream
     index_path=top_level;
     index.setPath(index_path);
@@ -1632,11 +1860,11 @@ plfs_merge_indexes(Plfs_fd **pfd, char *index_streams,
                         int *index_sizes, int procs){
     int count;
     Index *root_index;
-    plfs_debug("Entering plfs_merge_indexes\n");
+    mlog(INT_DAPI, "Entering plfs_merge_indexes");
     // Root has no real Index set it to the writefile index
-    plfs_debug("Setting writefile index to pfd index\n");
+    mlog(INT_DCOMMON, "Setting writefile index to pfd index");
     (*pfd)->setIndex((*pfd)->getWritefile()->getIndex());
-    plfs_debug("Getting the index from the pfd\n");
+    mlog(INT_DCOMMON, "Getting the index from the pfd");
     root_index=(*pfd)->getIndex();  
 
     for(count=1;count<procs;count++){
@@ -1645,14 +1873,14 @@ plfs_merge_indexes(Plfs_fd **pfd, char *index_streams,
         index_streams+=(index_sizes[count-1]);
         index_stream=index_streams;
         // Turn the stream into an index
-        plfs_debug("Merging the stream into one Index\n");
+        mlog(INT_DCOMMON, "Merging the stream into one Index");
         // Merge the index
         root_index->global_from_stream(index_stream);
-        plfs_debug("Merge success\n");
+        mlog(INT_DCOMMON, "Merge success");
         // Free up the memory for the index stream
-        plfs_debug("Index stream free success\n");
+        mlog(INT_DCOMMON, "Index stream free success");
     }
-    plfs_debug("%s:Done merging indexes\n",__FUNCTION__);
+    mlog(INT_DAPI, "%s:Done merging indexes",__FUNCTION__);
     return 0;
 }
 
@@ -1668,7 +1896,7 @@ int plfs_parindexread_merge(const char *path,char *index_streams,
         char *index_stream;
         if(count>0) {
             int index_inc=index_sizes[count-1];
-            plfs_debug("Incrementing the index by %d\n",index_inc);
+            mlog(INT_DCOMMON, "Incrementing the index by %d",index_inc);
             index_streams+=index_inc;
         }
         Index *tmp = new Index(path);
@@ -1678,7 +1906,7 @@ int plfs_parindexread_merge(const char *path,char *index_streams,
     }
     // Convert into a stream
     merger.global_to_stream(index_stream,&size);
-    plfs_debug("Inside parindexread merge stream size %d\n",size);
+    mlog(INT_DCOMMON, "Inside parindexread merge stream size %d",size);
     return (int)size;
 }
 
@@ -1688,17 +1916,17 @@ plfs_index_stream(Plfs_fd **pfd, char ** buffer){
     size_t length;
     int ret;
     if ( (*pfd)->getIndex() !=  NULL ) {
-        plfs_debug("Getting index stream from a reader\n");
+        mlog(INT_DCOMMON, "Getting index stream from a reader");
         ret = (*pfd)->getIndex()->global_to_stream((void **)buffer,&length);
     }else if( (*pfd)->getWritefile()->getIndex()!=NULL){
-        plfs_debug("The write file has the index\n");
+        mlog(INT_DCOMMON, "The write file has the index");
         ret = (*pfd)->getWritefile()->getIndex()->global_to_stream(
                     (void **)buffer,&length);
     }else{
-        plfs_debug("Error in plfs_index_stream\n");
+        mlog(INT_DRARE, "Error in plfs_index_stream");
         return -1;
     }
-    plfs_debug("In plfs_index_stream global to stream has size %d\n", length);
+    mlog(INT_DAPI,"In plfs_index_stream global to stream has size %d", length);
     return length;
 }
 
@@ -1766,7 +1994,7 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode,
             new_writefile = true;
         }
         ret = addWriter(wf, pid, path.c_str(), mode,logical);
-        plfs_debug("%s added writer: %d\n", __FUNCTION__, ret );
+        mlog(INT_DCOMMON, "%s added writer: %d", __FUNCTION__, ret );
         if ( ret > 0 ) ret = 0; // add writer returns # of current writers
         EISDIR_DEBUG;
         if ( ret == 0 && new_writefile ) ret = wf->openIndex( pid ); 
@@ -1791,7 +2019,7 @@ plfs_open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,mode_t mode,
             }else{
                 ret = Container::populateIndex(path,index,true);
                 if ( ret != 0 ) {
-                    plfs_debug("%s failed to create index on %s: %s\n",
+                    mlog(INT_DRARE, "%s failed to create index on %s: %s",
                             __FUNCTION__, path.c_str(), strerror(errno));
                     delete(index);
                     index = NULL;
@@ -1864,7 +2092,7 @@ plfs_symlink(const char *logical, const char *to) {
     if (exp_info.expand_error) PLFS_EXIT(-ENOENT);
     
     ret = retValue(Util::Symlink(logical,topath.c_str()));
-    plfs_debug("%s: %s to %s: %d\n", __FUNCTION__, 
+    mlog(PLFS_DAPI, "%s: %s to %s: %d", __FUNCTION__, 
             path.c_str(), topath.c_str(),ret);
     PLFS_EXIT(ret);
 }
@@ -1890,13 +2118,13 @@ plfs_link(const char *logical, const char *to) {
     PLFS_ENTER2(PLFS_PATH_NOTREQUIRED);
 
     ret = 0;    // suppress warning about unused variable
-    plfs_debug( "Can't make a hard link to a container.\n" );
+    mlog(PLFS_DAPI, "Can't make a hard link to a container." );
     PLFS_EXIT(-ENOSYS);
 
     /*
     string toPath = expandPath(to);
     ret = retValue(Util::Link(logical,toPath.c_str()));
-    plfs_debug("%s: %s to %s: %d\n", __FUNCTION__, 
+    mlog(PFS_DAPI, "%s: %s to %s: %d", __FUNCTION__, 
             path.c_str(), toPath.c_str(),ret);
     PLFS_EXIT(ret);
     */
@@ -1910,7 +2138,7 @@ plfs_readlink(const char *logical, char *buf, size_t bufsize) {
     memset((void*)buf, 0, bufsize);
     ret = Util::Readlink(path.c_str(),buf,bufsize);
     if ( ret < 0 ) ret = -errno;
-    plfs_debug("%s: readlink %s: %d\n", __FUNCTION__, path.c_str(),ret);
+    mlog(PLFS_DAPI, "%s: readlink %s: %d", __FUNCTION__, path.c_str(),ret);
     PLFS_EXIT(ret);
 }
 
@@ -1960,7 +2188,7 @@ plfs_write(Plfs_fd *pfd, const char *buf, size_t size, off_t offset, pid_t pid){
     WriteFile *wf = pfd->getWritefile();
 
     ret = written = wf->write(buf, size, offset, pid);
-    plfs_debug("%s: Wrote to %s, offset %ld, size %ld: ret %ld\n", 
+    mlog(PLFS_DAPI, "%s: Wrote to %s, offset %ld, size %ld: ret %ld", 
             __FUNCTION__, pfd->getPath(), (long)offset, (long)size, (long)ret);
 
     PLFS_EXIT( ret >= 0 ? written : ret );
@@ -2022,7 +2250,8 @@ plfs_getattr(Plfs_fd *of, const char *logical, struct stat *stbuf,int sz_only){
     if ( backwards ) {
         path = of->getPath();   // restore the stashed physical path
     }
-    plfs_debug("%s on logical %s (%s)\n", __FUNCTION__, logical, path.c_str());
+    mlog(PLFS_DAPI, "%s on logical %s (%s)", __FUNCTION__, logical,
+         path.c_str());
     memset(stbuf,0,sizeof(struct stat));    // zero fill the stat buffer
 
     mode_t mode = 0;
@@ -2031,7 +2260,8 @@ plfs_getattr(Plfs_fd *of, const char *logical, struct stat *stbuf,int sz_only){
         if ( mode == 0 ) {
             ret = -ENOENT;
         } else {
-            plfs_debug("%s on non plfs file %s\n", __FUNCTION__, path.c_str());
+            mlog(PLFS_DCOMMON, "%s on non plfs file %s", __FUNCTION__,
+                 path.c_str());
             ret = retValue( Util::Lstat( path.c_str(), stbuf ) );        
         }
     } else {    // operating on a plfs file here
@@ -2055,8 +2285,8 @@ plfs_getattr(Plfs_fd *of, const char *logical, struct stat *stbuf,int sz_only){
             off_t  last_offset;
             size_t total_bytes;
             wf->getMeta( &last_offset, &total_bytes );
-            plfs_debug("Got meta from openfile: %ld last offset, "
-                       "%ld total bytes\n", last_offset, total_bytes);
+            mlog(PLFS_DCOMMON, "Got meta from openfile: %ld last offset, "
+                       "%ld total bytes", last_offset, total_bytes);
             if ( last_offset > stbuf->st_size ) {    
                 stbuf->st_size = last_offset;       
             }
@@ -2067,7 +2297,7 @@ plfs_getattr(Plfs_fd *of, const char *logical, struct stat *stbuf,int sz_only){
         }   
     } 
     if ( ret != 0 ) {
-        plfs_debug("logical %s,stashed %s,physical %s: %s\n",
+        mlog(PLFS_DRARE, "logical %s,stashed %s,physical %s: %s",
             logical,of?of->getPath():"NULL",path.c_str(),
             strerror(errno));
     }
@@ -2075,8 +2305,8 @@ plfs_getattr(Plfs_fd *of, const char *logical, struct stat *stbuf,int sz_only){
     ostringstream oss;
     oss << __FUNCTION__ << " of " << path << "(" 
         << (of == NULL ? "closed" : "open") 
-        << ") size is " << stbuf->st_size << endl;
-    plfs_debug("%s", oss.str().c_str());
+        << ") size is " << stbuf->st_size;
+    mlog(PLFS_DAPI, "%s", oss.str().c_str());
 
     PLFS_EXIT(ret);
 }
@@ -2164,7 +2394,7 @@ plfs_trunc(Plfs_fd *of, const char *logical, off_t offset, int open_file) {
         else ret = retValue( Util::Truncate(path.c_str(),offset) );
         PLFS_EXIT(ret);
     }
-    Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
+    mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
 
     // once we're here, we know it's a PLFS file
     if ( offset == 0 ) {
@@ -2173,7 +2403,7 @@ plfs_trunc(Plfs_fd *of, const char *logical, off_t offset, int open_file) {
         // the access file has the correct permissions
         string access = Container::getAccessFilePath(path);
         ret = Util::Truncate(access.c_str(),0);
-        plfs_debug("Tested truncate of %s: %d\n",access.c_str(),ret);
+        mlog(PLFS_DCOMMON, "Tested truncate of %s: %d",access.c_str(),ret);
 
         if ( ret == 0 ) {
             // this is easy, just remove all droppings
@@ -2189,15 +2419,17 @@ plfs_trunc(Plfs_fd *of, const char *logical, off_t offset, int open_file) {
                               // FUSE opens the file and so we just query
                               // the open file handle and it says 0
         ret = plfs_getattr( of, logical, &stbuf, sz_only );
-        Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
+        mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
         if ( ret == 0 ) {
             if ( stbuf.st_size == offset ) {
                 ret = 0; // nothing to do
             } else if ( stbuf.st_size > offset ) {
                 ret = Container::Truncate(path, offset); // make smaller
-                Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
+                mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__,
+                     __LINE__, ret);
             } else if (stbuf.st_size < offset) {
-                Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
+                mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__,
+                     __LINE__, ret);
                 // these are physical paths.  hdir to the hostdir
                 // container to the actual physical container containing hdir
                 // container can be the canonical or a shadow
@@ -2226,16 +2458,17 @@ plfs_trunc(Plfs_fd *of, const char *logical, off_t offset, int open_file) {
                 } else {
                     ret = Util::Mkdir(hdir.c_str(),DEFAULT_MODE);
                 }
-                plfs_debug("%s extending %s\n",__FUNCTION__,container.c_str()); 
+                mlog(INT_DCOMMON, "%s extending %s",__FUNCTION__,
+                     container.c_str()); 
                 if (ret==0) ret = extendFile(of, container, offset);  // finally
             }
         }
     }
-    Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
+    mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
 
     // if we actually modified the container, update any open file handle
     if ( ret == 0 && of && of->getWritefile() ) {
-        Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
+        mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
         ret = of->getWritefile()->truncate( offset );
         of->truncate( offset );
             // here's a problem, if the file is open for writing, we've
@@ -2245,19 +2478,20 @@ plfs_trunc(Plfs_fd *of, const char *logical, off_t offset, int open_file) {
             // a rename because the writefile will attempt to restore
             // them at the old path....
         if ( ret == 0 && of && of->getWritefile() ) {
-            Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
+            mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
             ret = of->getWritefile()->restoreFds();
             if ( ret != 0 ) {
-                Util::Debug("%s:%d failed: %s\n", 
+                mlog(PLFS_DRARE, "%s:%d failed: %s", 
                         __FUNCTION__, __LINE__, strerror(errno));
             }
         } else {
-            Util::Debug("%s failed: %s\n", __FUNCTION__, strerror(errno));
+            mlog(PLFS_DRARE, "%s failed: %s", __FUNCTION__, strerror(errno));
         }
-        Util::Debug("%s:%d ret is %d\n", __FUNCTION__, __LINE__, ret);
+        mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
     }
 
-    Util::Debug("%s %s to %u: %d\n",__FUNCTION__,path.c_str(),(uint)offset,ret);
+    mlog(PLFS_DCOMMON, "%s %s to %u: %d",__FUNCTION__,path.c_str(),
+         (uint)offset,ret);
 
     if ( ret == 0 ) { // update the timestamp
         ret = Container::Utime( path, NULL );
@@ -2325,7 +2559,7 @@ plfs_reference_count( Plfs_fd *pfd ) {
         ostringstream oss;
         oss << __FUNCTION__ << " not equal counts: " << ref_count
             << " != " << pfd->incrementOpens(0) << endl;
-        plfs_debug("%s", oss.str().c_str() ); 
+        mlog(INT_DRARE, "%s", oss.str().c_str() ); 
         assert( ref_count == pfd->incrementOpens(0) );
     }
     return ref_count;
@@ -2357,11 +2591,11 @@ plfs_close( Plfs_fd *pfd, pid_t pid, uid_t uid, int open_flags,
             if(close_opt && close_opt->pinter==PLFS_MPIIO) {
                 if (pid==0) {
                     if(close_opt->valid_meta) {
-                        plfs_debug("Grab meta from info gathered in ADIO\n");
+                        mlog(PLFS_DCOMMON, "Grab meta from ADIO gathered info");
                         last_offset=close_opt->last_offset;
                         total_bytes=close_opt->total_bytes;
                     } else {
-                        plfs_debug("Grab info from globally merged index\n");
+                        mlog(PLFS_DCOMMON, "Grab info from glob merged idx");
                         last_offset=index->lastOffset();
                         total_bytes=index->totalBytes();
                     }
@@ -2410,7 +2644,7 @@ plfs_close( Plfs_fd *pfd, pid_t pid, uid_t uid, int open_flags,
     }
 
     
-    plfs_debug("%s %s: %d readers, %d writers, %d refs remaining\n",
+    mlog(PLFS_DCOMMON, "%s %s: %d readers, %d writers, %d refs remaining",
             __FUNCTION__, pfd->getPath(), (int)readers, (int)writers,
             (int)ref_count);
 
@@ -2419,8 +2653,8 @@ plfs_close( Plfs_fd *pfd, pid_t pid, uid_t uid, int open_flags,
 
     if ( ret == 0 && ref_count == 0 ) {
         ostringstream oss;
-        oss << __FUNCTION__ << " removing OpenFile " << pfd << endl;
-        plfs_debug("%s", oss.str().c_str() ); 
+        oss << __FUNCTION__ << " removing OpenFile " << pfd;
+        mlog(PLFS_DCOMMON, "%s", oss.str().c_str() ); 
         delete pfd; 
         pfd = NULL;
     }

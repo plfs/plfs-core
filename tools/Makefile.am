@@ -40,12 +40,39 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 bin_PROGRAMS = \
+dcon \
+findmesgbuf \
 plfs_check_config \
 plfs_map \
 plfs_version \
 plfs_recover \
 plfs_query \
 plfs_flatten_index
+
+################################################################################
+# dcon
+################################################################################
+dcon_SOURCES = \
+dcon.c
+
+dcon_CFLAGS = \
+@PLFS_DEBUG_CFLAGS@
+
+dcon_LDFLAGS = 
+
+################################################################################
+# findmesgbuf
+################################################################################
+findmesgbuf_SOURCES = \
+findmesgbuf.c
+
+findmesgbuf_CFLAGS = \
+-I$(top_srcdir)/src \
+@PLFS_DEBUG_CFLAGS@
+
+findmesgbuf_LDFLAGS = \
+-L../src -lplfs \
+@PTHREAD_LIBS@
 
 ################################################################################
 # plfs_map

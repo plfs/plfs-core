@@ -7,6 +7,7 @@
 using namespace std;
 #include "LogMessage.h"
 #include "Util.h"
+#include "mlogfacs.h"
 
 #define LOG_BUFFER_SZ 1000
 
@@ -50,7 +51,7 @@ void LogMessage::flush() {
     log_array_size  = min( log_array_size + 1, (long unsigned)LOG_BUFFER_SZ );
     pthread_mutex_unlock( &log_mutex );
 
-    Util::Debug("%s", this->str().c_str() );
+    mlog(INT_DCOMMON, "%s", this->str().c_str() );
     //this->str().resize(0);
     //this->clear();
     // for some reason flushing doesn't clear it?

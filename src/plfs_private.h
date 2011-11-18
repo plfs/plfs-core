@@ -2,6 +2,7 @@
 #define __PLFS_PRIVATE__
 
 #include "plfs_internal.h"
+#include "mlogfacs.h"
 
 #include <map>
 #include <set>
@@ -26,7 +27,8 @@ typedef struct {
 } PlfsMount;
 
 typedef struct {
-    set<string> files;
+    set<string> files;     /* to detect recursive includes in plfsrc */
+    set<string> backends;  /* to detect a backend being reused in plfsrc */
     size_t num_hostdirs;
     size_t threadpool_size;
     size_t buffer_mbs;  // how many mbs to buffer for write indexing
@@ -35,6 +37,15 @@ typedef struct {
     bool test_metalink; // for developers only
     string *err_msg;
     string *global_summary_dir;
+
+    /* mlog related settings, read from plfsrc, allow for cmd line override */
+    int mlog_flags;        /* mlog flag value to use (stderr,ucon,syslog) */
+    int mlog_defmask;      /* default mlog logging level */
+    int mlog_stderrmask;   /* force mlog to stderr if level >= to this value */
+    char *mlog_file;       /* logfile, NULL if disabled */
+    int mlog_msgbuf_size;  /* number of bytes in mlog message buffer */
+    int mlog_syslogfac;    /* syslog facility to use, if syslog enabled */
+    char *mlog_setmasks;   /* initial non-default log level settings */
 } PlfsConf;
 
 /* get_plfs_conf
@@ -52,6 +63,8 @@ PlfsMount * find_mount_point_using_tokens(PlfsConf *, vector <string> &, bool&);
     it just warms up the plfs structures used in expandPath
 */
 bool plfs_init(PlfsConf*);
+char **plfs_mlogargs(int *mlargc, char **mlargv);
+char *plfs_mlogtag(char *newtag);
 
 int plfs_chmod_cleanup(const char *logical,mode_t mode );
 int plfs_chown_cleanup (const char *logical,uid_t uid,gid_t gid );
