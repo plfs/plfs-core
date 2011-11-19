@@ -1,0 +1,5 @@
+This is code for an RPC server that can asynchronously transfer files from a shadow container
+into a canonical one.  See the plfsrc man page for a bit more information.  But basically as
+of November 2011, this code is very experimental and should not be used in typical 
+installations.  If a PLFS developer hasn't specifically told you about this code then please
+use at your own risk.

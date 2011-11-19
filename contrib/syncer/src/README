@@ -1,0 +1,13 @@
+build instruction
+1. cd src
+2. make
+3. make install
+
+run syncer 
+
+1. ./syncer_server 64&
+
+to trigger vis-plfs.sh when syncer is called:
+1. make sure plfs is mounted at /mnt/plfs
+2. make sure run_viz.sh is copied to /usr/local/bin
+3. assuming vis-plfs.sh argument is the plfs file name, e.g /mnt/plfs/foo
