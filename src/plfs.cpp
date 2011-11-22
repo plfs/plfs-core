@@ -332,7 +332,7 @@ plfs_dump_config(int check_dirs) {
 
     // if we make it here, we've parsed correctly
     int ret = 0;
-    cout << "Config file correctly parsed:" << endl
+    cout << "Config file " << pconf->file << " correctly parsed:" << endl
         << "Num Hostdirs: " << pconf->num_hostdirs << endl
         << "Threadpool size: " << pconf->threadpool_size << endl
         << "Write index buffer size (mbs): " << pconf->buffer_mbs << endl
@@ -1645,6 +1645,7 @@ parse_conf(FILE *fp, string file, PlfsConf *pconf) {
     if (!pconf) {
         pconf = new PlfsConf; /* XXX: and if new/malloc fails? */
         set_default_confs(pconf);
+        pconf->file = file;
     }
     insert_ret = pconf->files.insert(file);
     PlfsMount *pmnt = NULL;

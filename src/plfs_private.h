@@ -27,6 +27,7 @@ typedef struct {
 } PlfsMount;
 
 typedef struct {
+    string file;           /* the top level file */
     set<string> files;     /* to detect recursive includes in plfsrc */
     set<string> backends;  /* to detect a backend being reused in plfsrc */
     size_t num_hostdirs;
