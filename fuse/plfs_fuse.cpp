@@ -40,11 +40,11 @@ using namespace std;
 #define DEBUGMAXOFF (1024*1024*1024) /* for sanity checking */
 
 /**
- * pfuse_dbgdrv: PLFS/FUSE debug file driver
+ * pfuse_debug_driver: PLFS/FUSE debug file driver
  */
-struct pfuse_dbgdrv {
+struct pfuse_debug_driver {
     const char *name;         /*!< file name, excluding the DEBUGPREFIX */
-    int (*getsize)(struct pfuse_dbgdrv *dd);    /*!< for getattr */
+    int (*getsize)(struct pfuse_debug_driver *dd);    /*!< for getattr */
     /*!< read/write data from dbg file, NULL if not needed */
     int (*dbgread)(char *buf, size_t size, off_t offset);
     int (*dbgwrite)(const char *buf, size_t size, off_t offset);
@@ -53,15 +53,15 @@ struct pfuse_dbgdrv {
 /*
  * table to drive the debug files... with necessary prototypes.
  */
-static int dbg_sizer(struct pfuse_dbgdrv *dd);
+static int dbg_sizer(struct pfuse_debug_driver *dd);
 static int dbg_log_read(char *buf, size_t size, off_t offset);
-static int dbg_msgbufsz(struct pfuse_dbgdrv *dd);
+static int dbg_msgbufsz(struct pfuse_debug_driver *dd);
 static int dbg_msgbuf_read(char *buf, size_t size, off_t offset);
-static int dbg_mlogsize(struct pfuse_dbgdrv *dd);
+static int dbg_mlogsize(struct pfuse_debug_driver *dd);
 static int dbg_mlogmask_read(char *buf, size_t size, off_t offset);
 static int dbg_mlogmask_write(const char *buf, size_t size, off_t offset);
 
-static struct pfuse_dbgdrv pfuse_dbgfiles[] = {
+static struct pfuse_debug_driver pfuse_dbgfiles[] = {
     { "debug",    dbg_sizer, Plfs::dbg_debug_read, NULL },
     { "log",      dbg_sizer, dbg_log_read, NULL },
     { "msgbuf",   dbg_msgbufsz, dbg_msgbuf_read, NULL },
@@ -86,8 +86,8 @@ struct OpenFile {
 // seeked backwards.  In such a case we probably need to refetch the
 // directory contents.
 typedef struct OpenDirStruct {
-    set<string> entries;
-    off_t last_offset;
+        set<string> entries;
+            off_t last_offset;
 } OpenDir;
 
 #ifdef FUSE_COLLECT_TIMES
@@ -366,21 +366,26 @@ string Plfs::expandPath( const char *path ) {
  * @param path the file we are requesting info for
  * @return the driver for the file, or NULL if there isn't one
  */
-static struct pfuse_dbgdrv *get_dbgdrv(const char *path) {
+static struct pfuse_debug_driver *get_dbgdrv(const char *path) {
     const char *cp;
-    int lcv;
+    unsigned lcv;
 
     cp = path;
-    if (*cp == '/')      /* skip leading '/' if present */
+    if (*cp == '/') {
+        /* skip leading '/' if present */
         cp++;
+    }
 
     /* first check the prefix */
-    if (strncmp(cp, DEBUGPREFIX, sizeof(DEBUGPREFIX) - 1) != 0)
+    if (strncmp(cp, DEBUGPREFIX, sizeof(DEBUGPREFIX) - 1) != 0) {
         return(NULL);
+    }
     cp += ( sizeof(DEBUGPREFIX) - 1);
 
-    for (lcv = 0 ;
-         lcv < sizeof(pfuse_dbgfiles)/sizeof(pfuse_dbgfiles[0]) ; lcv++) {
+    for (lcv = 0;
+         lcv < sizeof(pfuse_dbgfiles)/sizeof(pfuse_dbgfiles[0]); 
+         lcv++) 
+    {
         if (strcmp(pfuse_dbgfiles[lcv].name, cp) == 0)
             return(&pfuse_dbgfiles[lcv]);
     }
@@ -489,7 +494,7 @@ int Plfs::f_fsync(const char *path, int datasync, struct fuse_file_info *fi) {
 // current write file and adjust those indices also if necessary
 int Plfs::f_ftruncate(const char *path, off_t offset, struct fuse_file_info *fi)
 {
-    struct pfuse_dbgdrv *dd;
+    struct pfuse_debug_driver *dd;
     dd = get_dbgdrv(path);
     if (dd->dbgwrite)
         return(0);
@@ -502,7 +507,7 @@ int Plfs::f_ftruncate(const char *path, off_t offset, struct fuse_file_info *fi)
 // use removeDirectoryTree to remove all data but not the dir structure
 // return 0 or -errno 
 int Plfs::f_truncate( const char *path, off_t offset ) {
-    struct pfuse_dbgdrv *dd;
+    struct pfuse_debug_driver *dd;
     dd = get_dbgdrv(path);
     if (dd->dbgwrite)
         return(0);
@@ -515,7 +520,7 @@ int Plfs::f_truncate( const char *path, off_t offset ) {
 int Plfs::getattr_helper( string expanded, const char *path, 
         struct stat *stbuf, Plfs_fd *of ) 
 {
-    struct pfuse_dbgdrv *dd;
+    struct pfuse_debug_driver *dd;
     bool sz_only = false;
     int ret = plfs_getattr( of, expanded.c_str(), stbuf, sz_only );
     if ( ret == -ENOENT ) {
@@ -911,8 +916,8 @@ int Plfs::f_release( const char *path, struct fuse_file_info *fi ) {
         SET_GROUPS( openfile->uid );
         plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
         assert( openfile->flags == fi->flags );
-        mlog(FUSE_DAPI, "%s: %s ref count: %d", __FUNCTION__, 
-            strPath.c_str(), plfs_reference_count(of));
+        mlog(FUSE_DAPI, "%s: %s ref count: %lu", __FUNCTION__, 
+            strPath.c_str(), (unsigned long)plfs_reference_count(of));
         int remaining = plfs_close(of, openfile->pid, openfile->uid,
                 fi->flags ,NULL);
         fi->fh = (uint64_t)NULL;
@@ -1016,7 +1021,7 @@ mode_t Plfs::getMode( string expanded ) {
 int Plfs::f_write(const char *path, const char *buf, size_t size, off_t offset,
 		struct fuse_file_info *fi) 
 {
-    struct pfuse_dbgdrv *dd;
+    struct pfuse_debug_driver *dd;
     if ((dd = get_dbgdrv(path)) != NULL) {
         if (offset < 0 || offset >= DEBUGMAXOFF || dd->dbgwrite == NULL)
             return(0);
@@ -1089,7 +1094,7 @@ int Plfs::f_statfs(const char *path, struct statvfs *stbuf) {
 int Plfs::f_readn(const char *path, char *buf, size_t size, off_t offset,
 		struct fuse_file_info *fi) 
 {
-    struct pfuse_dbgdrv *dd;
+    struct pfuse_debug_driver *dd;
     if ((dd = get_dbgdrv(path)) != NULL) {
         if (offset < 0 || offset >= DEBUGMAXOFF || dd->dbgread == NULL)
             return(0);
@@ -1317,7 +1322,7 @@ string Plfs:: getRenameHash(string to, string current, string base) {
  * dbg_sizer: sizer for static debug files.
  * XXX: this just replicates the old code
  */
-static int dbg_sizer(struct pfuse_dbgdrv *dd) {
+static int dbg_sizer(struct pfuse_debug_driver *dd) {
     if (strcmp(dd->name, "debug") == 0)
         return(DEBUGFILESIZE);
     if (strcmp(dd->name, "log") == 0)
@@ -1441,7 +1446,7 @@ static int dbg_log_read(char *buf, size_t size, off_t offset) {
 /**
  * dbg_msgbufsz: get the message buffer size
  */
-static int dbg_msgbufsz(struct pfuse_dbgdrv *dd) {
+static int dbg_msgbufsz(struct pfuse_debug_driver *dd) {
     return(mlog_mbcount());
 }
 
@@ -1464,7 +1469,7 @@ static int dbg_msgbuf_read(char *buf, size_t size, off_t offset) {
 /**
  * dbg_mlogsize: get the size of the mlog mask info...
  */
-static int dbg_mlogsize(struct pfuse_dbgdrv *dd) {
+static int dbg_mlogsize(struct pfuse_debug_driver *dd) {
     int rv;
 
     rv = mlog_getmasks(NULL, 0, 0, 1);
