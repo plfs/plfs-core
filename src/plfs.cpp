@@ -1349,6 +1349,29 @@ char *plfs_mlogtag(char *newtag) {
 }
 
 /**
+ * setup_mlog_facnamemask: setup the mlog facility names and inital
+ * mask.    helper function for setup_mlog() and get_plfs_conf(), the
+ * latter for the early mlog init before the plfsrc is read.
+ * 
+ * @param masks masks in mlog_setmasks() format, or NULL
+ */
+void setup_mlog_facnamemask(char *masks) {
+    int lcv;
+
+    /* name facilities */
+    for (lcv = 0; mlog_facsarray[lcv] != NULL ; lcv++) {
+        /* can't fail, as we preallocated in mlog_open() */
+        if (lcv == 0)
+            continue;    /* don't mess with the default facility */
+        (void) mlog_namefacility(lcv, (char *)mlog_facsarray[lcv]);
+    }
+
+    /* finally handle any mlog_setmasks() calls */
+    if (masks != NULL)
+        mlog_setmasks(masks);
+}
+
+/**
  * setup_mlog: setup and open the mlog, as per default config, augmented
  * by plfsrc, and then by command line args
  *
@@ -1395,17 +1418,7 @@ static void setup_mlog(PlfsConf *pconf) {
         exit(1);
     }
 
-    /* name facilities */
-    for (lcv = 0; mlog_facsarray[lcv] != NULL ; lcv++) {
-        /* can't fail, as we preallocated in mlog_open() */
-        if (lcv == 0)
-            continue;    /* don't mess with the default facility */
-        (void) mlog_namefacility(lcv, (char *)mlog_facsarray[lcv]);
-    }
-
-    /* finally handle any mlog_setmasks() calls */
-    if (pconf->mlog_setmasks)
-        mlog_setmasks(pconf->mlog_setmasks);
+    setup_mlog_facnamemask(pconf->mlog_setmasks);
 
     mlog(PLFS_INFO, "mlog init complete");
 #if 0
@@ -1718,12 +1731,14 @@ get_plfs_conf() {
      * before we've got access to all the mlog config info from file.
      * we'll replace with the proper settings once we've got the conf
      * file loaded and the command line args parsed...
+     * XXXCDC: add code to check environment vars for non-default levels
      */
-#ifdef PLFS_DEBUG_ON
-    (void)mlog_open((char *)"plfsinit", 0, MLOG_DBG, MLOG_DBG, NULL, 0, 0, 0);
-#else
-    (void)mlog_open((char *)"plfsinit", 0, MLOG_WARN, MLOG_WARN, NULL, 0, 0, 0);
-#endif
+    if (mlog_open((char *)"plfsinit",
+                  /* don't count the null at end of mlog_facsarray */
+                  sizeof(mlog_facsarray)/sizeof(mlog_facsarray[0]) - 1,
+                  MLOG_WARN, MLOG_WARN, NULL, 0, 0, 0) == 0) {
+        setup_mlog_facnamemask(NULL);
+    }
     
     map<string,string> confs;
     vector<string> possible_files;
