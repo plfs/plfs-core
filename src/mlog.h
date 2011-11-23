@@ -126,7 +126,7 @@ static inline int mlog_filter(int flags) {
      * it to the default facility because that seems like a better thing
      * to do than drop the message.
      */
-    if (fac >= mlog_xst.fac_cnt)
+    if (fac >= (unsigned)mlog_xst.fac_cnt)
         fac = 0;                 /* 0 == default facility */
 
     /* now we can get the mask we need */
