@@ -449,7 +449,7 @@ int Util::Readdir(DIR *dir, struct dirent **de) {
     if (*de) ret = 0;
     else if (errno == 0) ret = 1;
     else ret = -errno;
-    mlog(UT_DCOMMON, "readdir returned %x (ret %d, errno %d)", *de, ret, errno);
+    mlog(UT_DCOMMON, "readdir returned %x (ret %d, errno %d)", (unsigned)*de, ret, errno);
     EXIT_UTIL;
 }
 

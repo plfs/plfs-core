@@ -256,8 +256,8 @@ Index::unlock( const char *function ) {
 
 Index::Index( string logical ) : Metadata::Metadata() {
     init( logical );
-    mlog(IDX_DAPI, "%s: created index on %s, %d chunks", __FUNCTION__,
-         physical_path.c_str(), chunk_map.size());
+    mlog(IDX_DAPI, "%s: created index on %s, %lu chunks", __FUNCTION__,
+         physical_path.c_str(), (unsigned long)chunk_map.size());
 }
 
 void Index::setPath( string p ) {
@@ -270,10 +270,11 @@ Index::~Index() {
        << " removing index on " << physical_path << ", " 
        << chunk_map.size() << " chunks";
     mlog(IDX_DAPI, "%s", os.str().c_str() );
-    mlog(IDX_DCOMMON, "There are %d chunks to close fds for",chunk_map.size());
+    mlog(IDX_DCOMMON, "There are %lu chunks to close fds for",
+            (unsigned long)chunk_map.size());
     for( unsigned i = 0; i < chunk_map.size(); i++ ) {
         if ( chunk_map[i].fd > 0 ) {
-            mlog(IDX_DCOMMON, "Closing fd %d for %sa",
+            mlog(IDX_DCOMMON, "Closing fd %d for %s",
                     (int)chunk_map[i].fd, chunk_map[i].path.c_str() );
             Util::Close( chunk_map[i].fd );
         }
@@ -381,7 +382,7 @@ int Index::flush() {
     // ok, vectors are guaranteed to be contiguous
     // so just dump it in one fell swoop
     size_t  len = hostIndex.size() * sizeof(HostEntry);
-    mlog(IDX_DAPI, "%s flushing %d bytes", __FUNCTION__, len);
+    mlog(IDX_DAPI, "%s flushing %lu bytes", __FUNCTION__, (unsigned long)len);
     if ( len == 0 ) return 0;   // could be 0 if we weren't buffering
     // valgrind complains about writing uninitialized bytes here....
     // but it's fine as far as I can tell.
@@ -477,7 +478,8 @@ int Index::readIndex( string hostindex ) {
     HostEntry *h_index = (HostEntry*)maddr;
     size_t entries     = length / sizeof(HostEntry); // shouldn't be partials
                                                      // but any will be ignored
-    mlog(IDX_DCOMMON, "There are %d in %s", entries, hostindex.c_str() );
+    mlog(IDX_DCOMMON, "There are %lu in %s", 
+            (unsigned long)entries, hostindex.c_str() );
     for( size_t i = 0; i < entries; i++ ) {
         ContainerEntry c_entry;
         HostEntry      h_entry = h_index[i];
@@ -495,8 +497,8 @@ int Index::readIndex( string hostindex ) {
             known_chunks[h_entry.id]  = chunk_id++;
             // chunk_map is indexed by chunk_id so these need to be the same
             assert( (size_t)chunk_id == chunk_map.size() );
-            mlog(IDX_DCOMMON, "Inserting chunk %s (%d)", cf.path.c_str(),
-                chunk_map.size());
+            mlog(IDX_DCOMMON, "Inserting chunk %s (%lu)", cf.path.c_str(),
+                (unsigned long)chunk_map.size());
         }
 
             // copy all info from the host entry to the global and advance
@@ -517,8 +519,8 @@ int Index::readIndex( string hostindex ) {
                 hostindex.c_str() );
         }
     }
-    mlog(IDX_DAPI, "After %s in %p, now are %d chunks",
-        __FUNCTION__,this,chunk_map.size());
+    mlog(IDX_DAPI, "After %s in %p, now are %lu chunks",
+        __FUNCTION__,this,(unsigned long)chunk_map.size());
     return cleanupReadIndex(fd, maddr, length, 0, "DONE",hostindex.c_str());
 }
 
@@ -597,7 +599,8 @@ int Index::debug_from_stream(void *addr){
     vector<string> chunk_paths;
     Util::tokenize((char*)addr,"\n",chunk_paths); // might be inefficient...
     for( size_t i = 0; i < chunk_paths.size(); i++ ) {
-        mlog(IDX_DCOMMON, "Chunk path:%d is :%s",i,chunk_paths[i].c_str());
+        mlog(IDX_DCOMMON, "Chunk path:%lu is :%s",
+                (unsigned long)i,chunk_paths[i].c_str());
     }
     return 0;
 }
@@ -781,9 +784,10 @@ int Index::handleOverlap(ContainerEntry &incoming,
     // find overlaps, and then forwards the same
     for(first=insert_ret.first;;first--) {
         if (!first->second.overlap(incoming)) {  // went too far
-            mlog(IDX_DCOMMON, "Moving first %ld forward, "
-                    "no longer overlaps with incoming %ld",
-                    first->first, incoming.logical_offset);
+            mlog(IDX_DCOMMON, "Moving first %lu forward, "
+                    "no longer overlaps with incoming %lu",
+                    (unsigned long)first->first, 
+                    (unsigned long)incoming.logical_offset);
             first++;
             break;
         }
@@ -947,8 +951,8 @@ int Index::cleanupReadIndex( int fd, void *maddr, off_t length, int ret,
         ret2 = Util::Munmap( maddr, length );
         if ( ret2 < 0 ) {
             mlog(IDX_DRARE,
-                 "WTF.  readIndex failed during munmap of %s (%d): %s",
-                 indexfile, length, strerror(errno));
+                 "WTF.  readIndex failed during munmap of %s (%lu): %s",
+                 indexfile, (unsigned long)length, strerror(errno));
             ret = ret2; // set to error
         }
     }
@@ -1213,8 +1217,8 @@ void Index::addWrite( off_t offset, size_t length, pid_t pid,
 void Index::truncate( off_t offset ) {
     map<off_t,ContainerEntry>::iterator itr, prev;
     bool first = false;
-    mlog(IDX_DAPI, "Before %s in %p, now are %d chunks",
-        __FUNCTION__,this,global_index.size());
+    mlog(IDX_DAPI, "Before %s in %p, now are %lu chunks",
+        __FUNCTION__,this,(unsigned long)global_index.size());
 
         // Finds the first element whose offset >= offset. 
     itr = global_index.lower_bound( offset );
@@ -1239,8 +1243,8 @@ void Index::truncate( off_t offset ) {
         }
       }
     }
-    mlog(IDX_DAPI, "After %s in %p, now are %d chunks",
-        __FUNCTION__,this,global_index.size());
+    mlog(IDX_DAPI, "After %s in %p, now are %lu chunks",
+        __FUNCTION__,this,(unsigned long)global_index.size());
 }
 
 // operates on a host entry which is not sorted

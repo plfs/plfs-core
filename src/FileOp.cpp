@@ -110,7 +110,10 @@ TruncateOp::TruncateOp(bool open_file) {
 }
 
 // remember this is for truncate to offset 0 of a PLFS logical file
-// so physically on a container, it just unlinks everything
+// so physically on a container, it just unlinks everything for a closed file
+// on an open file, it truncates all the physical files.  This is because
+// on an open file, another sibling may have recently created a dropping so
+// don't delete
 int
 TruncateOp::do_op(const char *path, unsigned char isfile) {
 
@@ -213,8 +216,9 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */ ) {
             bool match = false;
             set<string>::iterator itr;
             for(itr=filters.begin();itr!=filters.end();itr++){
-                mlog(FOP_DCOMMON, "%s checking first %d of filter %s on %s",
-                        __FUNCTION__, itr->length(), itr->c_str(), ent->d_name);
+                mlog(FOP_DCOMMON, "%s checking first %lu of filter %s on %s",
+                        __FUNCTION__, (unsigned long)itr->length(), 
+                        itr->c_str(), ent->d_name);
                 // don't know why itr->compare isn't working.  driving me nuts.
                 //if(itr->compare(0,itr->length()-1,ent->d_name)==0) {
                 if(strncmp(itr->c_str(),ent->d_name,itr->length()-1)==0) {

@@ -1221,7 +1221,8 @@ plfs_reader(Plfs_fd *pfd, char *buf, size_t size, off_t offset, Index *index){
         args.tasks = &tasks;
         pthread_mutex_init( &(args.mux), NULL );
         size_t num_threads = min(pconf->threadpool_size,tasks.size());
-        mlog(INT_DCOMMON, "plfs_reader %d THREADS to %ld", num_threads, offset);
+        mlog(INT_DCOMMON, "plfs_reader %lu THREADS to %ld", num_threads, 
+                (unsigned long)offset);
         ThreadPool threadpool(num_threads,reader_thread, (void*)&args);
         error = threadpool.threadError();   // returns errno
         if ( error ) {
@@ -1675,7 +1676,6 @@ parse_conf(FILE *fp, string file, PlfsConf *pconf) {
     mlog(MLOG_DBG, "Got EOF from parsing conf %s",file.c_str());
 
     // save the current mount point
-    mlog(INT_DCOMMON, "%x %x\n",pconf->err_msg,pmnt);
     if (!pconf->err_msg && pmnt) {
         pconf->err_msg = insert_mount_point(pconf,pmnt,(char*)file.c_str());
     }
@@ -1820,8 +1820,8 @@ int plfs_hostdir_zero_rddir(void **entries,const char* c_path,int rank){
     
     ret = Container::indices_from_subdir(path,index_droppings);
     if (ret!=0) return ret;
-    mlog(INT_DCOMMON, "Found [%d] index droppings in %s",
-                index_droppings.size(),path.c_str());
+    mlog(INT_DCOMMON, "Found [%lu] index droppings in %s",
+                (unsigned long)index_droppings.size(),path.c_str());
     *entries=converter.listToStream(index_droppings,&size);
     return size;
 }
@@ -1845,7 +1845,8 @@ int plfs_parindex_read(int rank,int ranks_per_comm,void *index_files,
     Index index(top_level);
     cvt_list.erase(cvt_list.begin());
     //Everything seems fine at this point
-    mlog(INT_DCOMMON, "Rank |%d| List Size|%d|",rank,cvt_list.size());
+    mlog(INT_DCOMMON, "Rank |%d| List Size|%lu|",rank,
+            (unsigned long)cvt_list.size());
     index=Container::parAggregateIndices(cvt_list,rank,ranks_per_comm,path);
     mlog(INT_DCOMMON, "Ranks |%d| About to convert global to stream",rank);
     // Don't forget to trick global to stream
@@ -1907,7 +1908,8 @@ int plfs_parindexread_merge(const char *path,char *index_streams,
     }
     // Convert into a stream
     merger.global_to_stream(index_stream,&size);
-    mlog(INT_DCOMMON, "Inside parindexread merge stream size %d",size);
+    mlog(INT_DCOMMON, "Inside parindexread merge stream size %lu",
+            (unsigned long)size);
     return (int)size;
 }
 
@@ -1927,7 +1929,8 @@ plfs_index_stream(Plfs_fd **pfd, char ** buffer){
         mlog(INT_DRARE, "Error in plfs_index_stream");
         return -1;
     }
-    mlog(INT_DAPI,"In plfs_index_stream global to stream has size %d", length);
+    mlog(INT_DAPI,"In plfs_index_stream global to stream has size %lu", 
+           (unsigned long)length);
     return length;
 }
 
@@ -2286,8 +2289,8 @@ plfs_getattr(Plfs_fd *of, const char *logical, struct stat *stbuf,int sz_only){
             off_t  last_offset;
             size_t total_bytes;
             wf->getMeta( &last_offset, &total_bytes );
-            mlog(PLFS_DCOMMON, "Got meta from openfile: %ld last offset, "
-                       "%ld total bytes", last_offset, total_bytes);
+            mlog(PLFS_DCOMMON, "Got meta from openfile: %lu last offset, "
+                   "%ld total bytes", (unsigned long)last_offset, total_bytes);
             if ( last_offset > stbuf->st_size ) {    
                 stbuf->st_size = last_offset;       
             }
