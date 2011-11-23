@@ -12,6 +12,16 @@
 * good function names.  Pls don't go crazy removing vowels to make names
 short.  Much better is a longer name whose meaning is immediately obvious
 
+* put the function name on the next line after the return type so that
+it is easy to search for it with /^name/.  Example:
+
+// OK
+int
+my_function()
+
+// NOT OK
+int my_function()
+
 * good variable names.  Same as function names unless the variable has a 
 very temporary lifetime in which case some abbreviation is OK.
 
