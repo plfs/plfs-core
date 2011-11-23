@@ -1,9 +1,80 @@
 0) CODING STYLE
-4 space wide soft tabs
-don't go over 80 chars wide on a line
-never cut and paste more than 2 lines of code.  use a function.
-good use of whitespace
-good comments.  don't comment obvious stuff, explain complicated stuff
+* 4 space wide soft tabs
+
+* don't go over 80 chars wide on a line
+
+* never cut and paste more than 2 lines of code.  use a function.
+
+* good use of whitespace
+
+* good comments.  don't comment obvious stuff, explain complicated stuff
+
+* good function names.  Pls don't go crazy removing vowels to make names
+short.  Much better is a longer name whose meaning is immediately obvious
+
+* good variable names.  Same as function names unless the variable has a 
+very temporary lifetime in which case some abbreviation is OK.
+
+* Use of brackets.  Always use brackets unless the action is on same line as
+condition.  Bracket can be on the end of the line if the line doesn't wrap.
+If the line wraps, then the bracket must be dropped to the next line. 
+Examples:
+
+// OK
+if (x>y) do_something();  
+
+// NOT OK
+if (x>y) 
+  do_something(); 
+
+// OK
+if (x>y) {
+  do_something();
+}
+
+// OK
+int function(arg,arg) {
+  do_something();
+}
+
+// OK
+int function(arg,arg,arg,arg,arg,arg,arg,arg,arg,arg,arg,arg,arg,
+              arg,arg,arg,arg,arg,arg)
+{
+  do_something();
+}
+
+// NOT OK
+int function(arg,arg,arg,arg,arg,arg,arg,arg,arg,arg,arg,arg,arg,
+              arg,arg,arg,arg,arg,arg) {
+  do_something();
+}
+
+// OK
+for(a,b,c) {
+  do_something();
+}
+
+// OK
+for(a,
+    b,
+    c)
+{
+  do_something();
+}
+
+// NOT OK
+for(a,
+    b,
+    c) {
+  do_something();
+}
+
+// NOT OK (if you're gonna drop b, then pls drop c as well)
+for(a,
+    b, c) {
+  do_something();
+}
 
 1) AUTOGEN
 ./autogen.sh is not your friend.  Very strict requirements.  Makefile.tools
