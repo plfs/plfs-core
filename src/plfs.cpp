@@ -1526,8 +1526,9 @@ static void parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
         if (pconf->num_hostdirs <= 0) {
             pconf->err_msg = new string("illegal negative value");
         }
-        if (pconf->num_hostdirs > MAX_HOSTDIRS) 
+        if (pconf->num_hostdirs > MAX_HOSTDIRS) {
             pconf->num_hostdirs = MAX_HOSTDIRS;
+        }
     } else if (strcmp(key,"mount_point")==0) {
         // clear and save the previous one
         if (*pmntp) {
