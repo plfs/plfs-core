@@ -148,7 +148,7 @@ size_t Container::hashValue( const char *str ) {
     for( i = 0; i < strlen( str ); i++ ) {
         sum += (size_t)str[i];
     }
-    mlog(CON_DINTAPI, "%s: %s -> %d",__FUNCTION__,str,sum);
+    mlog(CON_DINTAPI, "%s: %s -> %lu",__FUNCTION__,str,(unsigned long)sum);
     return sum;
     /*
     #include <openssl/md5.h>
@@ -417,8 +417,8 @@ int Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index,
             pthread_mutex_init( &(args.mux), NULL );
             size_t count = min(pconf->threadpool_size,tasks.size());
             ThreadPool threadpool(count,indexer_thread, (void*)&args);
-            mlog(CON_DAPI, "%d THREADS to create index of %s",
-                 count,path.c_str());
+            mlog(CON_DAPI, "%lu THREADS to create index of %s",
+                 (unsigned long)count,path.c_str());
             ret = threadpool.threadError();    // returns errno
             if ( ret ) {
                 mlog(CON_DRARE, "THREAD pool error %s", strerror(ret) );
@@ -530,8 +530,8 @@ Index Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
     vector<string> path_pieces;
 
     mlog(CON_DAPI, "In parAgg indices before for loop");
-    mlog(CON_DAPI, "Rank |%d| indexListSize |%d| ranksRerComm |%d|",rank,
-            index_list.size(),ranks_per_comm);
+    mlog(CON_DAPI, "Rank |%d| indexListSize |%lu| ranksRerComm |%d|",rank,
+            (unsigned long)index_list.size(),ranks_per_comm);
     for(count=rank;count<index_list.size();count+=ranks_per_comm){
         // Used this pointer to make the next function call cleaner
         IndexFileInfo *current;
@@ -1561,7 +1561,8 @@ int Container::Truncate( const string &path, off_t offset ) {
     int ret;
     string indexfile;
 
-    mlog(CON_DAPI, "%s on %s to %ld", __FUNCTION__, path.c_str(),offset);
+    mlog(CON_DAPI, "%s on %s to %ld", __FUNCTION__, path.c_str(),
+            (unsigned long)offset);
 
 	// this code here goes through each index dropping and rewrites it
 	// preserving only entries that contain data prior to truncate offset
@@ -1573,7 +1574,8 @@ int Container::Truncate( const string &path, off_t offset ) {
         ret = index.readIndex( indexfile );
         if ( ret == 0 ) {
             if ( index.lastOffset() > offset ) {
-                mlog(CON_DCOMMON, "%s %p at %ld",__FUNCTION__,&index,offset);
+                mlog(CON_DCOMMON, "%s %p at %ld",__FUNCTION__,&index,
+                        (unsigned long)offset);
                 index.truncate( offset );
                 int fd = Util::Open(indexfile.c_str(), O_TRUNC | O_WRONLY);
                 if ( fd < 0 ) {
