@@ -1390,8 +1390,7 @@ static void setup_mlog(PlfsConf *pconf) {
     if (mac) {
         for (lcv = 0 ; lcv < mac ; lcv += 2) {
             start = mav[lcv];
-            if (start[0] == '-' && start[1] == '-')
-                start += 2;   /* skip "--" */
+            if (start[0] == '-' && start[1] == '-') start += 2;  /* skip "--" */
             parse_conf_keyval(pconf, NULL, NULL, start, mav[lcv+1]);
             if (pconf->err_msg) {
                 mlog(MLOG_WARN, "ignore cmd line %s flag: %s", start,
@@ -1503,7 +1502,8 @@ set_default_confs(PlfsConf *pconf) {
  * @param value the value of the key
  */
 static void parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
-                              char *key, char *value) {
+                              char *key, char *value) 
+{
     int v;
 
     if(strcmp(key,"index_buffer_mbs")==0) {
@@ -1568,30 +1568,24 @@ static void parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
         }
     } else if (strcmp(key, "mlog_stderr") == 0) {
         v = atoi(value);
-        if (v)
-            pconf->mlog_flags |= MLOG_STDERR;
-        else
-            pconf->mlog_flags &= ~MLOG_STDERR;
+        if (v)  pconf->mlog_flags |= MLOG_STDERR;
+        else    pconf->mlog_flags &= ~MLOG_STDERR;
     } else if (strcmp(key, "mlog_ucon") == 0) {
         v = atoi(value);
-        if (v)
-            pconf->mlog_flags |= (MLOG_UCON_ON|MLOG_UCON_ENV);
-        else
-            pconf->mlog_flags &= ~(MLOG_UCON_ON|MLOG_UCON_ENV);
+        if (v)  pconf->mlog_flags |= (MLOG_UCON_ON|MLOG_UCON_ENV);
+        else    pconf->mlog_flags &= ~(MLOG_UCON_ON|MLOG_UCON_ENV);
     } else if (strcmp(key, "mlog_syslog") == 0) {
         v = atoi(value);
-        if (v)
-            pconf->mlog_flags |= MLOG_SYSLOG;
-        else
-            pconf->mlog_flags &= ~MLOG_SYSLOG;
+        if (v)  pconf->mlog_flags |= MLOG_SYSLOG;
+        else    pconf->mlog_flags &= ~MLOG_SYSLOG;
     } else if (strcmp(key, "mlog_defmask") == 0) {
         pconf->mlog_defmask = mlog_str2pri(value);
-        if (v < 0) {
+        if (pconf->mlog_defmask < 0) {
             pconf->err_msg = new string("Bad mlog_defmask value");
         }
     } else if (strcmp(key, "mlog_stderrmask") == 0) {
         pconf->mlog_stderrmask = mlog_str2pri(value);
-        if (v < 0) {
+        if (pconf->mlog_stderrmask < 0) {
             pconf->err_msg = new string("Bad mlog_stderrmask value");
         }
     } else if (strcmp(key, "mlog_file") == 0) {
@@ -1684,8 +1678,7 @@ parse_conf(FILE *fp, string file, PlfsConf *pconf) {
             break;
         }
         parse_conf_keyval(pconf, &pmnt, (char *)file.c_str(), key, value);
-        if (pconf->err_msg)
-            break;
+        if (pconf->err_msg) break;
     }
     mlog(MLOG_DBG, "Got EOF from parsing conf %s",file.c_str());
 
