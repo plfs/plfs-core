@@ -676,6 +676,57 @@ int Container::collectContents(const string &physical,
     return ret;
 }
 
+// this function collects all droppings from a container
+// it makes two assumptions about how containers are structured:
+// 1) it knows how to deal with metalinks
+// 2) containers are only one directory level deep
+// it'd be nice if the only place that container structure was understood
+// was in this class.  but I don't think that's quite true.
+// That's our goal though!
+int Container::collectContents(const string &physical,
+        vector<string> &files, 
+        vector<string> *dirs,
+        vector<string> *mlinks, 
+        vector<string> &filters, 
+        bool full_path) 
+{
+    map<string,unsigned char> entries;
+    map<string,unsigned char>::iterator e_itr;
+    vector<string>::iterator f_itr;
+    ReaddirOp rop(&entries,NULL,full_path,true);
+    int ret = 0;
+
+    if (dirs) dirs->push_back(physical);
+
+    // set up and use our ReaddirOp to get all entries out of top-level
+    for(f_itr=filters.begin(); f_itr!=filters.end(); f_itr++) {
+        rop.filter(*f_itr);
+    }
+    plfs_debug("%s on %s\n", __FUNCTION__, physical.c_str());
+    ret = rop.op(physical.c_str(),DT_DIR);
+
+    // now for each entry we found: descend into dirs, resolve metalinks and
+    // then descend, save files.
+    for(e_itr = entries.begin(); ret==0 && e_itr != entries.end(); e_itr++) {
+        if(e_itr->second==DT_DIR) { 
+            ret = collectContents(e_itr->first,files,dirs,mlinks,filters,true);
+        } else if (e_itr->second==DT_LNK) { 
+            string resolved;
+            ret = Container::resolveMetalink(e_itr->first,resolved);
+            if (mlinks) mlinks->push_back(e_itr->first);
+            if (ret==0) {
+                ret = collectContents(resolved,files,dirs,mlinks,filters,true);
+            }
+        } else if (e_itr->second==DT_REG) {
+            files.push_back(e_itr->first);
+        } else {
+            assert(0);
+        }
+
+    }
+    return ret;
+}
+
 // this function traverses the container, finds all the index droppings,
 // and aggregates them into a global in-memory index structure
 // returns 0 or -errno

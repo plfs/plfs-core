@@ -91,6 +91,12 @@ class Container {
         static int collectContents(const string &path,
             vector<string> &files, vector<string> &filters,bool);
 
+        static int collectContents(const string &physical,
+            vector<string> &files, 
+            vector<string> *dirs,
+            vector<string> *mlinks, 
+            vector<string> &filters, 
+            bool full_path);
         static int flattenIndex( const string &, Index * );
         static int populateIndex(const string &,Index *,bool use_cached_global);
         static int aggregateIndices( const string &, Index * );

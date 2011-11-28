@@ -118,7 +118,9 @@ int plfs_merge_indexes(Plfs_fd **pfd, char *index_streams,
 int plfs_link( const char *path, const char *to );
 
 /* the void * should be a string */
-int plfs_locate(const char *path, void *);
+int
+plfs_locate(const char *logical, void *files_ptr, 
+        void *dirs_ptr, void *metalinks_ptr);
 
 /* 
    query the mode that was used to create the file
