@@ -321,11 +321,23 @@ find_all_expansions(const char *logical, vector<string> &containers) {
 // helper routine for plfs_dump_config
 // changes ret to -ENOENT or leaves it alone
 int
-plfs_check_dir(string type, string dir,int previous_ret) {
-    if(!Util::isDirectory(dir.c_str())) {
-        cout << "Error: Required " << type << " directory " << dir 
-            << " not found (ENOENT)" << endl;
-        return -ENOENT;
+plfs_check_dir(string type, string dir,int previous_ret, bool make_dir) {
+	const char * directory = dir.c_str();
+	mode_t mode;
+    if(!Util::isDirectory(directory)) {
+	    if (!make_dir) {
+	        cout << "Error: Required " << type << " directory " << dir 
+        	    << " not found (ENOENT)" << endl;
+	        return -ENOENT;
+	    } else {
+		    int retVal = Util::Mkdir(directory, DEFAULT_MODE);
+		    if (retVal != 0) {
+			    cout << "Attempt to create direcotry " << dir
+				    << " failed." << endl;
+			    return -ENOENT;
+		    }
+		    return previous_ret;
+	    }
     } else {
         return previous_ret;
     }
@@ -340,7 +352,7 @@ plfs_dump_index_size() {
 
 // returns 0 or -EINVAL or -ENOENT
 int
-plfs_dump_config(int check_dirs) {
+plfs_dump_config(int check_dirs, int make_dir) {
     PlfsConf *pconf = get_plfs_conf();
     if ( ! pconf ) {
         cerr << "FATAL no plfsrc file found.\n" << endl;
@@ -361,7 +373,7 @@ plfs_dump_config(int check_dirs) {
     if (pconf->global_summary_dir) {
         cout << "Global summary dir: " << *(pconf->global_summary_dir) << endl;
         if(check_dirs) ret = plfs_check_dir("global_summary_dir",
-                pconf->global_summary_dir->c_str(),ret);
+                pconf->global_summary_dir->c_str(),ret, make_dir);
     }
     if (pconf->test_metalink) {
         cout << "Test metalink: TRUE" << endl;
@@ -371,15 +383,16 @@ plfs_dump_config(int check_dirs) {
     for(itr=pconf->mnt_pts.begin();itr!=pconf->mnt_pts.end();itr++) {
         PlfsMount *pmnt = itr->second; 
         cout << "Mount Point " << itr->first << ":" << endl;
-        if(check_dirs) ret = plfs_check_dir("mount_point",itr->first,ret);
+        if(check_dirs)
+	       	ret = plfs_check_dir("mount_point",itr->first,ret,make_dir);
         for(bitr = pmnt->backends.begin(); bitr != pmnt->backends.end();bitr++){
             cout << "\tBackend: " << *bitr << endl;
-            if(check_dirs) ret = plfs_check_dir("backend",*bitr,ret); 
+            if(check_dirs) ret = plfs_check_dir("backend",*bitr,ret,make_dir); 
         }
         if(pmnt->statfs) {
             cout << "\tStatfs: " << pmnt->statfs->c_str() << endl;
             if(check_dirs) {
-                ret = plfs_check_dir("statfs",pmnt->statfs->c_str(),ret); 
+                ret = plfs_check_dir("statfs",pmnt->statfs->c_str(),ret,make_dir); 
             }
         }
         cout << "\tChecksum: " << pmnt->checksum << endl;

@@ -93,7 +93,7 @@ void plfs_debug( const char *format, ... );
 int plfs_dump_index( FILE *fp, const char *path, int compress );
 
 // Bool sneaked in here
-int plfs_dump_config(int check_dirs);
+int plfs_dump_config(int check_dirs, int make_dir);
 
 int plfs_dump_index_size();
 

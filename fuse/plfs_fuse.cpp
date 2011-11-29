@@ -291,7 +291,7 @@ int Plfs::init( int *argc, char **argv ) {
             if ( ! mnt_pt_found ) {
                 fprintf(stderr,"FATAL mount point mismatch: %s not found\n", 
                     argv[i] );
-                plfs_dump_config(false);
+                plfs_dump_config(false, false);
                 return -ECONNREFUSED;  
             }
             mnt_pt_found = true;
