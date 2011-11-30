@@ -38,7 +38,7 @@
 
 #include "mlog.h"    /* for MLOG_ defines */
 
-#ifdef MLOG_FACSARRAY
+#if defined(MLOG_FACSARRAY) || defined(MLOG_AFACSARRAY)
 static const char *mlog_facsarray[] = {
     "MLOG",          /* 0 -- MLOG default fac */
     "PLFS",          /* 1 */
@@ -53,24 +53,41 @@ static const char *mlog_facsarray[] = {
     "MPI",           /* 10 */
     0,               /* 11 */
 };
-#endif /* MLOG_FACSARRAY */
+#endif /* MLOG_FACSARRAY || MLOG_AFACSARRAY */
+
+#if defined(MLOG_FACSARRAY) || defined(MLOG_LFACSARRAY)
+static const char *mlog_lfacsarray[] = {
+    "MLOG",          /* 0 -- MLOG default fac */
+    "plfs_misc",     /* 1 */
+    "internal",      /* 2 */
+    "container",     /* 3 */
+    "index",         /* 4 */
+    "writefile",     /* 5 */
+    "fileops",       /* 6 */
+    "utilities",     /* 7 */
+    "store",         /* 8 */
+    "FUSE",          /* 9 */
+    "MPI",           /* 10 */
+    0,               /* 11 */
+};
+#endif /* MLOG_LFACSARRAY || MLOG_LFACSARRAY */
 
 /*
  * standard facility defines
  */
-#define MLOGFAC_PLFS      1 /* PLFS main */
-#define MLOGFAC_INT       2 /* PLFS internal */
-#define MLOGFAC_CON       3 /* Containers */
-#define MLOGFAC_IDX       4 /* Index */
-#define MLOGFAC_WF        5 /* Write File */
-#define MLOGFAC_FOP       6 /* FileOps */
-#define MLOGFAC_UT        7 /* Utilities */
-#define MLOGFAC_STO       8 /* Store */
-#define MLOGFAC_FUSE      9 /* PLFS FUSE */
-#define MLOGFAC_MPI      10 /* PLFS MPI */
+#define MLOGFAC_PLFS      1 /* plfs_misc */
+#define MLOGFAC_INT       2 /* internal */
+#define MLOGFAC_CON       3 /* container */
+#define MLOGFAC_IDX       4 /* index */
+#define MLOGFAC_WF        5 /* writefile */
+#define MLOGFAC_FOP       6 /* fileops */
+#define MLOGFAC_UT        7 /* utilities */
+#define MLOGFAC_STO       8 /* store */
+#define MLOGFAC_FUSE      9 /* FUSE */
+#define MLOGFAC_MPI      10 /* MPI */
 
 /*
- * PLFS main MLOG levels
+ * plfs_misc MLOG levels
  */
 #define PLFS_EMERG       (1 | MLOG_EMERG)
 #define PLFS_ALERT       (1 | MLOG_ALERT)
@@ -90,7 +107,7 @@ static const char *mlog_facsarray[] = {
 #define PLFS_DRARE        PLFS_DBG3
 
 /*
- * PLFS internal MLOG levels
+ * internal MLOG levels
  */
 #define INT_EMERG        (2 | MLOG_EMERG)
 #define INT_ALERT        (2 | MLOG_ALERT)
@@ -110,7 +127,7 @@ static const char *mlog_facsarray[] = {
 #define INT_DRARE         INT_DBG3
 
 /*
- * Containers MLOG levels
+ * container MLOG levels
  */
 #define CON_EMERG        (3 | MLOG_EMERG)
 #define CON_ALERT        (3 | MLOG_ALERT)
@@ -130,7 +147,7 @@ static const char *mlog_facsarray[] = {
 #define CON_DRARE         CON_DBG3
 
 /*
- * Index MLOG levels
+ * index MLOG levels
  */
 #define IDX_EMERG        (4 | MLOG_EMERG)
 #define IDX_ALERT        (4 | MLOG_ALERT)
@@ -150,7 +167,7 @@ static const char *mlog_facsarray[] = {
 #define IDX_DRARE         IDX_DBG3
 
 /*
- * Write File MLOG levels
+ * writefile MLOG levels
  */
 #define WF_EMERG         (5 | MLOG_EMERG)
 #define WF_ALERT         (5 | MLOG_ALERT)
@@ -170,7 +187,7 @@ static const char *mlog_facsarray[] = {
 #define WF_DRARE          WF_DBG3
 
 /*
- * FileOps MLOG levels
+ * fileops MLOG levels
  */
 #define FOP_EMERG        (6 | MLOG_EMERG)
 #define FOP_ALERT        (6 | MLOG_ALERT)
@@ -190,7 +207,7 @@ static const char *mlog_facsarray[] = {
 #define FOP_DRARE         FOP_DBG3
 
 /*
- * Utilities MLOG levels
+ * utilities MLOG levels
  */
 #define UT_EMERG         (7 | MLOG_EMERG)
 #define UT_ALERT         (7 | MLOG_ALERT)
@@ -210,7 +227,7 @@ static const char *mlog_facsarray[] = {
 #define UT_DRARE          UT_DBG3
 
 /*
- * Store MLOG levels
+ * store MLOG levels
  */
 #define STO_EMERG        (8 | MLOG_EMERG)
 #define STO_ALERT        (8 | MLOG_ALERT)
@@ -230,7 +247,7 @@ static const char *mlog_facsarray[] = {
 #define STO_DRARE         STO_DBG3
 
 /*
- * PLFS FUSE MLOG levels
+ * FUSE MLOG levels
  */
 #define FUSE_EMERG       (9 | MLOG_EMERG)
 #define FUSE_ALERT       (9 | MLOG_ALERT)
@@ -250,7 +267,7 @@ static const char *mlog_facsarray[] = {
 #define FUSE_DRARE        FUSE_DBG3
 
 /*
- * PLFS MPI MLOG levels
+ * MPI MLOG levels
  */
 #define MPI_EMERG        (10 | MLOG_EMERG)
 #define MPI_ALERT        (10 | MLOG_ALERT)

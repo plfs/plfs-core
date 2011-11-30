@@ -31,16 +31,18 @@
 # makefacs.pl  autogen mlogfacs.h file based on facs list
 
 @facs = (
-     "PLFS"     => "PLFS main",
-     "INT"      => "PLFS internal",
-     "CON"      => "Containers",
-     "IDX"      => "Index",
-     "WF"       => "Write File",
-     "FOP"      => "FileOps",
-     "UT"       => "Utilities",
-     "STO"      => "Store",
-     "FUSE"     => "PLFS FUSE",
-     "MPI"      => "PLFS MPI",
+# names:
+#  abbreviated     long
+     "PLFS"     => "plfs_misc",
+     "INT"      => "internal",
+     "CON"      => "container",
+     "IDX"      => "index",
+     "WF"       => "writefile",
+     "FOP"      => "fileops",
+     "UT"       => "utilities",
+     "STO"      => "store",
+     "FUSE"     => "FUSE",
+     "MPI"      => "MPI",
 );
 
 @mloglvls = (
@@ -63,7 +65,7 @@
 # end of configuration section
 ######################################################################
 
-$fcount = ($#facs + 1) / 2;
+die "odd sized facs[] array" if (($#facs+1) & 1);
 
 open(P, ">mlogfacs.h_NEW") || die "cannot open mlogfacs.h_NEW ($!)";
 
@@ -114,7 +116,7 @@ safeprint($_);
 #
 # generate array of facility names, if requested
 #
-safeprint("#ifdef MLOG_FACSARRAY\n");
+safeprint("#if defined(MLOG_FACSARRAY) || defined(MLOG_AFACSARRAY)\n");
 safeprint("static const char *mlog_facsarray[] = {\n");
 safeprintf("    %-16s /* %d -- MLOG default fac */\n", '"' . "MLOG" . '",', 0);
 for ($lcv = 0 ; $lcv <= $#facs ; $lcv += 2) {
@@ -122,7 +124,17 @@ for ($lcv = 0 ; $lcv <= $#facs ; $lcv += 2) {
          ($lcv / 2) + 1);
 }
 safeprintf("    %-16s /* %d */\n", "0,", ($lcv / 2) + 1);  # end marker
-safeprint("};\n#endif /* MLOG_FACSARRAY */\n\n");
+safeprint("};\n#endif /* MLOG_FACSARRAY || MLOG_AFACSARRAY */\n\n");
+
+safeprint("#if defined(MLOG_FACSARRAY) || defined(MLOG_LFACSARRAY)\n");
+safeprint("static const char *mlog_lfacsarray[] = {\n");
+safeprintf("    %-16s /* %d -- MLOG default fac */\n", '"' . "MLOG" . '",', 0);
+for ($lcv = 0 ; $lcv <= $#facs ; $lcv += 2) {
+    safeprintf("    %-16s /* %d */\n", '"' . $facs[$lcv+1] . '",', 
+         ($lcv / 2) + 1);
+}
+safeprintf("    %-16s /* %d */\n", "0,", ($lcv / 2) + 1);  # end marker
+safeprint("};\n#endif /* MLOG_LFACSARRAY || MLOG_LFACSARRAY */\n\n");
 
 safeprint("/*\n * standard facility defines\n */\n");
 for ($lcv = 0 ; $lcv <= $#facs ; $lcv+= 2) {

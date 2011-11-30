@@ -1397,7 +1397,8 @@ void setup_mlog_facnamemask(char *masks) {
         /* can't fail, as we preallocated in mlog_open() */
         if (lcv == 0)
             continue;    /* don't mess with the default facility */
-        (void) mlog_namefacility(lcv, (char *)mlog_facsarray[lcv], NULL);
+        (void) mlog_namefacility(lcv, (char *)mlog_facsarray[lcv], 
+                                 (char *)mlog_lfacsarray[lcv]);
     }
 
     /* finally handle any mlog_setmasks() calls */
