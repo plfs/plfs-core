@@ -1092,44 +1092,73 @@ int mlog_setlogmask(int facility, int mask) {
 /*
  * mlog_setmasks: set the mlog masks for a set of facilities to a given
  * level.   the input string should look: PREFIX1=LEVEL1,PREFIX2=LEVEL2,...
+ * if the "PREFIX=" part is omitted, then the level applies to all defined
+ * facilities (e.g. mlog_setmasks("WARN") sets everything to WARN).
  */
-void mlog_setmasks(char *mstr) {
-    char *m, *fac, *eq, *pri, *cm, pbuf[5];
-    int faclen, prilen, prino, facno;
-
+void mlog_setmasks(char *mstr, int mlen0) {
+    char *m, *current, *fac, *pri, pbuf[5];
+    int mlen, facno, clen, elen, faclen, prilen, prino;
+    
     /* not open? */
     if (!mlog_xst.tag)
         return;
     
     m = mstr;
-    while (*m == ' ' || *m == '\t')   /* remove leading space */
+    mlen = mlen0;
+    if (mlen < 0)  {
+        mlen = strlen(mstr);
+    }
+    while (mlen > 0 && (*m == ' ' || *m == '\t')) { /* remove leading space */
         m++;
+        mlen--;
+    }
+    if (mlen <= 0) {
+        return;                       /* nothing doing */
+    }
+    facno = 0;                        /* make sure it gets init'd */
+
     while (m) {
-    
-        /* parse */
-        fac = m;
-        eq = strchr(m, '=');
-        if (!eq) {
-            mlog(MLOG_ERR, "mlog_setmasks: error, ignoring %s", m);
-            break;
+
+        /* note current chunk, and advance m to the next one */
+        current = m;                     
+        for (clen = 0 ; clen < mlen && m[clen] != ',' ; clen++) {
+            /*null*/;
         }
-        pri = eq + 1;
-        cm = strchr(pri, ',');
-        m = (cm) ? cm + 1 : NULL;  /* null will exit the while loop */
-        faclen = eq - fac;
-        if (cm) {
-            prilen = cm - pri;
+        if (clen < mlen) {
+            m = m + clen + 1;   /* skip the comma too */
+            mlen = mlen - (clen + 1);
         } else {
-            prilen = strlen(pri);
-            /* remove trailing whitespace */
+            m = NULL;
+            mlen = 0;
+        }
+        if (clen == 0) {
+            continue;     /* null entry, just skip it */
+        }
+        for (elen = 0 ; elen < clen && current[elen] != '=' ; elen++) {
+            /*null*/;
+        }
+        if (elen < clen) {     /* has a facility prefix? */
+            fac = current;
+            faclen = elen;
+            pri = current + elen + 1;
+            prilen = clen - (elen + 1);
+        } else {
+            fac = NULL;                /* means we apply to all facs */
+            faclen = 0;
+            pri = current;
+            prilen = clen;
+        }
+        if (m == NULL) {
+            /* remove trailing white space from count */
             while (prilen > 0 && (pri[prilen-1] == '\n' || 
                    pri[prilen-1] == ' ' || pri[prilen-1] == '\t') ) {
                 prilen--;
             }
         }
+        /* parse complete! */
 
-        /* process */
-        if (prilen > 4) {
+        /* process priority */
+        if (prilen > 4) {    /* we know it can't be longer than this */
             prino = -1;
         } else {
             memset(pbuf, 0, sizeof(pbuf));
@@ -1139,8 +1168,11 @@ void mlog_setmasks(char *mstr) {
         if (prino == -1) {
             mlog(MLOG_ERR, "mlog_setmasks: %.*s: unknown priority %.*s",
                  faclen, fac, prilen, pri);
-        } else {
+            continue;
+        }
 
+        /* process facility */
+        if (fac) {
             mlog_lock();
             for (facno = 0 ; facno < mlog_xst.fac_cnt ; facno++) {
                 if (mlog_xst.mlog_facs[facno].fac_name == NULL)
@@ -1152,14 +1184,26 @@ void mlog_setmasks(char *mstr) {
             }
             mlog_unlock();
 
-            if (facno < mlog_xst.fac_cnt) {
-                mlog_setlogmask(facno, prino);
-            } else {
+            if (facno >= mlog_xst.fac_cnt) {
                 mlog(MLOG_ERR, "mlog_setmasks: unknown facility %.*s",
                      faclen, fac);
+                continue;
+            }
+            
+        }
+                    
+        if (fac) {
+            /* apply only to this fac */
+            mlog_setlogmask(facno, prino);
+        } else {
+            /* apply to all facilities */
+            for (facno = 0 ; facno < mlog_xst.fac_cnt ; facno++) {
+                mlog_setlogmask(facno, prino);
             }
         }
+        
     }
+    
 }
 
 /*

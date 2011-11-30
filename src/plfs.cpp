@@ -1402,7 +1402,7 @@ void setup_mlog_facnamemask(char *masks) {
 
     /* finally handle any mlog_setmasks() calls */
     if (masks != NULL)
-        mlog_setmasks(masks);
+        mlog_setmasks(masks, -1);
 }
 
 /**

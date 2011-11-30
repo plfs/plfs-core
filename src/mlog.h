@@ -324,9 +324,10 @@ int mlog_setlogmask(int facility, int mask);
  * the input string should look like: PREFIX1=LEVEL1,PREFIX2=LEVEL2,...
  * where the "PREFIX" is the facility name defined with mlog_namefacility().
  *
- * @param mstr settings to use
+ * @param mstr settings to use (doesn't have to be null term'd if mstr >= 0)
+ * @param mlen length of mstr (if < 0, assume null terminated, use strlen)
  */
-void mlog_setmasks(char *mstr);
+void mlog_setmasks(char *mstr, int mlen);
 
 /**
  * mlog_getmasks: get current mask level as a string (not null terminated).

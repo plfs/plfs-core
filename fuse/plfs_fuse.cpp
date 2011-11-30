@@ -1490,6 +1490,6 @@ static int dbg_mlogmask_read(char *buf, size_t size, off_t offset) {
  * dbg_mlogmask_write: change the current mlog mask...
  */
 static int dbg_mlogmask_write(const char *buf, size_t size, off_t offset) {
-    mlog_setmasks((char *)buf);
+    mlog_setmasks((char *)buf, size);
     return(size);
 }
