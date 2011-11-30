@@ -75,7 +75,8 @@
  */
 struct mlog_fac {
     int fac_mask;        /*!< log level for this facility */
-    char *fac_name;      /*!< name of this facility [malloced] */
+    char *fac_aname;     /*!< abbreviated name of this facility [malloced] */
+    char *fac_lname;     /*!< optional long name of this facility [malloced] */
 };
 
 /**
@@ -181,10 +182,11 @@ void *mlog_abort_hook(void (*abort_hook)(void));
 /**
  * mlog_allocfacility: allocate a new facility with the given name
  *
- * @param name the name for the new facility (can be null for no name)
+ * @param aname the abbr. name for the new facility (can be null for no name)
+ * @param lname the long name for the new facility (can be null for no name)
  * @return new facility number on success, -1 on error (malloc problem).
  */
-int mlog_allocfacility(char *name);
+int mlog_allocfacility(char *aname, char *lname);
 
 /**
  * mlog_close: close off an mlog and release any allocated resources.
@@ -258,10 +260,11 @@ int mlog_findmesgbuf(char *b, int len, char **b1p, int *b1l,
  * number is used as an index into an array, don't choose large numbers.
  *
  * @param facility the facility to name
- * @param name the new name, or null to remove the name
+ * @param aname the new abbreviated name, or null to remove the name
+ * @param lname optional long name (null if not needed)
  * @return 0 on success, -1 on error (malloc problem).
  */
-int mlog_namefacility(int facility, char *name);
+int mlog_namefacility(int facility, char *aname, char *lname);
 
 /**
  * mlog_open: open a multilog (uses malloc).  you can only have one

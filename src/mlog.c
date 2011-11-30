@@ -42,6 +42,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>    /* for strncasecmp */
 #include <syslog.h>
 #include <time.h>
 #include <unistd.h>
@@ -366,7 +367,8 @@ static int mlog_setnfac(int n) {
     }
     for (/*null*/ ; lcv < try ; lcv++) {           /* init the new */
         nfacs[lcv].fac_mask = mst.def_mask;
-        nfacs[lcv].fac_name = (lcv == 0) ? default_fac0name : NULL;
+        nfacs[lcv].fac_aname = (lcv == 0) ? default_fac0name : NULL;
+        nfacs[lcv].fac_lname = NULL;
     }
     
     /* install */
@@ -501,8 +503,8 @@ static void vmlog(int flags, const char *fmt, va_list ap) {
 
     mlog_lock();      /* lock out other threads */
 
-    if (mlog_xst.mlog_facs[fac].fac_name) {
-        facstr = mlog_xst.mlog_facs[fac].fac_name;
+    if (mlog_xst.mlog_facs[fac].fac_aname) {
+        facstr = mlog_xst.mlog_facs[fac].fac_aname;
     } else {
         snprintf(facstore, sizeof(facstore), "%d", fac);
         facstr = facstore;
@@ -690,7 +692,7 @@ int mlog_str2pri(char *pstr) {
     /*
      * handle some quirks
      */
-    if (strcmp(ptmp, "ERR") == 0)   /* has trailing space in the array */
+    if (strcasecmp(ptmp, "ERR") == 0)   /* has trailing space in the array */
         return(MLOG_ERR);
     if (ptmp[0] == 'D') {  /* allow shorthand without the '-' chars */       
         while (strlen(ptmp) < 4)
@@ -701,11 +703,11 @@ int mlog_str2pri(char *pstr) {
      * do non-debug first, then debug
      */
     for (lcv =  1 ; lcv <= 7 ; lcv++) {
-        if (strcmp(ptmp, norm[lcv]) == 0)
+        if (strcasecmp(ptmp, norm[lcv]) == 0)
             return(lcv << MLOG_PRISHIFT);
     }
     for (lcv = 0 ; lcv < 16 ; lcv++) {
-        if (strcmp(ptmp, dbg[lcv]) == 0)
+        if (strcasecmp(ptmp, dbg[lcv]) == 0)
             return(lcv << MLOG_DPRISHIFT);
     }
 
@@ -961,9 +963,11 @@ void mlog_close() {
          * the static default_fac0name....
          */
         for (lcv = 0 ; lcv < mst.fac_alloc ; lcv++) {
-            if (mlog_xst.mlog_facs[lcv].fac_name &&
-                mlog_xst.mlog_facs[lcv].fac_name != default_fac0name)
-                free(mlog_xst.mlog_facs[lcv].fac_name);
+            if (mlog_xst.mlog_facs[lcv].fac_aname &&
+                mlog_xst.mlog_facs[lcv].fac_aname != default_fac0name)
+                free(mlog_xst.mlog_facs[lcv].fac_aname);
+            if (mlog_xst.mlog_facs[lcv].fac_lname)
+                free(mlog_xst.mlog_facs[lcv].fac_lname);
         }
         free(mlog_xst.mlog_facs);
         mlog_xst.mlog_facs = NULL;
@@ -999,10 +1003,10 @@ void mlog_close() {
  * mlog_namefacility: assign a name to a facility
  * return 0 on success, -1 on error (malloc problem).
  */
-int mlog_namefacility(int facility, char *name) {
+int mlog_namefacility(int facility, char *aname, char *lname) {
 
     int rv;
-    char *n;
+    char *n, *nl;
     
     /* not open? */
     if (!mlog_xst.tag)
@@ -1018,16 +1022,26 @@ int mlog_namefacility(int facility, char *name) {
     }
     
     n = 0;
-    if (name) {
-        n = strdup(name);
+    nl = 0;
+    if (aname) {
+        n = strdup(aname);
         if (!n) 
             goto done;
+        if (lname && (nl = strdup(lname)) == NULL) {
+            free(n);
+            goto done;
+        }
     }
 
-    if (mlog_xst.mlog_facs[facility].fac_name) {
-        free(mlog_xst.mlog_facs[facility].fac_name);
+    if (mlog_xst.mlog_facs[facility].fac_aname && 
+        mlog_xst.mlog_facs[facility].fac_aname != default_fac0name) {
+        free(mlog_xst.mlog_facs[facility].fac_aname);
     }
-    mlog_xst.mlog_facs[facility].fac_name = n;
+    if (mlog_xst.mlog_facs[facility].fac_lname) 
+        free(mlog_xst.mlog_facs[facility].fac_lname);
+
+    mlog_xst.mlog_facs[facility].fac_aname = n;
+    mlog_xst.mlog_facs[facility].fac_lname = nl;
 
     rv = 0;    /* now we have success */
     
@@ -1040,7 +1054,7 @@ int mlog_namefacility(int facility, char *name) {
  * mlog_allocfacility: allocate a new facility with the given name.
  * return new facility number on success, -1 on error (malloc problem).
  */
-int mlog_allocfacility(char *name) {
+int mlog_allocfacility(char *aname, char *lname) {
 
     int newfac;
 
@@ -1054,7 +1068,7 @@ int mlog_allocfacility(char *name) {
         newfac = -1;
     mlog_unlock();
 
-    if (newfac == -1 || mlog_namefacility(newfac, name) < 0)
+    if (newfac == -1 || mlog_namefacility(newfac, aname, lname) < 0)
         return(-1);
     return(newfac);
 }
@@ -1175,10 +1189,14 @@ void mlog_setmasks(char *mstr, int mlen0) {
         if (fac) {
             mlog_lock();
             for (facno = 0 ; facno < mlog_xst.fac_cnt ; facno++) {
-                if (mlog_xst.mlog_facs[facno].fac_name == NULL)
-                    continue;
-                if (strlen(mlog_xst.mlog_facs[facno].fac_name) == faclen &&
-                    strncmp(mlog_xst.mlog_facs[facno].fac_name, fac,
+                if (mlog_xst.mlog_facs[facno].fac_aname &&
+                    strlen(mlog_xst.mlog_facs[facno].fac_aname) == faclen &&
+                    strncasecmp(mlog_xst.mlog_facs[facno].fac_aname, fac,
+                            faclen) == 0)
+                    break;
+                if (mlog_xst.mlog_facs[facno].fac_lname &&
+                    strlen(mlog_xst.mlog_facs[facno].fac_lname) == faclen &&
+                    strncasecmp(mlog_xst.mlog_facs[facno].fac_lname, fac,
                             faclen) == 0)
                     break;
             }
@@ -1210,9 +1228,9 @@ void mlog_setmasks(char *mstr, int mlen0) {
  * mlog_getmasks: get current masks levels
  */
 int mlog_getmasks(char *buf, int discard, int len, int unterm) {
-    char *bp, *p;
+    char *bp, *myname, *p;
     int skipcnt, resid, total, facno;
-    char store[16];
+    char store[64];   /* fac unlikely to overflow this */
 
    /* not open? */
     if (!mlog_xst.tag)
@@ -1227,12 +1245,15 @@ int mlog_getmasks(char *buf, int discard, int len, int unterm) {
     for (facno = 0 ; facno < mlog_xst.fac_cnt ; facno++) {
         if (facno)
             mlog_bput(&bp, &skipcnt, &resid, &total, ",");
-        if (mlog_xst.mlog_facs[facno].fac_name == NULL) {
+        if (mlog_xst.mlog_facs[facno].fac_lname != NULL)
+            myname = mlog_xst.mlog_facs[facno].fac_lname;
+        else 
+            myname = mlog_xst.mlog_facs[facno].fac_aname;
+        if (myname == NULL) {
             snprintf(store, sizeof(store), "%d", facno);
             mlog_bput(&bp, &skipcnt, &resid, &total, store);
         } else {
-            mlog_bput(&bp, &skipcnt, &resid, &total,
-                      mlog_xst.mlog_facs[facno].fac_name);
+            mlog_bput(&bp, &skipcnt, &resid, &total, myname);
         }
         mlog_bput(&bp, &skipcnt, &resid, &total, "=");
         p = mlog_pristr(mlog_xst.mlog_facs[facno].fac_mask);
