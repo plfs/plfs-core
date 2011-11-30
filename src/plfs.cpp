@@ -1517,7 +1517,7 @@ set_default_confs(PlfsConf *pconf) {
     pconf->test_metalink = 0;
 
     /* default mlog settings */
-    pconf->mlog_flags = 0;
+    pconf->mlog_flags = MLOG_LOGPID;
     pconf->mlog_defmask = MLOG_WARN;
     pconf->mlog_stderrmask = MLOG_CRIT;
     pconf->mlog_file = NULL;
@@ -1763,7 +1763,7 @@ get_plfs_conf() {
     if (mlog_open((char *)"plfsinit",
                   /* don't count the null at end of mlog_facsarray */
                   sizeof(mlog_facsarray)/sizeof(mlog_facsarray[0]) - 1,
-                  MLOG_WARN, MLOG_WARN, NULL, 0, 0, 0) == 0) {
+                  MLOG_WARN, MLOG_WARN, NULL, 0, MLOG_LOGPID, 0) == 0) {
         setup_mlog_facnamemask(NULL);
     }
     
