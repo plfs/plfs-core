@@ -681,19 +681,21 @@ static void vmlog(int flags, const char *fmt, va_list ap) {
  * does not access mlog global state.
  */
 int mlog_str2pri(char *pstr) {
-    char ptmp[5];
+    char ptmp[8];
     int lcv;
 
     /* make sure we have a valid input */
-    if (strlen(pstr) > 4)
+    if (strlen(pstr) > 5)
         return(-1);
-    strcpy(ptmp, pstr);
+    strcpy(ptmp, pstr);     /* because we may overwrite parts of it */
 
     /*
      * handle some quirks
      */
     if (strcasecmp(ptmp, "ERR") == 0)   /* has trailing space in the array */
         return(MLOG_ERR);
+    if (strcasecmp(ptmp, "DEBUG") == 0) /* 5 char alternative to 'DBUG' */
+        return(MLOG_DBG);
     if (ptmp[0] == 'D') {  /* allow shorthand without the '-' chars */       
         while (strlen(ptmp) < 4)
             strcat(ptmp, "-");
@@ -1110,7 +1112,7 @@ int mlog_setlogmask(int facility, int mask) {
  * facilities (e.g. mlog_setmasks("WARN") sets everything to WARN).
  */
 void mlog_setmasks(char *mstr, int mlen0) {
-    char *m, *current, *fac, *pri, pbuf[5];
+    char *m, *current, *fac, *pri, pbuf[8];
     int mlen, facno, clen, elen, faclen, prilen, prino;
     
     /* not open? */
@@ -1172,7 +1174,7 @@ void mlog_setmasks(char *mstr, int mlen0) {
         /* parse complete! */
 
         /* process priority */
-        if (prilen > 4) {    /* we know it can't be longer than this */
+        if (prilen > 5) {    /* we know it can't be longer than this */
             prino = -1;
         } else {
             memset(pbuf, 0, sizeof(pbuf));
