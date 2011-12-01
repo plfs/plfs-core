@@ -324,7 +324,6 @@ find_all_expansions(const char *logical, vector<string> &containers) {
 int
 plfs_check_dir(string type, string dir,int previous_ret, bool make_dir) {
 	const char * directory = dir.c_str();
-	mode_t mode;
     if(!Util::isDirectory(directory)) {
 	    if (!make_dir) {
 	        cout << "Error: Required " << type << " directory " << dir 
@@ -1425,6 +1424,7 @@ static void setup_mlog(PlfsConf *pconf) {
     int lcv, mac;
     char *ev, *p, **mav, *start;
     char tmpbuf[64];   /* must be larger than any envs in menvs[] */
+    const char *level;
 
     /* read in any config from the environ */
     for (lcv = 0 ; menvs[lcv] != NULL ; lcv++) {
@@ -1459,6 +1459,19 @@ static void setup_mlog(PlfsConf *pconf) {
         }
     }
 
+    /* simplified high-level env var config, part 1 (WHERE) */
+    ev = getenv("PLFS_DEBUG_WHERE");
+    if (ev) {
+        parse_conf_keyval(pconf, NULL, NULL, (char *)"mlog_file", ev);
+        if (pconf->err_msg) {
+            mlog(MLOG_WARN, "PLFS_DEBUG_WHERE error: %s", 
+                 pconf->err_msg->c_str());
+            delete pconf->err_msg;
+            pconf->err_msg = NULL;
+        }
+    }
+    /* end of part 1 of simplified high-level env var config */
+
     /* shutdown early mlog config so we can replace with the real one ... */
     mlog_close();
 
@@ -1476,6 +1489,32 @@ static void setup_mlog(PlfsConf *pconf) {
     }
 
     setup_mlog_facnamemask(pconf->mlog_setmasks);
+
+    /* simplified high-level env var config, part 2 (LEVEL,WHICH) */
+    level = getenv("PLFS_DEBUG_LEVEL");
+    if (level && mlog_str2pri((char *)level) == -1) {
+        mlog(MLOG_WARN, "PLFS_DEBUG_LEVEL error: bad level: %s", level);
+        level = NULL;   /* reset to default */
+    }
+    ev = getenv("PLFS_DEBUG_WHICH");
+    if (ev == NULL) {
+        if (level != NULL) {
+            mlog_setmasks((char *)level, -1);  /* apply to all facs */
+        }
+    } else {
+        while (*ev) {
+            start = ev;
+            while (*ev != 0 && *ev != ',') {
+                ev++;
+            }
+            snprintf(tmpbuf, sizeof(tmpbuf), "%.*s=%s", (int)(ev - start), 
+                     start, (level) ? level : "DBUG");
+            mlog_setmasks(tmpbuf, -1);
+            if (*ev == ',')
+               ev++;
+        }
+    }
+    /* end of part 2 of simplified high-level env var config */
 
     mlog(PLFS_INFO, "mlog init complete");
 #if 0
