@@ -21,6 +21,7 @@
 #include <vector>
 #include <sstream>
 #include <stdlib.h>
+#include <ctype.h>
 
 #include <syslog.h>    /* for mlog init */
 
@@ -1417,8 +1418,30 @@ void setup_mlog_facnamemask(char *masks) {
  * @param pconf the config we are going to use
  */
 static void setup_mlog(PlfsConf *pconf) {
-    int mac, lcv;
-    char **mav, *start;
+    static const char *menvs[] = { "PLFS_MLOG_STDERR", "PLFS_MLOG_UCON",
+    "PLFS_MLOG_SYSLOG", "PLFS_MLOG_DEFMASK", "PLFS_MLOG_STDERRMASK", 
+    "PLFS_MLOG_FILE", "PLFS_MLOG_MSGBUF_SIZE", "PLFS_MLOG_SYSLOGFAC",
+    "PLFS_MLOG_SETMASKS", 0 };
+    int lcv, mac;
+    char *ev, *p, **mav, *start;
+    char tmpbuf[64];   /* must be larger than any envs in menvs[] */
+
+    /* read in any config from the environ */
+    for (lcv = 0 ; menvs[lcv] != NULL ; lcv++) {
+        ev = getenv(menvs[lcv]);
+        if (ev == NULL) continue;
+        strcpy(tmpbuf, menvs[lcv] + sizeof("PLFS_")-1);
+        for (p = tmpbuf ; *p ; p++) {
+            if (isupper(*p)) *p = tolower(*p);
+        }
+        parse_conf_keyval(pconf, NULL, NULL, tmpbuf, ev);
+        if (pconf->err_msg) {
+            mlog(MLOG_WARN, "ignore env var %s: %s", menvs[lcv],
+                 pconf->err_msg->c_str());
+            delete pconf->err_msg;
+            pconf->err_msg = NULL;
+        }
+    }
 
     /* recover command line arg key/value pairs, if any */
     mav = plfs_mlogargs(&mac, NULL);
