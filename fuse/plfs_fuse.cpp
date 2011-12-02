@@ -494,10 +494,7 @@ int Plfs::f_fsync(const char *path, int datasync, struct fuse_file_info *fi) {
 // current write file and adjust those indices also if necessary
 int Plfs::f_ftruncate(const char *path, off_t offset, struct fuse_file_info *fi)
 {
-    struct pfuse_debug_driver *dd;
-    dd = get_dbgdrv(path);
-    if (dd->dbgwrite)
-        return(0);
+    EXIT_IF_DEBUG;
     PLFS_ENTER; GET_OPEN_FILE;
     if(of) plfs_sync(of,fuse_get_context()->pid); // flush any index buffers
     ret = plfs_trunc( of, strPath.c_str(), offset, true );
@@ -507,10 +504,7 @@ int Plfs::f_ftruncate(const char *path, off_t offset, struct fuse_file_info *fi)
 // use removeDirectoryTree to remove all data but not the dir structure
 // return 0 or -errno 
 int Plfs::f_truncate( const char *path, off_t offset ) {
-    struct pfuse_debug_driver *dd;
-    dd = get_dbgdrv(path);
-    if (dd->dbgwrite)
-        return(0);
+    EXIT_IF_DEBUG;
     PLFS_ENTER;
     ret = plfs_trunc( NULL, strPath.c_str(), offset, false );
     PLFS_EXIT;
@@ -526,8 +520,7 @@ int Plfs::getattr_helper( string expanded, const char *path,
     if ( ret == -ENOENT ) {
         if ( (dd = get_dbgdrv(path)) != NULL ) {
             stbuf->st_mode = S_IFREG | 0444;
-            if (dd->dbgwrite)
-                stbuf->st_mode |= 0200;
+            if (dd->dbgwrite) stbuf->st_mode |= 0200;
             stbuf->st_nlink = 1;
             stbuf->st_size = dd->getsize(dd);
             struct timeval  tv;
@@ -1021,6 +1014,7 @@ mode_t Plfs::getMode( string expanded ) {
 int Plfs::f_write(const char *path, const char *buf, size_t size, off_t offset,
 		struct fuse_file_info *fi) 
 {
+    // special case the debug files
     struct pfuse_debug_driver *dd;
     if ((dd = get_dbgdrv(path)) != NULL) {
         if (offset < 0 || offset >= DEBUGMAXOFF || dd->dbgwrite == NULL)
@@ -1094,11 +1088,14 @@ int Plfs::f_statfs(const char *path, struct statvfs *stbuf) {
 int Plfs::f_readn(const char *path, char *buf, size_t size, off_t offset,
 		struct fuse_file_info *fi) 
 {
+    // special case the debug files
     struct pfuse_debug_driver *dd;
     if ((dd = get_dbgdrv(path)) != NULL) {
-        if (offset < 0 || offset >= DEBUGMAXOFF || dd->dbgread == NULL)
+        if (offset < 0 || offset >= DEBUGMAXOFF || dd->dbgread == NULL) {
             return(0);
-        return(dd->dbgread(buf, size, offset));
+        } else {
+            return(dd->dbgread(buf, size, offset));
+        }
     }
 
     PLFS_ENTER; GET_OPEN_FILE;

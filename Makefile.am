@@ -46,16 +46,13 @@ VERSION.LAYOUT \
 VERSION
 
 EXTRA_DIST = \
-plfs.spec \
 BUGS \
 Changelog \
 easyconf.sh \
 README.install \
 README.testing \
 README.POSIX \
-plfsrc.example \
-plfsrc.example2 \
-plfsrc.example.lanl \
+contrib \
 ad-patches
 
 SUBDIRS = \
