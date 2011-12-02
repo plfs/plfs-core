@@ -11,22 +11,22 @@
 # or more.
 #
 # Just one is easy
-# PLFS_MNT='/tmp/plfs'
+#PLFS_MNT='/tmp/plfs'
 #
 # If there's more than one, just make a space-delimited list.
-# PLFS_MNT='/tmp/plfs1 /tmp/plfs2'
+#PLFS_MNT='/tmp/plfs1 /tmp/plfs2'
 
 #
 # These options are used on all the mount points.
 #
-# If your FUSE version is less than 2.8.5, you have to use the "direct_io" option instead of the
-# "big_writes" option.
+# If your FUSE version is less than 2.8.x, you have to use the "direct_io" option instead of the
+# "big_writes" option in order to get good write performance for large data sets.
 #
-# There are some considerations in using a version less than 2.8.5 with respect to how I/O is marshaled
+# There are some considerations in using a version less than 2.8.x with respect to how I/O is marshaled
 # and sent to disk. The fewer PLFS writes that get done, the better because it limits the size of the
 # index file and transfers data in more efficient sizes between the system and the disks. 
 #
-# FUSE versions less than 2.8.5 only have a "direct_io" mount option. However this option conflicts
+# FUSE versions less than 2.8.x only have a "direct_io" mount option. However this option conflicts
 # with "mmap", which some applications use, many just on cluster front-end nodes. So, on the cluster
 # front-ends (logins) we might choose to exclude "direct_io". However, on the computes we must use the
 # "direct_io" option or else the kernel buffer will split-up every write into 4KB chunks. So, even if
@@ -34,7 +34,7 @@
 # each PLFS write and creating so many writes can cause memory exhaustion problems. Using the "direct_io"
 # option results in writes being done in 128KB chunks. So, that same 1MB write now becomes only 8 writes. 
 #
-# One way to avoid this is to use FUSE 2.8.5 or later. These versions have a mount option called
+# One way to avoid this is to use FUSE 2.8.x or later. These versions have a mount option called
 # "big_writes", which allows fewer actual PLFS writes to be done, reducing the overhead, and at the same
 # time is compatible with mmap. So, now we can have our cake and eat it too - get big writes from the
 # system to disk and allow the applications to use mmap as desired. 
@@ -47,8 +47,11 @@
 # See the README in the root folder of the FUSE distribution.
 #
 #
-# For FUSE releases less than 2.8.5
-# PLFSOPTS='-o direct_io,allow_other'
+# For FUSE releases less than 2.8.x
+#PLFSOPTS='-o direct_io,allow_other'
 #
-# For FUSE releases 2.8.5 or later
+# For FUSE releases less than 2.8.x and where you may be doing things that require mmap
+#PLFSOPTS='-o allow_other'
+#
+# For FUSE releases 2.8.x or later
 #PLFSOPTS='-o big_writes,allow_other'
