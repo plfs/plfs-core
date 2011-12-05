@@ -80,6 +80,7 @@ test_metalink
 This is only for developers to do testing.  It won't be explained here.  If
 you really want to know what it does, please read the code.  Otherwise, do
 not use this directive.
+.RE
 
 Note that the mount_point and backend may be specified multiple times in the same file.
 
