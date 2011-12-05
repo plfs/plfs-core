@@ -1,0 +1,191 @@
+PLFS logging
+
+PLFS uses MLOG for general logging and for debugging traces.  MLOG
+uses a similar interface to syslog (a standard logging system that
+comes with most Unix-like systems).   A major difference between MLOG
+and syslog is that syslog is client/server based while MLOG is a
+library that you compile directly into your program.   The syslog
+system is targeted toward collecting log messages from many different
+applications via IPC and saving them to log files.   MLOG is used to
+log information from different subsystems within the same program.
+
+A MLOG log message consists of the following information:
+ - a timestamp
+ - the hostname
+ - the program name (or tag)
+ - a facility that indicates which program subsystem generated the log
+ - a level that indicates the logging priority of the log message
+ - the text string of the log message
+
+The facility and level are used to filter which messages are logged
+and which messages are discarded (e.g. debug messages are normally
+discarded).   Applications define their own set of facilities, or they
+can just use the default facility (called "MLOG").   
+
+For PLFS we have defined the following facilities, so far:
+ - plfs_misc (PLFS)
+ - internal (INT)
+ - container (CON)
+ - index (IDX)
+ - writefile (WF)
+ - fileops (FOP)
+ - utilities (UT)
+ - store (STO)
+ - FUSE (FUSE)
+ - MPI (MPI)
+
+The MLOG logging levels are hierarchal and a per-facility mask is used
+to determine if the message should be logged or not.  The log levels
+from highest priority to lowest are:
+ - emergency (EMERG)
+ - alert (ALERT)
+ - critical (CRIT)
+ - error (ERR)
+ - warning (WARN)
+ - notice (NOTE)
+ - information (INFO)
+ - debug (DBUG)
+Debug level log messages can optionally be subdivided into 4 channels
+that can be filtered on.
+
+MLOG determines if it should log or discard a log message by using the
+mask associated with the log message's facility.   If the priority of
+the log message is greater than or equal to the facility's log mask,
+then the message is logged (otherwise it is discarded).  If the
+facility log mask is at the debug level and the application subdivides
+the debug logs into channels, then the channel mask is also checked.
+
+If MLOG determines that the message should be logged, it can save the
+message to one or more of the following outputs:
+ - to an in-memory message buffer (a circular buffer)
+ - to a log file
+ - to a UDP socket
+ - to stderr
+ - to a syslog daemon
+The exact set of outputs depends on how mlog has been configured at
+program startup time.
+
+In PLFS, MLOG reads its configuration from the following sources, in
+this order:
+ 1. from plfsrc
+ 2. from environment variables
+ 3. from command line flags (if supported, mainly used with FUSE)
+ 4. from PLFS_DEBUG environment variables
+The order determines which settings take priority (e.g. a command line
+setting will override a setting in plfsrc).
+
+The first three configuration sources use the same set of key-value
+pairs to configure MLOG.  This matches the style of configuration used
+in plfsrc.   The following mlog related key-value are supported:
+
+key                  values (default)    meaning
+-------------------  ------------------  --------------------------------------
+mlog_stderr          0 or 1 (0)          write logs to stderr
+                                         omits timestamp if stderr is
+                                         a tty
+mlog_ucon            0 or 1 (0)          write logs to UDP socket.
+                                         set env var MLOG_UCON to
+                                         target host and port.  format
+                                         is: host1:port1;host2:port2;...
+mlog_syslog          0 or 1 (0)          write logs to syslog.
+mlog_syslogfac       LOCALn (USER)       syslog facility to use, if
+                                         mlog_syslog is enabled.  must
+                                         be one of the LOCAL
+                                         facilities (e.g. LOCAL0, LOCAL1,...)
+mlog_defmask         <level> (WARN)      default log mask
+mlog_stderr          <level> (CRIT)      logs at this priority or
+                                         higher go to stderr even if
+                                         mlog_stderr is set to 0.
+mlog_file            <file> (NULL)       write logs to this logfile
+mlog_msgbuf_size     <uint> (4096)       message buffer size in bytes
+mlog_setmasks        <masks> (defmask)   per-facility log masks
+
+
+The keys shown are how they should appear in a plfsrc file.  For
+command line flags, simply add "--" to the key.   For environment
+variables, add "PLFS_" to the key and convert to uppercase.  For
+example, to set the default masks to INFO in a plfsrc the line should
+be:
+
+mlog_defmask INFO
+
+To do the same using the command line, use: "--mlog_defmask INFO"
+To do the same using environment variables, set PLFS_MLOG_DEFMASK to "INFO"
+
+For mlog_setmasks, the masks are specified as a comma separated list
+of FACILITY=LEVEL settings.   If the facility is omitted, then the
+LEVEL is applied to all facilities.   For example, to set all
+facility's to the INFO level and then set FUSE and MPI to DEBUG use a
+setmasks string of: "INFO,FUSE=DEBUG,MPI=DEBUG"
+
+
+The PLFS_DEBUG_* environment variables provider a higher-level
+interface for configuring MLOG.   There are 3 variables used:
+
+   PLFS_DEBUG_WHERE  -- this is just an alias for "mlog_file"
+                        could be /tmp/plfs.log, /dev/stderr, etc.
+
+   PLFS_DEBUG_LEVEL  -- the debugging level we want to use.  this is
+                        simply a mlog priority level string with a 
+                        default value of "debug"
+
+   PLFS_DEBUG_WHICH  -- which subsystems (mlog facilities) you want to 
+                        apply debug logs to, comma separated.   this could
+                        be something like "container" or "container,index"
+
+in LEVEL/WHICH there are 4 cases:
+  LEVEL=undefined, WHICH=undefined -- don't do anything.
+  LEVEL=undefined, WHICH=defined   -- set the list in 'WHICH' to debug log lvl
+  LEVEL=defined,   WHICH=undefined -- set all subsystems log level to LEVEL
+  LEVEL=defined,   WHICH=defined   -- set the list in 'WHICH' to LEVEL
+
+
+For FUSE-based PLFS applications, MLOG and other debugging information
+can also be accessed and configured at run time through special .plfs
+files in the root directory of the mount.  The supported files are:
+
+ /.plfsdebug    - read-only text file with compile version and stats
+ /.plfslog      - read-only text file with some non-mlog log info
+ /.plfsmsgbuf   - read-only copy of the mlog message buffer (if enabled)
+ /.plfsmlogmask - read-write version of mlog_setmasks
+
+The .plfsmlogmask file can be used to dynamically change the logging
+mask at run time.   For example:
+
+echo "INFO,FUSE=DEBUG,MPI=DEBUG" > /mnt/plfs/.plfsmlogmask
+cat /mnt/plfs/.plfsmlogmask
+
+will reset the log levels, and then print the current levels.  
+
+MLOG has two compile-time options that are set at 'configure' time.
+They are:
+     --disable-mlog: compiles out mlog, to totally avoid logging overhead
+     --disable-mlog-macro-opts: switches off mlog C preprocessor
+                                macro optimizations (in case the
+                                compiler is old and does not support
+                                varargs cpp macros).
+
+Normally mlog() is a varargs pre-processor macro.  This allows the
+compiler to generate code that checks the mask without having to
+compute the args to mlog() or call a function.  You cannot do this
+with an inline function, because GCC will not inline functions with a
+variable number of arguments (in that case, GCC silently discards the
+'inline' directive).
+
+MLOG source code is located here:
+   src/mlog.c src/mlog.h - core function
+   src/makefacs.pl - helper script to make customized log level macros
+   src/mlogfacs.h - output of makefacs.pl
+
+
+In addition to these files, MLOG also includes two stand alone helper
+programs located in tools:
+
+   tools/dcon.c - UDP-based debugging console program that receives
+                  and prints log messages generated by the mlog_ucon
+                  setting.
+
+   tools/findmesgbuf.c - searches a file for a mlog message buffer and
+                         prints it.  This "dmesg"-like program is
+                         mostly useful for applying to core files to
+                         recover the message buffer.
