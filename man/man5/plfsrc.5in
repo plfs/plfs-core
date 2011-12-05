@@ -15,7 +15,7 @@ The possible keywords and their meanings are as follows:
 .B
 include
 .RS
-This allows multiple plfsrc files to be parsed.  This is useful if you want to define global values and then put individual mount points in individual plfsrc files.  You might do so if some mount points are shared on diffent clusters (e.g. at LANL we have compute nodes and file transfer nodes and we want different global values for things like threadpool_size but we want to ensure that their mount points are the same so we have individual plfsrc files for each but then include the same plfsrc files that define shared mount points.
+This allows multiple plfsrc files to be parsed.  This is useful if you want to define global values and then put individual mount points in individual plfsrc files.  You might do so if some mount points are shared on different clusters (e.g. at LANL we have compute nodes and file transfer nodes and we want different global values for things like threadpool_size but we want to ensure that their mount points are the same so we have individual plfsrc files for each but then include the same plfsrc files that define shared mount points.
 .RE
 
 .B
@@ -46,7 +46,7 @@ The path which users use to access PLFS files.  Users should NEVER see the backe
 .B
 backends
 .RS
-The location where you want the physcial containers to reside.  You can have a comma-separated list which will distribute PLFS workload across multiple backend directories.  LANL uses this feature to spread files across multiple volumes and thereby balance load across different metadata servers.  Note this option must appear after the mount_point keyword. Required.
+The location where you want the physical containers to reside.  You can have a comma-separated list which will distribute PLFS workload across multiple backend directories.  LANL uses this feature to spread files across multiple volumes and thereby balance load across different metadata servers.  Note this option must appear after the mount_point keyword. Required.
 .RE
 
 .B
@@ -80,6 +80,80 @@ test_metalink
 This is only for developers to do testing.  It won't be explained here.  If
 you really want to know what it does, please read the code.  Otherwise, do
 not use this directive.
+.RE
+
+.B
+mlog_defmask
+.RS
+The default logging level.  This is used to control how much logging
+is enabled.   Possible values: EMERG, ALERT, CRIT, ERR, WARN, NOTE, INFO
+and DEBUG.  The default is WARN.
+.RE
+
+.B
+mlog_setmasks
+.RS
+Resets the logging level for a subsystem (overwriting the default value).   
+Currently defined subsystems are: plfs_misc, internal, container, index, 
+writefile, fileops, utilities, store, FUSE, and MPI.  If the subsystem is 
+omitted, then it sets the log mask for all subsystems.  For example, 
+"INFO,index=DEBUG,container=DEBUG" sets the mask for all subsystems to
+INFO, and then sets index and container to DEBUG.
+.RE
+
+.B
+mlog_stderrmask
+.RS
+Level at which log messages are printed to stderr.   Useful if set to
+a higher priority than the normal mask.   This allows users to only
+have a subset of higher priority log messages printed to stderr.   The
+default value is CRIT.
+.RE
+
+.B
+mlog_stderr
+.RS
+If set to 1, causes all logged messages to be printed to stderr, 
+irrespective of the value of mlog_stderrmask (e.g. for debugging).
+The default value is 0.
+.RE
+
+.B
+mlog_file
+.RS
+If set, then this contains the name of the PLFS log file.   If not
+set (the default), then logs are not saved to a file.
+.RE
+
+.B
+mlog_msgbuf_size
+.RS
+The size, in bytes of the in-memory log message buffer.  This is a
+circular buffer containing the most recent logs.  The default value
+is 4096.
+.RE
+
+.B
+mlog_syslog
+.RS
+If set to 1, causes all logged messages to be sent the system's
+syslog program with syslog(3).   The default is 0.
+.RE
+
+.B
+mlog_syslogfac
+.RS
+If mlog_syslog is 1, then this contains the facility level used to
+open syslog with openlog(3).   It must be of the format LOCALn
+where "n" is between 0 and 7.   The default is to use the USER 
+facility.
+.RE
+
+.B
+mlog_ucon
+.RS
+A low-level debugging option that enables log messages to be sent
+to a UDP socket (if set to 1).  The default is 0.
 .RE
 
 Note that the mount_point and backend may be specified multiple times in the same file.
