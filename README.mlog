@@ -93,7 +93,7 @@ mlog_syslogfac       LOCALn (USER)       syslog facility to use, if
                                          be one of the LOCAL
                                          facilities (e.g. LOCAL0, LOCAL1,...)
 mlog_defmask         <level> (WARN)      default log mask
-mlog_stderr          <level> (CRIT)      logs at this priority or
+mlog_stderrmask      <level> (CRIT)      logs at this priority or
                                          higher go to stderr even if
                                          mlog_stderr is set to 0.
 mlog_file            <file> (NULL)       write logs to this logfile
