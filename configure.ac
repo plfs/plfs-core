@@ -197,6 +197,8 @@ scripts/Makefile
 tests/Makefile
 tools/Makefile
 man/Makefile
+contrib/Makefile
+ad-patches/Makefile
 ])
 
 AC_OUTPUT

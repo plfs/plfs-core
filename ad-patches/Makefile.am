@@ -39,36 +39,16 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-plfsetcdir = $(sysconfdir)/plfs
-
-dist_plfsetc_DATA = \
-VERSION.LAYOUT \
-VERSION
-
 EXTRA_DIST = \
-BUGS \
-Changelog \
-easyconf.sh \
-README.install \
-README.testing \
-README.POSIX
-
-SUBDIRS = \
-config \
-src \
-fuse \
-ad_plfs \
-scripts \
-tools \
-tests \
-man \
-contrib \
-ad-patches
-
-ACLOCAL_AMFLAGS = -I config
-
-dist-hook:
-	cp -f ad_plfs/Makefile.am.ompi /tmp/ 
-	pushd $(distdir) && \
-	scripts/make_plfs_patch && \
-	popd
+README \
+mpich2/README.BEN \
+mpich2/plfs-mpich2.patch \
+mpich2/plfs-prep-mpich2.patch \
+openmpi/Makefile.ompi-1.4.3 \
+openmpi/README.BEN \
+openmpi/README.BUILD \
+openmpi/ompi-1.4.3-plfs-prep.patch \
+openmpi/optimized-panfs-plfs \
+openmpi/optimized-panfs-plfs.conf \
+romio13/plfs-prep-romio-1.3.0p1.patch \
+romio13/plfs-romio-1.3.0p1.patch
