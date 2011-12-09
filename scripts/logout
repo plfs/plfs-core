@@ -1,0 +1,19 @@
+#! /bin/tcsh
+
+# This is a logout script that you can link/cp into $HOME/.logout
+# This is for ppl doing testing of user space plfs mounts.
+# At LANL, when you get an allocation and you mount plfs daemons
+# and then you give up the allocation, the mounts get orphaned
+# but the daemons are killed and it leaves a mess that the admins
+# complain about.
+# Putting this into $HOME/.logout will automatically detect these
+# orphans and prompt you about unmounting them before you logout.
+
+foreach mnt_pt ( `mount | awk '/(johnbent)/&&\\!/filer/  {print $3}'`) 
+  echo "Unmount old mount point $mnt_pt [y|n]?"
+  set answer = $<
+  if ( $answer == "y" || $answer == "Y" || $answer == "yes" ) then
+    echo "unmounting $mnt_pt"
+    fusermount -u $mnt_pt
+  endif
+end
