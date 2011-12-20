@@ -88,7 +88,7 @@ int main (int argc, char **argv) {
 		physical = string(full_physical);
 		size_t hostdirPos = physical.rfind("/hostdir.");
 		if (hostdirPos == string::npos) {
-			printf("%s does not appear to be a regular plfs file.\n", physical.c_str());
+			printf("%s does not appear to belong to a regular plfs file.\n", physical.c_str());
 			exit(0);
 		}
 		//Remove everything before the filename
