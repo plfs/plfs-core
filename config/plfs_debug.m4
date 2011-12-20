@@ -1,4 +1,4 @@
-dnl # Copyright (c) 2009-2010, Los Alamos National Security, LLC. All rights
+dnl # Copyright (c) 2009-2011, Los Alamos National Security, LLC. All rights
 dnl # reserved.
 dnl #
 dnl # This software was produced under U.S. Government contract DE-AC52-06NA25396
@@ -49,8 +49,10 @@ AC_DEFUN([AC_PLFS_DEUBG_FLAG_CHECK],
     plfs_debug_cxxflags_save="$CXXFLAGS"
 
     plfs_all_debug_flags="-DPLFS_DEBUG_ON -DFUSE_COLLECT_TIMES -DUTIL_COLLECT_TIMES -DINDEX_CONTAINS_TIMESTAMPS"
-
-    plfs_add_all_debug_flags=0
+    
+    dnl --enable-all-debug-flags is always enabled by default
+    dnl use --disable-all-debug-flags to disable this option
+    plfs_add_all_debug_flags=1
     plfs_add_plfs_debug_flags=0
     plfs_debug_cflags=
     plfs_debug_cxxflags=
@@ -71,15 +73,15 @@ AC_DEFUN([AC_PLFS_DEUBG_FLAG_CHECK],
     AM_CONDITIONAL([PLFS_BUILD_DEV],
                    [test "x$plfs_want_dev_support" = "x1"])
 
-    # do we want to add all debug flags?
+    # all debug flags
     AC_MSG_CHECKING([if want all PLFS developer debug flags enabled])
     AC_ARG_ENABLE(all-debug-flags,
         AC_HELP_STRING([--enable-all-debug-flags],
-                       [enable all PLFS developer debug flags (default: disabled)]))
-    AS_IF([test "$enable_all_debug_flags" = "yes"],
-          [AC_MSG_RESULT([yes])
-           plfs_add_all_debug_flags=1],
-          [AC_MSG_RESULT([no])])
+                       [enable all PLFS developer debug flags (default: enabled)]))
+    AS_IF([test "$enable_all_debug_flags" = "no"],
+          [AC_MSG_RESULT([no])
+           plfs_add_all_debug_flags=0],
+          [AC_MSG_RESULT([yes])])
 
     AS_IF([test "$plfs_add_all_debug_flags" = "1"],
           [plfs_debug_cflags="$plfs_all_debug_flags"])
