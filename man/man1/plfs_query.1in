@@ -3,13 +3,22 @@
 .SH NAME
 plfs_version
 .SH SYNOPSIS
-.B ./plfs_query [file] 
+.B ./plfs_query \-physical <path of PLFS file> [\-l] | \-logical <path of dropping on backend> 
 .B .
 
 .SH DESCRIPTION
 This is intended for developers only.  It returns low level information about
 a plfs file.
 
+Options:
+    -physical:  Returns the location of all physical files, directories and
+                metatdata links which make up the given plfs filepath.
+
+    -logical:   Returns the PLFS file to which a given physical dropping
+                belongs. 
+
+    -l:         Used with -physical this prints the proper suffixes to for 
+                directories and metadata links.
 .SH AUTHORS
 #AUTHORS#
 
