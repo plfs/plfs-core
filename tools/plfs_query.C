@@ -10,7 +10,8 @@ using namespace std;
 #include "plfs_private.h"
 #include "COPYRIGHT.h"
 
-void show_usage(char* app_name) {
+void 
+show_usage(char* app_name) {
     fprintf(stderr, "Usage: %s <filename> [-l] [-which-logical <filename>]" 
             " [-which-logical-query <filename>]\n", app_name);
 }
@@ -23,7 +24,15 @@ print_entries(const vector<string> &entries, const char *type) {
     }
 }
 
-int main (int argc, char **argv) {
+// args:
+// get rid of -force
+// have -physical <path of PLFS file> return all droppings
+// have -logical <path of dropping on backend> return path to toplevel container
+
+
+
+int 
+main (int argc, char **argv) {
     int i;
     bool locate_logical_file = false;
     bool query_logical_file = false;
