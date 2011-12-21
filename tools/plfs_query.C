@@ -35,7 +35,6 @@ int main (int argc, char **argv) {
     string metalink_suffix = "";
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-version") == 0) {
-            // print version that was used to build this
             printf("PLFS library:\n\t%s (SVN %s, Built %s)\n", 
                     plfs_tag(), plfs_version(), plfs_buildtime());
             exit(0);
@@ -81,6 +80,16 @@ int main (int argc, char **argv) {
         exit(0);
     }
 
+    // we run in two modes
+    // 1) find the logical path to a PLFS file from physical path of a dropping
+    // 2) find the physical path of the top-level container from path of logical
+
+    // case 1:
+    // call the case 1 function
+
+    // case 2:
+    // call the case 2 function
+
     /* Start looking for the location of the PLFS file to which the
        given physical file belongs */
     if (locate_logical_file) {
@@ -124,7 +133,8 @@ int main (int argc, char **argv) {
             //beginning of the given physicial file path.
             for(backend_itr = pconf->backends.begin();
                     backend_itr != pconf->backends.end() && !foundBackend;
-                    backend_itr++) {
+                    backend_itr++) 
+            {
                 if(physical.compare(0, backend_itr->size(), *backend_itr) == 0){
                     backend = *backend_itr;
                     foundBackend = true;
@@ -135,16 +145,19 @@ int main (int argc, char **argv) {
                     //the name of the mount point to which it belongs.
                     for ( mount_itr = mounts.begin();
                             mount_itr != mounts.end();
-                            mount_itr++ ) {
+                            mount_itr++ ) 
+                    {
                         PlfsMount * pmount = mount_itr->second;
                         vector<string> pmount_backends = pmount->backends;
                         vector<string>::const_iterator backend_check_itr;
                         //Make sure this backend belongs to this mountpoint
                         for(backend_check_itr = pmount_backends.begin();
                                 backend_check_itr != pmount_backends.end();
-                                backend_check_itr++) {
-                            if (backend.compare(*backend_check_itr) == 0) 
+                                backend_check_itr++) 
+                        {
+                            if (backend.compare(*backend_check_itr) == 0) {
                                 mountPoint = pmount->mnt_pt;
+                            }
                             foundMountPoint = true;
                         }
                     }
@@ -160,12 +173,12 @@ int main (int argc, char **argv) {
             //Use the resulting PLFS file as a target for plfs_query if
             //which-logical-query was chosen
             char * tmp = (char *) calloc(physical.size(), sizeof(char));
-            for (int i = 0; i < physical.size(); i++)
+            for (int i = 0; i < physical.size(); i++) {
                 tmp[i] = physical.c_str()[i];
+            }
             target = tmp;
             printf("Logical file location is: %s\n", target);
-            if(!query_logical_file)
-                exit(0);
+            if(!query_logical_file) exit(0);
         }
     }
 
