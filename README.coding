@@ -24,7 +24,17 @@ int my_function()
 8) good variable names.  Same as function names unless the variable has a 
 very temporary lifetime in which case some abbreviation is OK.
 
-9) Use of brackets.  Always use brackets unless the action is on same line as
+9) length of functions.  Each function should be easy to read.  If a 
+function has a bunch of internal code that's longer than about 10 lines of
+code (just a rule of thumb), then that code should be split out to its
+own function.  The reason for this is that it makes the parent function
+much easier to read.  Give the new function a meaningful name and then
+the parent function is very easy to read.  When someone is interested in
+the new child function, they can also just read it and don't need to read
+the entire parent function.  Another decent rule of thumb is for a function
+not to be longer than 80 lines.
+
+10) Use of brackets.  Always use brackets unless the action is on same line as
 condition.  Bracket can be on the end of the line if the line doesn't wrap.
 If the line wraps, then the bracket must be dropped to the next line. 
 Examples:
