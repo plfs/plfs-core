@@ -24,7 +24,7 @@ print_entries(const vector<string> &entries, const char *type) {
     }
 }
 
-// args:
+// for TJ to change args:
 // get rid of -force
 // have -physical <path of PLFS file> return all droppings
 // have -logical <path of dropping on backend> return path to toplevel container
@@ -93,6 +93,9 @@ main (int argc, char **argv) {
     // 1) find the logical path to a PLFS file from physical path of a dropping
     // 2) find the physical path of the top-level container from path of logical
 
+    // for TJ to pull code for case 1 and case 2 into new functions with names:
+    // logical_from_physical for case 1
+    // physical_from_logical for case 2
     // case 1:
     // call the case 1 function
 
