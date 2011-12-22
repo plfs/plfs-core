@@ -1,13 +1,37 @@
 0) CODING STYLE
 Please read README.coding
 
-1) AUTOGEN
+1) MAILING LIST
+Please join 
+
+2) TRACKING CODE CHANGES
+All developers should pay attention to what others are doing to the code.
+More on this below.  But all developers should either subscribe to the RSS
+feed at:
+http://sourceforge.net/export/rss2_keepsake.php?group_id=261435
+or set something up at sourceforge to email you when code is committed.
+
+
+3) COMMITTING SMALL CODE CHANGES TO TRUNK
+For small changes such as changes to the tools that don't change anything in
+the library or cosmetic stuff or changes to documentation, just go ahead and
+commit to the trunk.  The other developers will see this and can comment if
+they want.
+
+4) COMMITTING LARGE CODE CHANGES TO TRUNK
+All other coding efforts that aren't small code changes must be vetted on the
+mailing list before being committed.  Code in a branch and send the branch
+address to the mailing list.  In the email, describe the motivation for the
+change, and describe the decisions you made about how to implement your 
+changes.  Allow three business days before merging into the trunk.  
+
+4) AUTOGEN
 ./autogen.sh is not your friend.  Very strict requirements.  Makefile.tools
 is your friend.  Do 'make -f Makefile.tools' to install all the necessary
 build tools into ./buildtools/bin.  Then prepend that to your PATH and
 then ./autogen.sh will just work.
 
-2) CONFIGURE
+5) CONFIGURE
 ./easyconf.sh is your friend.  Here are the environment variables I set:
 
 setenv PLFS_WANT_ALL_DEBUG 1
@@ -21,5 +45,5 @@ setenv CXXFLAGS '-Wall -Werror'
 Notice especially the bottom two.  We want warning free code so print out
 all warnings and treat them as errors.
 
-3) Makefiles
+6) Makefiles
 Don't edit Makefiles directly.  Edit the Makefile.am files and then redo autogen and configure
