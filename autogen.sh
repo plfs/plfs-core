@@ -41,8 +41,8 @@ echo_tool_reqs()
 {
 cat << EOF
 
-autogen prerequisites
-*********************
+autogen minimum requirements
+****************************
 m4: $m4_min_version_req
 autoconf: $ac_min_version_req
 automake: $am_min_version_reg
