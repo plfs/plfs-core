@@ -110,6 +110,7 @@ logical_from_physical(char * physical_target) {
 
         printf("Logical file location is: %s\n", logical_file.c_str());
     }
+    return 0;
 }
 
 //Prints the physical files from a given PLFS file
