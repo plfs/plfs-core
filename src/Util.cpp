@@ -61,11 +61,14 @@ using namespace std;
 #else
     #define DEBUG_ENTER /* mlog(UT_DAPI, "Enter %s", __FUNCTION__ );*/
     #define DEBUG_EXIT  LogMessage lm1;                             \
-                        lm1 << "Util::" << setw(13) << __FUNCTION__ \
+                        ostringstream oss;                          \
+                        oss << "Util::" << setw(13) << __FUNCTION__ \
                             << setw(7) << setprecision(0) << ret    \
                             << " " << setprecision(4) << fixed      \
                             << end-begin << endl;                   \
-                        lm1.flush();
+                        lm1 << oss;                                 \
+                        lm1.flush();                                \
+                        mlog(UT_DAPI, "%s", oss.str().c_str());
 
     #define ENTER_MUX   LogMessage lm2;                             \
                         lm2 << "Util::" << setw(13) << __FUNCTION__ \
