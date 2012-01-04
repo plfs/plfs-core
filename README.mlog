@@ -55,6 +55,13 @@ then the message is logged (otherwise it is discarded).  If the
 facility log mask is at the debug level and the application subdivides
 the debug logs into channels, then the channel mask is also checked.
 
+Here is an example of how to add mlog directives to an plfsrc file:
+================================================
+mlog_setmasks INFO,index=DEBUG,utilities=DEBUG
+mlog_file /tmp/pdebug
+mlog_defmask WARN
+================================================
+
 If MLOG determines that the message should be logged, it can save the
 message to one or more of the following outputs:
  - to an in-memory message buffer (a circular buffer)
