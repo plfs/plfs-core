@@ -66,7 +66,7 @@ using namespace std;
                             << setw(7) << setprecision(0) << ret    \
                             << " " << setprecision(4) << fixed      \
                             << end-begin << endl;                   \
-                        lm1 << oss;                                 \
+                        lm1 << oss.str();                           \
                         lm1.flush();                                \
                         mlog(UT_DAPI, "%s", oss.str().c_str());
 
