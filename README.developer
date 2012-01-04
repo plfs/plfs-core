@@ -11,7 +11,6 @@ feed at:
 http://sourceforge.net/export/rss2_keepsake.php?group_id=261435
 or set something up at sourceforge to email you when code is committed.
 
-
 3) COMMITTING SMALL CODE CHANGES TO TRUNK
 For small changes such as changes to the tools that don't change anything in
 the library or cosmetic stuff or changes to documentation, just go ahead and
@@ -45,5 +44,8 @@ setenv CXXFLAGS '-Wall -Werror'
 Notice especially the bottom two.  We want warning free code so print out
 all warnings and treat them as errors.
 
-6) Makefiles
+6) MAKEFILES
 Don't edit Makefiles directly.  Edit the Makefile.am files and then redo autogen and configure
+
+7) DEBUGGING WITH MLOG
+Please read README.mlog
