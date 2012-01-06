@@ -17,8 +17,7 @@ using namespace std;
 
 void 
 show_usage(char* app_name) {
-    fprintf(stderr, "Usage: %s -physical <path of PLFS file> [-l] |"
-            " -logical <path of dropping on backend>\n", app_name);
+    fprintf(stderr, "Usage: %s <file> [-l]\n", app_name);
 }
 
 void
