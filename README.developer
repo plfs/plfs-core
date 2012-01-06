@@ -28,7 +28,10 @@ changes.  Allow three business days before merging into the trunk.
 ./autogen.sh is not your friend.  Very strict requirements.  Makefile.tools
 is your friend.  Do 'make -f Makefile.tools' to install all the necessary
 build tools into ./buildtools/bin.  Then prepend that to your PATH and
-then ./autogen.sh will just work.
+then ./autogen.sh will just work.  Except sometimes recently Makefile.tools
+doesn't work always.  Very annoying.  In this case, just find one machine
+where you have all the right versions and then use sshfs from that machine
+to the target machine to do the autogen
 
 5) CONFIGURE
 ./easyconf.sh is your friend.  Here are the environment variables I set:
