@@ -27,14 +27,13 @@ print_entries(const vector<string> &entries, const char *type) {
 //Print the PLFS file from a given backend dropping
 int
 logical_from_physical(char * physical_target) {
-    char * buf;
     char * c_physical;
     string full_physical;
     string logical_file;
 
     //We'll need the full path to find the PLFS file
     if ( (c_physical = 
-            realpath(physical_target, buf)) == NULL)
+            realpath(physical_target, NULL)) == NULL)
     {
         printf("Cannot resolve filename %s\n", physical_target);
         return (1);
