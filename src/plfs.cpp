@@ -236,14 +236,14 @@ expandPath(string logical, ExpansionInfo *exp_info,
             fullpath[0] = '\0';
             realpath(logical.c_str(),fullpath);
             if (strlen(fullpath)) {
-                fprintf(stderr,
+                mlog (INT_WARN,
                     "WARNING: Couldn't find PLFS file %s.  Retrying with %s\n",
                     logical.c_str(),fullpath);
                 return(expandPath(fullpath,exp_info,hash_method,
                                     which_backend,depth+1));
             } // else fall through to error below
         }
-        fprintf(stderr,"WARNING: %s is not on a PLFS mount.\n",logical.c_str());
+        mlog (INT_WARN,"WARNING: %s is not on a PLFS mount.\n",logical.c_str());
         exp_info->expand_error = true;
         exp_info->Errno = -EPROTOTYPE;
         // we used to return a bogus string as an error indication
@@ -2229,7 +2229,7 @@ plfs_locate(const char *logical, void *files_ptr,
     // do plfs_locate on a plfs directory
     } else if (S_ISDIR(mode)) { 
         if (!dirs_ptr) {
-            fprintf(stderr,"Asked to %s on %s which is a directory but not "
+            mlog(INT_ERR, "Asked to %s on %s which is a directory but not "
                     "given a vector<string> to store directory paths into...\n",
                     __FUNCTION__,logical);
             ret = -EINVAL;
@@ -2241,7 +2241,7 @@ plfs_locate(const char *logical, void *files_ptr,
     // do plfs_locate on a symlink
     } else if (S_ISLNK(mode)) {
         if (!metalinks_ptr) {
-            fprintf(stderr,"Asked to %s on %s which is a symlink but not "
+            mlog(INT_ERR, "Asked to %s on %s which is a symlink but not "
                     "given a vector<string> to store link paths into...\n",
                     __FUNCTION__,logical);
             ret = -EINVAL;

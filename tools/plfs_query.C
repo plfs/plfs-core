@@ -14,10 +14,12 @@ using namespace std;
 #include "plfs.h"
 #include "plfs_private.h"
 #include "COPYRIGHT.h"
+#include "plfs_tool_common.hpp"
 
 void 
 show_usage(char* app_name) {
-    fprintf(stderr, "Usage: %s <file> [-l]\n", app_name);
+    fprintf(stderr, "Usage: %s -physical <path of PLFS file> [-l] |"
+            " -logical <path of dropping on backend>\n", app_name);
 }
 
 void
@@ -119,11 +121,8 @@ main (int argc, char **argv) {
     string metalink_suffix = "";
 
     for (i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-version") == 0) {
-            printf("PLFS library:\n\t%s (SVN %s, Built %s)\n", 
-                    plfs_tag(), plfs_version(), plfs_buildtime());
-            exit(0);
-        } else if (strcmp(argv[i], "-l") == 0) {
+        plfs_handle_version_arg(argv[i]);
+        if (strcmp(argv[i], "-l") == 0) {
                 dir_suffix = "/";
                 metalink_suffix = "@";
         } else if (!found_target) {
@@ -146,24 +145,12 @@ main (int argc, char **argv) {
     vector<string> metalinks;
     int oldStrm;
     int redirectStrm;
-
-    //Temporarily redirect stderr to avoid messages from plfs_locate
-    fflush(stderr);
-    oldStrm = dup(2);
-    redirectStrm = ::open("/dev/null", O_WRONLY);
-    ::dup2(redirectStrm, 2);
-
     //Use the plfs_locate fucntion to determine if this is a
     //plfs file.
     int ret = plfs_locate(target,
             (void*)&files,
             (void*)&dirs,
             (void*)&metalinks);
-    
-    //Restore stderr
-    fflush(stderr);
-    ::dup2(oldStrm, 2);
-    ::close(oldStrm);
     if ( ret != 0 ) {
         //Not a plfs file, attempt to treat it like a physical file
         std::string logical_file;
