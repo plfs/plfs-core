@@ -14,7 +14,7 @@ int main (int argc, char **argv) {
     char *target;
     bool found_target = false;
     for (i = 1; i < argc; i++) {
-        plfs_handle_version_arg(argv[i]);
+        plfs_handle_version_arg(argc, argv[i]);
         if (strcmp(argv[i], "-nc") == 0) {
             compress = false;
         } else if (!found_target) {

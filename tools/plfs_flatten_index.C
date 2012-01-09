@@ -8,9 +8,7 @@
 
 int main (int argc, char **argv) {
     const char *target  = argv[1];
-    if (target != NULL) {
-        plfs_handle_version_arg(argv[1]);
-    }
+    plfs_handle_version_arg(argc, argv[1]);
     int ret = plfs_flatten_index(NULL,target);
     if ( ret != 0 ) {
         fprintf( stderr, "Couldn't read index from %s: %s\n", 

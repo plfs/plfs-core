@@ -8,9 +8,7 @@
 
 int main (int argc, char **argv) {
     const char *target  = argv[1];
-    if (argc > 1) {
-        plfs_handle_version_arg(argv[1]);
-    }
+    plfs_handle_version_arg(argc, argv[1]);
     if ( ! target ) {
         fprintf(stderr, "Usage: %s [filename | -version]\n", argv[0]);
         exit(-1);

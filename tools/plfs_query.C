@@ -18,8 +18,7 @@ using namespace std;
 
 void 
 show_usage(char* app_name) {
-    fprintf(stderr, "Usage: %s -physical <path of PLFS file> [-l] |"
-            " -logical <path of dropping on backend>\n", app_name);
+    fprintf(stderr, "Usage: %s <file> [-l]\n", app_name);
 }
 
 void
@@ -121,7 +120,7 @@ main (int argc, char **argv) {
     string metalink_suffix = "";
 
     for (i = 1; i < argc; i++) {
-        plfs_handle_version_arg(argv[i]);
+        plfs_handle_version_arg(argc, argv[i]);
         if (strcmp(argv[i], "-l") == 0) {
                 dir_suffix = "/";
                 metalink_suffix = "@";

@@ -13,20 +13,21 @@
  */
 
 // Takes care of the -version arguments
-void plfs_handle_version_arg(char * arg) {
-    std::string arg_str(arg);
-
-    if (arg_str.compare("-version") == 0) {
-        std::cout << "PLFS library:\n\t"
-            << plfs_tag()
-            << "(SVN"
-            << plfs_version()
-            <<", Built"
-            << plfs_buildtime()
-            << ")"
-            << std::endl;
-        exit(0);
-    } 
+void plfs_handle_version_arg(int argc, char * arg) {
+    if (argc > 1) {
+        std::string arg_str(arg);
+        if (arg_str.compare("-version") == 0) {
+            std::cout << "PLFS library:\n\t"
+                << plfs_tag()
+                << "(SVN"
+                << plfs_version()
+                <<", Built"
+                << plfs_buildtime()
+                << ")"
+                << std::endl;
+            exit(0);
+        } 
+    }
 }
 
 #endif

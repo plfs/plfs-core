@@ -9,12 +9,10 @@
 int main (int argc, char **argv) {
     bool make_dir = false;
 
-    if (argc > 1) {
-        for (int i = 1; i < argc; i++) {
-            plfs_handle_version_arg(argv[i]);
-            if (strcmp(argv[i], "-mkdir") == 0) {
-                make_dir = true;
-            }
+    for (int i = 1; i < argc; i++) {
+        plfs_handle_version_arg(argc, argv[i]);
+        if (strcmp(argv[i], "-mkdir") == 0) {
+            make_dir = true;
         }
     }
     int ret = plfs_dump_config(true, make_dir);
