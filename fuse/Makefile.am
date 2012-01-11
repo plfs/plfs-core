@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2010, Los Alamos National Security, LLC. All rights
+# Copyright (c) 2009-2012, Los Alamos National Security, LLC. All rights
 # reserved.
 #
 # This software was produced under U.S. Government contract DE-AC52-06NA25396
@@ -58,10 +58,10 @@ headers = \
 fusexx.h \
 plfs_fuse.h
 
-bin_PROGRAMS =
+sbin_PROGRAMS =
 
 if PLFS_BUILD_FUSE
-bin_PROGRAMS += plfs
+sbin_PROGRAMS += plfs
 
 plfs_SOURCES = \
 $(headers) \
