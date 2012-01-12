@@ -131,6 +131,8 @@ int plfs_mode( const char *path, mode_t *mode );
 int plfs_mkdir( const char *path, mode_t );
 
 /* plfs_open
+   To open a file for the first time, pass NULL for the Plfs_fd **
+   To re-open an existing file, you can pass back in the Plfs_fd
 */
 int plfs_open( Plfs_fd **, const char *path, 
         int flags, pid_t pid, mode_t , Plfs_open_opt *open_opt);
