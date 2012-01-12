@@ -1,0 +1,10 @@
+Building the LANL PLFS RPMs is fairly easy.  Use the spec and source 
+files for the version you want to create. You will also need to have
+the sys_typ.sh script in your path or in the directory from where 
+you issue the rpmbuild command.
+
+From wherever you build, just do the following:
+
+$ rpmbuild -bb ./SPECS/plfs-2.1-lanl.spec
+
+That will create the plfs and plfs-lib RPMs in the ./RPMS/ subdir.
