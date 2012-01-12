@@ -17,7 +17,7 @@ for more informtion.
 .TP 1i
 Plfs_fd
 The address to a file handle pointer.  On the first call to this function,
-this should be NULL.  On success, the address points
+this should be set to NULL.  On success, the address points
 to an instantiated file handle.  Note that the user should not themselves
 free this handle; rather it is freed by calling plfs_close().   Multiple
 threads can open on the same path and share a file handle; however this
