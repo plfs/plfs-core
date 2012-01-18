@@ -88,10 +88,12 @@ using namespace std;
                         DEBUG_ENTER;        \
                         begin = getTime(); 
 
-    #define ENTER_UTIL  int ret = 0;       \
+    #define ENTER_UTIL  const char *path = NULL; \
+                        int ret = 0;       \
                         ENTER_SHARED;
 
-    #define ENTER_IO    ssize_t ret = 0;    \
+    #define ENTER_IO    const char *path = NULL; \
+                        ssize_t ret = 0;    \
                         ENTER_SHARED;
 
     #define EXIT_SHARED DEBUG_EXIT;                                 \
