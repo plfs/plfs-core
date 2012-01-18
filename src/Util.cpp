@@ -62,8 +62,9 @@ using namespace std;
     #define DEBUG_ENTER /* mlog(UT_DAPI, "Enter %s", __FUNCTION__ );*/
     #define DEBUG_EXIT  LogMessage lm1;                             \
                         ostringstream oss;                          \
-                        oss << "Util::" << setw(13) << __FUNCTION__ \
-                            << setw(7) << setprecision(0) << ret    \
+                        oss << "Util::" << setw(13) << __FUNCTION__; \
+                        if (path) oss << " on " << path << " ";     \
+                        oss << setw(7) << setprecision(0) << ret    \
                             << " " << setprecision(4) << fixed      \
                             << end-begin << endl;                   \
                         lm1 << oss.str();                           \
