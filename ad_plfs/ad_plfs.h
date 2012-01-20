@@ -54,6 +54,8 @@ void ADIOI_PLFS_Delete(char *filename, int *error_code);
 void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code);
 void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code);
 
+int plfs_protect_all(const char *file, MPI_Comm comm);
+
 int ad_plfs_amode( int access_mode );
 void malloc_check(void *test_me,int rank);
 void check_stream(int size,int rank);

@@ -54,6 +54,7 @@ class Util {
             // all the system calls
         static int Access( const char *, int );
         static int Chown( const char*, uid_t, gid_t );
+        static int Lchown( const char*, uid_t, gid_t );
         static int Chmod( const char*, int );
         static int Close( int ); 
         static int Closedir( DIR * );
@@ -80,14 +81,17 @@ class Util {
         static int Readdir(DIR *, dirent **);
         static ssize_t Readlink(const char*, char *buf, size_t bufsize);
         static int Rename( const char*, const char * );
+        static int CopyFile( const char*, const char * );
         static int Rmdir( const char* );
         static int Setfsgid( gid_t );
         static int Setfsuid( uid_t );
         static int Stat( const char *path, struct stat *file_info);
+	static int Fstat( int fd, struct stat *file_info);
         static int Statvfs( const char *, struct statvfs* );
         static char *Strdup(const char *s1);
         static int Symlink( const char *, const char * );
         static int Truncate( const char *, off_t length );
+	static int Ftruncate( int fd, off_t length );
         static int Unlink( const char * );
         static int Utime( const char *, const struct utimbuf * );
         static ssize_t Write( int, const void *, size_t );

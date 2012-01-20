@@ -5,7 +5,7 @@
 plfsrc \- the configuration file for PLFS (Parallel Log Structured File System)
 
 .SH DESCRIPTION
-This configuration file defines the mapping between logical and physical paths on the parallel filesystem.  It also has some configuration options that PLFS will use to try and optimize performance.  This file is never written by PLFS, it is only read and it is the duty of the systems administrator or user to properly create and maintain this file.  Please note that this configuration file is very important; changing it can potentially disrupt the ability to read existing files.  If a plfsrc file must be changed, it is recommended to create a new mount point and copy files over.
+This configuration file defines the mapping between logical and physical paths on the parallel filesystem.  It also has some configuration options that PLFS will use to try and optimize performance.  This file is never written by PLFS, it is only read and it is the duty of the systems administrator or user to properly create and maintain this file.  Please note that this configuration file is very important; changing it can potentially disrupt the ability to read existing files.  If a plfsrc file must be changed, it is recommended to create a new mount point and copy files over.  Additionally, please use the 'plfs_check_config' tool included in the installation after every edit to the plfsrc file.  PLFS searches for this file in $ENV{'PLFSRC'}, $HOME/.plfsrc, /etc/plfsrc in that order. 
 
 .SH FILE FORMAT
 The file consists of one keyword argument pair per line.  Configuration options must be separated by whitespace, ie "keyword argument".  Any line with starting with a # is not interpreted.  
@@ -38,6 +38,12 @@ hint of "plfs_flatten_close."  When setting this value, bear in mind that every 
 .RE
 
 .B
+lazy_stat
+.RS
+The lazy_stat flag, when it is set as 0 plfs will do slow stat(getattr). Default is 1.
+.RE
+
+.B
 mount_point
 .RS
 The path which users use to access PLFS files.  Users should NEVER see the backends.  Note this option must appear in the file before the backends keyword. Required.
@@ -46,7 +52,52 @@ The path which users use to access PLFS files.  Users should NEVER see the backe
 .B
 backends
 .RS
-The location where you want the physical containers to reside.  You can have a comma-separated list which will distribute PLFS workload across multiple backend directories.  LANL uses this feature to spread files across multiple volumes and thereby balance load across different metadata servers.  Note this option must appear after the mount_point keyword. Required.
+The location where you want the physical containers to reside for each mount_point.  You can have a comma-separated list which will distribute PLFS workload across multiple backend directories.  LANL uses this feature to spread files across multiple volumes and thereby balance load across different metadata servers.  Note this option must appear after the mount_point keyword. Required.
+.RE
+
+.B
+workload
+.RS
+This tells PLFS whether a specific mount_point is intended for either shared
+file workloads (i.e. N-1) or file-per-proc workloads (i.e. N-N).  Possible
+values are either "shared_file" or "file_per_proc".  "n-1" can also be used in
+place of "shared_file" and "n-n" can also be used in
+place of "file_per_proc.  shared_file is intended
+for workloads where multiple writers write concurrently to a single file.  
+Other workloads should use "file_per_proc" which should make a large metadata
+improvement for most metadata workloads so long as multiple backends are defined for the mount point.  This is especially true if each backend is serviced by
+a different metadata server so that the metadata workload can be balanced
+across multiple servers.
+.RE
+
+.B
+canonical_backends
+.RS
+This is an advanced directive and will not be used in typical installations.  See shadow_backends for a more detailed description.
+.RE
+
+.B
+shadow_backends
+.RS
+This is an advanced directive and will not be used in typical installations.  This, along with canonical_backends, 
+allows the user to specify that some set of backends are where canonical
+containers should be placed and some different set of backends are where
+shadows should be placed.  If these directives are used, then shadow subdirs
+will ALWAYS be created in shadow backends.  This can be used in instances
+where the canonical is desired to be on slow global and the data pieces are
+desired to be on fast local.  In scenarios with lots of different fast local
+mounts, different nodes will have different sets of shadow_backends defined
+so that each node always writes to the fastest possible backend.  For reading,
+this will require however that all locations are visible everywhere.
+.RE
+
+.B
+syncer_ip
+.RS
+This is an advanced directive and will not be used in typical installations.  
+This is used in conjunction with shadow_backends and canonical_backends.  It
+is possible to use an RPC server to asynchronously copy data from shadow_backends
+into canonical_backends by specifying this value and by calling plfs_protect.
 .RE
 
 .B
@@ -80,6 +131,9 @@ test_metalink
 This is only for developers to do testing.  It won't be explained here.  If
 you really want to know what it does, please read the code.  Otherwise, do
 not use this directive.
+
+Note the mount_point and backend may be specified multiple times in the same file.
+Note that some commands are global and some are unique to a specific mount point.  This is to allow different backend declarations for each mount point for example.  Indeed it is an error to share a backend in multiple backends.  
 .RE
 
 .B

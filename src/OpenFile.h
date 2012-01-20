@@ -9,9 +9,9 @@
 #include "Metadata.h"
 using namespace std;
 
-class Plfs_fd : public Metadata {
+class Container_OpenFile : public Metadata {
     public:
-        Plfs_fd( WriteFile *, Index *, pid_t, mode_t, const char * );
+        Container_OpenFile( WriteFile *, Index *, pid_t, mode_t, const char * );
         WriteFile  *getWritefile();
         Index      *getIndex();
         void       setWriteFds( int, int, Index * );
@@ -26,6 +26,9 @@ class Plfs_fd : public Metadata {
         // when we build and destroy an index in RDWR mode, we want to lock it
         int       lockIndex();
         int       unlockIndex();
+        void      setReopen() {reopen = true;};
+        bool      isReopen() {return reopen;};
+
     private:
         WriteFile *writefile;
         Index     *index;
@@ -34,6 +37,7 @@ class Plfs_fd : public Metadata {
         mode_t    mode;
         string    path;
         time_t    ctime;
+        bool      reopen;
 };
 
 #endif

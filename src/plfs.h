@@ -27,6 +27,7 @@ typedef struct{
     char *index_stream; /* Index stream passed in from another proc */
     int  buffer_index;  /* Buffer index yes/no                      */
     plfs_interface pinter;
+    int  reopen;
 } Plfs_open_opt;
 
 typedef struct{
@@ -117,7 +118,12 @@ int plfs_merge_indexes(Plfs_fd **pfd, char *index_streams,
 
 int plfs_link( const char *path, const char *to );
 
-/* the void * should be a string */
+/* the void *'s should be a vector<string> 
+ * the first is required to not be NULL and is filled with all files within
+ * the containers
+ * the second, if not NULL, is filled with all the dirs
+ * the third, if not NULL, is filled with all the metalinks
+ */
 int
 plfs_locate(const char *logical, void *files_ptr, 
         void *dirs_ptr, void *metalinks_ptr);
@@ -138,8 +144,13 @@ int plfs_mkdir( const char *path, mode_t );
 int plfs_open( Plfs_fd **, const char *path, 
         int flags, pid_t pid, mode_t , Plfs_open_opt *open_opt);
 
-/* query a plfs_fd about how many writers and readers are using it */
-int plfs_query( Plfs_fd *, size_t *writers, size_t *readers );
+/* this is to move shadowed files into canonical backends */
+int plfs_protect(const char *path, pid_t pid);
+
+/* query a plfs_fd about how many writers and readers are using it,
+ * and the bytes written by user, the lazy_stat flag.
+ */
+int plfs_query( Plfs_fd *, size_t *writers, size_t *readers, size_t *bytes_written, int *lazy_stat);
 
 ssize_t plfs_read( Plfs_fd *, char *buf, size_t size, off_t offset );
 
@@ -204,7 +215,7 @@ int plfs_parindex_read(int rank, int ranks_per_comm,void *index_files,
         void **index_stream,char *top_level);
 int plfs_parindexread_merge(const char *path,char *index_streams,
     int *index_sizes, int procs, void **index_stream);
-int plfs_expand_path(char *logical,char **physical);
+int plfs_expand_path(const char *logical,char **physical);
 
 #ifdef __cplusplus 
     }

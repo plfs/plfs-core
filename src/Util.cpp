@@ -34,6 +34,7 @@ using namespace std;
 #include "Util.h"
 #include "LogMessage.h"
 #include "mlogfacs.h"
+#include "Container.h"
 
 #ifdef HAVE_SYS_FSUID_H
     #include <sys/fsuid.h>
@@ -260,6 +261,8 @@ Util::traverseDirectoryTree(const char *path, vector<string> &files,
     map<string,unsigned char> entries;
     map<string,unsigned char>::iterator itr;
     ReaddirOp rop(&entries,NULL,true,true);
+    string resolved;
+
     ret = rop.op(path,DT_DIR);
     if (ret==-ENOENT) return 0; // no shadow or canonical on this backend: np.
     if (ret!=0) return ret;     // some other error is a problem
@@ -268,9 +271,13 @@ Util::traverseDirectoryTree(const char *path, vector<string> &files,
 
     for(itr = entries.begin(); itr != entries.end() && ret==0; itr++) {
         if (itr->second == DT_DIR) {
-            ret=traverseDirectoryTree(itr->first.c_str(),files,dirs,links);
+            ret = traverseDirectoryTree(itr->first.c_str(),files,dirs,links);
         } else if (itr->second == DT_LNK) {
             links.push_back(itr->first);
+            ret = Container::resolveMetalink(itr->first, resolved);
+            if (ret == 0) {
+                ret = traverseDirectoryTree(resolved.c_str(),files,dirs,links);
+            }
         } else {
             files.push_back(itr->first);
         }
@@ -389,6 +396,86 @@ int Util::Rename( const char *path, const char *to ) {
     EXIT_UTIL;
 }
         
+// Use most popular used read+write to copy file,
+// as mmap/sendfile/splice may fail on some system.
+int Util::CopyFile( const char *path, const char *to ) {
+    ENTER_PATH;
+    int fd_from, fd_to, buf_size;
+    ssize_t read_len, write_len, copy_len;
+    char *buf = NULL, *ptr;
+    struct stat sbuf;
+    mode_t stored_mode;
+
+    ret = Lstat(path, &sbuf);
+    if (ret) goto out;
+
+    ret = -1;
+    if (S_ISLNK(sbuf.st_mode)) { // copy a symbolic link.
+        buf = (char *)malloc(PATH_MAX);
+        if (!buf) goto out;
+        read_len = Readlink(path, buf, PATH_MAX);
+        if (read_len < 0) goto out;
+        buf[read_len] = 0;
+        ret = Symlink(buf, to);
+        goto out;
+    }
+
+    fd_from = Open(path, O_RDONLY);
+    if (fd_from<0) goto out;
+
+    stored_mode = umask(0);
+    fd_to = Open(to, O_WRONLY | O_CREAT, sbuf.st_mode);
+    umask(stored_mode);
+    if (fd_to<0) {
+        Close(fd_from);
+        goto out;
+    }
+
+    if (!sbuf.st_size) {
+        ret = 0;
+        goto done;
+    }
+
+    buf_size = sbuf.st_blksize;
+    buf = (char*)malloc(buf_size);
+    if (!buf) goto done;
+
+    copy_len = 0;
+    while ((read_len = Read(fd_from, buf, buf_size)) != 0) {
+        if ((read_len==-1)&&(errno!=EINTR))
+            break;
+        else if (read_len>0) {
+            ptr = buf;
+            while ((write_len = Write(fd_to, ptr, read_len)) != 0){
+                if ((write_len==-1)&&(errno!=EINTR))
+                    goto done;
+                else if (write_len==read_len) {
+                    copy_len += write_len;
+                    break;
+                }
+                else if(write_len>0){
+                    ptr += write_len;
+                    read_len -= write_len;
+                    copy_len += write_len;
+                }
+            }
+        }
+    }
+
+    if (copy_len==sbuf.st_size) ret = 0;
+    if (ret)
+        mlog(UT_DCOMMON, "Util::CopyFile, copy from %s to %s, ret: %d, %s",
+                          path, to, ret, strerror(errno));
+
+done:
+    Close(fd_from);
+    Close(fd_to);
+    if (ret) Unlink(to); // revert our change, delete the file created.
+out:
+    if (buf) free(buf);
+    EXIT_UTIL;
+}
+
 ssize_t Util::Readlink(const char*link, char *buf, size_t bufsize) {
     ENTER_IO;
     ret = readlink(link,buf,bufsize);
@@ -511,7 +598,7 @@ bool Util::exists( const char *path ) {
     ENTER_PATH;
     bool exists = false;
     struct stat buf;
-    if (Util::Stat(path, &buf) == 0) {
+    if (Util::Lstat(path, &buf) == 0) {
         exists = true;
     }
     ret = exists;
@@ -536,6 +623,12 @@ bool Util::isDirectory( const char *path ) {
 int Util::Chown( const char *path, uid_t uid, gid_t gid ) {
     ENTER_PATH;
     ret = chown( path, uid, gid );
+    EXIT_UTIL;
+}
+
+int Util::Lchown( const char *path, uid_t uid, gid_t gid ) {
+    ENTER_PATH;
+    ret = lchown( path, uid, gid );
     EXIT_UTIL;
 }
 
@@ -751,5 +844,19 @@ char *Util::hostname() {
 }
 
 int Util::Stat(const char *path, struct stat * file_info) {
-    return stat( path , file_info );
-}  
+    ENTER_PATH;
+    ret = stat( path , file_info );
+    EXIT_UTIL;
+}
+
+int Util::Fstat(int fd, struct stat *file_info) {
+    ENTER_UTIL;
+    ret = fstat(fd, file_info);
+    EXIT_UTIL;
+}
+
+int Util::Ftruncate(int fd, off_t offset) {
+    ENTER_UTIL;
+    ret = ftruncate(fd, offset);
+    EXIT_UTIL;
+}

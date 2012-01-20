@@ -65,6 +65,12 @@ OpenFile.h \
 plfs_private.h \
 ThreadPool.h \
 WriteFile.h \
+container_internals.h \
+ContainerFS.h \
+ContainerFD.h \
+LogicalFS.h \
+LogicalFD.h \
+FlatFile.h \
 $(include_HEADERS) \
 $(dist_pkginclude_HEADERS)
 
@@ -78,7 +84,11 @@ OpenFile.cpp \
 ThreadPool.cpp \
 WriteFile.cpp \
 mlog.c \
-plfs.cpp
+plfs.cpp \
+ContainerFS.cpp \
+ContainerFD.cpp \
+FlatFile.cpp \
+plfs_interface.cpp
 
 libplfs_la_SOURCES = \
 $(headers) \

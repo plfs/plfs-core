@@ -82,6 +82,7 @@ TruncateOp : public FileOp {
         bool open_file;
 };
 
+/*
 class
 RmdirOp : public FileOp {
     public:
@@ -89,6 +90,7 @@ RmdirOp : public FileOp {
         int do_op(const char *, unsigned char);
         const char *name() { return "RmdirOp"; }
 };
+*/
 
 // this class does a read dir
 // you can pass it a pointer to a map in which case it returns the names

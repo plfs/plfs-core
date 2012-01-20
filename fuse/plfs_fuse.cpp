@@ -1,6 +1,5 @@
 #include "plfs.h"
 #include "plfs_private.h"
-#include "OpenFile.h"
 #include "LogMessage.h"
 #include "COPYRIGHT.h"
 
@@ -448,7 +447,8 @@ int Plfs::f_access(const char *path, int mask) {
 int Plfs::f_mknod(const char *path, mode_t mode, dev_t rdev) {
     PLFS_ENTER;
 
-    mlog(FUSE_DAPI, "%s on %s mode %d rdev %d",__FUNCTION__,path,mode,rdev);
+    mlog(FUSE_DAPI, "%s on %s mode %u rdev %lu",__FUNCTION__,path,mode,
+         (unsigned long)rdev);
 
     ret = makePlfsFile( strPath.c_str(), mode, 0 );
     if ( ret == 0 ) {
@@ -757,7 +757,7 @@ int Plfs::f_opendir( const char *path, struct fuse_file_info *fi ) {
     PLFS_ENTER;
     OpenDir *opendir = new OpenDir;
     opendir->last_offset = 0;
-    fi->fh = NULL;
+    fi->fh = (uint64_t)NULL;
     ret = plfs_readdir(strPath.c_str(),(void*)(&(opendir->entries)));
     if (ret==0) fi->fh = (uint64_t)opendir;
     else delete opendir;
@@ -863,8 +863,6 @@ int Plfs::f_open(const char *path, struct fuse_file_info *fi) {
         }
         if ( fi->flags & O_RDWR ) self->o_rdwrs++;
     }
-    //mlog(FUSE_DCOMMON, "%s: %s ref count: %d", __FUNCTION__, 
-    //        strPath.c_str(), plfs_reference_count(pfd));
 
     if ( ret == 0 ) {
         mlog(FUSE_DCOMMON, "%s %s has %d references", __FUNCTION__, path,
@@ -909,8 +907,6 @@ int Plfs::f_release( const char *path, struct fuse_file_info *fi ) {
         SET_GROUPS( openfile->uid );
         plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
         assert( openfile->flags == fi->flags );
-        mlog(FUSE_DAPI, "%s: %s ref count: %lu", __FUNCTION__, 
-            strPath.c_str(), (unsigned long)plfs_reference_count(of));
         int remaining = plfs_close(of, openfile->pid, openfile->uid,
                 fi->flags ,NULL);
         fi->fh = (uint64_t)NULL;
@@ -1102,6 +1098,8 @@ int Plfs::f_readn(const char *path, char *buf, size_t size, off_t offset,
     ostringstream os;
     os << __FUNCTION__ << " reading from " << of;
     mlog(FUSE_DCOMMON, "%s", os.str().c_str() );
+    // calls plfs_sync to flush in-memory index.
+    if (of) plfs_sync( of, fuse_get_context()->pid );
     ret = plfs_read( of, buf, size, offset );
     PLFS_EXIT;
 }
@@ -1116,7 +1114,7 @@ string Plfs::openFilesToString(bool verbose) {
     for(itr = self->open_files.begin(); itr != self->open_files.end(); itr++){
         mlog(FUSE_DCOMMON, "%s openFile %s", __FUNCTION__, itr->first.c_str()); 
         if ( verbose ) {
-            plfs_query( itr->second, &writers, &readers );
+            plfs_query( itr->second, &writers, &readers, NULL, NULL );
             oss << itr->second->getPath() << ", ";
             oss << readers << " readers, "
                 << writers << " writers. " << endl;
@@ -1127,17 +1125,24 @@ string Plfs::openFilesToString(bool verbose) {
     return oss.str();
 }
 
-string Plfs::confToString( PlfsConf *p, PlfsMount *pmnt ) {
+void
+printBackends(const char *type, vector<string> &backends, ostringstream &oss) {
+    oss << type << " Backends: ";
+    for(vector<string>::iterator i = backends.begin();i!=backends.end();i++) {
+        oss << *i << ",";
+    }
+    oss << endl;
+}
+    
+string Plfs::confToString(PlfsConf *p, PlfsMount *pmnt) {
     ostringstream oss;
     oss << "Mount point: "      << pmnt->mnt_pt << endl  
         << "Direct IO: "        << p->direct_io << endl
         << "Executable bit: "   << ! p->direct_io << endl
-        << "Backends: "
         ;
-    vector<string>::iterator itr;
-    for ( itr = pmnt->backends.begin(); itr != pmnt->backends.end(); itr++ ) {
-        oss << *itr << ",";
-    }
+    printBackends("", pmnt->backends, oss);
+    printBackends("Canonical", pmnt->canonical_backends,oss);
+    printBackends("Shadow", pmnt->shadow_backends, oss);
     oss << endl
         << "Backend checksum: " << pmnt->checksum << endl
         << "Threadpool size: " << p->threadpool_size << endl

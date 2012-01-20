@@ -250,6 +250,7 @@ int open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     MPI_Comm hostdir_comm;
     int hostdir_rank, write_mode;
 
+    open_opt.reopen = 0;
     // get a hostdir comm to use to serialize write a bit
     write_mode = (fd->access_mode==ADIO_RDONLY?0:1);
     if (write_mode) {
@@ -340,6 +341,7 @@ int broadcast_index(Plfs_fd **pfd, ADIO_File fd,
     open_opt.pinter = PLFS_MPIIO; 
     open_opt.index_stream=NULL;
     open_opt.buffer_index=0;
+    open_opt.reopen = 0;
     if(rank==0){ 
         err = plfs_open(pfd, fd->filename, amode, rank, perm , &open_opt);
     }

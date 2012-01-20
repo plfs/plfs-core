@@ -20,7 +20,8 @@ using namespace std;
 WriteFile::WriteFile(string path, string hostname, 
         mode_t mode, size_t buffer_mbs ) : Metadata::Metadata() 
 {
-    this->physical_path     = path;
+    this->container_path    = path;
+    this->subdir_path       = path;
     this->hostname          = hostname;
     this->index             = NULL;
     this->mode              = mode;
@@ -33,13 +34,17 @@ WriteFile::WriteFile(string path, string hostname,
     pthread_mutex_init( &index_mux, NULL );
 }
 
-void WriteFile::setPath ( string p ) {
-    this->physical_path    = p;
+void WriteFile::setContainerPath ( string p ) {
+    this->container_path    = p;
     this->has_been_renamed = true;
 }
 
+void WriteFile::setSubdirPath (string p) {
+    this->subdir_path     = p;
+}
+
 WriteFile::~WriteFile() {
-    mlog(WF_DAPI, "Delete self %s", physical_path.c_str() );
+    mlog(WF_DAPI, "Delete self %s", container_path.c_str() );
     Close();
     if ( index ) {
         closeIndex();
@@ -78,7 +83,7 @@ int WriteFile::addWriter( pid_t pid, bool child ) {
     if ( ofd ) {
         ofd->writers++;
     } else {
-        int fd = openDataFile( physical_path, hostname, pid, DROPPING_MODE); 
+        int fd = openDataFile( subdir_path, hostname, pid, DROPPING_MODE);
         if ( fd >= 0 ) {
             struct OpenFd ofd;
             ofd.writers = 1;
@@ -92,7 +97,7 @@ int WriteFile::addWriter( pid_t pid, bool child ) {
     if ( ret == 0 && ! child ) writers = incrementOpens(1);
     max_writers++;
     mlog(WF_DAPI, "%s (%d) on %s now has %d writers", 
-            __FUNCTION__, pid, physical_path.c_str(), writers );
+            __FUNCTION__, pid, container_path.c_str(), writers );
     Util::MutexUnlock( &data_mux, __FUNCTION__ );
     return ( ret == 0 ? writers : ret );
 }
@@ -197,7 +202,7 @@ int WriteFile::removeWriter( pid_t pid ) {
         }
     }
     mlog(WF_DAPI, "%s (%d) on %s now has %d writers: %d", 
-            __FUNCTION__, pid, physical_path.c_str(), writers, ret );
+            __FUNCTION__, pid, container_path.c_str(), writers, ret );
     Util::MutexUnlock( &data_mux, __FUNCTION__ );
     return ( ret == 0 ? writers : ret );
 }
@@ -270,13 +275,13 @@ ssize_t WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid){
 int WriteFile::openIndex( pid_t pid ) {
     int ret = 0;
     string index_path;
-    int fd = openIndexFile(physical_path, hostname, pid, DROPPING_MODE,
+    int fd = openIndexFile(subdir_path, hostname, pid, DROPPING_MODE,
             &index_path);
     if ( fd < 0 ) {
         ret = -errno;
     } else {
         Util::MutexLock(&index_mux , __FUNCTION__);
-        index = new Index(physical_path, fd);
+        index = new Index(container_path, fd);
         Util::MutexUnlock(&index_mux, __FUNCTION__);
         mlog(WF_DAPI, "In open Index path is %s",index_path.c_str());
         index->index_path=index_path;
@@ -357,11 +362,16 @@ int WriteFile::restoreFds( ) {
     map<pid_t, OpenFd >::iterator pids_itr;
     int ret = 0;
 
+    // "has_been_renamed" is set at "addWriter, setPath" executing path.
+    // This assertion will be triggered when user open a file with write mode
+    // and do truncate. Has nothing to do with upper layer rename so I comment 
+    // out this assertion but remain previous comments here.
+
     // if an open WriteFile ever gets truncated after being renamed, that
     // will be really tricky.  Let's hope that never happens, put an assert
     // to guard against it.  I guess it if does happen we just need to do
     // reg ex changes to all the paths
-    assert( ! has_been_renamed );
+    //assert( ! has_been_renamed );
 
     mlog(WF_DAPI, "Entering %s",__FUNCTION__);
     

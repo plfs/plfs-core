@@ -25,7 +25,6 @@ main( int argc, char **argv ) {
     char buf[4096];
     memset( buf, 0, 4096 );
 
-    int arg = 0;
     char *target  = NULL;
     char *newtarg = NULL;
     char *cattarg = NULL;
@@ -45,7 +44,6 @@ main( int argc, char **argv ) {
             Usage( prog, __LINE__ );
         }
     }
-    arg = optind;
 
     if ( ! target ) {
         Usage( prog, __LINE__ );
