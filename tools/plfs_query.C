@@ -142,8 +142,6 @@ main (int argc, char **argv) {
     vector<string> files;
     vector<string> dirs;
     vector<string> metalinks;
-    int oldStrm;
-    int redirectStrm;
     //Use the plfs_locate fucntion to determine if this is a
     //plfs file.
     int ret = plfs_locate(target,
