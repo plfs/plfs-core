@@ -448,7 +448,12 @@ int Plfs::f_access(const char *path, int mask) {
 int Plfs::f_mknod(const char *path, mode_t mode, dev_t rdev) {
     PLFS_ENTER;
 
-    mlog(FUSE_DAPI, "%s on %s mode %d rdev %d",__FUNCTION__,path,mode,rdev);
+    mlog(FUSE_DAPI,
+            "%s on %s mode %d rdev %d",
+            __FUNCTION__,
+            path,
+            mode,
+            (int)rdev);
 
     ret = makePlfsFile( strPath.c_str(), mode, 0 );
     if ( ret == 0 ) {
