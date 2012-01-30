@@ -109,6 +109,8 @@ logical_from_physical(char * physical_target, std::string &file_location) {
 
         return 0;
     }
+
+    return (0);
 }
 
 int 

@@ -243,10 +243,10 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */ ) {
     return ret;
 }
 
-int
-RmdirOp::do_op(const char *path, unsigned char /* isfile */ ) {
-    return Util::Rmdir(path);
-}
+//int
+//RmdirOp::do_op(const char *path, unsigned char /* isfile */ ) {
+//    return Util::Rmdir(path);
+//}
 
 int
 CreateOp::do_op(const char *path, unsigned char isfile ) {

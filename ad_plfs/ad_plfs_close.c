@@ -16,7 +16,7 @@ int flatten_then_close(ADIO_File, Plfs_fd *fd,int rank,int amode,int procs,
             Plfs_close_opt *close_opt,const char *filename,uid_t);
 void check_error(int err,int rank);
 void reduce_meta(ADIO_File, Plfs_fd *fd,const char * filename,
-        Plfs_close_opt *close_opt);
+                 Plfs_close_opt *close_opt, int rank);
 
 
 void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
@@ -32,7 +32,7 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
 
     MPI_Comm_rank( fd->comm, &rank );
     MPI_Comm_size( fd->comm, &procs);
-    close_opt.num_procs = &procs;
+    close_opt.num_procs = procs;
 
     amode = ad_plfs_amode( fd->access_mode );
 
@@ -62,7 +62,7 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
         // Grab the last offset and total bytes from all ranks and reduce to max
         plfs_debug("Rank: %d in regular close\n",rank);
         if(fd->access_mode!=ADIO_RDONLY){
-            reduce_meta(fd,fd->fs_ptr,fd->filename,&close_opt);
+            reduce_meta(fd, fd->fs_ptr, fd->filename, &close_opt, rank);
         }
         err = plfs_close(fd->fs_ptr, rank, uid,amode,&close_opt);
     }
@@ -172,7 +172,7 @@ int flatten_then_close(ADIO_File afd, Plfs_fd *fd,int rank,int amode,int procs,
                     ,end_time-start_time);
     }
     
-    if(stop_buffer) reduce_meta(afd,fd,filename,close_opt); 
+    if(stop_buffer) reduce_meta(afd, fd, filename, close_opt, rank);
     // Close normally
     // This should be fine before the previous if statement
     err = plfs_close(fd, rank, uid, amode,close_opt);
@@ -194,19 +194,31 @@ int flatten_then_close(ADIO_File afd, Plfs_fd *fd,int rank,int amode,int procs,
 }
 
 void reduce_meta(ADIO_File afd, Plfs_fd *fd,const char * filename,
-        Plfs_close_opt *close_opt)
+                 Plfs_close_opt *close_opt, int rank)
 {
     int BLKSIZE=512;
     struct stat buf;
     size_t glbl_tot_byt=0;
-    int size_only=1;    // lazy stat
+    int size_only=1, lazy_stat=1;
     long long tmp_buf;
     
-    plfs_getattr(fd,filename,&buf,size_only);
-    MPI_Reduce(&(buf.st_size),&tmp_buf,1,MPI_LONG_LONG,MPI_MAX,0,afd->comm);
-    close_opt->last_offset = (off_t)tmp_buf;
-    MPI_Reduce(&(buf.st_blocks),&tmp_buf,1,MPI_LONG_LONG,MPI_SUM,0,afd->comm); 
-    glbl_tot_byt = (size_t)tmp_buf;
+    plfs_query(fd, NULL, NULL, NULL, &lazy_stat);
+    if (lazy_stat == 0) {
+        // rank 0 do slow stat, need not BCAST here
+        if (rank == 0) {
+            size_only = 0;
+            plfs_getattr(fd, filename, &buf, size_only);
+            close_opt->last_offset = (size_t)buf.st_size;
+            glbl_tot_byt = (size_t)buf.st_blocks;
+        }
+    } else {
+        plfs_getattr(fd, filename, &buf, size_only);
+        MPI_Reduce(&(buf.st_size),&tmp_buf,1,MPI_LONG_LONG,MPI_MAX,0,afd->comm);
+        close_opt->last_offset = (off_t)tmp_buf;
+        MPI_Reduce(&(buf.st_blocks),&tmp_buf,1,MPI_LONG_LONG,MPI_SUM,0,afd->comm);
+        glbl_tot_byt = (size_t)tmp_buf;
+    }
+
     close_opt->total_bytes=glbl_tot_byt*BLKSIZE;
     close_opt->valid_meta=1;
 }

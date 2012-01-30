@@ -34,13 +34,29 @@ typedef struct {
 } IndexerTask;
 
 
+typedef enum {
+	TMP_SUBDIR, PERM_SUBDIR
+} subdir_type;
+
+// a struct containing all the various containers paths for a logical file
+typedef struct {
+    string shadow;            // full path to shadow container
+    string canonical;         // full path to canonical
+    string hostdir;           // the name of the hostdir itself
+    string shadow_hostdir;    // full path to shadow hostdir
+    string canonical_hostdir; // full path to the canonical hostdir
+    string shadow_backend;    // full path of shadow backend
+    string canonical_backend; // full path of canonical backend
+} ContainerPaths;
+
 #include "Index.h"
 
 class Container {
     public:
             // static stuff
         static int create( const string &, const string &, 
-                mode_t mode, int flags, int *extra_attempts,pid_t, unsigned );
+                mode_t mode, int flags, int *extra_attempts,pid_t, 
+                unsigned, bool lazy_subdir );
 
         static bool isContainer(const string &physical_path,mode_t*); 
         static string getIndexPath( const string &, const string &, 
@@ -57,7 +73,7 @@ class Container {
         static int removeOpenrecord( const string &, const string &, pid_t );
 
         static size_t getHostDirId( const string & );
-        static string getHostDirPath( const string &, const string & );
+        static string getHostDirPath( const string &, const string &, subdir_type );
         static string getMetaDirPath( const string& );
         static string getVersionDir( const string& path );
         static string getAccessFilePath( const string& path );
@@ -67,12 +83,17 @@ class Container {
         static string getGlobalChunkPath(const string&);
         static string getGlobalIndexPath(const string&);
         static string makeUniquePath(const string&);
+        static size_t decomposeHostDirPath(const string &, string &, size_t &);
+
+		static pid_t getDroppingPid(const string&);
 
         static mode_t fileMode( mode_t );
         static mode_t dirMode(  mode_t );
         static mode_t containerMode(  mode_t );
         static int makeHostDir(const string &path, const string &host, 
                 mode_t mode, parentStatus);
+        static int makeHostDir(const ContainerPaths &paths,mode_t mode,
+              parentStatus pstat, string &physical_hostdir,bool &use_metalink);
         static int transferCanonical(const string &from,
                 const string &to, const string &from_backend,
                 const string &to_backend, mode_t);
@@ -84,12 +105,12 @@ class Container {
         static int Truncate( const string &, off_t );
         //static int Access( const string &path, int mask );
 
-        static int createMetalink(const string &,const string &,const string &);
+        static int createMetalink(const string &,const string &,const string &,
+               string &, bool &);
         static int readMetalink(const string &,string &, size_t &);
         static int resolveMetalink(const string &, string &);
-        static int collectIndices(const string &path, vector<string> &indices,bool);
-        static int collectContents(const string &path,
-            vector<string> &files, vector<string> &filters,bool);
+        static int collectIndices(const string &path, vector<string> &indices,
+                bool full_path);
 
         static int collectContents(const string &physical,
             vector<string> &files, 
@@ -120,10 +141,12 @@ class Container {
         static const char *version(const string &path);
     private:
             // static stuff
+        static bool istype(const string &dropping, const char *type);
         static int createHelper( const string &, const string &, 
-                mode_t mode, int flags, int *extra_attempts, pid_t,unsigned );
+                mode_t mode, int flags, int *extra_attempts, pid_t,unsigned,
+                bool lazy_subdir);
         static int makeTopLevel(const string &, const string &, mode_t, pid_t,
-                unsigned);
+                unsigned, bool lazy_subdir);
         static string getChunkPath( const string &, const string &, 
                 int pid, const char *, double );
         static string chunkPath( const string &hostdir, const char *type, 
@@ -138,7 +161,6 @@ class Container {
         static struct dirent *getnextent( DIR *dir, const char *prefix );
         static int makeMeta( const string &path, mode_t type, mode_t mode );
         static int ignoreNoEnt( int ret );
-        static bool istype(const string &dropping, const char *type);
 };
 
 #endif

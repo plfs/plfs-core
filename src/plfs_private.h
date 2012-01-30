@@ -3,6 +3,11 @@
 
 #include "plfs_internal.h"
 #include "mlogfacs.h"
+#include "OpenFile.h"
+#include "LogicalFD.h"
+#include "LogicalFS.h"
+#include "FileOp.h"
+#include "Container.h"
 
 #include <map>
 #include <set>
@@ -18,16 +23,26 @@ using namespace std;
         Util::OpenError(__FILE__,__FUNCTION__,__LINE__,pid,errno);\
     }
 
+typedef enum {
+    CONTAINER,
+    FLAT_FILE
+} plfs_filetype;
+
 typedef struct {
     string mnt_pt;  // the logical mount point
     string *statfs; // where to resolve statfs calls
+    string *syncer_ip; // where to send commands within plfs_protect
     vector<string> backends;    // a list of physical locations 
+    vector<string> canonical_backends;
+    vector<string> shadow_backends;
     vector<string> mnt_tokens;
+    plfs_filetype file_type;
+    LogicalFileSystem *fs_ptr;
     unsigned checksum;
 } PlfsMount;
 
 typedef struct {
-    string file;           /* the top level file */
+    string file; // which top-level plfsrc was used 
     set<string> files;     /* to detect recursive includes in plfsrc */
     set<string> backends;  /* to detect a backend being reused in plfsrc */
     size_t num_hostdirs;
@@ -36,8 +51,10 @@ typedef struct {
     map<string,PlfsMount*> mnt_pts;
     bool direct_io; // a flag FUSE needs.  Sorry ADIO and API for the wasted bit
     bool test_metalink; // for developers only
+    bool lazy_stat;
     string *err_msg;
     string *global_summary_dir;
+    PlfsMount *tmp_mnt; // just used during parsing
 
     /* mlog related settings, read from plfsrc, allow for cmd line override */
     int mlog_flags;        /* mlog flag value to use (stderr,ucon,syslog) */
@@ -59,6 +76,7 @@ PlfsConf* get_plfs_conf( );
 
 PlfsMount * find_mount_point(PlfsConf *pconf, const string &path, bool &found);
 PlfsMount * find_mount_point_using_tokens(PlfsConf *, vector <string> &, bool&);
+int find_all_expansions(const char *logical, vector<string> &containers);
 
 /* plfs_init
     it just warms up the plfs structures used in expandPath
@@ -70,7 +88,6 @@ char *plfs_mlogtag(char *newtag);
 int plfs_chmod_cleanup(const char *logical,mode_t mode );
 int plfs_chown_cleanup (const char *logical,uid_t uid,gid_t gid );
 
-ssize_t plfs_reference_count( Plfs_fd * );
 void plfs_stat_add(const char*func, double time, int );
 
 int plfs_mutex_lock( pthread_mutex_t *mux, const char *whence );

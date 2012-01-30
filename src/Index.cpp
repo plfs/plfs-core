@@ -316,26 +316,16 @@ void Index::compress() {
     map<off_t,ContainerEntry>::const_iterator itr = old_global.begin();
     global_index.clear();
     ContainerEntry pEntry = itr->second;
-    bool merged = false;
     while( ++itr != old_global.end() ) {
         if ( pEntry.mergable( itr->second ) ) {
             pEntry.length += itr->second.length;
-            merged = true;
         } else {
             insertGlobal( &pEntry ); 
             pEntry = itr->second;
-            merged = false;
         }
     }
     // need to put in the last one(s)
     insertGlobal( &pEntry );
-    /*
-        // I think this line always inserts something that was already inserted
-    if ( ! merged ) {
-        pEntry = (--itr)->second;
-        insertGlobal( &pEntry );
-    }
-    */
 }
 
 // merge another index into this one
@@ -1217,31 +1207,39 @@ void Index::addWrite( off_t offset, size_t length, pid_t pid,
 void Index::truncate( off_t offset ) {
     map<off_t,ContainerEntry>::iterator itr, prev;
     bool first = false;
+
+    // in the case that truncate a zero length logical file.
+    if ( global_index.size() == 0 ) {
+        mlog(IDX_DAPI, "%s in %p, global_index.size == 0.\n",
+                        __FUNCTION__, this);
+        return;
+    }
+
     mlog(IDX_DAPI, "Before %s in %p, now are %lu chunks",
         __FUNCTION__,this,(unsigned long)global_index.size());
 
-        // Finds the first element whose offset >= offset. 
+    // Finds the first element whose offset >= offset.
     itr = global_index.lower_bound( offset );
     if ( itr == global_index.begin() ) first = true;
     prev = itr; prev--;
     
-        // remove everything whose offset >= offset
+    // remove everything whose offset >= offset
     global_index.erase( itr, global_index.end() );
 
-        // check whether the previous needs to be
-        // internally truncated
+    // check whether the previous needs to be
+    // internally truncated
     if ( ! first ) {
-      if ((off_t)(prev->second.logical_offset + prev->second.length) > offset){
+        if ((off_t)(prev->second.logical_offset + prev->second.length) > offset){
             // say entry is 5.5 that means that ten
             // is a valid offset, so truncate to 7
             // would mean the new length would be 3
-        prev->second.length = offset - prev->second.logical_offset ;//+ 1;???
-        mlog(IDX_DCOMMON, "%s Modified a global index record to length %u",
-                __FUNCTION__, (uint)prev->second.length);
-        if (prev->second.length==0) {
-            mlog(IDX_DCOMMON, "Just truncated index entry to 0 length" );
+            prev->second.length = offset - prev->second.logical_offset ;//+ 1;???
+            mlog(IDX_DCOMMON, "%s Modified a global index record to length %u",
+                               __FUNCTION__, (uint)prev->second.length);
+            if (prev->second.length==0) {
+                mlog(IDX_DCOMMON, "Just truncated index entry to 0 length" );
+            }
         }
-      }
     }
     mlog(IDX_DAPI, "After %s in %p, now are %lu chunks",
         __FUNCTION__,this,(unsigned long)global_index.size());

@@ -44,7 +44,8 @@ class WriteFile : public Metadata {
 
         int sync( pid_t pid );
 
-        void       setPath( string path ); 
+        void setContainerPath( string path );
+        void setSubdirPath (string path);
 
         int restoreFds();
         Index * getIndex() {return index;}
@@ -60,7 +61,8 @@ class WriteFile : public Metadata {
         int closeFd( int fd );
         struct OpenFd * getFd( pid_t pid );
 
-        string physical_path;
+        string container_path;
+        string subdir_path;
         string hostname;
         map< pid_t, OpenFd  > fds;
         map< int, string > paths;      // need to remember fd paths to restore
