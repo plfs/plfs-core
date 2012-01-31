@@ -1,28 +1,25 @@
-%define realname plfs
-%define realversion 2.1
-%define _sys_typ %(./sys_typ.sh)
-
 %define debug_package	%{nil}
 %define	_release	2	
 
-Name:		%{realname}-%{realversion}
+Name:		plfs
 Summary:	plfs - Parallel Log Structured File System
-Version: ptools.1
+Version: 2.1
 Release:	%{_release}%{?dist}
 License:	LANS LLC
-Group:	System Environment/Filesystems
-Source:	%{realname}-%{realversion}.tar.gz
+Group:   System Environment/Filesystems
+Source:  plfs-%{version}.tar.gz
 URL:		http://institutes.lanl.gov/plfs
-BuildRoot:	%{_tmppath}/%{realname}-%{realversion}-root
+BuildRoot:	%{_tmppath}/plfs-%{version}-root
 %if 0%{?suse_version}
 Requires:       fuse, libfuse2
 %else
 Requires:       fuse, fuse-libs
 %endif
 Requires:       plfs-lib
-BuildRequires:  fuse-devel, pkgconfig
+#BuildRequires:  fuse-devel, pkgconfig
+BuildRequires:  pkgconfig
 
-%define installdir /opt/%{realname}/%{realversion}
+%define installdir /usr
 
 %description
 Parallel Log Structured File System 
@@ -40,7 +37,7 @@ small N to 1 strided write patterns to a parallel file system.
 
 %prep
 %{__rm} -rf %{buildroot}
-%setup -q -n %{realname}-%{realversion}
+%setup -q -n plfs-%{version}
 
 %build
 ./configure --prefix=%{installdir} \
@@ -49,6 +46,7 @@ small N to 1 strided write patterns to a parallel file system.
             --datarootdir=%{installdir}/share \
             --sysconfdir=/etc \
             --enable-all-debug-flags
+
 %{__make}
 
 %install
@@ -71,9 +69,6 @@ small N to 1 strided write patterns to a parallel file system.
 
 cp -a src/COPYRIGHT.h .
 
-cd %{buildroot}%{installdir}/share/man
-find . -type f -exec gzip {} \;
-
 %clean
 if [ %{buildroot} != "/" ]; then
    %{__rm} -rf %{buildroot}
@@ -85,7 +80,6 @@ if [ "$1" = "1" ]; then
        /sbin/chkconfig --add plfs
    fi
    mkdir -p /tmp/plfs /tmp/.plfs_store
-   ln -s %{installdir}/sbin/plfs /usr/sbin/plfs
 fi
 
 %preun
@@ -99,83 +93,80 @@ fi
 
 %files
 %defattr(-,root,root,0755)
+%{_sbindir}/plfs
 %config %{_initrddir}/plfs
 %config(noreplace) /etc/sysconfig/plfs
 %config(noreplace) /etc/plfsrc
-%{installdir}/sbin/plfs
-%{installdir}/sbin/plfs_check_config
-%{installdir}/sbin/plfs_flatten_index
-%{installdir}/sbin/plfs_map
-%{installdir}/sbin/plfs_recover
-%{installdir}/sbin/plfs_query
-%{installdir}/sbin/plfs_version
-%{installdir}/share/man/man1/plfs.1.gz
-%{installdir}/share/man/man1/plfs_check_config.1.gz
-%{installdir}/share/man/man1/plfs_flatten_index.1.gz
-%{installdir}/share/man/man1/plfs_map.1.gz
-%{installdir}/share/man/man1/plfs_recover.1.gz
-%{installdir}/share/man/man1/plfs_query.1.gz
-%{installdir}/share/man/man1/plfs_version.1.gz
-%{installdir}/share/man/man5/plfsrc.5.gz
-%{installdir}/share/man/man7/plfs.7.gz
+%{_sbindir}/plfs_check_config
+%{_sbindir}/plfs_flatten_index
+%{_sbindir}/plfs_map
+%{_sbindir}/plfs_recover
+%{_sbindir}/plfs_query
+%{_sbindir}/plfs_version
+%{_mandir}/man1/plfs.1.gz
+%{_mandir}/man1/plfs_check_config.1.gz
+%{_mandir}/man1/plfs_flatten_index.1.gz
+%{_mandir}/man1/plfs_map.1.gz
+%{_mandir}/man1/plfs_recover.1.gz
+%{_mandir}/man1/plfs_query.1.gz
+%{_mandir}/man1/plfs_version.1.gz
+%{_mandir}/man5/plfsrc.5.gz
+%{_mandir}/man7/plfs.7.gz
 
 %files lib
 %defattr(-,root,root,0755)
-%{installdir}/lib64/libplfs.a
-%{installdir}/lib64/libplfs.la
-%{installdir}/lib64/libplfs.so
-%{installdir}/lib64/libplfs.so.0
-%{installdir}/lib64/libplfs.so.0.0.0
+%{_libdir}/libplfs.a
+%{_libdir}/libplfs.la
+%{_libdir}/libplfs.so
+%{_libdir}/libplfs.so.0
+%{_libdir}/libplfs.so.0.0.0
 %defattr(-,root,root,0644)
-%{installdir}/include/plfs/COPYRIGHT.h
-%{installdir}/include/plfs/plfs_internal.h
-%{installdir}/include/plfs/Util.h
-%{installdir}/include/plfs.h
+%{_includedir}/plfs/COPYRIGHT.h
+%{_includedir}/plfs/plfs_internal.h
+%{_includedir}/plfs/Util.h
+%{_includedir}/plfs.h
 %config /etc/plfs/VERSION
 %config /etc/plfs/VERSION.LAYOUT
 %doc COPYRIGHT.h
-%{installdir}/share/man/man3/is_plfs_file.3.gz
-%{installdir}/share/man/man3/plfs.3.gz
-%{installdir}/share/man/man3/plfs_access.3.gz
-%{installdir}/share/man/man3/plfs_buildtime.3.gz
-%{installdir}/share/man/man3/plfs_chmod.3.gz
-%{installdir}/share/man/man3/plfs_chown.3.gz
-%{installdir}/share/man/man3/plfs_close.3.gz
-%{installdir}/share/man/man3/plfs_create.3.gz
-%{installdir}/share/man/man3/plfs_debug.3.gz
-%{installdir}/share/man/man3/plfs_dump_config.3.gz
-%{installdir}/share/man/man3/plfs_dump_index.3.gz
-%{installdir}/share/man/man3/plfs_flatten_index.3.gz
-%{installdir}/share/man/man3/plfs_get_attr.3.gz
-%{installdir}/share/man/man3/plfs_index_stream.3.gz
-%{installdir}/share/man/man3/plfs_link.3.gz
-%{installdir}/share/man/man3/plfs_merge_indexes.3.gz
-%{installdir}/share/man/man3/plfs_mkdir.3.gz
-%{installdir}/share/man/man3/plfs_mode.3.gz
-%{installdir}/share/man/man3/plfs_open.3.gz
-%{installdir}/share/man/man3/plfs_query.3.gz
-%{installdir}/share/man/man3/plfs_read.3.gz
-%{installdir}/share/man/man3/plfs_readdir.3.gz
-%{installdir}/share/man/man3/plfs_readlink.3.gz
-%{installdir}/share/man/man3/plfs_rename.3.gz
-%{installdir}/share/man/man3/plfs_rmdir.3.gz
-%{installdir}/share/man/man3/plfs_serious_error.3.gz
-%{installdir}/share/man/man3/plfs_set_mpi.3.gz
-%{installdir}/share/man/man3/plfs_stats.3.gz
-%{installdir}/share/man/man3/plfs_statvfs.3.gz
-%{installdir}/share/man/man3/plfs_symlink.3.gz
-%{installdir}/share/man/man3/plfs_sync.3.gz
-%{installdir}/share/man/man3/plfs_trunc.3.gz
-%{installdir}/share/man/man3/plfs_unlink.3.gz
-%{installdir}/share/man/man3/plfs_utime.3.gz
-%{installdir}/share/man/man3/plfs_version.3.gz
-%{installdir}/share/man/man3/plfs_write.3.gz
-%{installdir}/share/man/man3/plfs_wtime.3.gz
+%{_mandir}/man3/is_plfs_file.3.gz
+%{_mandir}/man3/plfs.3.gz
+%{_mandir}/man3/plfs_access.3.gz
+%{_mandir}/man3/plfs_buildtime.3.gz
+%{_mandir}/man3/plfs_chmod.3.gz
+%{_mandir}/man3/plfs_chown.3.gz
+%{_mandir}/man3/plfs_close.3.gz
+%{_mandir}/man3/plfs_create.3.gz
+%{_mandir}/man3/plfs_debug.3.gz
+%{_mandir}/man3/plfs_dump_config.3.gz
+%{_mandir}/man3/plfs_dump_index.3.gz
+%{_mandir}/man3/plfs_flatten_index.3.gz
+%{_mandir}/man3/plfs_get_attr.3.gz
+%{_mandir}/man3/plfs_index_stream.3.gz
+%{_mandir}/man3/plfs_link.3.gz
+%{_mandir}/man3/plfs_merge_indexes.3.gz
+%{_mandir}/man3/plfs_mkdir.3.gz
+%{_mandir}/man3/plfs_mode.3.gz
+%{_mandir}/man3/plfs_open.3.gz
+%{_mandir}/man3/plfs_query.3.gz
+%{_mandir}/man3/plfs_read.3.gz
+%{_mandir}/man3/plfs_readdir.3.gz
+%{_mandir}/man3/plfs_readlink.3.gz
+%{_mandir}/man3/plfs_rename.3.gz
+%{_mandir}/man3/plfs_rmdir.3.gz
+%{_mandir}/man3/plfs_serious_error.3.gz
+%{_mandir}/man3/plfs_set_mpi.3.gz
+%{_mandir}/man3/plfs_stats.3.gz
+%{_mandir}/man3/plfs_statvfs.3.gz
+%{_mandir}/man3/plfs_symlink.3.gz
+%{_mandir}/man3/plfs_sync.3.gz
+%{_mandir}/man3/plfs_trunc.3.gz
+%{_mandir}/man3/plfs_unlink.3.gz
+%{_mandir}/man3/plfs_utime.3.gz
+%{_mandir}/man3/plfs_version.3.gz
+%{_mandir}/man3/plfs_write.3.gz
+%{_mandir}/man3/plfs_wtime.3.gz
 
 %changelog
-* Thu Jan 5 2012 David Gunter <dog@lanl.gov>
-- Added name/version hacks to conform to LANL HPC-3 naming policy
-
 * Tue May 3 2011 Ben McClelland <ben@lanl.gov>
 - suse has different dependencies than redhat put in distro specifics
 - add plfs_recover, plfs_query, plfs_version and respective man pages
