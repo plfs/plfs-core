@@ -1123,21 +1123,15 @@ void Index::addWrite( off_t offset, size_t length, pid_t pid,
         double begin_timestamp, double end_timestamp ) 
 {
     Metadata::addWrite( offset, length );
-    int quant = hostIndex.size();
-    bool abutable = true;
-        // we use this mode to be able to create trace vizualizations
-        // so we don't want to merge anything bec that will reduce the
-        // fidelity of the trace vizualization
-    abutable = false; // BEWARE: 'true' path hasn't been tested in a LONG time.
 
         // incoming abuts with last
-    if ( quant && abutable && hostIndex[quant-1].id == pid
-        && hostIndex[quant-1].logical_offset + (off_t)hostIndex[quant-1].length 
-            == offset )
+    if ( !hostIndex.empty() && 
+         hostIndex.back().id == pid &&
+         hostIndex.back().logical_offset+(off_t)hostIndex.back().length==offset)
     {
         mlog(IDX_DCOMMON, "Merged new write with last at %ld",
-             (long)hostIndex[quant-1].logical_offset ); 
-        hostIndex[quant-1].length += length;
+             (long)hostIndex.back().logical_offset ); 
+        hostIndex.back().length += length;
     } else {
         // where does the physical offset inside the chunk get set?
         // oh.  it doesn't.  On the read back, we assume there's a
@@ -1177,16 +1171,18 @@ void Index::addWrite( off_t offset, size_t length, pid_t pid,
         entry.physical_offset = physical_offsets[pid];
         physical_offsets[pid] += length;
         hostIndex.push_back( entry );
-        // Needed for our index stream function
-        // It seems that we can store this pid for the global entry
+    }
+
+    if (buffering && !buffer_filled) {
         ContainerEntry c_entry;
-        c_entry.logical_offset = entry.logical_offset;
-        c_entry.length            = entry.length;
-        c_entry.id                = entry.id;
-        c_entry.original_chunk    = entry.id;
-        c_entry.physical_offset   = entry.physical_offset;
-        c_entry.begin_timestamp   = entry.begin_timestamp;
-        c_entry.end_timestamp     = entry.end_timestamp;
+        HostEntry &h_entry = hostIndex.back();
+        c_entry.logical_offset    = h_entry.logical_offset;
+        c_entry.length            = h_entry.length;
+        c_entry.id                = h_entry.id;
+        c_entry.original_chunk    = h_entry.id;
+        c_entry.physical_offset   = h_entry.physical_offset;
+        c_entry.begin_timestamp   = h_entry.begin_timestamp;
+        c_entry.end_timestamp     = h_entry.end_timestamp;
 
         // Only buffer if we are using the ADIO layer
         if(buffering && !buffer_filled) insertGlobal(&c_entry);
@@ -1195,10 +1191,8 @@ void Index::addWrite( off_t offset, size_t length, pid_t pid,
         if(chunk_map.size()==0){
             ChunkFile cf;
             cf.fd = -1;
-            cf.path = Container::chunkPathFromIndexPath(index_path,entry.id);
-            // No good we need the Index Path please be stashed somewhere
-            mlog(IDX_DCOMMON, "Use chunk path from index path: %s",
-                 cf.path.c_str());
+            cf.path = Container::chunkPathFromIndexPath(index_path,h_entry.id);
+            mlog(IDX_DCOMMON, "Use chunk from idx path: %s", cf.path.c_str());
             chunk_map.push_back( cf );
         }
     }
