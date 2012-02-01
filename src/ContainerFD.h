@@ -20,7 +20,6 @@ class Container_fd : public Plfs_fd {
     int getattr(const char *path, struct stat *stbuf, int sz_only);
     int query(size_t *, size_t *, size_t *, bool *reopen);
     bool is_good();
-    int my_type_id() {return 2;};
 
     // Functions leaked to FUSE and ADIO:
     int incrementOpens(int amount);

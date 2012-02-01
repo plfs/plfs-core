@@ -8,8 +8,7 @@ using namespace std;
 class Plfs_fd {
  public:
     // for use of flat_file.
-    Plfs_fd() {refs = 0;};
-    virtual ~Plfs_fd() {};
+    virtual ~Plfs_fd() = 0; 
     virtual int open(const char *filename, int flags, pid_t pid,
                      mode_t mode, Plfs_open_opt *open_opt) = 0;
     virtual int close(pid_t, uid_t, int flags, Plfs_close_opt *) = 0;
@@ -22,20 +21,15 @@ class Plfs_fd {
     virtual int query(size_t *writers, size_t *readers, size_t *bytes_written, 
             bool *reopen) = 0;
     virtual bool is_good() = 0;
-    virtual int my_type_id() {return 0;} // reserved for uninitialized fds.
-    virtual int get_ref_count() { return refs;};
 
     // Functions leaked to FUSE and ADIO:
-    virtual int incrementOpens(int amount) {return 1;};
-    virtual void setPath( string p ) {path = p;};
-    virtual const char *getPath() {return path.c_str();};
+    virtual int incrementOpens(int amount) = 0; 
+    virtual void setPath( string p ) = 0; 
+    virtual const char *getPath() = 0; 
 
     // a function that all might not necessarily implement
     virtual int compress_metadata(const char *path);
 
- protected:
-    int refs;
-    string path;
 };
 
 #endif

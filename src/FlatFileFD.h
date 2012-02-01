@@ -8,7 +8,7 @@
 
 class Flat_fd : public Plfs_fd {
  public:
-    Flat_fd() {refs = 0; backend_fd = -1;};
+    Flat_fd() { backend_fd = -1; refs = 0; }
     ~Flat_fd();
     // These are operations operating on an open file.
     int open(const char *filename, int flags, pid_t pid,
@@ -22,11 +22,16 @@ class Flat_fd : public Plfs_fd {
     int query(size_t *writers, size_t *readers, size_t *bytes_written, 
             bool *reopen);
     bool is_good();
-    int my_type_id() {return FLAT_FILE;}
 
     int compress_metadata(const char *path) { return 0; }
+    int incrementOpens(int amount) {return 1;}
+    void setPath( string p ) { path = p; }
+    const char *getPath() { return path.c_str(); }
+
  private:
-    std::string backend_pathname;
+    int refs;
+    string path;
+    string backend_pathname;
     int backend_fd;
 };
 
