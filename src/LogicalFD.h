@@ -28,8 +28,10 @@ class Plfs_fd {
     virtual const char *getPath() = 0; 
 
     // a function that all might not necessarily implement
-    virtual int compress_metadata(const char *path);
+    virtual int compress_metadata(const char *path) = 0;
 
 };
+
+inline Plfs_fd::~Plfs_fd() {};
 
 #endif
