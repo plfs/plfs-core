@@ -4,10 +4,11 @@
 #include "FlatFileFS.h"
 #include "Util.h"
 #include "plfs_private.h"
-#include "OpenFile.h"
-#include "Metadata.h"
 #include "plfs.h"
+
+// TODO: remove this dependency on container internals
 #include "container_internals.h"
+
 using namespace std;
 
 FlatFileSystem flatfs;
