@@ -1962,7 +1962,8 @@ get_plfs_conf() {
 }
 
 // Here are all of the parindex read functions
-int plfs_expand_path(const char *logical,char **physical){
+int 
+plfs_expand_path(const char *logical,char **physical){
     PLFS_ENTER; (void)ret; // suppress compiler warning
     *physical = Util::Strdup(path.c_str());
     return 0;
