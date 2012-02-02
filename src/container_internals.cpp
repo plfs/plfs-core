@@ -616,7 +616,8 @@ isWriter( int flags ) {
 // Was running into reference count problems so I had to change this code
 // The RDONLY flag is has the lsb set as 0 had to do some bit shifting
 // to figure out if the RDONLY flag was set
-int isReader( int flags ) {
+int 
+isReader( int flags ) {
     int ret = 0;
     if ( flags & O_RDWR ) ret = 1;
     else {
