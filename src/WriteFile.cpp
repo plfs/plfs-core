@@ -182,7 +182,8 @@ int WriteFile::closeFd( int fd ) {
 }
 
 // returns -errno or number of writers
-int WriteFile::removeWriter( pid_t pid ) {
+int 
+WriteFile::removeWriter( pid_t pid ) {
     int ret = 0;
     Util::MutexLock(   &data_mux , __FUNCTION__);
     struct OpenFd *ofd = getFd( pid );
@@ -207,7 +208,8 @@ int WriteFile::removeWriter( pid_t pid ) {
     return ( ret == 0 ? writers : ret );
 }
 
-int WriteFile::extend( off_t offset ) {
+int 
+WriteFile::extend( off_t offset ) {
     // make a fake write
     if ( fds.begin() == fds.end() ) return -ENOENT;
     pid_t p = fds.begin()->first;
@@ -223,7 +225,8 @@ int WriteFile::extend( off_t offset ) {
 // have a lot duplicate information. buffer the index and flush on the close
 //
 // returns bytes written or -errno
-ssize_t WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid){
+ssize_t 
+WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid){
     int ret = 0; 
     ssize_t written;
     OpenFd *ofd = getFd( pid );
