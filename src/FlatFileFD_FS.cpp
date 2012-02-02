@@ -94,7 +94,9 @@ Flat_fd::getattr(const char *path, struct stat *stbuf, int sz_only) {
 }
 
 int
-Flat_fd::query(size_t *writers, size_t *readers, size_t *bytes_written, bool *reopen) {
+Flat_fd::query(size_t *writers, size_t *readers, size_t *bytes_written, 
+        bool *reopen) 
+{
     if (bytes_written) *bytes_written = 1; // set to 1 temporarily
     if (reopen) *reopen = 0;
     // Not implemented.
@@ -131,7 +133,7 @@ FlatFileSystem::open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,
 // the PLFS version of create won't open the file. So close the
 // file after POSIX creat() is called.
 int
-FlatFileSystem::create( const char *logical, mode_t mode, int flags, pid_t pid ){
+FlatFileSystem::create(const char *logical, mode_t mode, int flags, pid_t pid ){
     FLAT_ENTER;
 //     An open(... O_CREAT) gets turned into a mknod followed by an
 //      open in fuse. So a common problem is that open(..., O_RDWR |
@@ -205,7 +207,7 @@ FlatFileSystem::rename( const char *logical, const char *to ) {
         for(size_t i = 0; i < srcs.size(); i++) {
             int err = Util::retValue(Util::Rename(srcs[i].c_str(),
                                                   dsts[i].c_str()));
-            if (err == -ENOENT) err = 0;  // a file might not be distributed on all 
+            if (err == -ENOENT) err = 0;  // might not be distributed on all 
             if (err != 0) ret = err;  // keep trying but save the error
             mlog(INT_DCOMMON, "rename %s to %s: %d",
                  srcs[i].c_str(), dsts[i].c_str(), err);
