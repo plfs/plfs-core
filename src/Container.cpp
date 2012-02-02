@@ -1415,23 +1415,28 @@ int Container::makeTopLevel( const string &expanded_path,
     return 0;
 }
 
-int Container::makeCreator(const string &path) {
+int 
+Container::makeCreator(const string &path) {
     return makeDroppingReal( path , S_IRWXU );
 }
-int Container::makeAccess(const string &path, mode_t mode) {
+int 
+Container::makeAccess(const string &path, mode_t mode) {
     return makeDroppingReal( path, mode );
 }
-int Container::makeDroppingReal(const string &path, mode_t mode) {
+int 
+Container::makeDroppingReal(const string &path, mode_t mode) {
     return Util::Creat( path.c_str(), mode );
 }
-int Container::makeDropping(const string &path) {
+int 
+Container::makeDropping(const string &path) {
     mode_t save_umask = umask(0);
     int ret = makeDroppingReal( path, DROPPING_MODE );
     umask(save_umask);
     return ret;
 }
 // returns 0 or -errno
-int Container::makeHostDir(const string &path,
+int 
+Container::makeHostDir(const string &path,
         const string &host, mode_t mode, parentStatus pstat)
 {
     int ret = 0;
@@ -1453,7 +1458,8 @@ int Container::makeHostDir(const string &path,
 // then keep trying to create subdir at available location or use the first
 // existing directory found.
 // return 0 or -errno
-int Container::makeHostDir(const ContainerPaths &paths,mode_t mode,
+int 
+Container::makeHostDir(const ContainerPaths &paths,mode_t mode,
         parentStatus pstat, string &physical_hostdir, bool &use_metalink)
 {
     char *hostname = Util::hostname();
@@ -1514,7 +1520,8 @@ int Container::makeHostDir(const ContainerPaths &paths,mode_t mode,
 }
 
 // returns 0 or -1
-int Container::makeSubdir( const string &path, mode_t mode ) {
+int 
+Container::makeSubdir( const string &path, mode_t mode ) {
     int ret;
     //mode = mode | S_IXUSR | S_IXGRP | S_IXOTH;
     mode = DROPPING_MODE;
@@ -1522,7 +1529,8 @@ int Container::makeSubdir( const string &path, mode_t mode ) {
     return ( ret == 0 || errno == EEXIST || errno == EISDIR ) ? 0 : -ret;
 }
 // this just creates a dir/file but it ignores an EEXIST error
-int Container::makeMeta( const string &path, mode_t type, mode_t mode ) {
+int 
+Container::makeMeta( const string &path, mode_t type, mode_t mode ) {
     int ret;
     if ( type == S_IFDIR ) {
         ret = Util::Mkdir( path.c_str(), mode );
@@ -1536,13 +1544,15 @@ int Container::makeMeta( const string &path, mode_t type, mode_t mode ) {
     return ( ret == 0 || errno == EEXIST ) ? 0 : -1;
 }
 
-string Container::getAccessFilePath( const string& path ) {
+string 
+Container::getAccessFilePath( const string& path ) {
     string accessfile( path + "/" + ACCESSFILE );
     return accessfile;
 }
 
 // there is no longer a special creator file.  Just use the access file
-string Container::getCreatorFilePath( const string& path ) {
+string 
+Container::getCreatorFilePath( const string& path ) {
     return getAccessFilePath(path);
     /*
     string creatorfile( path + "/" + CREATORFILE );
@@ -1550,14 +1560,16 @@ string Container::getCreatorFilePath( const string& path ) {
     */
 }
 
-size_t Container::getHostDirId( const string &hostname ) {
+size_t 
+Container::getHostDirId( const string &hostname ) {
     PlfsConf *pconf = get_plfs_conf();    
     return (hashValue(hostname.c_str())%pconf->num_hostdirs);
 }
 
 // the container creates dropping of X.Y.Z where Z is a pid
 // parse it off and return it
-pid_t Container::getDroppingPid(const string &path) {
+pid_t 
+Container::getDroppingPid(const string &path) {
 	size_t lastdot = path.rfind('.');
 	string pidstr = path.substr(lastdot+1,path.npos);
 	plfs_debug("%s has lastdot %d pid %s\n",
@@ -1567,7 +1579,8 @@ pid_t Container::getDroppingPid(const string &path) {
 
 // this function is maybe one easy place where we can fix things
 // if the hostdir path includes a symlink....
-string Container::getHostDirPath( const string & expanded_path, 
+string 
+Container::getHostDirPath( const string & expanded_path, 
         const string & hostname, subdir_type type )
 {
     //if expanded_path contains HOSTDIRPREFIX, then return it.
