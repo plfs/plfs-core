@@ -1,3 +1,6 @@
+0) To use tkdiff to diff two versions 824 and 828 for example
+> svn diff -r824:828 | egrep '^Index:' | awk '//{print $2}' | perl -lne 'system ( "tkdiff -r 824 -r 828 $_ & " ) '
+
 1) To make a branch:
 > svn copy trunk branches/mybranch
 
