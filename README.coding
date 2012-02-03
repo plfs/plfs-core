@@ -1,6 +1,7 @@
 1) 4 space wide soft tabs
 
-2) don't go over 80 chars wide on a line
+2) don't go over 80 chars wide on a line.  Adding "match ErrorMsg '\%>80v.\+'"
+to your vimrc may help.
 
 3) never cut and paste more than 2 lines of code.  use a function.
 
