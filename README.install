@@ -17,7 +17,7 @@ to your PATH environment.
 
   0) you'll need to have fuse installed and have /dev/libfuse loaded
   1) ./configure ; make
-  2) then create a $HOME/.plfsrc or /etc/plfsrc file.  Check the examples. 
+  2) then create a $HOME/.plfsrc or /etc/plfsrc file.  Check the examples.  
   3) check your .plfsrc file with tools/plfs_check_config
   4) launch your plfs executable (e.g. plfs -obig_writes /mnt/plfs)
   5) cat /mnt/plfs/.plfsdebug to see if it's working
@@ -60,4 +60,5 @@ build the patch file needed for the next steps.]
   Build and install PLFS.  Then look at plfs.h and figure out how to use it.
   Basically you just change your opens to plfs_opens and etc. 
 
-Email plfs-users@lists.sourceforge.net with any questions.
+Email plfs-users@lists.sourceforge.net with any user questions.
+Email plfs-devel@lists.sourceforge.net with any developer questions.
