@@ -204,7 +204,10 @@ void reduce_meta(ADIO_File afd, Plfs_fd *fd,const char * filename,
     
     plfs_query(fd, NULL, NULL, NULL, &lazy_stat);
     if (lazy_stat == 0) {
-        // rank 0 do slow stat, need not BCAST here
+        // every rank calls plfs_sync to flush in-memory index.
+        plfs_sync(fd, rank);
+        MPI_Barrier(afd->comm);
+        // rank 0 does slow stat, need not BCAST here
         if (rank == 0) {
             size_only = 0;
             plfs_getattr(fd, filename, &buf, size_only);

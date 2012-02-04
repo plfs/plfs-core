@@ -2825,6 +2825,8 @@ container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
 {
     PLFS_ENTER;
     mode_t mode = 0;
+    struct stat stbuf;
+    stbuf.st_size = 0;
     if ( ! is_plfs_file( logical, &mode ) ) {
         // this is weird, we expect only to operate on containers
         if ( mode == 0 ) ret = -ENOENT;
@@ -2849,8 +2851,7 @@ container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
             ret = truncateFile(logical,(bool)open_file);
         }
     } else {
-            // either at existing end, before it, or after it
-        struct stat stbuf;
+        // either at existing end, before it, or after it
         bool sz_only = false; // sz_only isn't accurate in this case
                               // it should be but the problem is that
                               // FUSE opens the file and so we just query
@@ -2907,14 +2908,17 @@ container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
     // if we actually modified the container, update any open file handle
     if ( ret == 0 && of && of->getWritefile() ) {
         mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
-        ret = of->getWritefile()->truncate( offset );
+        // in the case that truncate up (extend file), need not truncateHostIndex
+        if (offset <= stbuf.st_size ) {
+            ret = of->getWritefile()->truncate( offset );
+        }
         of->truncate( offset );
-            // here's a problem, if the file is open for writing, we've
-            // already opened fds in there.  So the droppings are
-            // deleted/resized and our open handles are messed up 
-            // it's just a little scary if this ever happens following
-            // a rename because the writefile will attempt to restore
-            // them at the old path....
+        // here's a problem, if the file is open for writing, we've
+        // already opened fds in there.  So the droppings are
+        // deleted/resized and our open handles are messed up 
+        // it's just a little scary if this ever happens following
+        // a rename because the writefile will attempt to restore
+        // them at the old path....
         if ( ret == 0 && of && of->getWritefile() ) {
             mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
             ret = of->getWritefile()->restoreFds();

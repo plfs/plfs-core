@@ -221,8 +221,8 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
     }
     
     // if we make it here, we're doing RDONLY, WRONLY, or RDWR
-    err=open_helper(fd,&pfd,error_code,perm,amode,rank);
-    MPIBCAST( &err, 1, MPI_INT, 0, fd->comm );
+    ret = open_helper(fd,&pfd,error_code,perm,amode,rank);
+    MPI_Allreduce(&ret, &err, 1, MPI_INT, MPI_MIN, fd->comm);
     if ( err != 0 ) {
         *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
 					   myname, __LINE__, MPI_ERR_IO,

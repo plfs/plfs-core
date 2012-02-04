@@ -20,7 +20,10 @@ void ADIOI_PLFS_Fcntl(ADIO_File fd, int flag, ADIO_Fcntl_t *fcntl_struct,
     case ADIO_FCNTL_GET_FSIZE:
         plfs_query(fd->fs_ptr, NULL, NULL, NULL, &lazy_stat);
         if (lazy_stat == 0) {
-            // rank 0 do slow stat and broadcast to all.
+            // every rank calls plfs_sync to flush in-memory index.
+            plfs_sync(fd->fs_ptr, rank);
+            MPI_Barrier(fd->comm);
+            // rank 0 does slow stat and broadcasts to all.
             MPI_Comm_rank(fd->comm, &rank);
             if (rank == 0) {
                 size_only = 0;
