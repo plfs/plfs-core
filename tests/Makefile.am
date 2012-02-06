@@ -43,10 +43,10 @@
 # rename
 ################################################################################
 sources = \
-rename.C access.C plfsunit.h plfsunit.cpp unitmain.cpp
+rename.C access.C
 
 noinst_PROGRAMS = \
-rename access plfsunit
+rename access
 
 access_SOURCES = \
 access.C
@@ -64,11 +64,16 @@ rename_CXXFLAGS =
 
 rename_LDFLAGS =
 
+if HAVE_LIBCPPUNIT
+sources += plfsunit.h plfsunit.cpp unitmain.cpp
+noinst_PROGRAMS += plfsunit
+
 plfsunit_SOURCES = \
 plfsunit.h plfsunit.cpp unitmain.cpp
 
 plfsunit_CXXFLAGS = \
-	-D_FILE_OFFSET_BITS=64
+	-D_FILE_OFFSET_BITS=64 @CPPUNIT_CFLAGS@
 
 plfsunit_LDFLAGS = \
-	-lcppunit -ldl -lplfs -L../src -lpthread
+	@CPPUNIT_LIBS@ -lplfs -L../src -lpthread
+endif

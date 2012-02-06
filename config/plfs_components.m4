@@ -58,4 +58,22 @@ AC_DEFUN([AC_PKG_PLFS_COMPONENTS],
     AM_CONDITIONAL([PLFS_BUILD_ADIO],
                    [test "x$plfs_build_adio_test" = "x1"])
 
+    # do we want to build libplfs unit test support?
+    # if we have cppunit installed, we will build the unit test tool.
+    AC_PATH_PROG(CPPUNIT_CONFIG, cppunit-config, no)
+    if test "$CPPUNIT_CONFIG" = "no" ; then
+       CPPUNIT_CFLAGS=""
+       CPPUNIT_LIBS=""
+    else
+       CPPUNIT_CFLAGS=`$CPPUNIT_CONFIG --cflags`
+       CPPUNIT_LIBS=`$CPPUNIT_CONFIG --libs`
+    fi
+    AC_SUBST(CPPUNIT_CFLAGS)
+    AC_SUBST(CPPUNIT_LIBS)
+    AC_MSG_CHECKING([if want LIBPLFS unit test support])
+    AS_IF([test "$CPPUNIT_CONFIG" = "no"], [AC_MSG_RESULT([no])],
+	  [AC_MSG_RESULT([yes])])
+    AM_CONDITIONAL([HAVE_LIBCPPUNIT],
+		   [test "$CPPUNIT_CONFIG" != "no"])
+
 ])dnl
