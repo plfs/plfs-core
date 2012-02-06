@@ -2,6 +2,10 @@
             PLFS: A Checkpoint Filesystem for Parallel Applications
 ################################################################################
 
+This README is largely deprecated.  Most of this info is found more accurately
+in README.install.  Also, the man pages such as the man page for plfsrc are
+pretty good.
+
 ***************************************************************************
 User Installation (Default Configuration Values. See configure --help)
 ***************************************************************************
