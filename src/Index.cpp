@@ -1144,24 +1144,21 @@ void
 Index::addWrite( off_t offset, size_t length, pid_t pid,
        double begin_timestamp, double end_timestamp )
 {
-    Metadata::addWrite( offset, length );
+    Metadata::addWrite( offset, length ); 
 
-    bool abutable = true; // set to false if you want to collect a nice trace
-    off_t poff = physical_offsets[pid]; // save it bec we use it later
+    bool compress_contiguous = true; // set false if you want to collect a trace
 
-    HostEntry *prev = (hostIndex.empty() ? NULL: &(hostIndex.back()));
-
-       // incoming abuts with last
-    if ( abutable && !hostIndex.empty() &&
-        prev->id == pid  &&
-        prev->logical_offset + (off_t)prev->length == offset)
+       // check whether incoming abuts with last and we want to compress
+    if ( compress_contiguous && !hostIndex.empty() &&
+        hostIndex.back().id == pid  &&
+        hostIndex.back().logical_offset + hostIndex.back().length == offset)
     {
         mlog(IDX_DCOMMON, "Merged new write with last at offset %ld."
             " New length is %d.\n",
-            (long)prev->logical_offset, 
-            (int)prev->length );
-        prev->end_timestamp = end_timestamp;
-        prev->length += length;
+            (long)hostIndex.back().logical_offset, 
+            (int)hostIndex.back().length );
+        hostIndex.back().end_timestamp = end_timestamp;
+        hostIndex.back().length += length;
         physical_offsets[pid] += length;
     } else {
         // create a new index entry for this write
@@ -1186,7 +1183,7 @@ Index::addWrite( off_t offset, size_t length, pid_t pid,
         // It seems that we can store this pid for the global entry
    }
 
-   if (buffering && !buffer_filled){
+    if (buffering && !buffer_filled){
         // ok this code is confusing
         // there are two types of indexes that we create in this same class:
         // HostEntry are used for writes (specific to a hostdir (subdir))
@@ -1197,6 +1194,9 @@ Index::addWrite( off_t offset, size_t length, pid_t pid,
         // What's confusing is that in order to buffer, we create a read type
         // index.  This is because we have code to serialize a read index into
         // a byte stream and we don't have code to serialize a write index.
+
+        // restore the original physical offset before we incremented above
+        off_t poff = physical_offsets[pid] - length;
 
         // create a container entry from the hostentry
         ContainerEntry c_entry;
