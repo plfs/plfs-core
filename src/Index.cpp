@@ -638,7 +638,7 @@ int Index::global_to_stream(void **buffer,size_t *length) {
     size_t quant = global_index.size();
 
     //Check if we stopped buffering, if so return -1 and length of -1
-    if(buffering && buffer_filled){
+    if(!buffering && buffer_filled){
         *length=(size_t)-1;
         return -1;
     }
@@ -1140,46 +1140,35 @@ Index::memoryFootprintMBs() {
     return size_t(KBs/1024);
 }
 
-void 
-Index::addWrite( off_t offset, size_t length, pid_t pid, 
-        double begin_timestamp, double end_timestamp ) 
+void
+Index::addWrite( off_t offset, size_t length, pid_t pid,
+       double begin_timestamp, double end_timestamp )
 {
     Metadata::addWrite( offset, length );
 
-        // incoming abuts with last
-    if ( !hostIndex.empty() && 
-         hostIndex.back().id == pid &&
-         hostIndex.back().logical_offset+(off_t)hostIndex.back().length==offset)
+    bool abutable = true; // set to false if you want to collect a nice trace
+    off_t poff = physical_offsets[pid]; // save it bec we use it later
+
+    HostEntry *prev = (hostIndex.empty() ? NULL: &(hostIndex.back()));
+
+       // incoming abuts with last
+    if ( abutable && !hostIndex.empty() &&
+        prev->id == pid  &&
+        prev->logical_offset + (off_t)prev->length == offset)
     {
-        mlog(IDX_DCOMMON, "Merged new write with last at %ld",
-             (long)hostIndex.back().logical_offset ); 
-        hostIndex.back().length += length;
+        mlog(IDX_DCOMMON, "Merged new write with last at offset %ld."
+            " New length is %d.\n",
+            (long)prev->logical_offset, 
+            (int)prev->length );
+        prev->end_timestamp = end_timestamp;
+        prev->length += length;
+        physical_offsets[pid] += length;
     } else {
-        // where does the physical offset inside the chunk get set?
-        // oh.  it doesn't.  On the read back, we assume there's a
-        // one-to-one mapping btwn index and data file.  A truncate
-        // which modifies the index file but not the data file will
-        // break this assumption.  I believe this means we need to
-        // put the physical offset into the host entries.
-        // I think it also means that every open needs to be create 
-        // unique index and data chunks and never append to existing ones
-        // because if we append to existing ones, it means we need to
-        // stat them to know where the offset is and we'd rather not
-        // do a stat on the open
-        //
-        // so we need to do this:
-        // 1) track current offset by pid in the index data structure that
-        // we use for writing: DONE
-        // 2) Change the merge code to only merge for consecutive writes
-        // to the same pid: DONE
-        // 3) remove the offset tracking when we create the read index: DONE
-        // 4) add a timestamp to the index and data droppings.  make sure
-        // that the code that finds an index path from a data path and
-        // vice versa (if that code exists) still works: DONE
+        // create a new index entry for this write
         HostEntry entry;
         entry.logical_offset = offset;
-        entry.length         = length; 
-        entry.id             = pid; 
+        entry.length         = length;
+        entry.id             = pid;
         entry.begin_timestamp = begin_timestamp;
         // valgrind complains about this line as well:
         // Address 0x97373bc is 20 bytes inside a block of size 40 alloc'd
@@ -1188,36 +1177,54 @@ Index::addWrite( off_t offset, size_t length, pid_t pid,
         // lookup the physical offset
         map<pid_t,off_t>::iterator itr = physical_offsets.find(pid);
         if ( itr == physical_offsets.end() ) {
-            physical_offsets[pid] = 0;
+           physical_offsets[pid] = 0;
         }
         entry.physical_offset = physical_offsets[pid];
         physical_offsets[pid] += length;
         hostIndex.push_back( entry );
-    }
+        // Needed for our index stream function
+        // It seems that we can store this pid for the global entry
+   }
 
-    if (buffering && !buffer_filled) {
+   if (buffering && !buffer_filled){
+        // ok this code is confusing
+        // there are two types of indexes that we create in this same class:
+        // HostEntry are used for writes (specific to a hostdir (subdir))
+        // ContainerEntry are used for reading (global across container)
+        // this buffering code is currently only used in ad_plfs
+        // we buffer the index so we can send it on close to rank 0 who
+        // collects from everyone, compresses, and writes a global index.
+        // What's confusing is that in order to buffer, we create a read type
+        // index.  This is because we have code to serialize a read index into
+        // a byte stream and we don't have code to serialize a write index.
+
+        // create a container entry from the hostentry
         ContainerEntry c_entry;
-        HostEntry &h_entry = hostIndex.back();
-        c_entry.logical_offset    = h_entry.logical_offset;
-        c_entry.length            = h_entry.length;
-        c_entry.id                = h_entry.id;
-        c_entry.original_chunk    = h_entry.id;
-        c_entry.physical_offset   = h_entry.physical_offset;
-        c_entry.begin_timestamp   = h_entry.begin_timestamp;
-        c_entry.end_timestamp     = h_entry.end_timestamp;
+        c_entry.logical_offset    = offset;
+        c_entry.length            = length;
+        c_entry.id                = pid;
+        c_entry.original_chunk    = pid;
+        c_entry.physical_offset   = poff;
+        c_entry.begin_timestamp   = begin_timestamp;
+        c_entry.end_timestamp     = end_timestamp;
 
-        // Only buffer if we are using the ADIO layer
-        if(buffering && !buffer_filled) insertGlobal(&c_entry);
+        insertGlobal(&c_entry);  // push it into the read index structure
 
         // Make sure we have the chunk path
-        if(chunk_map.size()==0){
-            ChunkFile cf;
-            cf.fd = -1;
-            cf.path = Container::chunkPathFromIndexPath(index_path,h_entry.id);
-            mlog(IDX_DCOMMON, "Use chunk from idx path: %s", cf.path.c_str());
-            chunk_map.push_back( cf );
-        }
+        // chunk map only used for read index.  We need to maintain it here
+        // so that rank 0 can collect all the local chunk maps to create a 
+        // global one
+       if(chunk_map.size()==0){
+           ChunkFile cf;
+           cf.fd = -1;
+           cf.path = Container::chunkPathFromIndexPath(index_path,pid);
+           // No good we need the Index Path please be stashed somewhere
+            mlog(IDX_DCOMMON, "Use chunk path from index path: %s",
+                cf.path.c_str());
+           chunk_map.push_back( cf );
+       }
     }
+   
 }
 
 void Index::truncate( off_t offset ) {

@@ -252,6 +252,7 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid){
 
         // then the index
         if ( ret >= 0 ) {
+            write_count++;
             Util::MutexLock(   &index_mux , __FUNCTION__);
             index->addWrite( offset, ret, pid, begin, end );
             // TODO: why is 1024 a magic number?
@@ -268,7 +269,6 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid){
             Util::MutexUnlock( &index_mux, __FUNCTION__ );
         }
     }
-    write_count++;
     // return bytes written or error
     return ( ret >= 0 ? written : -errno );
 }
