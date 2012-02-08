@@ -6,32 +6,26 @@ ContainerFileSystem containerfs;
 
 int
 ContainerFileSystem::open(Plfs_fd **pfd, const char *logical, int flags,
-			  pid_t pid, mode_t mode, Plfs_open_opt *open_opt) 
-{
+                          pid_t pid, mode_t mode, Plfs_open_opt *open_opt) {
     int ret;
     bool newly_created = false;
-
     // possible that we just reuse the current one
     // or we need to make a new open
     if (*pfd == NULL) {
         newly_created = true;
         *pfd = new Container_fd();
     }
-
     ret = (*pfd)->open(logical, flags, pid, mode, open_opt);
-
     if (ret != 0 && newly_created) {
         delete (*pfd);
         *pfd = NULL;
     }
-
     return ret;
 }
 
 int
 ContainerFileSystem::create(const char *logical, mode_t mode,
-			    int flags, pid_t pid)
-{
+                            int flags, pid_t pid) {
     return container_create(logical, mode, flags, pid);
 }
 
@@ -72,8 +66,7 @@ ContainerFileSystem::utime(const char *logical, struct utimbuf *ut) {
 
 int
 ContainerFileSystem::getattr(const char *logical, struct stat *stbuf,
-			     int sz_only)
-{
+                             int sz_only) {
     return container_getattr(NULL, logical, stbuf, sz_only);
 }
 

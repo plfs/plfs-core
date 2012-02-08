@@ -32,7 +32,7 @@ typedef struct {
     string mnt_pt;  // the logical mount point
     string *statfs; // where to resolve statfs calls
     string *syncer_ip; // where to send commands within plfs_protect
-    vector<string> backends;    // a list of physical locations 
+    vector<string> backends;    // a list of physical locations
     vector<string> canonical_backends;
     vector<string> shadow_backends;
     vector<string> mnt_tokens;
@@ -42,13 +42,13 @@ typedef struct {
 } PlfsMount;
 
 typedef struct {
-    string file; // which top-level plfsrc was used 
+    string file; // which top-level plfsrc was used
     set<string> files;     /* to detect recursive includes in plfsrc */
     set<string> backends;  /* to detect a backend being reused in plfsrc */
     size_t num_hostdirs;
     size_t threadpool_size;
     size_t buffer_mbs;  // how many mbs to buffer for write indexing
-    map<string,PlfsMount*> mnt_pts;
+    map<string,PlfsMount *> mnt_pts;
     bool direct_io; // a flag FUSE needs.  Sorry ADIO and API for the wasted bit
     bool test_metalink; // for developers only
     bool lazy_stat;
@@ -72,23 +72,23 @@ typedef struct {
    if root, check /etc/plfsrc first and then if fail, then check $HOME/.plfsrc
    if not root, reverse order
 */
-PlfsConf* get_plfs_conf( );  
+PlfsConf *get_plfs_conf( );
 
-PlfsMount * find_mount_point(PlfsConf *pconf, const string &path, bool &found);
-PlfsMount * find_mount_point_using_tokens(PlfsConf *, vector <string> &, bool&);
+PlfsMount *find_mount_point(PlfsConf *pconf, const string& path, bool& found);
+PlfsMount *find_mount_point_using_tokens(PlfsConf *, vector <string> &, bool&);
 int find_all_expansions(const char *logical, vector<string> &containers);
 
 /* plfs_init
     it just warms up the plfs structures used in expandPath
 */
-bool plfs_init(PlfsConf*);
+bool plfs_init(PlfsConf *);
 char **plfs_mlogargs(int *mlargc, char **mlargv);
 char *plfs_mlogtag(char *newtag);
 
 int plfs_chmod_cleanup(const char *logical,mode_t mode );
 int plfs_chown_cleanup (const char *logical,uid_t uid,gid_t gid );
 
-void plfs_stat_add(const char*func, double time, int );
+void plfs_stat_add(const char *func, double time, int );
 
 int plfs_mutex_lock( pthread_mutex_t *mux, const char *whence );
 int plfs_mutex_unlock( pthread_mutex_t *mux, const char *whence );

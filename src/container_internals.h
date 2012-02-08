@@ -10,7 +10,7 @@ int container_chown( const char *path, uid_t, gid_t );
 
 int container_close(Container_OpenFile *,pid_t,uid_t,int open_flags,Plfs_close_opt *close_opt);
 
-int container_create( const char *path, mode_t mode, int flags, pid_t pid ); 
+int container_create( const char *path, mode_t mode, int flags, pid_t pid );
 
 int container_getattr(Container_OpenFile *, const char *path, struct stat *st, int size_only);
 
@@ -20,15 +20,15 @@ int container_mode( const char *path, mode_t *mode );
 
 int container_mkdir( const char *path, mode_t );
 
-int container_open( Container_OpenFile **, const char *path, 
-        int flags, pid_t pid, mode_t , Plfs_open_opt *open_opt);
+int container_open( Container_OpenFile **, const char *path,
+                    int flags, pid_t pid, mode_t , Plfs_open_opt *open_opt);
 
-int container_query( Container_OpenFile *, size_t *writers, 
-                    size_t *readers, size_t *bytes_written, bool *reopen );
+int container_query( Container_OpenFile *, size_t *writers,
+                     size_t *readers, size_t *bytes_written, bool *reopen );
 
 ssize_t container_read( Container_OpenFile *, char *buf, size_t size, off_t offset );
 
-int container_readdir( const char *path, void * ); 
+int container_readdir( const char *path, void * );
 
 int container_readlink( const char *path, char *buf, size_t bufsize );
 

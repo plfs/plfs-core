@@ -4,8 +4,7 @@
 #include <stdlib.h>
 
 Container_OpenFile::Container_OpenFile(WriteFile *wf, Index *i, pid_t pi,
-    mode_t m, const char *p ) : Metadata::Metadata()
-{
+                                       mode_t m, const char *p ) : Metadata::Metadata() {
     struct timeval t;
     gettimeofday( &t, NULL );
     this->writefile = wf;
@@ -29,8 +28,12 @@ int Container_OpenFile::unlockIndex() {
 // this should be in a mutex when it is called
 void Container_OpenFile::setPath( string p ) {
     this->path = p;
-    if ( writefile ) writefile->setContainerPath( p );
-    if ( index     ) index->setPath( p );
+    if ( writefile ) {
+        writefile->setContainerPath( p );
+    }
+    if ( index     ) {
+        index->setPath( p );
+    }
 }
 
 WriteFile *Container_OpenFile::getWritefile( ) {

@@ -12,8 +12,7 @@ Container_fd::~Container_fd() {
 
 int
 Container_fd::open(const char *filename, int flags, pid_t pid,
-	      mode_t mode, Plfs_open_opt *open_opt)
-{
+                   mode_t mode, Plfs_open_opt *open_opt) {
     return container_open(&fd, filename, flags, pid, mode, open_opt);
 }
 
@@ -48,9 +47,8 @@ Container_fd::getattr(const char *path, struct stat *stbuf, int sz_only) {
 }
 
 int
-Container_fd::query(size_t *writers, size_t *readers, size_t *bytes_written, 
-        bool *reopen) 
-{
+Container_fd::query(size_t *writers, size_t *readers, size_t *bytes_written,
+                    bool *reopen) {
     return container_query(fd, writers, readers, bytes_written, reopen);
 }
 

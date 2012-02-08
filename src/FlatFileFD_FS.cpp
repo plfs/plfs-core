@@ -37,14 +37,14 @@ Flat_fd::~Flat_fd() {
 
 int
 Flat_fd::open(const char *filename, int flags, pid_t pid,
-              mode_t mode, Plfs_open_opt *unused)
-{
+              mode_t mode, Plfs_open_opt *unused) {
     if (backend_fd != -1) {// This fd has already been opened.
         refs++;
     } else {
         int fd = Util::Open(filename, flags, mode);
-        if (fd < 0)
+        if (fd < 0) {
             return -errno;
+        }
         backend_fd = fd;
         backend_pathname = filename;
         refs = 1;
@@ -55,8 +55,9 @@ Flat_fd::open(const char *filename, int flags, pid_t pid,
 int
 Flat_fd::close(pid_t pid, uid_t u, int flags, Plfs_close_opt *unused) {
     refs--;
-    if (refs > 0)
-        return refs; // Others are still using this fd.
+    if (refs > 0) {
+        return refs;    // Others are still using this fd.
+    }
     if (backend_fd >= 0) {
         Util::Close(backend_fd);
         backend_fd = -1;
@@ -95,25 +96,28 @@ Flat_fd::getattr(const char *path, struct stat *stbuf, int sz_only) {
 }
 
 int
-Flat_fd::query(size_t *writers, size_t *readers, size_t *bytes_written, 
-        bool *reopen) 
-{
-    if (bytes_written) *bytes_written = 1; // set to 1 temporarily
-    if (reopen) *reopen = 0;
+Flat_fd::query(size_t *writers, size_t *readers, size_t *bytes_written,
+               bool *reopen) {
+    if (bytes_written) {
+        *bytes_written = 1;    // set to 1 temporarily
+    }
+    if (reopen) {
+        *reopen = 0;
+    }
     // Not implemented.
     return 0;
 }
 
 bool Flat_fd::is_good() {
-    if (backend_fd > 0 && refs > 0)
+    if (backend_fd > 0 && refs > 0) {
         return true;
+    }
     return false;
 }
 
 int
 FlatFileSystem::open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,
-               mode_t mode, Plfs_open_opt *open_opt)
-{
+                     mode_t mode, Plfs_open_opt *open_opt) {
     FLAT_ENTER;
     int newly_created = 0;
     if (*pfd == NULL) {
@@ -134,22 +138,22 @@ FlatFileSystem::open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,
 // the PLFS version of create won't open the file. So close the
 // file after POSIX creat() is called.
 int
-FlatFileSystem::create(const char *logical, mode_t mode, int flags, pid_t pid ){
+FlatFileSystem::create(const char *logical, mode_t mode, int flags, pid_t pid ) {
     FLAT_ENTER;
-//     An open(... O_CREAT) gets turned into a mknod followed by an
-//      open in fuse. So a common problem is that open(..., O_RDWR |
-//      O_CREAT, 0444) can create files which do not have write
-//      access, yet it is valid to have them opened in read-write
-//      mode.  So after the mknod you end up with a file that doesn't
-//      have write permission, followed by a request to open for
-//      write. We must add write permission to this file here so that
-//      the following open could succeed.
+    //     An open(... O_CREAT) gets turned into a mknod followed by an
+    //      open in fuse. So a common problem is that open(..., O_RDWR |
+    //      O_CREAT, 0444) can create files which do not have write
+    //      access, yet it is valid to have them opened in read-write
+    //      mode.  So after the mknod you end up with a file that doesn't
+    //      have write permission, followed by a request to open for
+    //      write. We must add write permission to this file here so that
+    //      the following open could succeed.
     ret = Util::Creat(path.c_str(), mode | S_IWUSR);
     FLAT_EXIT(ret);
 }
 
 int
-FlatFileSystem::chown( const char *logical, uid_t u, gid_t g ){
+FlatFileSystem::chown( const char *logical, uid_t u, gid_t g ) {
     FLAT_ENTER;
     ret = Util::Lchown(path.c_str(),u,g);
     FLAT_EXIT(ret);
@@ -167,7 +171,9 @@ FlatFileSystem::getmode( const char *logical, mode_t *mode) {
     struct stat stbuf;
     FLAT_ENTER;
     ret = Util::Lstat(path.c_str(), &stbuf);
-    if (ret == 0) *mode = stbuf.st_mode;
+    if (ret == 0) {
+        *mode = stbuf.st_mode;
+    }
     FLAT_EXIT(ret);
 }
 
@@ -183,9 +189,10 @@ FlatFileSystem::rename( const char *logical, const char *to ) {
     FLAT_ENTER;
     EXPAND_TARGET;
     struct stat stbuf;
-
     ret = Util::Lstat(old_canonical.c_str(), &stbuf);
-    if (ret < 0) goto out;
+    if (ret < 0) {
+        goto out;
+    }
     if (S_ISREG(stbuf.st_mode) || S_ISLNK(stbuf.st_mode)) {
         ret = Util::retValue(Util::Rename(old_canonical.c_str(),
                                           new_canonical.c_str()));
@@ -194,22 +201,31 @@ FlatFileSystem::rename( const char *logical, const char *to ) {
         if (ret == -EXDEV) {
             ret = Util::CopyFile(old_canonical.c_str(),
                                  new_canonical.c_str());
-            if (ret == 0) ret = Util::Unlink(old_canonical.c_str());
+            if (ret == 0) {
+                ret = Util::Unlink(old_canonical.c_str());
+            }
             mlog(FUSE_DCOMMON, "Cross-device rename, do CopyFile+Unlink, "
                  "ret: %d. errno: %d.\n", ret, errno);
         }
     } else if (S_ISDIR(stbuf.st_mode)) {
         vector<string> srcs, dsts;
-        if ((ret = find_all_expansions(logical,srcs)) != 0) goto out;
-        if ((ret = find_all_expansions(to,dsts)) != 0) goto out;
+        if ((ret = find_all_expansions(logical,srcs)) != 0) {
+            goto out;
+        }
+        if ((ret = find_all_expansions(to,dsts)) != 0) {
+            goto out;
+        }
         assert(srcs.size()==dsts.size());
-
         // now go through and rename all of them (ignore ENOENT)
         for(size_t i = 0; i < srcs.size(); i++) {
             int err = Util::retValue(Util::Rename(srcs[i].c_str(),
                                                   dsts[i].c_str()));
-            if (err == -ENOENT) err = 0;  // might not be distributed on all 
-            if (err != 0) ret = err;  // keep trying but save the error
+            if (err == -ENOENT) {
+                err = 0;    // might not be distributed on all
+            }
+            if (err != 0) {
+                ret = err;    // keep trying but save the error
+            }
             mlog(INT_DCOMMON, "rename %s to %s: %d",
                  srcs[i].c_str(), dsts[i].c_str(), err);
         }
@@ -236,16 +252,14 @@ FlatFileSystem::utime( const char *logical, struct utimbuf *ut ) {
 }
 
 int
-FlatFileSystem::getattr(const char *logical, struct stat *stbuf,int sz_only)
-{
+FlatFileSystem::getattr(const char *logical, struct stat *stbuf,int sz_only) {
     FLAT_ENTER;
     ret = Util::Lstat(path.c_str(),stbuf);
     FLAT_EXIT(ret);
 }
 
 int
-FlatFileSystem::trunc(const char *logical, off_t offset, int open_file)
-{
+FlatFileSystem::trunc(const char *logical, off_t offset, int open_file) {
     FLAT_ENTER;
     ret = Util::Truncate(path.c_str(),offset);
     FLAT_EXIT(ret);
@@ -272,7 +286,9 @@ int
 FlatFileSystem::readlink(const char *logical, char *buf, size_t bufsize) {
     FLAT_ENTER;
     ret = Util::Readlink(path.c_str(), buf, bufsize);
-    if (ret > 0 && (size_t)ret < bufsize) buf[ret] = 0; // null term the buffer
+    if (ret > 0 && (size_t)ret < bufsize) {
+        buf[ret] = 0;    // null term the buffer
+    }
     FLAT_EXIT(ret);
 }
 

@@ -17,17 +17,31 @@ class Container_OpenFile : public Metadata {
         void       setWriteFds( int, int, Index * );
         void       getWriteFds( int *, int *, Index ** );
         pid_t      getPid();
-        void       setPath( string path ); 
-        const char *getPath() { return this->path.c_str(); }
-        mode_t     getMode()  { return this->mode; }
-        time_t     getCtime() { return ctime; }
-        void       setIndex( Index *i )          { this->index     = i;  }
-        void       setWritefile( WriteFile *wf ) { this->writefile = wf; }
+        void       setPath( string path );
+        const char *getPath() {
+            return this->path.c_str();
+        }
+        mode_t     getMode()  {
+            return this->mode;
+        }
+        time_t     getCtime() {
+            return ctime;
+        }
+        void       setIndex( Index *i )          {
+            this->index     = i;
+        }
+        void       setWritefile( WriteFile *wf ) {
+            this->writefile = wf;
+        }
         // when we build and destroy an index in RDWR mode, we want to lock it
         int       lockIndex();
         int       unlockIndex();
-        void      setReopen() {reopen = true;};
-        bool      isReopen() {return reopen;};
+        void      setReopen() {
+            reopen = true;
+        };
+        bool      isReopen() {
+            return reopen;
+        };
 
     private:
         WriteFile *writefile;

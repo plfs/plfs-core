@@ -45,14 +45,12 @@ string LogMessage::Dump() {
 }
 
 void LogMessage::flush() {
-
     string test;
     pthread_mutex_lock( &log_mutex );
     log_array[log_array_index] = this->str();
     log_array_index = (log_array_index + 1) % LOG_BUFFER_SZ;
     log_array_size  = min( log_array_size + 1, (long unsigned)LOG_BUFFER_SZ );
     pthread_mutex_unlock( &log_mutex );
-
     mlog(INT_DCOMMON, "%s", this->str().c_str() );
     //this->str().resize(0);
     //this->clear();
@@ -62,7 +60,7 @@ void LogMessage::flush() {
 void LogMessage::addTime( double t ) {
     *this << setw(22) << setprecision(22) << t << " ";
 }
-        
+
 void LogMessage::addIds( uid_t uid, gid_t gid ) {
     *this << " UID " << uid << " GID " << gid;
 }
@@ -79,6 +77,6 @@ void LogMessage::addSize( size_t size ) {
     *this << " size " << size;
 }
 
-void LogMessage::addFunction( const char * func ) {
+void LogMessage::addFunction( const char *func ) {
     *this << setw(13) << func << " ";
 }

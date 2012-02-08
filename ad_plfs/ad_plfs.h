@@ -1,8 +1,8 @@
 /* -*- Mode: C; c-basic-offset:4 ; -*- */
-/* 
- *   $Id: ad_plfs.h,v 1.1 2010/11/29 19:59:01 adamm Exp $    
+/*
+ *   $Id: ad_plfs.h,v 1.1 2010/11/29 19:59:01 adamm Exp $
  *
- *   Copyright (C) 1997 University of Chicago. 
+ *   Copyright (C) 1997 University of Chicago.
  *   See COPYRIGHT notice in top-level directory.
  */
 
@@ -28,25 +28,25 @@ typedef long long int int64_t;
 
 void ADIOI_PLFS_Open(ADIO_File fd, int *error_code);
 void ADIOI_PLFS_Close(ADIO_File fd, int *error_code);
-void ADIOI_PLFS_ReadContig(ADIO_File fd, void *buf, int count, 
-                      MPI_Datatype datatype, int file_ptr_type,
-                     ADIO_Offset offset, ADIO_Status *status, int
-		     *error_code);
-void ADIOI_PLFS_WriteContig(ADIO_File fd, void *buf, int count, 
-                      MPI_Datatype datatype, int file_ptr_type,
-                      ADIO_Offset offset, ADIO_Status *status, int
-		      *error_code);   
+void ADIOI_PLFS_ReadContig(ADIO_File fd, void *buf, int count,
+                           MPI_Datatype datatype, int file_ptr_type,
+                           ADIO_Offset offset, ADIO_Status *status, int
+                           *error_code);
+void ADIOI_PLFS_WriteContig(ADIO_File fd, void *buf, int count,
+                            MPI_Datatype datatype, int file_ptr_type,
+                            ADIO_Offset offset, ADIO_Status *status, int
+                            *error_code);
 void ADIOI_PLFS_Fcntl(ADIO_File fd, int flag, ADIO_Fcntl_t *fcntl_struct, int
-		*error_code); 
+                      *error_code);
 /*
 void ADIOI_PLFS_WriteStrided(ADIO_File fd, void *buf, int count,
-		       MPI_Datatype datatype, int file_ptr_type,
-		       ADIO_Offset offset, ADIO_Status *status, int
-		       *error_code);
+               MPI_Datatype datatype, int file_ptr_type,
+               ADIO_Offset offset, ADIO_Status *status, int
+               *error_code);
 void ADIOI_PLFS_ReadStrided(ADIO_File fd, void *buf, int count,
-		       MPI_Datatype datatype, int file_ptr_type,
-		       ADIO_Offset offset, ADIO_Status *status, int
-		       *error_code);
+               MPI_Datatype datatype, int file_ptr_type,
+               ADIO_Offset offset, ADIO_Status *status, int
+               *error_code);
 void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code);
 */
 void ADIOI_PLFS_Flush(ADIO_File fd, int *error_code);
@@ -66,6 +66,6 @@ void check_stream(int size,int rank);
  *                         useless if broadcast off
  * plfs_flatten_close    : Flatten the index on the close
  *
- */    
+ */
 int ad_plfs_hints(ADIO_File fd, int rank, char *hint);
 #endif

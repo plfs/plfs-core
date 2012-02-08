@@ -18,14 +18,16 @@ using namespace std;
 // so we can have an operation that is applied on all backends
 // or operations that are applied on all files within canonical and shadows
 class
-FileOp {
+        FileOp {
     public:
         // first arg to op is path, second is type of path
         int op(const char *, unsigned char type); // ret 0 or -errno
         virtual const char *name() = 0;
-        virtual bool onlyAccessFile() {return false;}
+        virtual bool onlyAccessFile() {
+            return false;
+        }
         void ignoreErrno(int Errno); // can register errno's to be ignored
-        virtual int do_op(const char*, unsigned char type) = 0;
+        virtual int do_op(const char *, unsigned char type) = 0;
         virtual ~FileOp() {}
     protected:
         int retValue(int ret);
@@ -34,34 +36,44 @@ FileOp {
 };
 
 class
-AccessOp : public FileOp {
+        AccessOp : public FileOp {
     public:
         AccessOp(int);
-        int do_op(const char*, unsigned char);
-        bool onlyAccessFile() {return true;}
-        const char *name() { return "AccessOp"; }
+        int do_op(const char *, unsigned char);
+        bool onlyAccessFile() {
+            return true;
+        }
+        const char *name() {
+            return "AccessOp";
+        }
     private:
         int mask;
 };
 
 class
-ChownOp : public FileOp {
+        ChownOp : public FileOp {
     public:
         ChownOp(uid_t, gid_t);
         int do_op(const char *, unsigned char);
-        const char *name() { return "ChownOp"; }
+        const char *name() {
+            return "ChownOp";
+        }
     private:
         uid_t u;
         gid_t g;
 };
 
 class
-UtimeOp : public FileOp {
+        UtimeOp : public FileOp {
     public:
         UtimeOp(struct utimbuf *);
         int do_op(const char *, unsigned char);
-        const char *name() { return "UtimeOp"; }
-        bool onlyAccessFile() {return true;}
+        const char *name() {
+            return "UtimeOp";
+        }
+        bool onlyAccessFile() {
+            return true;
+        }
     private:
         utimbuf *ut;
 };
@@ -71,11 +83,13 @@ UtimeOp : public FileOp {
 // if the file is closed, it unlinks all physical files
 // the caller should tell it to ignore special files
 class
-TruncateOp : public FileOp {
+        TruncateOp : public FileOp {
     public:
         TruncateOp(bool open_file);
         int do_op(const char *, unsigned char);
-        const char *name() { return "TruncateOp"; }
+        const char *name() {
+            return "TruncateOp";
+        }
         void ignore(string);
     private:
         vector<string> ignores;
@@ -102,11 +116,13 @@ RmdirOp : public FileOp {
 // file name
 // the second bool controls whether it ignores "." and ".."
 class
-ReaddirOp : public FileOp {
+        ReaddirOp : public FileOp {
     public:
         ReaddirOp(map<string,unsigned char>*,set<string>*, bool, bool);
         int do_op(const char *, unsigned char);
-        const char *name() { return "ReaddirOp"; }
+        const char *name() {
+            return "ReaddirOp";
+        }
         int filter(string);
     private:
         map<string,unsigned char> *entries;
@@ -117,31 +133,37 @@ ReaddirOp : public FileOp {
 };
 
 class
-CreateOp : public FileOp {
+        CreateOp : public FileOp {
     public:
         CreateOp(mode_t);
         int do_op(const char *, unsigned char);
-        const char *name() { return "CreateOp"; }
+        const char *name() {
+            return "CreateOp";
+        }
     private:
         mode_t m;
 };
 
 class
-ChmodOp : public FileOp {
+        ChmodOp : public FileOp {
     public:
         ChmodOp(mode_t);
         int do_op(const char *, unsigned char);
-        const char *name() { return "ChmodOp"; }
+        const char *name() {
+            return "ChmodOp";
+        }
     private:
         mode_t m;
 };
 
 class
-UnlinkOp : public FileOp {
+        UnlinkOp : public FileOp {
     public:
         UnlinkOp() { }
         int do_op(const char *, unsigned char);
-        const char *name() { return "UnlinkOp"; }
+        const char *name() {
+            return "UnlinkOp";
+        }
 };
 
 #endif

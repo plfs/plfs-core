@@ -173,11 +173,8 @@ static void vmlog(int, const char *, va_list);
  * @param twolen length of the two buffer
  */
 static void mlog_getmbptrs(char **one, int *onelen, char **two, int *twolen) {
-
     uint32_t wp;
-
     wp = ((struct mlog_mbhead *)mst.mb)->mbh_wp;
-
     *one = ((char *) mst.mb) + sizeof(struct mlog_mbhead) + wp;
     *onelen = ((struct mlog_mbhead *)mst.mb)->mbh_len - wp;
     *two = ((char *) mst.mb) + sizeof(struct mlog_mbhead);
@@ -196,16 +193,12 @@ static void mlog_getmbptrs(char **one, int *onelen, char **two, int *twolen) {
  * @param b2len returns length of b2 or zero if b2 is null
  */
 static void mlog_dmesg_mbuf(char **b1p, int *b1len, char **b2p, int *b2len) {
-    
     uint32_t skip;
-    
     /* get pointers */
     mlog_getmbptrs(b1p, b1len, b2p, b2len);
-    
     /* if the buffer wasn't full, we need to adjust the pointers */
     skip = ((struct mlog_mbhead *)mst.mb)->mbh_len -
-        ((struct mlog_mbhead *)mst.mb)->mbh_cnt;
-
+           ((struct mlog_mbhead *)mst.mb)->mbh_cnt;
     if (skip >= *b1len) {       /* skip entire first buffer? */
         skip -= *b1len;
         *b1p = *b2p;
@@ -213,12 +206,10 @@ static void mlog_dmesg_mbuf(char **b1p, int *b1len, char **b2p, int *b2len) {
         *b1len = *b2len;
         *b2len = 0;
     }
-
     if (skip) {
         *b1p = *b1p + skip;
         *b1len = *b1len - skip;
     }
-
     return;
 }
 
@@ -234,29 +225,31 @@ static void mlog_dmesg_mbuf(char **b1p, int *b1len, char **b2p, int *b2len) {
  * @return number of host/port entries resolved.
  */
 static int mlog_getucon(int cnt, struct sockaddr_in *ads, char *dcon) {
-
     int rv;
     char *p, *hst, *col, *port;
-
     p = dcon;
     rv = 0;
     while (*p && rv < cnt) {
         hst = p;
-        while (*p && *p != ':')
+        while (*p && *p != ':') {
             p++;
+        }
         if (*p != ':') {
             fprintf(stderr, "MLOG_UCON: parse error: missing ':'\n");
             break;
         }
         col = p++;
         port = p;
-        while (*p && *p != ';')
+        while (*p && *p != ';') {
             p++;
-        if (*p == ';')
+        }
+        if (*p == ';') {
             p++;
+        }
         *col = 0;
-        if (mlog_resolvhost(&ads[rv], hst, port) != -1)
+        if (mlog_resolvhost(&ads[rv], hst, port) != -1) {
             rv++;
+        }
         *col = ':';
     }
     return(rv);
@@ -266,11 +259,13 @@ static int mlog_getucon(int cnt, struct sockaddr_in *ads, char *dcon) {
  * static arrays for converting between pri's and strings
  */
 static char *norm[] = { "DBUG", "INFO", "NOTE", "WARN",
-                        "ERR ", "CRIT", "ALRT", "EMRG" };
+                        "ERR ", "CRIT", "ALRT", "EMRG"
+                      };
 static char *dbg[] = {  "D---", "D3--", "D2--", "D23-",
                         "D1--", "D13-", "D12-", "D123",
                         "D0--", "D03-", "D02-", "D023",
-                        "D01-", "D013", "D012", "DBUG" };
+                        "D01-", "D013", "D012", "DBUG"
+                     };
 /**
  * mlog_pristr: convert priority to 4 byte symbolic name.
  * does not access mlog global state.
@@ -280,11 +275,11 @@ static char *dbg[] = {  "D---", "D3--", "D2--", "D23-",
  */
 static char *mlog_pristr(int pri) {
     int s;
-
     pri = pri & MLOG_PRIMASK;   /* be careful */
     s = (pri >> MLOG_PRISHIFT) & 7;
-    if (s)
+    if (s) {
         return(norm[s]);
+    }
     s = (pri >> MLOG_DPRISHIFT) & 15;
     return(dbg[s]);
 }
@@ -299,24 +294,21 @@ static char *mlog_pristr(int pri) {
  * @return -1 on error, 0 otherwise.
  */
 static int mlog_resolvhost(struct sockaddr_in *sinp, char *h, char *p) {
-
     struct hostent *he;
-    
     memset(sinp, 0, sizeof(*sinp));
     sinp->sin_family = AF_INET;
     sinp->sin_port = htons(atoi(p));
-
     if (*h >= '0' && *h <= '9') {
         sinp->sin_addr.s_addr = inet_addr(h);
         if (sinp->sin_addr.s_addr == 0 ||
-            sinp->sin_addr.s_addr == ((in_addr_t) -1)) {
+                sinp->sin_addr.s_addr == ((in_addr_t) -1)) {
             fprintf(stderr, "MLOG_UCON: invalid host %s\n", h);
             return(-1);
         }
     } else {
         he = gethostbyname(h);   /* likely to block here */
         if (!he || he->h_addrtype != AF_INET ||
-            he->h_length != sizeof(in_addr_t) || !he->h_addr) {
+                he->h_length != sizeof(in_addr_t) || !he->h_addr) {
             fprintf(stderr, "MLOG_UCON: invalid host %s\n", h);
             return(-1);
         }
@@ -335,45 +327,43 @@ static int mlog_resolvhost(struct sockaddr_in *sinp, char *h, char *p) {
  * @return -1 on error.
  */
 static int mlog_setnfac(int n) {
-
     int try, lcv;
     struct mlog_fac *nfacs;
-    
     /* fail if mlog not open */
-    if (!mlog_xst.tag)
+    if (!mlog_xst.tag) {
         return(-1);
-
+    }
     /* hmm, already done */
-    if (n <= mlog_xst.fac_cnt)
+    if (n <= mlog_xst.fac_cnt) {
         return(0);
-
+    }
     /* can we expand in place? */
     if (n <= mst.fac_alloc) {
         mlog_xst.fac_cnt = n;
         return(0);
     }
-
     /* must grow the array */
     try = (n < 1024) ? (n + 32) : n;    /* pad a bit for small values of n */
     nfacs = malloc(try * sizeof(*nfacs));
-    if (!nfacs)
+    if (!nfacs) {
         return(-1);
-    
+    }
     /* over the hump, setup the new array */
     lcv = 0;
     if (mlog_xst.mlog_facs && mlog_xst.fac_cnt) {   /* copy old? */
-        for (/*null*/ ; lcv < mlog_xst.fac_cnt ; lcv++)
+        for (/*null*/ ; lcv < mlog_xst.fac_cnt ; lcv++) {
             nfacs[lcv] = mlog_xst.mlog_facs[lcv];    /* struct copy */
+        }
     }
     for (/*null*/ ; lcv < try ; lcv++) {           /* init the new */
-        nfacs[lcv].fac_mask = mst.def_mask;
-        nfacs[lcv].fac_aname = (lcv == 0) ? default_fac0name : NULL;
-        nfacs[lcv].fac_lname = NULL;
-    }
-    
+            nfacs[lcv].fac_mask = mst.def_mask;
+            nfacs[lcv].fac_aname = (lcv == 0) ? default_fac0name : NULL;
+            nfacs[lcv].fac_lname = NULL;
+        }
     /* install */
-    if (mlog_xst.mlog_facs)
+    if (mlog_xst.mlog_facs) {
         free(mlog_xst.mlog_facs);
+    }
     mlog_xst.mlog_facs = nfacs;
     mlog_xst.fac_cnt = n;
     mst.fac_alloc = try;
@@ -393,15 +383,13 @@ static void mlog_bput(char **bpp, int *skippy, int *residp, int *totcp,
                       char *str) {
     static char *nullsrc = "X\0\0";          /* 'X' is a non-null dummy char */
     char *sp;
-
-    if (str == NULL)                         /* trick to allow a null insert */
+    if (str == NULL) {                       /* trick to allow a null insert */
         str = nullsrc;
-
+    }
     for (sp = str ; *sp ; sp++) {
-
-        if (sp == nullsrc)
-            sp++;                            /* skip over 'X' to null */
-        
+        if (sp == nullsrc) {
+            sp++;    /* skip over 'X' to null */
+        }
         if (totcp) {
             (*totcp)++;                      /* update the total */
         }
@@ -444,9 +432,7 @@ static uint32_t wswap(uint32_t w) {
  * @param ap the stdargs va_list to use for the printf format
  */
 static void vmlog(int flags, const char *fmt, va_list ap) {
-
 #define MLOG_TBSIZ    4096    /* bigger than any line should be */
-
     int fac, lvl, msk;
     char b[MLOG_TBSIZ], *bp, *b_nopt1hdr;
     char facstore[16], *facstr;
@@ -457,13 +443,12 @@ static void vmlog(int flags, const char *fmt, va_list ap) {
     char *m1, *m2;
     int m1len, m2len, ncpy;
     struct mlog_mbhead *mb;
-
     /*
      * make sure the mlog is open
      */
-    if (!mlog_xst.tag)
+    if (!mlog_xst.tag) {
         return;
-    
+    }
     /*
      * first, see if we can ignore the log messages because it is
      * masked out.  if debug messages are masked out, then we just
@@ -475,15 +460,17 @@ static void vmlog(int flags, const char *fmt, va_list ap) {
     fac = flags & MLOG_FACMASK;
     lvl = flags & MLOG_PRIMASK;
     /* convert unknown facilities to default so we don't drop log msg */
-    if (fac >= mlog_xst.fac_cnt)
+    if (fac >= mlog_xst.fac_cnt) {
         fac = 0;
-
+    }
     msk = mlog_xst.mlog_facs[fac].fac_mask;
     if (lvl >= MLOG_INFO) {   /* normal mlog message */
-        if (lvl < msk)
-            return;           /* skip it */
-        if (mst.stderr_mask != 0 && lvl >= mst.stderr_mask)
-            flags |= MLOG_STDERR;  
+        if (lvl < msk) {
+            return;    /* skip it */
+        }
+        if (mst.stderr_mask != 0 && lvl >= mst.stderr_mask) {
+            flags |= MLOG_STDERR;
+        }
     } else {                  /* debug mlog message */
         /*
          * note: if (msk >= MLOG_INFO), then all the mask's debug bits
@@ -491,18 +478,17 @@ static void vmlog(int flags, const char *fmt, va_list ap) {
          * for messages with the debug level we only have to do a bit
          * test.
          */
-        if ((lvl & msk) == 0) /* do we want this type of debug msg? */
-            return;           /* no! */
-        if ((lvl & mst.stderr_mask) != 0)    /* same thing for stderr_mask */
+        if ((lvl & msk) == 0) { /* do we want this type of debug msg? */
+            return;    /* no! */
+        }
+        if ((lvl & mst.stderr_mask) != 0) {  /* same thing for stderr_mask */
             flags |= MLOG_STDERR;
+        }
     }
-        
     /*
      * we must log it, start computing the parts of the log we'll need.
      */
-
     mlog_lock();      /* lock out other threads */
-
     if (mlog_xst.mlog_facs[fac].fac_aname) {
         facstr = mlog_xst.mlog_facs[fac].fac_aname;
     } else {
@@ -512,7 +498,6 @@ static void vmlog(int flags, const char *fmt, va_list ap) {
     (void) gettimeofday(&tv, 0);
     tm = localtime(&tv.tv_sec);
     thisflag = (mst.oflags | flags);
-
     /*
      * ok, first, put the header into b[]
      */
@@ -525,8 +510,7 @@ static void vmlog(int flags, const char *fmt, va_list ap) {
     hlen_pt1 = hlen;    /* save part 1 length */
     if (hlen < sizeof(b))
         hlen += snprintf(b + hlen, sizeof(b) - hlen, "%-4s %s ",
-                            facstr, mlog_pristr(lvl));
-    
+                         facstr, mlog_pristr(lvl));
     /*
      * we expect there is still room (i.e. at least one byte) for a
      * message, so this overflow check should never happen, but let's
@@ -538,12 +522,10 @@ static void vmlog(int flags, const char *fmt, va_list ap) {
                 sizeof(b), hlen + 1);
         return;
     }
-
     /*
      * now slap in the user's data at the end of the buffer
      */
     mlen = vsnprintf(b + hlen, sizeof(b) - hlen, fmt, ap);
-
     /*
      * compute total length, check for overflows...  make sure the string
      * ends in a newline.
@@ -551,7 +533,7 @@ static void vmlog(int flags, const char *fmt, va_list ap) {
     tlen = hlen + mlen;
     /* if overflow or totally full without newline at end ... */
     if (tlen >= sizeof(b) ||
-        (tlen == sizeof(b) - 1 && b[sizeof(b)-2] != '\n') ) {
+            (tlen == sizeof(b) - 1 && b[sizeof(b)-2] != '\n') ) {
         tlen = sizeof(b) - 1;   /* truncate, counting final null */
         /*
          * could overwrite the end of b with "[truncated...]" or
@@ -566,11 +548,9 @@ static void vmlog(int flags, const char *fmt, va_list ap) {
         }
     }
     b_nopt1hdr = b + hlen_pt1;
-
     /*
      * multilog message is now ready to be dispatched.
      */
-
     /*
      * 1: log it to the message buffer (note: mlog still locked)
      */
@@ -585,28 +565,29 @@ static void vmlog(int flags, const char *fmt, va_list ap) {
         }
         mlog_getmbptrs(&m1, &m1len, &m2, &m2len);
         ncpy = resid;
-        if (ncpy > m1len)
+        if (ncpy > m1len) {
             ncpy = m1len;
+        }
         memcpy(m1, bp, ncpy);
         resid -= ncpy;
         if (resid) {
             bp += ncpy;
             memcpy(m2, bp, resid);
         }
-
         /* update write pointer */
         if (tlen < mb->mbh_len) {
             mb->mbh_wp += tlen;
-            if (mb->mbh_wp >= mb->mbh_len)
+            if (mb->mbh_wp >= mb->mbh_len) {
                 mb->mbh_wp -= mb->mbh_len;
+            }
         }
         if (mb->mbh_cnt < mb->mbh_len) {
             mb->mbh_cnt += tlen;
-            if (mb->mbh_cnt > mb->mbh_len)
+            if (mb->mbh_cnt > mb->mbh_len) {
                 mb->mbh_cnt = mb->mbh_len;
+            }
         }
     }
-
     /*
      * locking options: b[] is current an auto var on the stack.
      * this costs stack space, but means we can unlock earlier.
@@ -617,14 +598,12 @@ static void vmlog(int flags, const char *fmt, va_list ap) {
      * neither the stderr/out or syslog access parts of mst that
      * change, so we don't really need it locked for that?
      */
-
     /*
      * 2: log it to the log file
      */
     if (mst.logfd >= 0) {
         (void) write(mst.logfd, b, tlen);
     }
-
     /*
      * 3: log it to the UCONs (UDP console)  [mst.oflags' MLOG_UCON_ON bit
      *    can only be set if there is a valid mst.udpsock open]
@@ -635,27 +614,26 @@ static void vmlog(int flags, const char *fmt, va_list ap) {
                           (struct sockaddr *)&mst.ucons[ncpy],
                           sizeof(mst.ucons[ncpy]));
     }
-
     mlog_unlock();   /* drop lock here */
-    
     /*
      * 4: log it to stderr and/or stdout.  skip part one of the header
      * if the output channel is a tty
      */
     if (thisflag & MLOG_STDERR) {
-        if (mst.stderr_isatty)
+        if (mst.stderr_isatty) {
             fprintf(stderr, "%s", b_nopt1hdr);
-        else 
+        } else {
             fprintf(stderr, "%s", b);
+        }
     }
     if (thisflag & MLOG_STDOUT) {
-        if (mst.stderr_isatty)
+        if (mst.stderr_isatty) {
             printf("%s", b_nopt1hdr);
-        else 
+        } else {
             printf("%s", b);
+        }
         fflush(stdout);
     }
-
     /*
      * 5: log it to syslog
      */
@@ -664,7 +642,6 @@ static void vmlog(int flags, const char *fmt, va_list ap) {
         syslog(mlog2syslog[lvl >> MLOG_PRISHIFT], "%s", b_nopt1hdr);
         b[tlen - 1] = '\n';  /* put \n back, just to be safe */
     }
-
     /*
      * done!
      */
@@ -683,36 +660,38 @@ static void vmlog(int flags, const char *fmt, va_list ap) {
 int mlog_str2pri(char *pstr) {
     char ptmp[8];
     int lcv;
-
     /* make sure we have a valid input */
-    if (strlen(pstr) > 5)
+    if (strlen(pstr) > 5) {
         return(-1);
+    }
     strcpy(ptmp, pstr);     /* because we may overwrite parts of it */
-
     /*
      * handle some quirks
      */
-    if (strcasecmp(ptmp, "ERR") == 0)   /* has trailing space in the array */
+    if (strcasecmp(ptmp, "ERR") == 0) { /* has trailing space in the array */
         return(MLOG_ERR);
-    if (strcasecmp(ptmp, "DEBUG") == 0) /* 5 char alternative to 'DBUG' */
-        return(MLOG_DBG);
-    if (ptmp[0] == 'D') {  /* allow shorthand without the '-' chars */       
-        while (strlen(ptmp) < 4)
-            strcat(ptmp, "-");
     }
-
+    if (strcasecmp(ptmp, "DEBUG") == 0) { /* 5 char alternative to 'DBUG' */
+        return(MLOG_DBG);
+    }
+    if (ptmp[0] == 'D') {  /* allow shorthand without the '-' chars */
+        while (strlen(ptmp) < 4) {
+            strcat(ptmp, "-");
+        }
+    }
     /*
      * do non-debug first, then debug
      */
     for (lcv =  1 ; lcv <= 7 ; lcv++) {
-        if (strcasecmp(ptmp, norm[lcv]) == 0)
+        if (strcasecmp(ptmp, norm[lcv]) == 0) {
             return(lcv << MLOG_PRISHIFT);
+        }
     }
     for (lcv = 0 ; lcv < 16 ; lcv++) {
-        if (strcasecmp(ptmp, dbg[lcv]) == 0)
+        if (strcasecmp(ptmp, dbg[lcv]) == 0) {
             return(lcv << MLOG_DPRISHIFT);
+        }
     }
-
     /* bogus! */
     return(-1);
 }
@@ -729,28 +708,25 @@ int mlog_str2pri(char *pstr) {
  */
 int mlog_open(char *tag, int maxfac_hint, int default_mask, int stderr_mask,
               char *logfile, int msgbuf_len, int flags, int syslogfac) {
-
     int tagblen;
     char *dcon, *cp;
     struct mlog_mbhead *mb;
-
     /* quick sanity check (mst.tag is non-null if already open) */
     if (mlog_xst.tag || !tag ||
-        (maxfac_hint < 0) || (default_mask & ~MLOG_PRIMASK) ||
-        (stderr_mask & ~MLOG_PRIMASK) ||
-        (msgbuf_len < 0) || (msgbuf_len > 0 && msgbuf_len < 16))
+            (maxfac_hint < 0) || (default_mask & ~MLOG_PRIMASK) ||
+            (stderr_mask & ~MLOG_PRIMASK) ||
+            (msgbuf_len < 0) || (msgbuf_len > 0 && msgbuf_len < 16)) {
         return(-1);
-
+    }
     /* init working area so we can use mlog_close to bail out */
     memset(&mst, 0, sizeof(mst));
     mst.logfd = mst.udpsock = -1;
-
     /* start filling it in */
     tagblen = strlen(tag) + MLOG_TAGPAD;     /* add a bit for pid */
     mlog_xst.tag = malloc(tagblen);
-    if (!mlog_xst.tag)
+    if (!mlog_xst.tag) {
         return(-1);
-
+    }
 #ifdef MLOG_MUTEX    /* create lock */
     if (pthread_mutex_init(&mst.mlogmux, NULL) != 0) {
         /* prevent close from destroying failed init of mst.mlogmux */
@@ -760,26 +736,25 @@ int mlog_open(char *tag, int maxfac_hint, int default_mask, int stderr_mask,
         return(-1);
     }
 #endif
-
     mlog_lock();     /* now locked */
-
-    if (flags & MLOG_LOGPID)
+    if (flags & MLOG_LOGPID) {
         snprintf(mlog_xst.tag, tagblen, "%s[%d]", tag, getpid());
-    else
+    } else {
         snprintf(mlog_xst.tag, tagblen, "%s", tag);
+    }
     mst.def_mask = default_mask;
     mst.stderr_mask = stderr_mask;
-
     if (logfile) {
         mst.logfile = strdup(logfile);
-        if (!mst.logfile)
+        if (!mst.logfile) {
             goto error;
-      mst.logfd = open(mst.logfile, O_RDWR|O_APPEND|O_CREAT, 0666);
-      if (mst.logfd < 0) {
-        fprintf(stderr, "mlog_open: cannot open %s: %s\n",
-                mst.logfile, strerror(errno));
-        goto error;
-      }
+        }
+        mst.logfd = open(mst.logfile, O_RDWR|O_APPEND|O_CREAT, 0666);
+        if (mst.logfd < 0) {
+            fprintf(stderr, "mlog_open: cannot open %s: %s\n",
+                    mst.logfile, strerror(errno));
+            goto error;
+        }
     }
     /*
      * save setting of MLOG_SYSLOG and MLOG_UCON_ON bits until these
@@ -788,12 +763,14 @@ int mlog_open(char *tag, int maxfac_hint, int default_mask, int stderr_mask,
      */
     mst.oflags = (flags & ~(MLOG_SYSLOG|MLOG_UCON_ON));
     /* maxfac_hint should include default fac. */
-    if (mlog_setnfac((maxfac_hint < 1) ? 1 : maxfac_hint) < 0)
+    if (mlog_setnfac((maxfac_hint < 1) ? 1 : maxfac_hint) < 0) {
         goto error;
+    }
     if (msgbuf_len) {
         mst.mb = malloc(msgbuf_len + sizeof(struct mlog_mbhead));
-        if (!mst.mb)
+        if (!mst.mb) {
             goto error;
+        }
         mb = (struct mlog_mbhead *)mst.mb;
         memcpy(mb, MBH_START, sizeof(mb->mbh_start));
         mb->mbh_beef = 0xdeadbeef;
@@ -803,19 +780,22 @@ int mlog_open(char *tag, int maxfac_hint, int default_mask, int stderr_mask,
     }
     if (flags & MLOG_UCON_ON) {
         mst.udpsock = socket(PF_INET, SOCK_DGRAM, 0);
-        if (mst.udpsock < 0)
+        if (mst.udpsock < 0) {
             goto error;
+        }
         mst.oflags |= MLOG_UCON_ON;
         /* note that mst.{ucon_nslots,ucon_cnt,ucons} are all 0 */
     }
     if ((flags & MLOG_UCON_ENV) != 0 && (dcon = getenv("MLOG_UCON")) != 0) {
         for (mst.ucon_cnt = 1, cp = dcon ; *cp ; cp++) {
-            if (*cp == ';')
+            if (*cp == ';') {
                 mst.ucon_cnt++;
+            }
         }
         mst.ucons = malloc(mst.ucon_cnt * sizeof(*mst.ucons));
-        if (!mst.ucons)
+        if (!mst.ucons) {
             goto error;
+        }
         mst.ucon_nslots = mst.ucon_cnt;
         mst.ucon_cnt = mlog_getucon(mst.ucon_cnt, mst.ucons, dcon);
         /*
@@ -835,20 +815,16 @@ int mlog_open(char *tag, int maxfac_hint, int default_mask, int stderr_mask,
     /* cache value of isatty() to avoid extra system calls */
     mst.stdout_isatty = isatty(fileno(stdout));
     mst.stderr_isatty = isatty(fileno(stderr));
-
     /*
      * log now open!
      */
     if (flags & MLOG_SYSLOG) {
-
         openlog(tag, (flags & MLOG_LOGPID) ? LOG_PID : 0, syslogfac);
         mst.oflags |= MLOG_SYSLOG;
-
     }
     mlog_unlock();
     return(0);
-
- error:
+error:
     /*
      * we failed.  mlog_close can handle the cleanup for us.
      */
@@ -864,46 +840,41 @@ int mlog_open(char *tag, int maxfac_hint, int default_mask, int stderr_mask,
 int mlog_reopen(char *logfile) {
     int rv;
     char *oldpid, *dup;
-    
-    if (!mlog_xst.tag)
+    if (!mlog_xst.tag) {
         return(-1);    /* log wasn't open in the first place */
-
+    }
     rv = 0;
     mlog_lock();       /* lock it down */
-
     /* reset ucon if open */
     if (mst.oflags & MLOG_UCON_ON) {
-        if (mst.udpsock >= 0)
+        if (mst.udpsock >= 0) {
             close(mst.udpsock);
+        }
         mst.udpsock = socket(PF_INET, SOCK_DGRAM, 0);
-        if (mst.udpsock == -1)
-            mst.oflags &= ~MLOG_UCON_ON;   /* unlikely */
+        if (mst.udpsock == -1) {
+            mst.oflags &= ~MLOG_UCON_ON;    /* unlikely */
+        }
     }
-
     /*
      * refresh the pid - mlog_open pads the tag such that we cannot
      * overflow by snprinting an int pid here...
      */
     if ((mst.oflags & MLOG_LOGPID) != 0 &&
-        (oldpid = strrchr(mlog_xst.tag, '[')) != NULL) {
+            (oldpid = strrchr(mlog_xst.tag, '[')) != NULL) {
         snprintf(oldpid, MLOG_TAGPAD, "[%d]", getpid());
     }
-    
-    if (mst.logfd >= 0)
+    if (mst.logfd >= 0) {
         (void) close(mst.logfd);
+    }
     mst.logfd = -1;
-
     /* now the log file */
     if (logfile == NULL) {    /* don't want a log file */
-
         if (mst.logfile) {    /* flush out any old stuff */
             free(mst.logfile);
             mst.logfile = NULL;
         }
-
     } else if (logfile[0] != '\0' &&
                (mst.logfile == NULL || strcmp(mst.logfile, logfile) != 0)) {
-
         /*
          * we are here if we have a new logfile name requested and it
          * different from what was there before, so we need to malloc a
@@ -917,11 +888,11 @@ int mlog_reopen(char *logfile) {
             rv = -1;
             goto done;
         }
-        if (mst.logfile)
+        if (mst.logfile) {
             free(mst.logfile);    /* dump the old one, if present */
+        }
         mst.logfile = dup;        /* install the new one */
     }
-
     if (mst.logfile) {
         mst.logfd = open(mst.logfile, O_RDWR|O_APPEND|O_CREAT, 0666);
         if (mst.logfd < 0) {
@@ -930,7 +901,7 @@ int mlog_reopen(char *logfile) {
             rv = -1;
         }
     }
- done:
+done:
     mlog_unlock();
     return(rv);
 }
@@ -941,61 +912,55 @@ int mlog_reopen(char *logfile) {
  * been collected). if already closed, this function is a noop.
  */
 void mlog_close() {
-
     int lcv;
-
-    if (!mlog_xst.tag)
-        return;                /* return if already closed */
+    if (!mlog_xst.tag) {
+        return;    /* return if already closed */
+    }
     free(mlog_xst.tag);
     mlog_xst.tag = NULL;       /* marks us as down */
-
     mlog_lock();
-
     if (mst.logfile) {
-        if (mst.logfd >= 0)
+        if (mst.logfd >= 0) {
             close(mst.logfd);
+        }
         mst.logfd = -1;
         free(mst.logfile);
         mst.logfile = NULL;
     }
-
     if (mlog_xst.mlog_facs) {
         /*
-         * free malloced facility names, being careful not to free 
+         * free malloced facility names, being careful not to free
          * the static default_fac0name....
          */
         for (lcv = 0 ; lcv < mst.fac_alloc ; lcv++) {
             if (mlog_xst.mlog_facs[lcv].fac_aname &&
-                mlog_xst.mlog_facs[lcv].fac_aname != default_fac0name)
+                    mlog_xst.mlog_facs[lcv].fac_aname != default_fac0name) {
                 free(mlog_xst.mlog_facs[lcv].fac_aname);
-            if (mlog_xst.mlog_facs[lcv].fac_lname)
+            }
+            if (mlog_xst.mlog_facs[lcv].fac_lname) {
                 free(mlog_xst.mlog_facs[lcv].fac_lname);
+            }
         }
         free(mlog_xst.mlog_facs);
         mlog_xst.mlog_facs = NULL;
         mlog_xst.fac_cnt = mst.fac_alloc = 0;
     }
-
     if (mst.mb) {
         free(mst.mb);
         mst.mb = NULL;
     }
-
     if (mst.udpsock >= 0) {
         close(mst.udpsock);
         mst.udpsock = -1;
     }
-    
     if (mst.ucons) {
         free(mst.ucons);
         mst.ucons = NULL;
     }
-
-    if (mst.oflags & MLOG_SYSLOG)
+    if (mst.oflags & MLOG_SYSLOG) {
         closelog();
-    
+    }
     mlog_unlock();
-
 #ifdef MLOG_MUTEX
     pthread_mutex_destroy(&mst.mlogmux);
 #endif
@@ -1006,48 +971,43 @@ void mlog_close() {
  * return 0 on success, -1 on error (malloc problem).
  */
 int mlog_namefacility(int facility, char *aname, char *lname) {
-
     int rv;
     char *n, *nl;
-    
     /* not open? */
-    if (!mlog_xst.tag)
+    if (!mlog_xst.tag) {
         return(-1);
-
+    }
     rv = -1;      /* assume error */
     mlog_lock();
-    
     /* need to allocate facility? */
     if (facility >= mlog_xst.fac_cnt) {
-        if (mlog_setnfac(facility+1) < 0)
+        if (mlog_setnfac(facility+1) < 0) {
             goto done;
+        }
     }
-    
     n = 0;
     nl = 0;
     if (aname) {
         n = strdup(aname);
-        if (!n) 
+        if (!n) {
             goto done;
+        }
         if (lname && (nl = strdup(lname)) == NULL) {
             free(n);
             goto done;
         }
     }
-
-    if (mlog_xst.mlog_facs[facility].fac_aname && 
-        mlog_xst.mlog_facs[facility].fac_aname != default_fac0name) {
+    if (mlog_xst.mlog_facs[facility].fac_aname &&
+            mlog_xst.mlog_facs[facility].fac_aname != default_fac0name) {
         free(mlog_xst.mlog_facs[facility].fac_aname);
     }
-    if (mlog_xst.mlog_facs[facility].fac_lname) 
+    if (mlog_xst.mlog_facs[facility].fac_lname) {
         free(mlog_xst.mlog_facs[facility].fac_lname);
-
+    }
     mlog_xst.mlog_facs[facility].fac_aname = n;
     mlog_xst.mlog_facs[facility].fac_lname = nl;
-
     rv = 0;    /* now we have success */
-    
- done:
+done:
     mlog_unlock();
     return(rv);
 }
@@ -1057,21 +1017,20 @@ int mlog_namefacility(int facility, char *aname, char *lname) {
  * return new facility number on success, -1 on error (malloc problem).
  */
 int mlog_allocfacility(char *aname, char *lname) {
-
     int newfac;
-
     /* not open? */
-    if (!mlog_xst.tag)
+    if (!mlog_xst.tag) {
         return(-1);
-    
+    }
     mlog_lock();
     newfac = mlog_xst.fac_cnt;
-    if (mlog_setnfac(newfac+1) < 0)
+    if (mlog_setnfac(newfac+1) < 0) {
         newfac = -1;
+    }
     mlog_unlock();
-
-    if (newfac == -1 || mlog_namefacility(newfac, aname, lname) < 0)
+    if (newfac == -1 || mlog_namefacility(newfac, aname, lname) < 0) {
         return(-1);
+    }
     return(newfac);
 }
 
@@ -1082,15 +1041,12 @@ int mlog_allocfacility(char *aname, char *lname) {
  * fail if facility array was preallocated.
  */
 int mlog_setlogmask(int facility, int mask) {
-
     int oldmask;
-    
     /* not open? */
-    if (!mlog_xst.tag)
+    if (!mlog_xst.tag) {
         return(-1);
-    
+    }
     mlog_lock();
-    
     /* need to allocate facility? */
     if (facility >= mlog_xst.fac_cnt && mlog_setnfac(facility+1) < 0) {
         oldmask = -1;   /* error */
@@ -1099,9 +1055,7 @@ int mlog_setlogmask(int facility, int mask) {
         oldmask = mlog_xst.mlog_facs[facility].fac_mask;
         mlog_xst.mlog_facs[facility].fac_mask = (mask & MLOG_PRIMASK);
     }
-    
     mlog_unlock();
-    
     return(oldmask);
 }
 
@@ -1114,11 +1068,10 @@ int mlog_setlogmask(int facility, int mask) {
 void mlog_setmasks(char *mstr, int mlen0) {
     char *m, *current, *fac, *pri, pbuf[8];
     int mlen, facno, clen, elen, faclen, prilen, prino;
-    
     /* not open? */
-    if (!mlog_xst.tag)
+    if (!mlog_xst.tag) {
         return;
-    
+    }
     m = mstr;
     mlen = mlen0;
     if (mlen < 0)  {
@@ -1132,11 +1085,9 @@ void mlog_setmasks(char *mstr, int mlen0) {
         return;                       /* nothing doing */
     }
     facno = 0;                        /* make sure it gets init'd */
-
     while (m) {
-
         /* note current chunk, and advance m to the next one */
-        current = m;                     
+        current = m;
         for (clen = 0 ; clen < mlen && m[clen] != ',' ; clen++) {
             /*null*/;
         }
@@ -1166,13 +1117,12 @@ void mlog_setmasks(char *mstr, int mlen0) {
         }
         if (m == NULL) {
             /* remove trailing white space from count */
-            while (prilen > 0 && (pri[prilen-1] == '\n' || 
-                   pri[prilen-1] == ' ' || pri[prilen-1] == '\t') ) {
+            while (prilen > 0 && (pri[prilen-1] == '\n' ||
+                                  pri[prilen-1] == ' ' || pri[prilen-1] == '\t') ) {
                 prilen--;
             }
         }
         /* parse complete! */
-
         /* process priority */
         if (prilen > 5) {    /* we know it can't be longer than this */
             prino = -1;
@@ -1186,32 +1136,30 @@ void mlog_setmasks(char *mstr, int mlen0) {
                  faclen, fac, prilen, pri);
             continue;
         }
-
         /* process facility */
         if (fac) {
             mlog_lock();
             for (facno = 0 ; facno < mlog_xst.fac_cnt ; facno++) {
                 if (mlog_xst.mlog_facs[facno].fac_aname &&
-                    strlen(mlog_xst.mlog_facs[facno].fac_aname) == faclen &&
-                    strncasecmp(mlog_xst.mlog_facs[facno].fac_aname, fac,
-                            faclen) == 0)
+                        strlen(mlog_xst.mlog_facs[facno].fac_aname) == faclen &&
+                        strncasecmp(mlog_xst.mlog_facs[facno].fac_aname, fac,
+                                    faclen) == 0) {
                     break;
+                }
                 if (mlog_xst.mlog_facs[facno].fac_lname &&
-                    strlen(mlog_xst.mlog_facs[facno].fac_lname) == faclen &&
-                    strncasecmp(mlog_xst.mlog_facs[facno].fac_lname, fac,
-                            faclen) == 0)
+                        strlen(mlog_xst.mlog_facs[facno].fac_lname) == faclen &&
+                        strncasecmp(mlog_xst.mlog_facs[facno].fac_lname, fac,
+                                    faclen) == 0) {
                     break;
+                }
             }
             mlog_unlock();
-
             if (facno >= mlog_xst.fac_cnt) {
                 mlog(MLOG_ERR, "mlog_setmasks: unknown facility %.*s",
                      faclen, fac);
                 continue;
             }
-            
         }
-                    
         if (fac) {
             /* apply only to this fac */
             mlog_setlogmask(facno, prino);
@@ -1221,9 +1169,7 @@ void mlog_setmasks(char *mstr, int mlen0) {
                 mlog_setlogmask(facno, prino);
             }
         }
-        
     }
-    
 }
 
 /*
@@ -1233,24 +1179,24 @@ int mlog_getmasks(char *buf, int discard, int len, int unterm) {
     char *bp, *myname, *p;
     int skipcnt, resid, total, facno;
     char store[64];   /* fac unlikely to overflow this */
-
-   /* not open? */
-    if (!mlog_xst.tag)
+    /* not open? */
+    if (!mlog_xst.tag) {
         return(0);
-
+    }
     bp = buf;
     skipcnt = discard;
     resid = len;
     total = 0;
-    
     mlog_lock();
     for (facno = 0 ; facno < mlog_xst.fac_cnt ; facno++) {
-        if (facno)
+        if (facno) {
             mlog_bput(&bp, &skipcnt, &resid, &total, ",");
-        if (mlog_xst.mlog_facs[facno].fac_lname != NULL)
+        }
+        if (mlog_xst.mlog_facs[facno].fac_lname != NULL) {
             myname = mlog_xst.mlog_facs[facno].fac_lname;
-        else 
+        } else {
             myname = mlog_xst.mlog_facs[facno].fac_aname;
+        }
         if (myname == NULL) {
             snprintf(store, sizeof(store), "%d", facno);
             mlog_bput(&bp, &skipcnt, &resid, &total, store);
@@ -1269,9 +1215,9 @@ int mlog_getmasks(char *buf, int discard, int len, int unterm) {
     mlog_unlock();
     strncpy(store, "\n", sizeof(store));
     mlog_bput(&bp, &skipcnt, &resid, &total, store);
-    if (unterm == 0)
+    if (unterm == 0) {
         mlog_bput(&bp, &skipcnt, &resid, &total, NULL);
-
+    }
     /* buf == NULL means probe for length ... */
     return((buf == NULL) ? total : len - resid);
 }
@@ -1281,7 +1227,6 @@ int mlog_getmasks(char *buf, int discard, int len, int unterm) {
  */
 void *mlog_abort_hook(void (*abort_hook)(void)) {
     void *ret;
-    
     if (mlog_xst.tag) {
         mlog_lock();
         ret = mst.abort_hook;           /* save old value for return */
@@ -1300,15 +1245,13 @@ void *mlog_abort_hook(void (*abort_hook)(void)) {
  * return 0 on success, -1 on error (not open, or no message buffer)
  */
 int mlog_dmesg(char **b1p, int *b1len, char **b2p, int *b2len) {
-    
     /* first check if we are open and have the buffer */
-    if (!mlog_xst.tag || !mst.mb)
+    if (!mlog_xst.tag || !mst.mb) {
         return(-1);
-
+    }
     mlog_lock();
     mlog_dmesg_mbuf(b1p, b1len, b2p, b2len);
     mlog_unlock();
-
     return(0);
 }
 
@@ -1318,18 +1261,17 @@ int mlog_dmesg(char **b1p, int *b1len, char **b2p, int *b2len) {
 int mlog_mbcount() {
     struct mlog_mbhead *mb;
     int rv;
-    
     /* first check if we are open and have the buffer */
-    if (!mlog_xst.tag || !mst.mb)
+    if (!mlog_xst.tag || !mst.mb) {
         return(0);
-
+    }
     mlog_lock();
     rv = 0;
     mb = (struct mlog_mbhead *)mst.mb;
-    if (mb)
+    if (mb) {
         rv = mb->mbh_cnt;
+    }
     mlog_unlock();
-
     return(rv);
 }
 
@@ -1341,16 +1283,14 @@ int mlog_mbcount() {
 int mlog_mbcopy(char *buf, int offset, int len) {
     char *b1, *b2, *bp;
     int b1l, b2l, got, want, skip;
-
-    if (!buf || len < 1 || !mlog_xst.tag)
+    if (!buf || len < 1 || !mlog_xst.tag) {
         return(-1);
-
-    if (!mst.mb)
-        return(0);     /* no message buffer, treat like reading /dev/null? */
-
+    }
+    if (!mst.mb) {
+        return(0);    /* no message buffer, treat like reading /dev/null? */
+    }
     mlog_lock();
     mlog_dmesg_mbuf(&b1, &b1l, &b2, &b2l);
-
     /* pull back from the newest data by 'offset' bytes */
     if (offset > 0 && b2l > 0) {
         if (offset > b2l) {
@@ -1370,11 +1310,9 @@ int mlog_mbcopy(char *buf, int offset, int len) {
             offset = 0;
         }
     }
-    
     got = b1l + b2l;                      /* total bytes in msg buf */
     want = (len > got) ? got : len;       /* how many we want, capped by got */
     skip = (want < got) ? got - want : 0; /* how many we skip over */
-
     if (skip) {
         if (skip > b1l) {
             skip -= b1l;
@@ -1393,28 +1331,24 @@ int mlog_mbcopy(char *buf, int offset, int len) {
             skip = 0;
         }
     }
-
     bp = buf;
     if (b1l) {
         memcpy(bp, b1, b1l);
         bp += b1l;
     }
-    if (b2l) 
+    if (b2l) {
         memcpy(bp, b2, b2l);
-
+    }
     mlog_unlock();
     return(want);
-
 }
 
 /* XXXCDC: BEGIN TMP */
 /*
- * plfs_debug: tmp wrapper 
+ * plfs_debug: tmp wrapper
  */
 void plfs_debug(const char *fmt, ...) {
-
     va_list ap;
-
     va_start(ap, fmt);
     vmlog(MLOG_DBG, fmt, ap);
     va_end(ap);
@@ -1427,9 +1361,7 @@ void plfs_debug(const char *fmt, ...) {
  * [if it is larger it will be (silently) truncated].
  */
 void mlog(int flags, const char *fmt, ...) {
-
     va_list ap;
-
     va_start(ap, fmt);
     vmlog(flags, fmt, ap);
     va_end(ap);
@@ -1440,14 +1372,13 @@ void mlog(int flags, const char *fmt, ...) {
  * processing the log. for aborts, we always log to STDERR.
  */
 void mlog_abort(int flags, const char *fmt, ...) {
-
     va_list ap;
-
     va_start(ap, fmt);
     vmlog(flags|MLOG_STDERR, fmt, ap);
     va_end(ap);
-    if (mlog_xst.tag && mst.abort_hook)   /* call hook? */
+    if (mlog_xst.tag && mst.abort_hook) { /* call hook? */
         mst.abort_hook();
+    }
     abort();
     /*NOTREACHED*/
 }
@@ -1457,9 +1388,7 @@ void mlog_abort(int flags, const char *fmt, ...) {
  * the log.   we always log to STDERR.
  */
 void mlog_exit(int status, int flags, const char *fmt, ...) {
-
     va_list ap;
-
     va_start(ap, fmt);
     vmlog(flags|MLOG_STDERR, fmt, ap);
     va_end(ap);
@@ -1474,21 +1403,16 @@ void mlog_exit(int status, int flags, const char *fmt, ...) {
  */
 int mlog_findmesgbuf(char *b, int len, char **b1p, int *b1l,
                      char **b2p, int *b2l) {
-
     char *ptr, *headend, *bufend;
     struct mlog_mbhead mb;
     uint32_t skip;
-
     ptr = b;                                 /* current pointer */
     bufend = b + len;                        /* end of buffer */
     headend = bufend - sizeof(struct mlog_mbhead);  /* can't start from here */
-
     for (/*null*/ ; ptr < headend ; ptr += 4) {
-
         if (memcmp(ptr, MBH_START, sizeof(MBH_START) - 1) != 0) {
             continue;
         }
-        
         /*
          * might have found it.  handle byte order and sanity check it.
          */
@@ -1498,14 +1422,16 @@ int mlog_findmesgbuf(char *b, int len, char **b1p, int *b1l,
             mb.mbh_cnt = wswap(mb.mbh_cnt);
             mb.mbh_wp  = wswap(mb.mbh_wp);
         }
-        if (mb.mbh_cnt > mb.mbh_len)
+        if (mb.mbh_cnt > mb.mbh_len) {
             continue;
-        if (mb.mbh_wp > mb.mbh_len)
+        }
+        if (mb.mbh_wp > mb.mbh_len) {
             continue;
+        }
         if (ptr + mb.mbh_len > bufend ||
-            ptr + mb.mbh_len < ptr)
+                ptr + mb.mbh_len < ptr) {
             continue;
-        
+        }
         /*
          * looks good!
          */
@@ -1535,20 +1461,19 @@ int mlog_findmesgbuf(char *b, int len, char **b1p, int *b1l,
  * return 0 on success, -1 on error
  */
 int mlog_ucon_on() {
-
     /* ensure open before doing stuff */
-    if (!mlog_xst.tag)
+    if (!mlog_xst.tag) {
         return(-1);
-
+    }
     /* note that mst.ucons/mst.ucon_cnt must already be valid */
     mlog_lock();
     if ((mst.oflags & MLOG_UCON_ON) == 0) {
         mst.udpsock = socket(PF_INET, SOCK_DGRAM, 0);
-        if (mst.udpsock >= 0)
+        if (mst.udpsock >= 0) {
             mst.oflags |= MLOG_UCON_ON;
+        }
     }
     mlog_unlock();
-
     return( ((mst.oflags & MLOG_UCON_ON) != 0) ? 0 : -1);
 }
 
@@ -1557,18 +1482,17 @@ int mlog_ucon_on() {
  * return 0 on success, -1 on error
  */
 int mlog_ucon_off() {
-
     /* ensure open before doing stuff */
-    if (!mlog_xst.tag)
+    if (!mlog_xst.tag) {
         return(-1);
-
+    }
     mlog_lock();
     mst.oflags = mst.oflags & ~MLOG_UCON_ON;
-    if (mst.udpsock >= 0)
+    if (mst.udpsock >= 0) {
         close(mst.udpsock);
+    }
     mst.udpsock = -1;
     mlog_unlock();
-
     return(0);
 }
 
@@ -1577,24 +1501,22 @@ int mlog_ucon_off() {
  * return 0 on success, -1 on error
  */
 int mlog_ucon_add(char *host, int port) {
-
     char portstr[8];
     int rv, sz;
     void *newbuf;
-    
     /* ensure open and sane before doing stuff */
-    if (!mlog_xst.tag || port < 1 || port > 65535)
+    if (!mlog_xst.tag || port < 1 || port > 65535) {
         return(-1);
-
+    }
     rv = -1;   /* assume fail */
     mlog_lock();
-    
     /* grow the array if necessary */
     if (mst.ucon_cnt == mst.ucon_nslots) {
         sz = mst.ucon_cnt + 1;
         newbuf = malloc(sz * sizeof(*mst.ucons));
-        if (!newbuf)
+        if (!newbuf) {
             goto done;
+        }
         if (mst.ucons) {
             memcpy(newbuf, mst.ucons, mst.ucon_cnt * sizeof(*mst.ucons));
             free(mst.ucons);
@@ -1603,14 +1525,13 @@ int mlog_ucon_add(char *host, int port) {
         mst.ucon_nslots = mst.ucon_cnt + 1;
     }
     snprintf(portstr, sizeof(portstr), "%d", port);
-    if (mlog_resolvhost(&mst.ucons[mst.ucon_cnt], host, portstr) < 0) 
+    if (mlog_resolvhost(&mst.ucons[mst.ucon_cnt], host, portstr) < 0) {
         goto done;
-
+    }
     /* got it! */
     mst.ucon_cnt++;
     rv = 0;
-
- done:
+done:
     mlog_unlock();
     return(rv);
 }
@@ -1620,46 +1541,41 @@ int mlog_ucon_add(char *host, int port) {
  * return 0 on success, -1 on error
  */
 int mlog_ucon_rm(char *host, int port) {
-
     char portstr[8];
     struct sockaddr_in target;
     int rv, lcv;
-    
     /* ensure open and sane before doing stuff */
-    if (!mlog_xst.tag || port < 1 || port > 65535  || mst.ucon_cnt < 1)
+    if (!mlog_xst.tag || port < 1 || port > 65535  || mst.ucon_cnt < 1) {
         return(-1);
-
+    }
     /* resolve the hostname */
     snprintf(portstr, sizeof(portstr), "%d", port);
-    if (mlog_resolvhost(&target, host, portstr) < 0)
+    if (mlog_resolvhost(&target, host, portstr) < 0) {
         return(-1);
-    
+    }
     rv = -1;
     mlog_lock();
-    
     /* look for it ... */
     for (lcv = 0 ; lcv < mst.ucon_cnt ; lcv++) {
-        if (memcmp(&target, &mst.ucons[lcv], sizeof(*mst.ucons)) == 0)
+        if (memcmp(&target, &mst.ucons[lcv], sizeof(*mst.ucons)) == 0) {
             break;
+        }
     }
-
     /* didn't find it ? */
-    if (lcv >= mst.ucon_cnt)
+    if (lcv >= mst.ucon_cnt) {
         goto done;
-
+    }
     /* if not the last item in the list, pull that item forward */
     if (lcv < mst.ucon_cnt - 1)
         memcpy(&mst.ucons[lcv], &mst.ucons[mst.ucon_cnt - 1],
                sizeof(*mst.ucons));
-
     /* remove last item in list */
     mst.ucon_cnt--;
     rv = 0;
-
     /*
      * done!
      */
- done:
+done:
     mlog_unlock();
     return(rv);
 }

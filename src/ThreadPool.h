@@ -11,10 +11,10 @@ class ThreadPool {
         ThreadPool( size_t size, void *(*start_routine) (void *), void *args );
         ~ThreadPool();
         int threadError();
-        vector<void*>* getStati();
+        vector<void *>* getStati();
     private:
         int thread_error;
-        vector<void*> stati;
+        vector<void *> stati;
 };
 
 #endif

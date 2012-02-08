@@ -1,28 +1,25 @@
 /* -*- Mode: C; c-basic-offset:4 ; -*- */
-/* 
- *   $Id: ad_plfs_resize.c,v 1.1 2010/11/29 19:59:01 adamm Exp $    
+/*
+ *   $Id: ad_plfs_resize.c,v 1.1 2010/11/29 19:59:01 adamm Exp $
  *
- *   Copyright (C) 1997 University of Chicago. 
+ *   Copyright (C) 1997 University of Chicago.
  *   See COPYRIGHT notice in top-level directory.
  */
 
 #include "ad_plfs.h"
 
-extern void reduce_meta(ADIO_File afd, Plfs_fd *fd, const char * filename,
+extern void reduce_meta(ADIO_File afd, Plfs_fd *fd, const char *filename,
                         Plfs_close_opt *close_opt, int rank);
 
-void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code)
-{
+void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code) {
     int err, rank, procs, amode, perm;
     size_t bytes_written=0, total_bytes=0, flatten=0;
     Plfs_open_opt open_opt;
     Plfs_close_opt close_opt;
     int file_is_open=1, do_close_reopen=0;
     uid_t uid = geteuid();
-
     static char myname[] = "ADIOI_PLFS_RESIZE";
     plfs_debug( "%s: begin\n", myname );
-
     /* don't permit resizing/truncating a read-only file */
     if (fd->access_mode == ADIO_RDONLY) {
         err = EPERM;
@@ -33,16 +30,15 @@ void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code)
         plfs_debug( "%s: cannot resize/truncate a read-only file.\n", myname );
         return;
     }
-
     MPI_Comm_rank(fd->comm, &rank);
     MPI_Comm_size( fd->comm, &procs);
-
     /* do close+reopen when user ever wrote something. */
     plfs_query(fd->fs_ptr, NULL, NULL, &bytes_written, NULL);
     MPI_Allreduce(&bytes_written, &total_bytes, 1, MPI_LONG_LONG,
                   MPI_SUM, fd->comm);
-    if (bytes_written) do_close_reopen = 1;
-
+    if (bytes_written) {
+        do_close_reopen = 1;
+    }
     if (do_close_reopen) {
         plfs_debug( "%s: do close+reopen for truncate.\n", myname );
         close_opt.pinter=PLFS_MPIIO;
@@ -54,20 +50,19 @@ void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code)
         fd->fs_ptr = NULL;
         MPI_Barrier(fd->comm);
     }
-
     /* do the truncate */
     if (rank == fd->hints->ranklist[0]) {
         err = plfs_trunc(fd->fs_ptr, fd->filename, size, file_is_open);
     }
     MPI_Bcast(&err, 1, MPI_INT, fd->hints->ranklist[0], fd->comm);
     if (err < 0) {
-	*error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
-					   myname, __LINE__, MPI_ERR_IO,
-					   "**io",
-					   "**io %s", strerror(-err));
+        *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
+                                           myname, __LINE__, MPI_ERR_IO,
+                                           "**io",
+                                           "**io %s", strerror(-err));
+    } else {
+        *error_code = MPI_SUCCESS;
     }
-    else *error_code = MPI_SUCCESS;
-
     /* do re-open if file was closed */
     if (do_close_reopen) {
         flatten = ad_plfs_hints (fd , rank, "plfs_flatten_close");
@@ -75,8 +70,9 @@ void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code)
         open_opt.index_stream = NULL;
         open_opt.reopen = 1;
         open_opt.buffer_index = 0;
-        if (flatten != -1)
+        if (flatten != -1) {
             open_opt.buffer_index = flatten;
+        }
         perm = getPerm(fd);
         err = plfs_open( (Plfs_fd **)&(fd->fs_ptr), fd->filename, amode, rank, perm, &open_opt);
         if ((err < 0) && (*error_code == MPI_SUCCESS)) {

@@ -17,9 +17,8 @@ using namespace std;
 // shadow or canonical container (i.e. not relying on symlinks)
 // anyway, this should all happen above WriteFile and be transparent to
 // WriteFile.  This comment is for educational purposes only.
-WriteFile::WriteFile(string path, string hostname, 
-        mode_t mode, size_t buffer_mbs ) : Metadata::Metadata() 
-{
+WriteFile::WriteFile(string path, string hostname,
+                     mode_t mode, size_t buffer_mbs ) : Metadata::Metadata() {
     this->container_path    = path;
     this->subdir_path       = path;
     this->hostname          = hostname;
@@ -51,13 +50,12 @@ WriteFile::~WriteFile() {
         delete index;
         index = NULL;
     }
-
     pthread_mutex_destroy( &data_mux );
     pthread_mutex_destroy( &index_mux );
 }
 
 int WriteFile::sync( pid_t pid ) {
-    int ret=0; 
+    int ret=0;
     OpenFd *ofd = getFd( pid );
     if ( ofd == NULL ) {
         // ugh, sometimes FUSE passes in weird pids, just ignore this
@@ -65,10 +63,16 @@ int WriteFile::sync( pid_t pid ) {
     } else {
         ret = Util::Fsync( ofd->fd );
         Util::MutexLock( &index_mux, __FUNCTION__ );
-        if ( ret == 0 ) index->flush();
-        if ( ret == 0 ) ret = Util::Fsync( index->getFd() );
+        if ( ret == 0 ) {
+            index->flush();
+        }
+        if ( ret == 0 ) {
+            ret = Util::Fsync( index->getFd() );
+        }
         Util::MutexUnlock( &index_mux, __FUNCTION__ );
-        if ( ret != 0 ) ret = -errno;
+        if ( ret != 0 ) {
+            ret = -errno;
+        }
     }
     return ret;
 }
@@ -77,7 +81,6 @@ int WriteFile::sync( pid_t pid ) {
 // returns -errno or number of writers
 int WriteFile::addWriter( pid_t pid, bool child ) {
     int ret = 0;
-
     Util::MutexLock(   &data_mux, __FUNCTION__ );
     struct OpenFd *ofd = getFd( pid );
     if ( ofd ) {
@@ -93,17 +96,19 @@ int WriteFile::addWriter( pid_t pid, bool child ) {
             ret = -errno;
         }
     }
-    int writers = incrementOpens(0); 
-    if ( ret == 0 && ! child ) writers = incrementOpens(1);
+    int writers = incrementOpens(0);
+    if ( ret == 0 && ! child ) {
+        writers = incrementOpens(1);
+    }
     max_writers++;
-    mlog(WF_DAPI, "%s (%d) on %s now has %d writers", 
-            __FUNCTION__, pid, container_path.c_str(), writers );
+    mlog(WF_DAPI, "%s (%d) on %s now has %d writers",
+         __FUNCTION__, pid, container_path.c_str(), writers );
     Util::MutexUnlock( &data_mux, __FUNCTION__ );
     return ( ret == 0 ? writers : ret );
 }
 
 size_t WriteFile::numWriters( ) {
-    int writers = incrementOpens(0); 
+    int writers = incrementOpens(0);
     bool paranoid_about_reference_counting = false;
     if ( paranoid_about_reference_counting ) {
         int check = 0;
@@ -113,8 +118,8 @@ size_t WriteFile::numWriters( ) {
             check += pids_itr->second.writers;
         }
         if ( writers != check ) {
-            mlog(WF_DRARE, "%s %d not equal %d", __FUNCTION__, 
-                    writers, check ); 
+            mlog(WF_DRARE, "%s %d not equal %d", __FUNCTION__,
+                 writers, check );
             assert( writers==check );
         }
         Util::MutexUnlock( &data_mux, __FUNCTION__ );
@@ -127,18 +132,18 @@ size_t WriteFile::numWriters( ) {
 // the bar gets 1 open, 2 writers, 1 flush, 1 release
 // and then the reference counting is screwed up
 // the problem is that a child is using the parents fd
-struct OpenFd * WriteFile::getFd( pid_t pid ) {
+struct OpenFd *WriteFile::getFd( pid_t pid ) {
     map<pid_t,OpenFd>::iterator itr;
     struct OpenFd *ofd = NULL;
     if ( (itr = fds.find( pid )) != fds.end() ) {
-	/*
-        ostringstream oss;
-        oss << __FILE__ << ":" << __FUNCTION__ << " found fd " 
-            << itr->second->fd << " with writers " 
-            << itr->second->writers
-            << " from pid " << pid;
-        mlog(WF_DCOMMON, "%s", oss.str().c_str() );
-	*/
+        /*
+            ostringstream oss;
+            oss << __FILE__ << ":" << __FUNCTION__ << " found fd "
+                << itr->second->fd << " with writers "
+                << itr->second->writers
+                << " from pid " << pid;
+            mlog(WF_DCOMMON, "%s", oss.str().c_str() );
+        */
         ofd = &(itr->second);
     } else {
         // here's the code that used to do it so a child could share
@@ -175,14 +180,14 @@ int WriteFile::closeFd( int fd ) {
     string path = ( paths_itr == paths.end() ? "ENOENT?" : paths_itr->second );
     int ret = Util::Close( fd );
     mlog(WF_DAPI, "%s:%s closed fd %d for %s: %d %s",
-            __FILE__, __FUNCTION__, fd, path.c_str(), ret, 
-            ( ret != 0 ? strerror(errno) : "success" ) );
+         __FILE__, __FUNCTION__, fd, path.c_str(), ret,
+         ( ret != 0 ? strerror(errno) : "success" ) );
     paths.erase ( fd );
     return ret;
 }
 
 // returns -errno or number of writers
-int 
+int
 WriteFile::removeWriter( pid_t pid ) {
     int ret = 0;
     Util::MutexLock(   &data_mux , __FUNCTION__);
@@ -202,16 +207,18 @@ WriteFile::removeWriter( pid_t pid ) {
             fds.erase( pid );
         }
     }
-    mlog(WF_DAPI, "%s (%d) on %s now has %d writers: %d", 
-            __FUNCTION__, pid, container_path.c_str(), writers, ret );
+    mlog(WF_DAPI, "%s (%d) on %s now has %d writers: %d",
+         __FUNCTION__, pid, container_path.c_str(), writers, ret );
     Util::MutexUnlock( &data_mux, __FUNCTION__ );
     return ( ret == 0 ? writers : ret );
 }
 
-int 
+int
 WriteFile::extend( off_t offset ) {
     // make a fake write
-    if ( fds.begin() == fds.end() ) return -ENOENT;
+    if ( fds.begin() == fds.end() ) {
+        return -ENOENT;
+    }
     pid_t p = fds.begin()->first;
     index->addWrite( offset, 0, p, createtime, createtime );
     addWrite( offset, 0 );   // maintain metadata
@@ -225,13 +232,13 @@ WriteFile::extend( off_t offset ) {
 // have a lot duplicate information. buffer the index and flush on the close
 //
 // returns bytes written or -errno
-ssize_t 
-WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid){
-    int ret = 0; 
+ssize_t
+WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid) {
+    int ret = 0;
     ssize_t written;
     OpenFd *ofd = getFd( pid );
     if ( ofd == NULL ) {
-        // we used to return -ENOENT here but we can get here legitimately 
+        // we used to return -ENOENT here but we can get here legitimately
         // when a parent opens a file and a child writes to it.
         // so when we get here, we need to add a child datafile
         ret = addWriter( pid, true );
@@ -249,7 +256,6 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid){
         begin = Util::getTime();
         ret = written = ( size ? Util::Write( fd, buf, size ) : 0 );
         end = Util::getTime();
-
         // then the index
         if ( ret >= 0 ) {
             write_count++;
@@ -266,7 +272,9 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid){
                          "no longer buffering");
                 }
             }
-            if (ret >= 0) addWrite(offset, size); // track our own metadata
+            if (ret >= 0) {
+                addWrite(offset, size);    // track our own metadata
+            }
             Util::MutexUnlock( &index_mux, __FUNCTION__ );
         }
     }
@@ -280,7 +288,7 @@ int WriteFile::openIndex( pid_t pid ) {
     int ret = 0;
     string index_path;
     int fd = openIndexFile(subdir_path, hostname, pid, DROPPING_MODE,
-            &index_path);
+                           &index_path);
     if ( fd < 0 ) {
         ret = -errno;
     } else {
@@ -289,7 +297,9 @@ int WriteFile::openIndex( pid_t pid ) {
         Util::MutexUnlock(&index_mux, __FUNCTION__);
         mlog(WF_DAPI, "In open Index path is %s",index_path.c_str());
         index->index_path=index_path;
-        if(index_buffer_mbs) index->startBuffering();
+        if(index_buffer_mbs) {
+            index->startBuffering();
+        }
     }
     return ret;
 }
@@ -308,11 +318,10 @@ int WriteFile::closeIndex( ) {
 // returns 0 or -errno
 int WriteFile::Close() {
     int failures = 0;
-
     Util::MutexLock(   &data_mux , __FUNCTION__);
     map<pid_t,OpenFd >::iterator itr;
-        // these should already be closed here
-        // from each individual pid's close but just in case
+    // these should already be closed here
+    // from each individual pid's close but just in case
     for( itr = fds.begin(); itr != fds.end(); itr++ ) {
         if ( closeFd( itr->second.fd ) != 0 ) {
             failures++;
@@ -320,11 +329,10 @@ int WriteFile::Close() {
     }
     fds.clear();
     Util::MutexUnlock( &data_mux, __FUNCTION__ );
-
     return ( failures ? -EIO : 0 );
 }
 
-// returns 0 or -errno 
+// returns 0 or -errno
 int WriteFile::truncate( off_t offset ) {
     Metadata::truncate( offset );
     index->truncateHostIndex( offset );
@@ -332,13 +340,12 @@ int WriteFile::truncate( off_t offset ) {
 }
 
 int WriteFile::openIndexFile(string path, string host, pid_t p, mode_t m,
-        string* index_path) 
-{
+                             string *index_path) {
     *index_path = Container::getIndexPath(path,host,p,createtime);
     return openFile(*index_path,m);
 }
 
-int WriteFile::openDataFile(string path, string host, pid_t p, mode_t m){
+int WriteFile::openDataFile(string path, string host, pid_t p, mode_t m) {
     return openFile(Container::getDataPath(path,host,p,createtime),m);
 }
 
@@ -347,11 +354,13 @@ int WriteFile::openFile( string physicalpath, mode_t mode ) {
     mode_t old_mode=umask(0);
     int flags = O_WRONLY | O_APPEND | O_CREAT;
     int fd = Util::Open( physicalpath.c_str(), flags, mode );
-    mlog(WF_DAPI, "%s.%s open %s : %d %s", 
-            __FILE__, __FUNCTION__, 
-            physicalpath.c_str(), 
-            fd, ( fd < 0 ? strerror(errno) : "" ) );
-    if ( fd >= 0 ) paths[fd] = physicalpath;    // remember so restore works
+    mlog(WF_DAPI, "%s.%s open %s : %d %s",
+         __FILE__, __FUNCTION__,
+         physicalpath.c_str(),
+         fd, ( fd < 0 ? strerror(errno) : "" ) );
+    if ( fd >= 0 ) {
+        paths[fd] = physicalpath;    // remember so restore works
+    }
     umask(old_mode);
     return ( fd >= 0 ? fd : -errno );
 }
@@ -365,50 +374,51 @@ int WriteFile::restoreFds( ) {
     map<int,string>::iterator paths_itr;
     map<pid_t, OpenFd >::iterator pids_itr;
     int ret = 0;
-
     // "has_been_renamed" is set at "addWriter, setPath" executing path.
     // This assertion will be triggered when user open a file with write mode
-    // and do truncate. Has nothing to do with upper layer rename so I comment 
+    // and do truncate. Has nothing to do with upper layer rename so I comment
     // out this assertion but remain previous comments here.
-
     // if an open WriteFile ever gets truncated after being renamed, that
     // will be really tricky.  Let's hope that never happens, put an assert
     // to guard against it.  I guess it if does happen we just need to do
     // reg ex changes to all the paths
     //assert( ! has_been_renamed );
-
     mlog(WF_DAPI, "Entering %s",__FUNCTION__);
-    
     // first reset the index fd
     if ( index ) {
         Util::MutexLock( &index_mux, __FUNCTION__ );
         index->flush();
-
         paths_itr = paths.find( index->getFd() );
-        if ( paths_itr == paths.end() ) return -ENOENT;
+        if ( paths_itr == paths.end() ) {
+            return -ENOENT;
+        }
         string indexpath = paths_itr->second;
-
-        if ( closeFd( index->getFd() ) != 0 )    return -errno;
-        if ( (ret = openFile( indexpath, mode )) < 0 ) return -errno;
+        if ( closeFd( index->getFd() ) != 0 ) {
+            return -errno;
+        }
+        if ( (ret = openFile( indexpath, mode )) < 0 ) {
+            return -errno;
+        }
         index->resetFd( ret );
         Util::MutexUnlock( &index_mux, __FUNCTION__ );
     }
-
     // then the data fds
     for( pids_itr = fds.begin(); pids_itr != fds.end(); pids_itr++ ) {
-
         paths_itr = paths.find( pids_itr->second.fd );
-        if ( paths_itr == paths.end() ) return -ENOENT;
-
+        if ( paths_itr == paths.end() ) {
+            return -ENOENT;
+        }
         string datapath = paths_itr->second;
-        if ( closeFd( pids_itr->second.fd ) != 0 ) return -errno;
-
+        if ( closeFd( pids_itr->second.fd ) != 0 ) {
+            return -errno;
+        }
         pids_itr->second.fd = openFile( datapath, mode );
-        if ( pids_itr->second.fd < 0 ) return -errno;
+        if ( pids_itr->second.fd < 0 ) {
+            return -errno;
+        }
     }
-
     // normally we return ret at the bottom of our functions but this
-    // function had so much error handling, I just cut out early on any 
+    // function had so much error handling, I just cut out early on any
     // error.  therefore, if we get here, it's happy days!
     mlog(WF_DAPI, "Exiting %s",__FUNCTION__);
     return 0;
