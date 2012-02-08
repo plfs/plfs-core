@@ -89,6 +89,13 @@ typedef struct OpenDirStruct {
             off_t last_offset;
 } OpenDir;
 
+class generic_exception: public exception{
+    virtual const char* what() const throw(){
+        return "A general exception has occurred.";
+    }
+} genex;
+
+
 #ifdef FUSE_COLLECT_TIMES
     #define START_TIMES double begin, end; begin = plfs_wtime();
     #define END_TIMES   end = plfs_wtime(); \
@@ -157,10 +164,18 @@ typedef struct OpenDirStruct {
                    lm.flush();                                                \
                    SAVE_IDS;                                                  \
                    SET_IDS(fuse_get_context()->uid,fuse_get_context()->gid);  \
-                   int ret = 0;                                               
+                   int ret = 0;                                               \
+                    try{
                    
 
-#define PLFS_EXIT  SET_IDS(s_uid,s_gid);                                \
+#define PLFS_EXIT  }                                                    \
+                   catch(exception &e) {                                \
+                       catch_exception(funct_id.str(), e);              \
+                   }                                                    \
+                   catch (...) {                                        \
+                       catch_exception(funct_id.str(), genex);          \
+                   }                                                    \
+                   SET_IDS(s_uid,s_gid);                                \
                    RESTORE_GROUPS;                                      \
                    END_TIMES;                                           \
                    END_MESSAGE;					                        \
@@ -769,24 +784,24 @@ int Plfs::f_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
     // pull the opendir that was stashed on the open
     OpenDir *opendir = (OpenDir*)fi->fh;
+    bool EOD = false; // are we at end of directory already?
 
     // skip out early if they're already read to end
     if (offset >= (off_t)opendir->entries.size()) {
         mlog(FUSE_DCOMMON, "Skipping %s of %s (EOD)",__FUNCTION__,
              strPath.c_str());
-        PLFS_EXIT;
+        EOD = true;
     }
 
     // check whether someone seeked backward.  If so, refresh.
     // we need to do this because we once saw this:
     // opendir, readdir 0, unlink entry E, readdir 0, stat E 
     // this caused an unexpected ENOENT bec readdir said E existed but it didn't
-    if (opendir->last_offset > offset) {
+    if (!EOD && opendir->last_offset > offset) {
         mlog(FUSE_DCOMMON, "Rereading dir %s",strPath.c_str());
         opendir->last_offset = offset;
         opendir->entries.clear();
         ret = plfs_readdir(strPath.c_str(),(void*)(&(opendir->entries)));
-        if (ret!=0) PLFS_EXIT;
     }
 
     // now iterate through for all entries so long as filler has room
@@ -796,7 +811,8 @@ int Plfs::f_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     // automatically collapses redundant entries
     set<string>::iterator itr;
     int i =0;
-    for(itr=opendir->entries.begin(); itr!=opendir->entries.end(); itr++,i++) {
+    for(itr=opendir->entries.begin(); 
+        ! EOD && ret==0 && itr!=opendir->entries.end(); itr++,i++) {
         mlog(FUSE_DCOMMON, "Returning dirent %s", (*itr).c_str());
         opendir->last_offset=i;
         if ( i >= offset ) {
@@ -1257,6 +1273,16 @@ int Plfs::f_rename( const char *path, const char *to ) {
     }
 
     PLFS_EXIT;
+}
+
+void Plfs::catch_exception( string func_id, exception &e) {
+    string sysmsg("Caught exception in function: ");
+    mlog(PLFS_ERR, "%s", sysmsg.c_str());
+    sysmsg = func_id;
+    mlog(PLFS_ERR, "%s", sysmsg.c_str());
+    sysmsg = e.what();
+    mlog(PLFS_ERR, "%s", sysmsg.c_str());
+    throw e;
 }
 
 string Plfs::pathToHash ( string expanded , uid_t uid , int flags ) {
