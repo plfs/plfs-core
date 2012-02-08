@@ -175,7 +175,8 @@ bool
 ContainerEntry::abut( const ContainerEntry& other ) {
     return ( HostEntry::abut(other) &&
              ( physical_offset + (off_t)length == other.physical_offset
-               || other.physical_offset + (off_t)other.length == physical_offset ) );
+               || other.physical_offset + (off_t)other.length 
+               == physical_offset ) );
 }
 
 bool
@@ -747,7 +748,9 @@ void Index::findSplits(ContainerEntry& e,set<off_t> &s) {
 // on collision (i.e. insert failure) only retain entry with higher timestamp
 // F) finally copy all of winners back into global_index
 int Index::handleOverlap(ContainerEntry& incoming,
-                         pair<map<off_t,ContainerEntry>::iterator, bool> &insert_ret ) {
+                         pair<map<off_t,ContainerEntry>::iterator, bool> 
+                         &insert_ret ) 
+{
     // all the stuff we use
     map<off_t,ContainerEntry>::iterator first, last, cur; // place holders
     cur = first = last = insert_ret.first;
@@ -779,7 +782,10 @@ int Index::handleOverlap(ContainerEntry& incoming,
             break;
         }
     }
-    for(; (last!=global_index.end()) && (last->second.overlap(incoming)); last++) {
+    for(; 
+            (last!=global_index.end()) && (last->second.overlap(incoming)); 
+            last++) 
+    {
         findSplits(last->second,splits);
     }
     findSplits(incoming,splits);  // get split points from incoming as well
@@ -839,14 +845,17 @@ int Index::handleOverlap(ContainerEntry& incoming,
 }
 
 
-map<off_t,ContainerEntry>::iterator Index::insertGlobalEntryHint(
+map<off_t,ContainerEntry>::iterator 
+Index::insertGlobalEntryHint(
     ContainerEntry *g_entry ,map<off_t,ContainerEntry>::iterator hint) {
     return global_index.insert(hint,
-                               pair<off_t,ContainerEntry>( g_entry->logical_offset, *g_entry ) );
+                   pair<off_t,ContainerEntry>( g_entry->logical_offset, 
+                       *g_entry ) );
 }
 
-pair<map<off_t,ContainerEntry>::iterator,bool> Index::insertGlobalEntry(
-    ContainerEntry *g_entry) {
+pair<map<off_t,ContainerEntry>::iterator,bool> 
+Index::insertGlobalEntry( ContainerEntry *g_entry) 
+{
     last_offset = max( (off_t)(g_entry->logical_offset+g_entry->length),
                        last_offset );
     total_bytes += g_entry->length;
@@ -854,7 +863,8 @@ pair<map<off_t,ContainerEntry>::iterator,bool> Index::insertGlobalEntry(
                pair<off_t,ContainerEntry>( g_entry->logical_offset, *g_entry ) );
 }
 
-int Index::insertGlobal( ContainerEntry *g_entry ) {
+int 
+Index::insertGlobal( ContainerEntry *g_entry ) {
     pair<map<off_t,ContainerEntry>::iterator,bool> ret;
     bool overlap  = false;
     ostringstream oss;
@@ -917,8 +927,10 @@ int Index::insertGlobal( ContainerEntry *g_entry ) {
 
 // just a little helper to print an error message and make sure the fd is
 // closed and the mmap is unmap'd
-int Index::cleanupReadIndex( int fd, void *maddr, off_t length, int ret,
-                             const char *last_func, const char *indexfile ) {
+int 
+Index::cleanupReadIndex( int fd, void *maddr, off_t length, int ret,
+                             const char *last_func, const char *indexfile ) 
+{
     int ret2 = 0, ret3 = 0;
     if ( ret < 0 ) {
         mlog(IDX_DRARE, "WTF.  readIndex failed during %s on %s: %s",
@@ -951,7 +963,8 @@ int Index::cleanupReadIndex( int fd, void *maddr, off_t length, int ret,
 // returns any fd that has been stashed for a data chunk
 // if an fd has not yet been stashed, it returns the initial
 // value of -1
-int Index::getChunkFd( pid_t chunk_id ) {
+int 
+Index::getChunkFd( pid_t chunk_id ) {
     return chunk_map[chunk_id].fd;
 }
 
@@ -959,7 +972,8 @@ int Index::getChunkFd( pid_t chunk_id ) {
 // the index no longer opens them itself so that
 // they might be opened in parallel when a single logical read
 // spans multiple data chunks
-int Index::setChunkFd( pid_t chunk_id, int fd ) {
+int 
+Index::setChunkFd( pid_t chunk_id, int fd ) {
     chunk_map[chunk_id].fd = fd;
     return 0;
 }
@@ -968,8 +982,11 @@ int Index::setChunkFd( pid_t chunk_id, int fd ) {
 // identifying the physical location of some piece of data
 // we found a chunk containing an offset, return necessary stuff
 // this does not open the fd to the chunk however
-int Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
-                       off_t shift, string& path, pid_t *chunk_id, ContainerEntry *entry ) {
+int 
+Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
+                       off_t shift, string& path, pid_t *chunk_id, 
+                       ContainerEntry *entry ) 
+{
     ChunkFile *cf_ptr = &(chunk_map[entry->id]); // typing shortcut
     *chunk_off  = entry->physical_offset + shift;
     *chunk_len  = entry->length       - shift;
@@ -1003,7 +1020,9 @@ int Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
 // chunk_len for the size of the hole beyond the logical offset
 // returns 0 or -errno
 int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
-                         string& path, bool *hole, pid_t *chunk_id, off_t logical ) {
+                         string& path, bool *hole, pid_t *chunk_id, 
+                         off_t logical ) 
+{
     ostringstream os;
     os << __FUNCTION__ << ": " << this << " using index.";
     mlog(IDX_DAPI, "%s", os.str().c_str() );
@@ -1048,7 +1067,8 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
         //oss << "FOUND(1): " << entry << " contains " << logical;
         //mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
         return chunkFound( fd, chunk_off, chunk_len,
-                           logical - entry.logical_offset, path, chunk_id, &entry );
+                           logical - entry.logical_offset, path, 
+                           chunk_id, &entry );
     }
     // case 1 or 2
     if ( prev != (MAP_ITR)NULL ) {
@@ -1058,7 +1078,8 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
             //oss << "FOUND(2): "<< previous << " contains " << logical << endl;
             //mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
             return chunkFound( fd, chunk_off, chunk_len,
-                               logical - previous.logical_offset, path, chunk_id, &previous );
+                               logical - previous.logical_offset, path, 
+                               chunk_id, &previous );
         }
     }
     // now it's either before entry and in a hole or after entry and off
@@ -1171,7 +1192,8 @@ Index::addWrite( off_t offset, size_t length, pid_t pid,
     }
 }
 
-void Index::truncate( off_t offset ) {
+void 
+Index::truncate( off_t offset ) {
     map<off_t,ContainerEntry>::iterator itr, prev;
     bool first = false;
     // in the case that truncate a zero length logical file.
@@ -1194,11 +1216,12 @@ void Index::truncate( off_t offset ) {
     // check whether the previous needs to be
     // internally truncated
     if ( ! first ) {
-        if ((off_t)(prev->second.logical_offset + prev->second.length) > offset) {
+        if ((off_t)(prev->second.logical_offset + prev->second.length) > offset)
+        {
             // say entry is 5.5 that means that ten
             // is a valid offset, so truncate to 7
             // would mean the new length would be 3
-            prev->second.length = offset - prev->second.logical_offset ;//+ 1;???
+            prev->second.length = offset - prev->second.logical_offset ;//+ 1 ?
             mlog(IDX_DCOMMON, "%s Modified a global index record to length %u",
                  __FUNCTION__, (uint)prev->second.length);
             if (prev->second.length==0) {
@@ -1211,7 +1234,8 @@ void Index::truncate( off_t offset ) {
 }
 
 // operates on a host entry which is not sorted
-void Index::truncateHostIndex( off_t offset ) {
+void 
+Index::truncateHostIndex( off_t offset ) {
     vector< HostEntry > new_entries;
     vector< HostEntry >::iterator itr;
     for( itr = hostIndex.begin(); itr != hostIndex.end(); itr++ ) {
@@ -1231,7 +1255,8 @@ void Index::truncateHostIndex( off_t offset ) {
 // created a partial global index, and truncated that global
 // index, so now we need to dump the modified global index into
 // a new local index
-int Index::rewriteIndex( int fd ) {
+int 
+Index::rewriteIndex( int fd ) {
     this->fd = fd;
     map<off_t,ContainerEntry>::iterator itr;
     map<double,ContainerEntry> global_index_timesort;
