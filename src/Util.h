@@ -49,7 +49,8 @@ using namespace std;
 #define STR_EXPAND(tok) #tok
 #define STR(tok) STR_EXPAND(tok)
 
-class Util {
+class Util
+{
     public:
         // all the system calls
         static int Access( const char *, int );
@@ -114,7 +115,9 @@ class Util {
         static char *hostname();
         static int retValue( int res );
         static int traverseDirectoryTree(const char *physical,
-                                         vector<string> &files, vector<string> &dirs, vector<string>&links);
+                                         vector<string> &files,
+                                         vector<string> &dirs,
+                                         vector<string>&links);
     private:
         static void addBytes( string, size_t );
         static string timeToString(      HASH_MAP<string,double>::iterator,

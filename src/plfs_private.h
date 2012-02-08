@@ -56,7 +56,7 @@ typedef struct {
     PlfsMount *mnt_pt;
     int Errno;  // can't use just errno, it's a weird macro
     string expanded;
-    string backend; // I tried to not put this in to save space . . .  
+    string backend; // I tried to not put this in to save space . . .
 } ExpansionInfo;
 
 #define PLFS_ENTER PLFS_ENTER2(PLFS_PATH_REQUIRED)
@@ -82,7 +82,7 @@ typedef struct {
     }
 
 typedef struct {
-    string file; // which top-level plfsrc was used 
+    string file; // which top-level plfsrc was used
     set<string> files;     /* to detect recursive includes in plfsrc */
     set<string> backends;  /* to detect a backend being reused in plfsrc */
     size_t num_hostdirs;
@@ -120,15 +120,15 @@ PlfsMount *find_mount_point(PlfsConf *pconf, const string& path, bool& found);
 PlfsMount *find_mount_point_using_tokens(PlfsConf *, vector <string> &, bool&);
 int find_all_expansions(const char *logical, vector<string> &containers);
 
-string expandPath(string logical, ExpansionInfo *exp_info, 
-        expansionMethod hash_method, int which_backend, int depth);
-int mkdir_dash_p(const string &path, bool parent_only);
+string expandPath(string logical, ExpansionInfo *exp_info,
+                  expansionMethod hash_method, int which_backend, int depth);
+int mkdir_dash_p(const string& path, bool parent_only);
 int recover_directory(const char *logical, bool parent_only);
 
-int plfs_iterate_backends(const char *logical, FileOp &op);
+int plfs_iterate_backends(const char *logical, FileOp& op);
 
-const string & get_backend(const ExpansionInfo &exp);
-const string & get_backend(const ExpansionInfo &exp, size_t which);
+const string& get_backend(const ExpansionInfo& exp);
+const string& get_backend(const ExpansionInfo& exp, size_t which);
 
 /* plfs_init
     it just warms up the plfs structures used in expandPath

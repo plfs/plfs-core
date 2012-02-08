@@ -9,7 +9,8 @@
 #include "Metadata.h"
 using namespace std;
 
-class Container_OpenFile : public Metadata {
+class Container_OpenFile : public Metadata
+{
     public:
         Container_OpenFile( WriteFile *, Index *, pid_t, mode_t, const char * );
         WriteFile  *getWritefile();

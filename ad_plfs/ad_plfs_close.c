@@ -19,7 +19,8 @@ void reduce_meta(ADIO_File, Plfs_fd *fd,const char *filename,
                  Plfs_close_opt *close_opt, int rank);
 
 
-void ADIOI_PLFS_Close(ADIO_File fd, int *error_code) {
+void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
+{
     int err, rank, amode,procs;
     static char myname[] = "ADIOI_PLFS_CLOSE";
     uid_t uid = geteuid();
@@ -73,7 +74,9 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code) {
 
 
 int flatten_then_close(ADIO_File afd, Plfs_fd *fd,int rank,int amode,int procs,
-                       Plfs_close_opt *close_opt, const char *filename,uid_t uid) {
+                       Plfs_close_opt *close_opt, const char *filename,
+                       uid_t uid)
+{
     int index_size,err,index_total_size=0,streams_malloc=1,stop_buffer=0;
     int *index_sizes,*index_disp;
     char *index_stream,*index_streams;
@@ -181,7 +184,8 @@ int flatten_then_close(ADIO_File afd, Plfs_fd *fd,int rank,int amode,int procs,
 }
 
 void reduce_meta(ADIO_File afd, Plfs_fd *fd,const char *filename,
-                 Plfs_close_opt *close_opt, int rank) {
+                 Plfs_close_opt *close_opt, int rank)
+{
     int BLKSIZE=512;
     struct stat buf;
     size_t glbl_tot_byt=0;
@@ -203,14 +207,16 @@ void reduce_meta(ADIO_File afd, Plfs_fd *fd,const char *filename,
         plfs_getattr(fd, filename, &buf, size_only);
         MPI_Reduce(&(buf.st_size),&tmp_buf,1,MPI_LONG_LONG,MPI_MAX,0,afd->comm);
         close_opt->last_offset = (off_t)tmp_buf;
-        MPI_Reduce(&(buf.st_blocks),&tmp_buf,1,MPI_LONG_LONG,MPI_SUM,0,afd->comm);
+        MPI_Reduce(&(buf.st_blocks),&tmp_buf,1,MPI_LONG_LONG,MPI_SUM,
+                   0,afd->comm);
         glbl_tot_byt = (size_t)tmp_buf;
     }
     close_opt->total_bytes=glbl_tot_byt*BLKSIZE;
     close_opt->valid_meta=1;
 }
 
-void check_error(int err,int rank) {
+void check_error(int err,int rank)
+{
     if(err != MPI_SUCCESS) {
         int resultlen;
         char err_buffer[MPI_MAX_ERROR_STRING];

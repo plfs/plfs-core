@@ -11,7 +11,8 @@
 extern void reduce_meta(ADIO_File afd, Plfs_fd *fd, const char *filename,
                         Plfs_close_opt *close_opt, int rank);
 
-void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code) {
+void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code)
+{
     int err, rank, procs, amode, perm;
     size_t bytes_written=0, total_bytes=0, flatten=0;
     Plfs_open_opt open_opt;
@@ -74,9 +75,11 @@ void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code) {
             open_opt.buffer_index = flatten;
         }
         perm = getPerm(fd);
-        err = plfs_open( (Plfs_fd **)&(fd->fs_ptr), fd->filename, amode, rank, perm, &open_opt);
+        err = plfs_open( (Plfs_fd **)&(fd->fs_ptr), fd->filename, amode, rank,
+                         perm, &open_opt);
         if ((err < 0) && (*error_code == MPI_SUCCESS)) {
-            *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
+            *error_code = MPIO_Err_create_code(MPI_SUCCESS,
+                                               MPIR_ERR_RECOVERABLE,
                                                myname, __LINE__, MPI_ERR_IO,
                                                "**io",
                                                "**io %s", strerror(-err));

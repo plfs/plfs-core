@@ -13,7 +13,8 @@
 void ADIOI_PLFS_WriteContig(ADIO_File fd, void *buf, int count,
                             MPI_Datatype datatype, int file_ptr_type,
                             ADIO_Offset offset, ADIO_Status *status,
-                            int *error_code) {
+                            int *error_code)
+{
     int err=-1, datatype_size, len, rank;
     ADIO_Offset myoff;
     static char myname[] = "ADIOI_PLFS_WRITECONTIG";

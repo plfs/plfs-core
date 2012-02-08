@@ -8,7 +8,8 @@
 #include "ad_plfs.h"
 
 void ADIOI_PLFS_Fcntl(ADIO_File fd, int flag, ADIO_Fcntl_t *fcntl_struct,
-                      int *error_code) {
+                      int *error_code)
+{
     static char myname[] = "ADIOI_PVFS_FCNTL";
     struct stat buf;
     int ret, rank, size_only, lazy_stat=1;

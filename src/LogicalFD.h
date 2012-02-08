@@ -5,7 +5,8 @@
 #include <string>
 using namespace std;
 
-class Plfs_fd {
+class Plfs_fd
+{
     public:
         // for use of flat_file.
         virtual ~Plfs_fd() = 0;
@@ -17,9 +18,10 @@ class Plfs_fd {
                               pid_t pid) = 0;
         virtual int sync(pid_t pid) = 0;
         virtual int trunc(const char *path, off_t offset) = 0;
-        virtual int getattr(const char *path, struct stat *stbuf, int sz_only) = 0;
-        virtual int query(size_t *writers, size_t *readers, size_t *bytes_written,
-                          bool *reopen) = 0;
+        virtual int getattr(const char *path, struct stat *stbuf,
+                            int sz_only) = 0;
+        virtual int query(size_t *writers, size_t *readers,
+                          size_t *bytes_written, bool *reopen) = 0;
         virtual bool is_good() = 0;
 
         // Functions leaked to FUSE and ADIO:

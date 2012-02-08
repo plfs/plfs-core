@@ -5,7 +5,8 @@
 #include "LogicalFD.h"
 #include "OpenFile.h"
 
-class Container_fd : public Plfs_fd {
+class Container_fd : public Plfs_fd
+{
     public:
         Container_fd();
         ~Container_fd();

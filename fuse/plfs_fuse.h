@@ -21,7 +21,8 @@ struct
 //#include <hash_map>   // shoot, hash_map not found.  more appropriate though..
 #define HASH_MAP map
 
-class Plfs : public fusexx::fuse<Plfs> {
+class Plfs : public fusexx::fuse<Plfs>
+{
     public:
         Plfs (); // Constructor
 

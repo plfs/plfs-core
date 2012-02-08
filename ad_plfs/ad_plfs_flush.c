@@ -8,7 +8,8 @@
 
 #include "ad_plfs.h"
 
-void ADIOI_PLFS_Flush(ADIO_File fd, int *error_code) {
+void ADIOI_PLFS_Flush(ADIO_File fd, int *error_code)
+{
     int err, rank;
     static char myname[] = "ADIOI_PLFS_FLUSH";
     plfs_debug( "%s: begin\n", myname );

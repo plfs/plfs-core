@@ -18,7 +18,8 @@ using namespace std;
 // anyway, this should all happen above WriteFile and be transparent to
 // WriteFile.  This comment is for educational purposes only.
 WriteFile::WriteFile(string path, string hostname,
-                     mode_t mode, size_t buffer_mbs ) : Metadata::Metadata() {
+                     mode_t mode, size_t buffer_mbs ) : Metadata::Metadata()
+{
     this->container_path    = path;
     this->subdir_path       = path;
     this->hostname          = hostname;
@@ -33,16 +34,19 @@ WriteFile::WriteFile(string path, string hostname,
     pthread_mutex_init( &index_mux, NULL );
 }
 
-void WriteFile::setContainerPath ( string p ) {
+void WriteFile::setContainerPath ( string p )
+{
     this->container_path    = p;
     this->has_been_renamed = true;
 }
 
-void WriteFile::setSubdirPath (string p) {
+void WriteFile::setSubdirPath (string p)
+{
     this->subdir_path     = p;
 }
 
-WriteFile::~WriteFile() {
+WriteFile::~WriteFile()
+{
     mlog(WF_DAPI, "Delete self %s", container_path.c_str() );
     Close();
     if ( index ) {
@@ -54,7 +58,8 @@ WriteFile::~WriteFile() {
     pthread_mutex_destroy( &index_mux );
 }
 
-int WriteFile::sync( pid_t pid ) {
+int WriteFile::sync( pid_t pid )
+{
     int ret=0;
     OpenFd *ofd = getFd( pid );
     if ( ofd == NULL ) {
@@ -79,7 +84,8 @@ int WriteFile::sync( pid_t pid ) {
 
 
 // returns -errno or number of writers
-int WriteFile::addWriter( pid_t pid, bool child ) {
+int WriteFile::addWriter( pid_t pid, bool child )
+{
     int ret = 0;
     Util::MutexLock(   &data_mux, __FUNCTION__ );
     struct OpenFd *ofd = getFd( pid );
@@ -107,7 +113,8 @@ int WriteFile::addWriter( pid_t pid, bool child ) {
     return ( ret == 0 ? writers : ret );
 }
 
-size_t WriteFile::numWriters( ) {
+size_t WriteFile::numWriters( )
+{
     int writers = incrementOpens(0);
     bool paranoid_about_reference_counting = false;
     if ( paranoid_about_reference_counting ) {
@@ -174,7 +181,8 @@ struct OpenFd *WriteFile::getFd( pid_t pid ) {
     return ofd;
 }
 
-int WriteFile::closeFd( int fd ) {
+int WriteFile::closeFd( int fd )
+{
     map<int,string>::iterator paths_itr;
     paths_itr = paths.find( fd );
     string path = ( paths_itr == paths.end() ? "ENOENT?" : paths_itr->second );
@@ -188,7 +196,8 @@ int WriteFile::closeFd( int fd ) {
 
 // returns -errno or number of writers
 int
-WriteFile::removeWriter( pid_t pid ) {
+WriteFile::removeWriter( pid_t pid )
+{
     int ret = 0;
     Util::MutexLock(   &data_mux , __FUNCTION__);
     struct OpenFd *ofd = getFd( pid );
@@ -214,7 +223,8 @@ WriteFile::removeWriter( pid_t pid ) {
 }
 
 int
-WriteFile::extend( off_t offset ) {
+WriteFile::extend( off_t offset )
+{
     // make a fake write
     if ( fds.begin() == fds.end() ) {
         return -ENOENT;
@@ -233,7 +243,8 @@ WriteFile::extend( off_t offset ) {
 //
 // returns bytes written or -errno
 ssize_t
-WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid) {
+WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
+{
     int ret = 0;
     ssize_t written;
     OpenFd *ofd = getFd( pid );
@@ -284,7 +295,8 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid) {
 
 // this assumes that the hostdir exists and is full valid path
 // returns 0 or -errno
-int WriteFile::openIndex( pid_t pid ) {
+int WriteFile::openIndex( pid_t pid )
+{
     int ret = 0;
     string index_path;
     int fd = openIndexFile(subdir_path, hostname, pid, DROPPING_MODE,
@@ -304,7 +316,8 @@ int WriteFile::openIndex( pid_t pid ) {
     return ret;
 }
 
-int WriteFile::closeIndex( ) {
+int WriteFile::closeIndex( )
+{
     int ret = 0;
     Util::MutexLock(   &index_mux , __FUNCTION__);
     ret = index->flush();
@@ -316,7 +329,8 @@ int WriteFile::closeIndex( ) {
 }
 
 // returns 0 or -errno
-int WriteFile::Close() {
+int WriteFile::Close()
+{
     int failures = 0;
     Util::MutexLock(   &data_mux , __FUNCTION__);
     map<pid_t,OpenFd >::iterator itr;
@@ -333,24 +347,28 @@ int WriteFile::Close() {
 }
 
 // returns 0 or -errno
-int WriteFile::truncate( off_t offset ) {
+int WriteFile::truncate( off_t offset )
+{
     Metadata::truncate( offset );
     index->truncateHostIndex( offset );
     return 0;
 }
 
 int WriteFile::openIndexFile(string path, string host, pid_t p, mode_t m,
-                             string *index_path) {
+                             string *index_path)
+{
     *index_path = Container::getIndexPath(path,host,p,createtime);
     return openFile(*index_path,m);
 }
 
-int WriteFile::openDataFile(string path, string host, pid_t p, mode_t m) {
+int WriteFile::openDataFile(string path, string host, pid_t p, mode_t m)
+{
     return openFile(Container::getDataPath(path,host,p,createtime),m);
 }
 
 // returns an fd or -1
-int WriteFile::openFile( string physicalpath, mode_t mode ) {
+int WriteFile::openFile( string physicalpath, mode_t mode )
+{
     mode_t old_mode=umask(0);
     int flags = O_WRONLY | O_APPEND | O_CREAT;
     int fd = Util::Open( physicalpath.c_str(), flags, mode );
@@ -370,7 +388,8 @@ int WriteFile::openFile( string physicalpath, mode_t mode ) {
 // in that case, we need to restore them
 // what if rename is called and then f_truncate?
 // return 0 or -errno
-int WriteFile::restoreFds( ) {
+int WriteFile::restoreFds( )
+{
     map<int,string>::iterator paths_itr;
     map<pid_t, OpenFd >::iterator pids_itr;
     int ret = 0;

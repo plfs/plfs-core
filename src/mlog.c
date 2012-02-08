@@ -172,7 +172,8 @@ static void vmlog(int, const char *, va_list);
  * @param two pointer to second part of circular buffer, if any
  * @param twolen length of the two buffer
  */
-static void mlog_getmbptrs(char **one, int *onelen, char **two, int *twolen) {
+static void mlog_getmbptrs(char **one, int *onelen, char **two, int *twolen)
+{
     uint32_t wp;
     wp = ((struct mlog_mbhead *)mst.mb)->mbh_wp;
     *one = ((char *) mst.mb) + sizeof(struct mlog_mbhead) + wp;
@@ -192,7 +193,8 @@ static void mlog_getmbptrs(char **one, int *onelen, char **two, int *twolen) {
  * @param b2p returns pointer to second buffer here (null if none)
  * @param b2len returns length of b2 or zero if b2 is null
  */
-static void mlog_dmesg_mbuf(char **b1p, int *b1len, char **b2p, int *b2len) {
+static void mlog_dmesg_mbuf(char **b1p, int *b1len, char **b2p, int *b2len)
+{
     uint32_t skip;
     /* get pointers */
     mlog_getmbptrs(b1p, b1len, b2p, b2len);
@@ -224,7 +226,8 @@ static void mlog_dmesg_mbuf(char **b1p, int *b1len, char **b2p, int *b2len) {
  * @param dcon text string to load ucon info from
  * @return number of host/port entries resolved.
  */
-static int mlog_getucon(int cnt, struct sockaddr_in *ads, char *dcon) {
+static int mlog_getucon(int cnt, struct sockaddr_in *ads, char *dcon)
+{
     int rv;
     char *p, *hst, *col, *port;
     p = dcon;
@@ -273,7 +276,8 @@ static char *dbg[] = {  "D---", "D3--", "D2--", "D23-",
  * @param pri the priority to convert to a string
  * @return the string (symbolic name) of the priority
  */
-static char *mlog_pristr(int pri) {
+static char *mlog_pristr(int pri)
+{
     int s;
     pri = pri & MLOG_PRIMASK;   /* be careful */
     s = (pri >> MLOG_PRISHIFT) & 7;
@@ -293,7 +297,8 @@ static char *mlog_pristr(int pri) {
  * @param p port number
  * @return -1 on error, 0 otherwise.
  */
-static int mlog_resolvhost(struct sockaddr_in *sinp, char *h, char *p) {
+static int mlog_resolvhost(struct sockaddr_in *sinp, char *h, char *p)
+{
     struct hostent *he;
     memset(sinp, 0, sizeof(*sinp));
     sinp->sin_family = AF_INET;
@@ -326,7 +331,8 @@ static int mlog_resolvhost(struct sockaddr_in *sinp, char *h, char *p) {
  * @param n the number of facilities to allocate space for now.
  * @return -1 on error.
  */
-static int mlog_setnfac(int n) {
+static int mlog_setnfac(int n)
+{
     int try, lcv;
     struct mlog_fac *nfacs;
     /* fail if mlog not open */
@@ -380,7 +386,8 @@ static int mlog_setnfac(int n) {
  * @param str the string to copy in (null to just add a \0)
  */
 static void mlog_bput(char **bpp, int *skippy, int *residp, int *totcp,
-                      char *str) {
+                      char *str)
+{
     static char *nullsrc = "X\0\0";          /* 'X' is a non-null dummy char */
     char *sp;
     if (str == NULL) {                       /* trick to allow a null insert */
@@ -413,7 +420,8 @@ static void mlog_bput(char **bpp, int *skippy, int *residp, int *totcp,
  * @param w the 32bit int to swap
  * @return the swapped version of the "w"
  */
-static uint32_t wswap(uint32_t w) {
+static uint32_t wswap(uint32_t w)
+{
     return( (w >> 24) |
             ((w >> 16) & 0xff) << 8  |
             ((w >>  8) & 0xff) << 16 |
@@ -431,7 +439,8 @@ static uint32_t wswap(uint32_t w) {
  * @param fmt the printf(3) format to use
  * @param ap the stdargs va_list to use for the printf format
  */
-static void vmlog(int flags, const char *fmt, va_list ap) {
+static void vmlog(int flags, const char *fmt, va_list ap)
+{
 #define MLOG_TBSIZ    4096    /* bigger than any line should be */
     int fac, lvl, msk;
     char b[MLOG_TBSIZ], *bp, *b_nopt1hdr;
@@ -508,9 +517,10 @@ static void vmlog(int flags, const char *fmt, va_list ap) {
                     (long int)tv.tv_usec / 10000, mst.uts.nodename,
                     mlog_xst.tag);
     hlen_pt1 = hlen;    /* save part 1 length */
-    if (hlen < sizeof(b))
+    if (hlen < sizeof(b)) {
         hlen += snprintf(b + hlen, sizeof(b) - hlen, "%-4s %s ",
                          facstr, mlog_pristr(lvl));
+    }
     /*
      * we expect there is still room (i.e. at least one byte) for a
      * message, so this overflow check should never happen, but let's
@@ -657,7 +667,8 @@ static void vmlog(int flags, const char *fmt, va_list ap) {
  * for more user-friendly programs.  returns -1 (an invalid pri) on error.
  * does not access mlog global state.
  */
-int mlog_str2pri(char *pstr) {
+int mlog_str2pri(char *pstr)
+{
     char ptmp[8];
     int lcv;
     /* make sure we have a valid input */
@@ -707,7 +718,8 @@ int mlog_str2pri(char *pstr) {
  * return 0 on success, -1 on error.
  */
 int mlog_open(char *tag, int maxfac_hint, int default_mask, int stderr_mask,
-              char *logfile, int msgbuf_len, int flags, int syslogfac) {
+              char *logfile, int msgbuf_len, int flags, int syslogfac)
+{
     int tagblen;
     char *dcon, *cp;
     struct mlog_mbhead *mb;
@@ -837,7 +849,8 @@ error:
  * mlog_reopen: reopen a multilog.   reopen logfile for rotation or
  * after a fork...  update ucon and pid in tag (if enabled).
  */
-int mlog_reopen(char *logfile) {
+int mlog_reopen(char *logfile)
+{
     int rv;
     char *oldpid, *dup;
     if (!mlog_xst.tag) {
@@ -911,7 +924,8 @@ done:
  * (e.g. as part of an orderly shutdown, after all worker threads have
  * been collected). if already closed, this function is a noop.
  */
-void mlog_close() {
+void mlog_close()
+{
     int lcv;
     if (!mlog_xst.tag) {
         return;    /* return if already closed */
@@ -970,7 +984,8 @@ void mlog_close() {
  * mlog_namefacility: assign a name to a facility
  * return 0 on success, -1 on error (malloc problem).
  */
-int mlog_namefacility(int facility, char *aname, char *lname) {
+int mlog_namefacility(int facility, char *aname, char *lname)
+{
     int rv;
     char *n, *nl;
     /* not open? */
@@ -1016,7 +1031,8 @@ done:
  * mlog_allocfacility: allocate a new facility with the given name.
  * return new facility number on success, -1 on error (malloc problem).
  */
-int mlog_allocfacility(char *aname, char *lname) {
+int mlog_allocfacility(char *aname, char *lname)
+{
     int newfac;
     /* not open? */
     if (!mlog_xst.tag) {
@@ -1040,7 +1056,8 @@ int mlog_allocfacility(char *aname, char *lname) {
  * (expanding as needed).  return oldmask on success, -1 on error.  cannot
  * fail if facility array was preallocated.
  */
-int mlog_setlogmask(int facility, int mask) {
+int mlog_setlogmask(int facility, int mask)
+{
     int oldmask;
     /* not open? */
     if (!mlog_xst.tag) {
@@ -1065,7 +1082,8 @@ int mlog_setlogmask(int facility, int mask) {
  * if the "PREFIX=" part is omitted, then the level applies to all defined
  * facilities (e.g. mlog_setmasks("WARN") sets everything to WARN).
  */
-void mlog_setmasks(char *mstr, int mlen0) {
+void mlog_setmasks(char *mstr, int mlen0)
+{
     char *m, *current, *fac, *pri, pbuf[8];
     int mlen, facno, clen, elen, faclen, prilen, prino;
     /* not open? */
@@ -1118,7 +1136,8 @@ void mlog_setmasks(char *mstr, int mlen0) {
         if (m == NULL) {
             /* remove trailing white space from count */
             while (prilen > 0 && (pri[prilen-1] == '\n' ||
-                                  pri[prilen-1] == ' ' || pri[prilen-1] == '\t') ) {
+                                  pri[prilen-1] == ' ' ||
+                                  pri[prilen-1] == '\t') ) {
                 prilen--;
             }
         }
@@ -1175,7 +1194,8 @@ void mlog_setmasks(char *mstr, int mlen0) {
 /*
  * mlog_getmasks: get current masks levels
  */
-int mlog_getmasks(char *buf, int discard, int len, int unterm) {
+int mlog_getmasks(char *buf, int discard, int len, int unterm)
+{
     char *bp, *myname, *p;
     int skipcnt, resid, total, facno;
     char store[64];   /* fac unlikely to overflow this */
@@ -1225,7 +1245,8 @@ int mlog_getmasks(char *buf, int discard, int len, int unterm) {
 /*
  * mlog_abort_hook: set mlog abort hook
  */
-void *mlog_abort_hook(void (*abort_hook)(void)) {
+void *mlog_abort_hook(void (*abort_hook)(void))
+{
     void *ret;
     if (mlog_xst.tag) {
         mlog_lock();
@@ -1244,7 +1265,8 @@ void *mlog_abort_hook(void (*abort_hook)(void)) {
  * back in two pieces.
  * return 0 on success, -1 on error (not open, or no message buffer)
  */
-int mlog_dmesg(char **b1p, int *b1len, char **b2p, int *b2len) {
+int mlog_dmesg(char **b1p, int *b1len, char **b2p, int *b2len)
+{
     /* first check if we are open and have the buffer */
     if (!mlog_xst.tag || !mst.mb) {
         return(-1);
@@ -1258,7 +1280,8 @@ int mlog_dmesg(char **b1p, int *b1len, char **b2p, int *b2len) {
 /*
  * mlog_mbcount: give a hint as to the current size of the message buffer.
  */
-int mlog_mbcount() {
+int mlog_mbcount()
+{
     struct mlog_mbhead *mb;
     int rv;
     /* first check if we are open and have the buffer */
@@ -1280,7 +1303,8 @@ int mlog_mbcount() {
  * over into another buffer for use.   returns # of bytes copied, -1 on
  * error.
  */
-int mlog_mbcopy(char *buf, int offset, int len) {
+int mlog_mbcopy(char *buf, int offset, int len)
+{
     char *b1, *b2, *bp;
     int b1l, b2l, got, want, skip;
     if (!buf || len < 1 || !mlog_xst.tag) {
@@ -1347,7 +1371,8 @@ int mlog_mbcopy(char *buf, int offset, int len) {
 /*
  * plfs_debug: tmp wrapper
  */
-void plfs_debug(const char *fmt, ...) {
+void plfs_debug(const char *fmt, ...)
+{
     va_list ap;
     va_start(ap, fmt);
     vmlog(MLOG_DBG, fmt, ap);
@@ -1360,7 +1385,8 @@ void plfs_debug(const char *fmt, ...) {
  * function.  note that a log line cannot be larger than MLOG_TBSZ (4096)
  * [if it is larger it will be (silently) truncated].
  */
-void mlog(int flags, const char *fmt, ...) {
+void mlog(int flags, const char *fmt, ...)
+{
     va_list ap;
     va_start(ap, fmt);
     vmlog(flags, fmt, ap);
@@ -1371,7 +1397,8 @@ void mlog(int flags, const char *fmt, ...) {
  * mlog_abort: like mlog, but prints the stack and does an abort after
  * processing the log. for aborts, we always log to STDERR.
  */
-void mlog_abort(int flags, const char *fmt, ...) {
+void mlog_abort(int flags, const char *fmt, ...)
+{
     va_list ap;
     va_start(ap, fmt);
     vmlog(flags|MLOG_STDERR, fmt, ap);
@@ -1387,7 +1414,8 @@ void mlog_abort(int flags, const char *fmt, ...) {
  * mlog_exit: like mlog, but exits with the given status after processing
  * the log.   we always log to STDERR.
  */
-void mlog_exit(int status, int flags, const char *fmt, ...) {
+void mlog_exit(int status, int flags, const char *fmt, ...)
+{
     va_list ap;
     va_start(ap, fmt);
     vmlog(flags|MLOG_STDERR, fmt, ap);
@@ -1402,7 +1430,8 @@ void mlog_exit(int status, int flags, const char *fmt, ...) {
  * return 0 on success, -1 on error
  */
 int mlog_findmesgbuf(char *b, int len, char **b1p, int *b1l,
-                     char **b2p, int *b2l) {
+                     char **b2p, int *b2l)
+{
     char *ptr, *headend, *bufend;
     struct mlog_mbhead mb;
     uint32_t skip;
@@ -1460,7 +1489,8 @@ int mlog_findmesgbuf(char *b, int len, char **b1p, int *b1l,
  * mlog_ucon_on: enable ucon (UDP console)
  * return 0 on success, -1 on error
  */
-int mlog_ucon_on() {
+int mlog_ucon_on()
+{
     /* ensure open before doing stuff */
     if (!mlog_xst.tag) {
         return(-1);
@@ -1481,7 +1511,8 @@ int mlog_ucon_on() {
  * mlog_ucon_off: disable ucon (UDP console) if enabled
  * return 0 on success, -1 on error
  */
-int mlog_ucon_off() {
+int mlog_ucon_off()
+{
     /* ensure open before doing stuff */
     if (!mlog_xst.tag) {
         return(-1);
@@ -1500,7 +1531,8 @@ int mlog_ucon_off() {
  * mlog_ucon_add: add an endpoint as a ucon
  * return 0 on success, -1 on error
  */
-int mlog_ucon_add(char *host, int port) {
+int mlog_ucon_add(char *host, int port)
+{
     char portstr[8];
     int rv, sz;
     void *newbuf;
@@ -1540,7 +1572,8 @@ done:
  * mlog_ucon_rm: remove an ucon endpoint (port in host byte order).
  * return 0 on success, -1 on error
  */
-int mlog_ucon_rm(char *host, int port) {
+int mlog_ucon_rm(char *host, int port)
+{
     char portstr[8];
     struct sockaddr_in target;
     int rv, lcv;
@@ -1566,9 +1599,10 @@ int mlog_ucon_rm(char *host, int port) {
         goto done;
     }
     /* if not the last item in the list, pull that item forward */
-    if (lcv < mst.ucon_cnt - 1)
+    if (lcv < mst.ucon_cnt - 1) {
         memcpy(&mst.ucons[lcv], &mst.ucons[mst.ucon_cnt - 1],
                sizeof(*mst.ucons));
+    }
     /* remove last item in list */
     mst.ucon_cnt--;
     rv = 0;

@@ -5,7 +5,8 @@
 #include "Util.h"
 #include "mlogfacs.h"
 
-ThreadPool::ThreadPool( size_t size, void *(*func) (void *), void *args ) {
+ThreadPool::ThreadPool( size_t size, void *(*func) (void *), void *args )
+{
     pthread_t *threads = new pthread_t[size];
     thread_error = 0;
     pthread_attr_t attr;
@@ -36,13 +37,16 @@ ThreadPool::ThreadPool( size_t size, void *(*func) (void *), void *args ) {
     delete []threads;
 }
 
-ThreadPool::~ThreadPool() {
+ThreadPool::~ThreadPool()
+{
 }
 
-int ThreadPool::threadError() {
+int ThreadPool::threadError()
+{
     return thread_error;
 }
 
-vector<void *> * ThreadPool::getStati() {
+vector<void *> * ThreadPool::getStati()
+{
     return &stati;
 }

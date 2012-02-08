@@ -7,7 +7,8 @@
 // our pure virtual class for which we currently have FlatFile and we need
 // ContainerFile
 class
-        LogicalFileSystem {
+    LogicalFileSystem
+{
     public:
         virtual ~LogicalFileSystem() {};
         // here are the methods for creating an instatiated object

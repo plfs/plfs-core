@@ -6,7 +6,8 @@
 #include <vector>
 using namespace std;
 
-class ThreadPool {
+class ThreadPool
+{
     public:
         ThreadPool( size_t size, void *(*start_routine) (void *), void *args );
         ~ThreadPool();

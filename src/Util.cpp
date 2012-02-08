@@ -119,7 +119,8 @@ off_t total_ops = 0;
 
 // function that tokenizes a string into a set of strings based on set of delims
 vector<string> &Util::tokenize(const string& str,const string& delimiters,
-                               vector<string> &tokens) {
+                               vector<string> &tokens)
+{
     // skip delimiters at beginning.
     string::size_type lastPos = str.find_first_not_of(delimiters, 0);
     // find first "non-delimiter".
@@ -136,7 +137,8 @@ vector<string> &Util::tokenize(const string& str,const string& delimiters,
 }
 
 void
-Util::SeriousError( string msg, pid_t pid ) {
+Util::SeriousError( string msg, pid_t pid )
+{
     string filename = getenv("HOME");
     ostringstream oss;
     oss << getenv("HOME") << "/plfs.error." << hostname() << "." << pid;
@@ -151,7 +153,8 @@ Util::SeriousError( string msg, pid_t pid ) {
 }
 
 void
-Util::OpenError(const char *file, const char *func, int line, int Err, pid_t p) {
+Util::OpenError(const char *file, const char *func, int line, int Err, pid_t p)
+{
     ostringstream oss;
     oss << "open() error seen at " << file << ":" << func << ":" << line << ": "
         << strerror(Err);
@@ -164,7 +167,8 @@ HASH_MAP<string, off_t>  kbytes;
 HASH_MAP<string, off_t>  counters;
 HASH_MAP<string, off_t>  errors;
 
-string Util::toString( ) {
+string Util::toString( )
+{
     ostringstream oss;
     string output;
     off_t  total_ops  = 0;
@@ -192,7 +196,8 @@ string Util::toString( ) {
 }
 
 string Util::bandwidthToString( HASH_MAP<string,double>::iterator itr,
-                                HASH_MAP<string,off_t> ::iterator kitr ) {
+                                HASH_MAP<string,off_t> ::iterator kitr )
+{
     off_t kbs   = kitr->second;
     double time = itr->second;
     double bw   = (kbs/time) / 1024;
@@ -207,7 +212,8 @@ string Util::timeToString( HASH_MAP<string,double>::iterator itr,
                            HASH_MAP<string,off_t>::iterator citr,
                            off_t *total_errs,
                            off_t *total_ops,
-                           double *total_time ) {
+                           double *total_time )
+{
     double value    = itr->second;
     off_t  count    = citr->second;
     off_t  errs     = eitr->second;
@@ -229,7 +235,8 @@ string Util::timeToString( HASH_MAP<string,double>::iterator itr,
     return oss.str();
 }
 
-void Util::addBytes( string function, size_t size ) {
+void Util::addBytes( string function, size_t size )
+{
     HASH_MAP<string,off_t>::iterator itr;
     itr = kbytes.find( function );
     if ( itr == kbytes.end( ) ) {
@@ -243,7 +250,8 @@ void Util::addBytes( string function, size_t size ) {
 // useful for gathering the contents of a container
 int
 Util::traverseDirectoryTree(const char *path, vector<string> &files,
-                            vector<string> &dirs, vector<string> &links) {
+                            vector<string> &dirs, vector<string> &links)
+{
     ENTER_PATH;
     mlog(UT_DAPI, "%s on %s", __FUNCTION__, path);
     map<string,unsigned char> entries;
@@ -275,7 +283,8 @@ Util::traverseDirectoryTree(const char *path, vector<string> &files,
 }
 
 pthread_mutex_t time_mux;
-void Util::addTime( string function, double elapsed, bool error ) {
+void Util::addTime( string function, double elapsed, bool error )
+{
     HASH_MAP<string,double>::iterator itr;
     HASH_MAP<string,off_t>::iterator two;
     HASH_MAP<string,off_t>::iterator three;
@@ -306,39 +315,45 @@ void Util::addTime( string function, double elapsed, bool error ) {
     pthread_mutex_unlock( &time_mux );
 }
 
-int Util::Utime( const char *path, const struct utimbuf *buf ) {
+int Util::Utime( const char *path, const struct utimbuf *buf )
+{
     ENTER_PATH;
     ret = utime( path, buf );
     EXIT_UTIL;
 }
 
-int Util::Unlink( const char *path ) {
+int Util::Unlink( const char *path )
+{
     ENTER_PATH;
     ret = unlink( path );
     EXIT_UTIL;
 }
 
 
-int Util::Access( const char *path, int mode ) {
+int Util::Access( const char *path, int mode )
+{
     ENTER_PATH;
     ret = access( path, mode );
     EXIT_UTIL;
 }
 
-int Util::Mknod( const char *path, mode_t mode, dev_t dev ) {
+int Util::Mknod( const char *path, mode_t mode, dev_t dev )
+{
     ENTER_PATH;
     ret = mknod( path, mode, dev );
     EXIT_UTIL;
 }
 
-int Util::Truncate( const char *path, off_t length ) {
+int Util::Truncate( const char *path, off_t length )
+{
     ENTER_PATH;
     ret = truncate( path, length );
     EXIT_UTIL;
 }
 
 
-int Util::MutexLock(  pthread_mutex_t *mux , const char *where ) {
+int Util::MutexLock(  pthread_mutex_t *mux , const char *where )
+{
     ENTER_MUX;
     ostringstream os, os2;
     os << "Locking mutex " << mux << " from " << where;
@@ -349,7 +364,8 @@ int Util::MutexLock(  pthread_mutex_t *mux , const char *where ) {
     EXIT_UTIL;
 }
 
-int Util::MutexUnlock( pthread_mutex_t *mux, const char *where ) {
+int Util::MutexUnlock( pthread_mutex_t *mux, const char *where )
+{
     ENTER_MUX;
     ostringstream os;
     os << "Unlocking mutex " << mux << " from " << where;
@@ -358,31 +374,36 @@ int Util::MutexUnlock( pthread_mutex_t *mux, const char *where ) {
     EXIT_UTIL;
 }
 
-ssize_t Util::Pread( int fd, void *buf, size_t size, off_t off ) {
+ssize_t Util::Pread( int fd, void *buf, size_t size, off_t off )
+{
     ENTER_IO;
     ret = pread( fd, buf, size, off );
     EXIT_IO;
 }
 
-ssize_t Util::Pwrite( int fd, const void *buf, size_t size, off_t off ) {
+ssize_t Util::Pwrite( int fd, const void *buf, size_t size, off_t off )
+{
     ENTER_IO;
     ret = pwrite( fd, buf, size, off );
     EXIT_IO;
 }
 
-int Util::Rmdir( const char *path ) {
+int Util::Rmdir( const char *path )
+{
     ENTER_PATH;
     ret = rmdir( path );
     EXIT_UTIL;
 }
 
-int Util::Lstat( const char *path, struct stat *st ) {
+int Util::Lstat( const char *path, struct stat *st )
+{
     ENTER_PATH;
     ret = lstat( path, st );
     EXIT_UTIL;
 }
 
-int Util::Rename( const char *path, const char *to ) {
+int Util::Rename( const char *path, const char *to )
+{
     ENTER_PATH;
     ret = rename( path, to );
     EXIT_UTIL;
@@ -390,7 +411,8 @@ int Util::Rename( const char *path, const char *to ) {
 
 // Use most popular used read+write to copy file,
 // as mmap/sendfile/splice may fail on some system.
-int Util::CopyFile( const char *path, const char *to ) {
+int Util::CopyFile( const char *path, const char *to )
+{
     ENTER_PATH;
     int fd_from, fd_to, buf_size;
     ssize_t read_len, write_len, copy_len;
@@ -474,43 +496,50 @@ out:
     EXIT_UTIL;
 }
 
-ssize_t Util::Readlink(const char *link, char *buf, size_t bufsize) {
+ssize_t Util::Readlink(const char *link, char *buf, size_t bufsize)
+{
     ENTER_IO;
     ret = readlink(link,buf,bufsize);
     EXIT_UTIL;
 }
 
-int Util::Link( const char *path, const char *to ) {
+int Util::Link( const char *path, const char *to )
+{
     ENTER_PATH;
     ret = link( path, to );
     EXIT_UTIL;
 }
 
-int Util::Symlink( const char *path, const char *to ) {
+int Util::Symlink( const char *path, const char *to )
+{
     ENTER_PATH;
     ret = symlink( path, to );
     EXIT_UTIL;
 }
 
-ssize_t Util::Read( int fd, void *buf, size_t size) {
+ssize_t Util::Read( int fd, void *buf, size_t size)
+{
     ENTER_IO;
     ret = read( fd, buf, size );
     EXIT_IO;
 }
 
-ssize_t Util::Write( int fd, const void *buf, size_t size) {
+ssize_t Util::Write( int fd, const void *buf, size_t size)
+{
     ENTER_IO;
     ret = write( fd, buf, size );
     EXIT_IO;
 }
 
-int Util::Close( int fd ) {
+int Util::Close( int fd )
+{
     ENTER_UTIL;
     ret = close( fd );
     EXIT_UTIL;
 }
 
-int Util::Creat( const char *path, mode_t mode ) {
+int Util::Creat( const char *path, mode_t mode )
+{
     ENTER_PATH;
     ret = creat( path, mode );
     if ( ret > 0 ) {
@@ -521,19 +550,22 @@ int Util::Creat( const char *path, mode_t mode ) {
     EXIT_UTIL;
 }
 
-int Util::Statvfs( const char *path, struct statvfs *stbuf ) {
+int Util::Statvfs( const char *path, struct statvfs *stbuf )
+{
     ENTER_PATH;
     ret = statvfs(path,stbuf);
     EXIT_UTIL;
 }
 
-char *Util::Strdup(const char *s1) {
+char *Util::Strdup(const char *s1)
+{
     return strdup(s1);
 }
 
 
 // returns 0 if success, 1 if end of dir, -errno if error
-int Util::Readdir(DIR *dir, struct dirent **de) {
+int Util::Readdir(DIR *dir, struct dirent **de)
+{
     ENTER_UTIL;
     errno = 0;
     *de = NULL;
@@ -550,26 +582,30 @@ int Util::Readdir(DIR *dir, struct dirent **de) {
 }
 
 // returns 0 or -errno
-int Util::Opendir( const char *path, DIR **dp ) {
+int Util::Opendir( const char *path, DIR **dp )
+{
     ENTER_PATH;
     *dp = opendir( path );
     ret = ( *dp == NULL ? -errno : 0 );
     EXIT_UTIL;
 }
 
-int Util::Closedir( DIR *dp ) {
+int Util::Closedir( DIR *dp )
+{
     ENTER_UTIL;
     ret = closedir( dp );
     EXIT_UTIL;
 }
 
-int Util::Munmap(void *addr,size_t len) {
+int Util::Munmap(void *addr,size_t len)
+{
     ENTER_UTIL;
     ret = munmap(addr,len);
     EXIT_UTIL;
 }
 
-int Util::Mmap( size_t len, int fildes, void **retaddr) {
+int Util::Mmap( size_t len, int fildes, void **retaddr)
+{
     ENTER_UTIL;
     int prot  = PROT_READ;
     int flags = MAP_PRIVATE|MAP_NOCACHE;
@@ -578,26 +614,30 @@ int Util::Mmap( size_t len, int fildes, void **retaddr) {
     EXIT_UTIL;
 }
 
-int Util::Lseek( int fildes, off_t offset, int whence, off_t *result ) {
+int Util::Lseek( int fildes, off_t offset, int whence, off_t *result )
+{
     ENTER_UTIL;
     *result = lseek( fildes, offset, whence );
     ret = (int)*result;
     EXIT_UTIL;
 }
 
-int Util::Open( const char *path, int flags ) {
+int Util::Open( const char *path, int flags )
+{
     ENTER_PATH;
     ret = open( path, flags );
     EXIT_UTIL;
 }
 
-int Util::Open( const char *path, int flags, mode_t mode ) {
+int Util::Open( const char *path, int flags, mode_t mode )
+{
     ENTER_PATH;
     ret = open( path, flags, mode );
     EXIT_UTIL;
 }
 
-bool Util::exists( const char *path ) {
+bool Util::exists( const char *path )
+{
     ENTER_PATH;
     bool exists = false;
     struct stat buf;
@@ -608,11 +648,13 @@ bool Util::exists( const char *path ) {
     EXIT_UTIL;
 }
 
-bool Util::isDirectory( struct stat *buf ) {
+bool Util::isDirectory( struct stat *buf )
+{
     return (S_ISDIR(buf->st_mode) && !S_ISLNK(buf->st_mode));
 }
 
-bool Util::isDirectory( const char *path ) {
+bool Util::isDirectory( const char *path )
+{
     ENTER_PATH;
     bool exists = false;
     struct stat buf;
@@ -623,31 +665,36 @@ bool Util::isDirectory( const char *path ) {
     EXIT_UTIL;
 }
 
-int Util::Chown( const char *path, uid_t uid, gid_t gid ) {
+int Util::Chown( const char *path, uid_t uid, gid_t gid )
+{
     ENTER_PATH;
     ret = chown( path, uid, gid );
     EXIT_UTIL;
 }
 
-int Util::Lchown( const char *path, uid_t uid, gid_t gid ) {
+int Util::Lchown( const char *path, uid_t uid, gid_t gid )
+{
     ENTER_PATH;
     ret = lchown( path, uid, gid );
     EXIT_UTIL;
 }
 
-int Util::Chmod( const char *path, int flags ) {
+int Util::Chmod( const char *path, int flags )
+{
     ENTER_PATH;
     ret = chmod( path, flags );
     EXIT_UTIL;
 }
 
-int Util::Mkdir( const char *path, mode_t mode ) {
+int Util::Mkdir( const char *path, mode_t mode )
+{
     ENTER_PATH;
     ret = mkdir( path, mode );
     EXIT_UTIL;
 }
 
-int Util::Filesize(const char *path) {
+int Util::Filesize(const char *path)
+{
     ENTER_PATH;
     struct stat stbuf;
     ret = Stat(path,&stbuf);
@@ -657,13 +704,15 @@ int Util::Filesize(const char *path) {
     EXIT_UTIL;
 }
 
-int Util::Fsync( int fd) {
+int Util::Fsync( int fd)
+{
     ENTER_UTIL;
     ret = fsync( fd );
     EXIT_UTIL;
 }
 
-double Util::getTime( ) {
+double Util::getTime( )
+{
     // shoot this seems to be solaris only
     // how does MPI_Wtime() work?
     //return 1.0e-9 * gethrtime();
@@ -676,7 +725,8 @@ double Util::getTime( ) {
 }
 
 // returns n or returns -1
-ssize_t Util::Writen( int fd, const void *vptr, size_t n ) {
+ssize_t Util::Writen( int fd, const void *vptr, size_t n )
+{
     ENTER_UTIL;
     size_t      nleft;
     ssize_t     nwritten;
@@ -699,7 +749,8 @@ ssize_t Util::Writen( int fd, const void *vptr, size_t n ) {
     EXIT_UTIL;
 }
 
-string Util::openFlagsToString( int flags ) {
+string Util::openFlagsToString( int flags )
+{
     string fstr;
     if ( flags & O_WRONLY ) {
         fstr += "w";
@@ -794,7 +845,8 @@ string Util::expandPath( string path, string hostname ) {
 }
 */
 
-uid_t Util::Getuid() {
+uid_t Util::Getuid()
+{
     ENTER_UTIL;
 #ifndef __APPLE__
     ret = getuid();
@@ -802,7 +854,8 @@ uid_t Util::Getuid() {
     EXIT_UTIL;
 }
 
-gid_t Util::Getgid() {
+gid_t Util::Getgid()
+{
     ENTER_UTIL;
 #ifndef __APPLE__
     ret = getgid();
@@ -810,7 +863,8 @@ gid_t Util::Getgid() {
     EXIT_UTIL;
 }
 
-int Util::Setfsgid( gid_t g ) {
+int Util::Setfsgid( gid_t g )
+{
     ENTER_UTIL;
 #ifndef __APPLE__
     errno = 0;
@@ -820,7 +874,8 @@ int Util::Setfsgid( gid_t g ) {
     EXIT_UTIL;
 }
 
-int Util::Setfsuid( uid_t u ) {
+int Util::Setfsuid( uid_t u )
+{
     ENTER_UTIL;
 #ifndef __APPLE__
     errno = 0;
@@ -831,11 +886,13 @@ int Util::Setfsuid( uid_t u ) {
 }
 
 // a utility for turning return values into 0 or -ERRNO
-int Util::retValue( int res ) {
+int Util::retValue( int res )
+{
     return (res == 0 ? 0 : -errno);
 }
 
-char *Util::hostname() {
+char *Util::hostname()
+{
     static bool init = false;
     static char hname[128];
     if ( !init && gethostname(hname, sizeof(hname)) < 0) {
@@ -845,19 +902,22 @@ char *Util::hostname() {
     return hname;
 }
 
-int Util::Stat(const char *path, struct stat *file_info) {
+int Util::Stat(const char *path, struct stat *file_info)
+{
     ENTER_PATH;
     ret = stat( path , file_info );
     EXIT_UTIL;
 }
 
-int Util::Fstat(int fd, struct stat *file_info) {
+int Util::Fstat(int fd, struct stat *file_info)
+{
     ENTER_UTIL;
     ret = fstat(fd, file_info);
     EXIT_UTIL;
 }
 
-int Util::Ftruncate(int fd, off_t offset) {
+int Util::Ftruncate(int fd, off_t offset)
+{
     ENTER_UTIL;
     ret = ftruncate(fd, offset);
     EXIT_UTIL;

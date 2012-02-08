@@ -21,13 +21,16 @@
 #include <string.h>
 #include <stdio.h>
 
-namespace fusexx {
+namespace fusexx
+{
     /*
      * fuse
-     * Manages all the fuse operations. A very simple interface to the C fuse_ops struct.
+     * Manages all the fuse operations. A very simple interface to the C
+     * fuse_ops struct.
      */
     template <class T>
-    class fuse {
+    class fuse
+    {
             /*
              * Public Methods
              */
@@ -45,9 +48,10 @@ namespace fusexx {
             static int main (int argc, char **argv, void *user_data, T *t) {
                 // Zero the operations struct
                 memset (&T::operations, 0, sizeof (struct fuse_operations));
-                // Load the operations struct w/ pointers to the respective member functions
+                // Load the operations struct w/ pointers to the
+                // respective member functions
                 T::loadOperations ();
-                // The 'self' variable will be the equivalent of the 'this' pointer
+                // The 'self' variable will be the equiv of the 'this' pointer
                 if (t == NULL) {
                     return -1;
                 }
@@ -107,10 +111,12 @@ namespace fusexx {
             static int f_open (const char *, struct fuse_file_info *) {
                 FUSE_RET
             }
-            static int f_readn(const char *, char *, size_t, off_t, struct fuse_file_info *) {
+            static int f_readn(const char *, char *, size_t, off_t,
+                               struct fuse_file_info *) {
                 FUSE_RET
             }
-            static int f_write (const char *, const char *, size_t, off_t,struct fuse_file_info *) {
+            static int f_write (const char *, const char *, size_t, off_t,
+                                struct fuse_file_info *) {
                 FUSE_RET
             }
             static int f_statfs (const char *, struct statvfs *) {
@@ -126,7 +132,8 @@ namespace fusexx {
                 FUSE_RET
             }
 #ifndef __APPLE__
-            static int f_setxattr (const char *, const char *, const char *, size_t, int) {
+            static int f_setxattr (const char *, const char *, const char *,
+                                   size_t, int) {
                 FUSE_RET
             }
             static int f_getxattr (const char *, const char *, char *, size_t) {
@@ -139,7 +146,8 @@ namespace fusexx {
                 FUSE_RET
             }
 #endif
-            static int f_readdir (const char *, void *, fuse_fill_dir_t, off_t, struct fuse_file_info *) {
+            static int f_readdir (const char *, void *, fuse_fill_dir_t, off_t,
+                                  struct fuse_file_info *) {
                 FUSE_RET
             }
             static int f_opendir (const char *, struct fuse_file_info *) {
@@ -158,13 +166,16 @@ namespace fusexx {
             static int f_access (const char *, int) {
                 FUSE_RET
             }
-            static int f_create (const char *, mode_t, struct fuse_file_info *) {
+            static int f_create (const char *, mode_t,
+                                 struct fuse_file_info *) {
                 FUSE_RET
             }
-            static int f_ftruncate (const char *, off_t, struct fuse_file_info *) {
+            static int f_ftruncate (const char *, off_t,
+                                    struct fuse_file_info *) {
                 FUSE_RET
             }
-            static int f_fgetattr (const char *, struct stat *, struct fuse_file_info *) {
+            static int f_fgetattr (const char *, struct stat *,
+                                   struct fuse_file_info *) {
                 FUSE_RET
             }
 
@@ -212,7 +223,8 @@ namespace fusexx {
              * Protected variables
              */
         protected:
-            // allow static methods to access object methods/ variables using 'self' instead of 'this'
+            // allow static methods to access object methods/ variables using
+            //'self' instead of 'this'
             static T *self;
     };
 

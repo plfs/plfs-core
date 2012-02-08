@@ -8,7 +8,8 @@
 #include "plfs.h"
 
 int
-FileOp::op(const char *path, unsigned char type) {
+FileOp::op(const char *path, unsigned char type)
+{
     // the parent function is just a wrapper to insert a debug message
     int ret = retValue(do_op(path,type));
     mlog(FOP_DAPI, "FileOp:%s on %s: %d",name(),path,ret);
@@ -16,12 +17,14 @@ FileOp::op(const char *path, unsigned char type) {
 }
 
 void
-FileOp::ignoreErrno(int Errno) {
+FileOp::ignoreErrno(int Errno)
+{
     ignores.insert(Errno);
 }
 
 int
-FileOp::retValue(int ret) {
+FileOp::retValue(int ret)
+{
     ret = Util::retValue(ret);
     if (ignores.find(-ret)!=ignores.end()) {
         ret = 0;
@@ -29,12 +32,14 @@ FileOp::retValue(int ret) {
     return ret;
 }
 
-AccessOp::AccessOp(int mask) {
+AccessOp::AccessOp(int mask)
+{
     this->mask = mask;
 }
 
 // helper function for Access
-bool checkMask(int mask,int value) {
+bool checkMask(int mask,int value)
+{
     return (mask& value||mask==value);
 }
 
@@ -44,7 +49,8 @@ bool checkMask(int mask,int value) {
 // but now plfs_file_operation is doing that so this code isn't appropriate
 // in container.  really it should just be embedded in AccessOp::op() but
 // then I'd have to mess with indentation
-int Access( const string& path, int mask ) {
+int Access( const string& path, int mask )
+{
     // there used to be some concern here that the accessfile might not
     // exist yet but the way containers are made ensures that an accessfile
     // will exist if the container exists
@@ -83,7 +89,8 @@ int Access( const string& path, int mask ) {
 }
 
 int
-AccessOp::do_op(const char *path, unsigned char isfile) {
+AccessOp::do_op(const char *path, unsigned char isfile)
+{
     if (isfile==DT_DIR || isfile==DT_LNK) {
         return Util::Access(path,mask);
     } else if (isfile==DT_REG) {
@@ -93,17 +100,20 @@ AccessOp::do_op(const char *path, unsigned char isfile) {
     }
 }
 
-ChownOp::ChownOp(uid_t u, gid_t g) {
+ChownOp::ChownOp(uid_t u, gid_t g)
+{
     this->u = u;
     this->g = g;
 }
 
 int
-ChownOp::do_op(const char *path, unsigned char /* isfile */ ) {
+ChownOp::do_op(const char *path, unsigned char /* isfile */ )
+{
     return Util::Chown(path,u,g);
 }
 
-TruncateOp::TruncateOp(bool open_file) {
+TruncateOp::TruncateOp(bool open_file)
+{
     this->open_file = open_file;
     // it's possible that we lost a race and some other proc already removed
     ignoreErrno(ENOENT);
@@ -115,7 +125,8 @@ TruncateOp::TruncateOp(bool open_file) {
 // on an open file, another sibling may have recently created a dropping so
 // don't delete
 int
-TruncateOp::do_op(const char *path, unsigned char isfile) {
+TruncateOp::do_op(const char *path, unsigned char isfile)
+{
     if (isfile != DT_REG) {
         return 0;    // nothing to do for directories
     }
@@ -140,12 +151,14 @@ TruncateOp::do_op(const char *path, unsigned char isfile) {
 }
 
 void
-TruncateOp::ignore(string path) {
+TruncateOp::ignore(string path)
+{
     ignores.push_back(path);
 }
 
 int
-UnlinkOp::do_op(const char *path, unsigned char isfile) {
+UnlinkOp::do_op(const char *path, unsigned char isfile)
+{
     if (isfile==DT_REG || isfile==DT_LNK) {
         return Util::Unlink(path);
     } else if (isfile==DT_DIR) {
@@ -155,12 +168,14 @@ UnlinkOp::do_op(const char *path, unsigned char isfile) {
     }
 }
 
-CreateOp::CreateOp(mode_t m) {
+CreateOp::CreateOp(mode_t m)
+{
     this->m = m;
 }
 
 ReaddirOp::ReaddirOp(map<string,unsigned char> *entries,
-                     set<string> *names, bool expand_path, bool skip_dots) {
+                     set<string> *names, bool expand_path, bool skip_dots)
+{
     this->entries = entries;
     this->names   = names;
     this->expand  = expand_path;
@@ -168,7 +183,8 @@ ReaddirOp::ReaddirOp(map<string,unsigned char> *entries,
 }
 
 int
-ReaddirOp::filter(string filter) {
+ReaddirOp::filter(string filter)
+{
     filters.insert(filter);
     return filters.size();
 }
@@ -182,7 +198,8 @@ ReaddirOp::filter(string filter) {
  * @return a proper DT_* code based on the st_mode
  */
 static unsigned char
-determine_type(const char *path, char *d_name) {
+determine_type(const char *path, char *d_name)
+{
     string file;
     struct stat sb;
     file = path;
@@ -210,7 +227,8 @@ determine_type(const char *path, char *d_name) {
 }
 
 int
-ReaddirOp::do_op(const char *path, unsigned char /* isfile */ ) {
+ReaddirOp::do_op(const char *path, unsigned char /* isfile */ )
+{
     int ret;
     DIR *dir;
     struct dirent *ent;
@@ -219,7 +237,8 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */ ) {
         return ret;
     }
     while((ret=Util::Readdir(dir,&ent))==0) {
-        if (skip_dots && (!strcmp(ent->d_name,".")||!strcmp(ent->d_name,".."))) {
+        if (skip_dots && (!strcmp(ent->d_name,".")||
+                          !strcmp(ent->d_name,".."))) {
             continue;   // skip the dots
         }
         if (filters.size()) {
@@ -269,7 +288,8 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */ ) {
 //}
 
 int
-CreateOp::do_op(const char *path, unsigned char isfile ) {
+CreateOp::do_op(const char *path, unsigned char isfile )
+{
     if (isfile==DT_DIR) {
         mode_t mode = Container::dirMode(m);
         return Util::Mkdir(path,mode);
@@ -281,21 +301,25 @@ CreateOp::do_op(const char *path, unsigned char isfile ) {
     return -ENOSYS;
 }
 
-ChmodOp::ChmodOp(mode_t m) {
+ChmodOp::ChmodOp(mode_t m)
+{
     this->m = m;
 }
 
 int
-ChmodOp::do_op(const char *path, unsigned char isfile) {
+ChmodOp::do_op(const char *path, unsigned char isfile)
+{
     mode_t this_mode = (isfile==DT_DIR?Container::dirMode(m):m);
     return Util::Chmod(path,this_mode);
 }
 
-UtimeOp::UtimeOp(struct utimbuf *ut) {
+UtimeOp::UtimeOp(struct utimbuf *ut)
+{
     this->ut = ut;
 }
 
 int
-UtimeOp::do_op(const char *path, unsigned char /* isfile */ ) {
+UtimeOp::do_op(const char *path, unsigned char /* isfile */ )
+{
     return Util::Utime(path,ut);
 }

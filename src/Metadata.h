@@ -6,7 +6,8 @@
 #include <sstream>
 using namespace std;
 
-class Metadata {
+class Metadata
+{
 
     public:
 

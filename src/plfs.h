@@ -45,8 +45,8 @@ typedef void *Plfs_fd;
        All PLFS functions are either approximations of POSIX file IO calls or
        utility functions.
 
-       Most PLFS functions return 0 or -errno, except write and read which return
-       the number of bytes or -errno
+       Most PLFS functions return 0 or -errno, except write and read which
+       return the number of bytes or -errno
 
        Many of the utility functions are shared by the ADIO and the FUSE layers
        of PLFS.  Typical applications should try to use those layers.  However,
@@ -58,9 +58,9 @@ typedef void *Plfs_fd;
        To add more threads to a Plfs_fd ptr, just call plfs_open multiple times.
        The first time call it with a NULL ptr, then subsequent times call it
        with the original ptr.  plfs_open and plfs_close are not thread safe;
-       when multiple treads share a Plfs_fd, the caller must ensure synchronization.
-       The other calls are thread safe.  The pid passed to the plfs_open and
-       the plfs_create must be unique on each node.
+       when multiple treads share a Plfs_fd, the caller must ensure
+       synchronization. The other calls are thread safe.  The pid passed to the
+       plfs_open and the plfs_create must be unique on each node.
     */
 
     /* is_plfs_file
@@ -82,7 +82,8 @@ typedef void *Plfs_fd;
 
     int plfs_chown( const char *path, uid_t, gid_t );
 
-    int plfs_close(Plfs_fd *,pid_t,uid_t,int open_flags,Plfs_close_opt *close_opt);
+    int plfs_close(Plfs_fd *,pid_t,uid_t,int open_flags,
+                   Plfs_close_opt *close_opt);
 
     /* plfs_create
        you don't need to call this, you can also pass O_CREAT to plfs_open
@@ -104,7 +105,8 @@ typedef void *Plfs_fd;
         int size_only is whether the only attribute of interest is
         filesize.  This is sort of like stat-lite or lazy stat
      */
-    int plfs_getattr(Plfs_fd *, const char *path, struct stat *st, int size_only);
+    int plfs_getattr(Plfs_fd *, const char *path, struct stat *st,
+                     int size_only);
 
     char *plfs_gethostname();
     size_t plfs_gethostdir_id(char *);
@@ -215,7 +217,8 @@ typedef void *Plfs_fd;
     int plfs_parindex_read(int rank, int ranks_per_comm,void *index_files,
                            void **index_stream,char *top_level);
     int plfs_parindexread_merge(const char *path,char *index_streams,
-                                int *index_sizes, int procs, void **index_stream);
+                                int *index_sizes, int procs,
+                                void **index_stream);
     int plfs_expand_path(const char *logical,char **physical);
 
 #ifdef __cplusplus

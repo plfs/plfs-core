@@ -110,7 +110,8 @@ extern "C" {   /* __BEGIN_DECLS */
      * @param flags the MLOG flags
      * @return 1 if we should log, 0 if we should filter
      */
-    static inline int mlog_filter(int flags) {
+    static inline int mlog_filter(int flags)
+    {
         extern struct mlog_xstate mlog_xst;
         unsigned int fac, lvl, mask;
         /* first, ensure mlog is open */
@@ -179,9 +180,9 @@ extern "C" {   /* __BEGIN_DECLS */
     /**
      * mlog_allocfacility: allocate a new facility with the given name
      *
-     * @param aname the abbr. name for the new facility (can be null for no name)
-     * @param lname the long name for the new facility (can be null for no name)
-     * @return new facility number on success, -1 on error (malloc problem).
+     * @param aname the abbr. name for the facility - can be null for no name
+     * @param lname the long name for the new facility - can be null for no name
+     * @return new facility number on success, -1 on error - malloc problem.
      */
     int mlog_allocfacility(char *aname, char *lname);
 
@@ -337,7 +338,7 @@ extern "C" {   /* __BEGIN_DECLS */
      * @param discard bytes to discard before starting to fill buf (normally 0)
      * @param len length of the buffer
      * @param unterm if non-zero do not include a trailing null
-     * @return bytes returned (may be truncated and non-null terminated if == len)
+     * @return bytes returned (may be trunced and non-null terminated if == len)
      */
     int mlog_getmasks(char *buf, int discard, int len, int unterm);
 

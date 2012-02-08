@@ -12,7 +12,9 @@
 
 void ADIOI_PLFS_ReadContig(ADIO_File fd, void *buf, int count,
                            MPI_Datatype datatype, int file_ptr_type,
-                           ADIO_Offset offset, ADIO_Status *status, int *error_code) {
+                           ADIO_Offset offset, ADIO_Status *status,
+                           int *error_code)
+{
     int err=-1, datatype_size, len, rank;
     ADIO_Offset myoff;
     static char myname[] = "ADIOI_PLFS_READCONTIG";

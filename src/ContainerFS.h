@@ -5,7 +5,8 @@
 #include "LogicalFS.h"
 #include "LogicalFD.h"
 
-class ContainerFileSystem : public LogicalFileSystem {
+class ContainerFileSystem : public LogicalFileSystem
+{
     public:
         ~ContainerFileSystem() {};
         int open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,

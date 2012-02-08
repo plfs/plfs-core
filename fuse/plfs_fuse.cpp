@@ -89,7 +89,8 @@ typedef struct OpenDirStruct {
     off_t last_offset;
 } OpenDir;
 
-class generic_exception: public exception {
+class generic_exception: public exception
+{
         virtual const char *what() const throw() {
             return "A general exception has occurred.";
         }
@@ -151,7 +152,7 @@ class generic_exception: public exception {
 #define DEBUG_MUTEX_OFF
 #endif
 
-#define PLFS_ENTER vector<gid_t> orig_groups;                                 \
+#define FUSE_PLFS_ENTER vector<gid_t> orig_groups;                                 \
                    ostringstream funct_id;                                    \
                    LogMessage lm, lm2;                                        \
                    DEBUG_MUTEX_ON;                                            \
@@ -168,7 +169,7 @@ class generic_exception: public exception {
                     try{
 
 
-#define PLFS_EXIT  }                                                    \
+#define FUSE_PLFS_EXIT  }                                                    \
                    catch(exception &e) {                                \
                        catch_exception(funct_id.str(), e);              \
                    }                                                    \
@@ -197,7 +198,8 @@ class generic_exception: public exception {
 
 
 std::vector<std::string> &
-split(const std::string& s, const char delim, std::vector<std::string> &elems) {
+split(const std::string& s, const char delim, std::vector<std::string> &elems)
+{
     std::stringstream ss(s);
     std::string item;
     while(std::getline(ss, item, delim)) {
@@ -214,7 +216,8 @@ split(const std::string& s, const char delim, std::vector<std::string> &elems) {
  * @param argv from main.C
  */
 
-static void plfsfuse_mlogargfilter(int *argc, char **argv) {
+static void plfsfuse_mlogargfilter(int *argc, char **argv)
+{
     int mlac, lcv, cnt;
     char **mlav;
     if (*argc < 3) {
@@ -253,7 +256,8 @@ static void plfsfuse_mlogargfilter(int *argc, char **argv) {
 // set this up to parse command line args
 // move code from constructor in here
 // and stop using /etc config file
-int Plfs::init( int *argc, char **argv ) {
+int Plfs::init( int *argc, char **argv )
+{
     char hostname[_POSIX_PATH_MAX];
     (void)plfs_mlogtag(argv[0]);
     plfsfuse_mlogargfilter(argc, argv);
@@ -322,7 +326,8 @@ int Plfs::init( int *argc, char **argv ) {
 }
 
 // Constructor
-Plfs::Plfs () {
+Plfs::Plfs ()
+{
     extra_attempts      = 0;
     wtfs                = 0;
     make_container_time = 0;
@@ -330,7 +335,8 @@ Plfs::Plfs () {
     begin_time          = plfs_wtime();
 }
 
-string Plfs::expandPath( const char *path ) {
+string Plfs::expandPath( const char *path )
+{
     string full_logical;
     static int mnt_len = strlen(self->pmnt->mnt_pt.c_str());
     if ( ! strncmp(path,self->pmnt->mnt_pt.c_str(),mnt_len) ) {
@@ -390,7 +396,8 @@ static struct pfuse_debug_driver *get_dbgdrv(const char *path) {
 // this is not just a simple wrapper since we cache some state here
 // about what files we've made.  This might get some performance but
 // maybe at the cost of correctness.  hmmmm.
-int Plfs::makePlfsFile( string expanded_path, mode_t mode, int flags ) {
+int Plfs::makePlfsFile( string expanded_path, mode_t mode, int flags )
+{
     int res = 0;
     mlog(FUSE_DAPI, "Need to create container for %s (%s %d)",
          expanded_path.c_str(),
@@ -430,15 +437,17 @@ int Plfs::makePlfsFile( string expanded_path, mode_t mode, int flags ) {
 // slight chance that the access file doesn't exist yet.
 // this doesn't use the iterate_backend function if it's a directory.
 // Since it only reads the dir, checking only one of cloned dirs is sufficient
-int Plfs::f_access(const char *path, int mask) {
+int Plfs::f_access(const char *path, int mask)
+{
     EXIT_IF_DEBUG;
-    PLFS_ENTER;
+    FUSE_PLFS_ENTER;
     ret = plfs_access( strPath.c_str(), mask );
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
-int Plfs::f_mknod(const char *path, mode_t mode, dev_t rdev) {
-    PLFS_ENTER;
+int Plfs::f_mknod(const char *path, mode_t mode, dev_t rdev)
+{
+    FUSE_PLFS_ENTER;
     mlog(FUSE_DAPI, "%s on %s mode %u rdev %lu",__FUNCTION__,path,mode,
          (unsigned long)rdev);
     ret = makePlfsFile( strPath.c_str(), mode, 0 );
@@ -455,7 +464,7 @@ int Plfs::f_mknod(const char *path, mode_t mode, dev_t rdev) {
         }
         */
     }
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
 // very strange.  When fuse gets the ENOSYS for
@@ -466,49 +475,55 @@ int Plfs::f_mknod(const char *path, mode_t mode, dev_t rdev) {
 // caller will then call f_mknod, but that doesn't always happen in big
 // untar of tarballs, so I'm gonna try to call f_mknod here
 // the big tarball thing seems to work again with this commented out.... ?
-int Plfs::f_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
-    PLFS_ENTER;
+int Plfs::f_create(const char *path, mode_t mode, struct fuse_file_info *fi)
+{
+    FUSE_PLFS_ENTER;
     //ret = f_mknod( strPath.c_str(), mode, 0 );
     ret = -ENOSYS;
-    PLFS_EXIT    ;
+    FUSE_PLFS_EXIT    ;
 }
 
 // returns 0 or -errno
 // nothing to do for a read file
-int Plfs::f_fsync(const char *path, int datasync, struct fuse_file_info *fi) {
-    PLFS_ENTER;
+int Plfs::f_fsync(const char *path, int datasync, struct fuse_file_info *fi)
+{
+    FUSE_PLFS_ENTER;
     GET_OPEN_FILE;
     if (of) {
         plfs_sync(of, fuse_get_context()->pid);
     }
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
 // this means it is an open file.  That means we also need to check our
 // current write file and adjust those indices also if necessary
-int Plfs::f_ftruncate(const char *path, off_t offset, struct fuse_file_info *fi) {
+int Plfs::f_ftruncate(const char *path, off_t offset,
+                      struct fuse_file_info *fi)
+{
     EXIT_IF_DEBUG;
-    PLFS_ENTER;
+    FUSE_PLFS_ENTER;
     GET_OPEN_FILE;
     if(of) {
         plfs_sync(of,fuse_get_context()->pid);    // flush any index buffers
     }
     ret = plfs_trunc( of, strPath.c_str(), offset, true );
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
 // use removeDirectoryTree to remove all data but not the dir structure
 // return 0 or -errno
-int Plfs::f_truncate( const char *path, off_t offset ) {
+int Plfs::f_truncate( const char *path, off_t offset )
+{
     EXIT_IF_DEBUG;
-    PLFS_ENTER;
+    FUSE_PLFS_ENTER;
     ret = plfs_trunc( NULL, strPath.c_str(), offset, false );
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
 // a helper for f_getattr and f_fgetattr.
 int Plfs::getattr_helper( string expanded, const char *path,
-                          struct stat *stbuf, Plfs_fd *of ) {
+                          struct stat *stbuf, Plfs_fd *of )
+{
     struct pfuse_debug_driver *dd;
     bool sz_only = false;
     int ret = plfs_getattr( of, expanded.c_str(), stbuf, sz_only );
@@ -551,29 +566,33 @@ int Plfs::getattr_helper( string expanded, const char *path,
 }
 
 int Plfs::f_fgetattr(const char *path, struct stat *stbuf,
-                     struct fuse_file_info *fi) {
-    PLFS_ENTER;
+                     struct fuse_file_info *fi)
+{
+    FUSE_PLFS_ENTER;
     GET_OPEN_FILE;
     ret = getattr_helper( strPath, path, stbuf, of );
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
-int Plfs::f_getattr(const char *path, struct stat *stbuf) {
-    PLFS_ENTER;
+int Plfs::f_getattr(const char *path, struct stat *stbuf)
+{
+    FUSE_PLFS_ENTER;
     ret = getattr_helper( strPath, path, stbuf, NULL );
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
 // needs to work differently for directories
-int Plfs::f_utime (const char *path, struct utimbuf *ut) {
-    PLFS_ENTER;
+int Plfs::f_utime (const char *path, struct utimbuf *ut)
+{
+    FUSE_PLFS_ENTER;
     ret = plfs_utime( strPath.c_str(), ut );
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
 // this needs to recurse on all data and index files
-int Plfs::f_chmod (const char *path, mode_t mode) {
-    PLFS_ENTER;
+int Plfs::f_chmod (const char *path, mode_t mode)
+{
+    FUSE_PLFS_ENTER;
     plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
     ret = plfs_chmod( strPath.c_str(), mode );
     if ( ret == 0 ) {
@@ -582,7 +601,7 @@ int Plfs::f_chmod (const char *path, mode_t mode) {
         self->known_modes[strPath] = mode;
     }
     plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
     // ignore this clean-up code for now
     /*
     SET_IDS(s_uid,s_gid);
@@ -593,12 +612,13 @@ int Plfs::f_chmod (const char *path, mode_t mode) {
         ret = plfs_chmod_cleanup( strPath.c_str(), mode );
     }
     plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
     */
 }
 
 // fills the set of supplementary groups of the effective uid
-int Plfs::get_groups( vector<gid_t> *vec ) {
+int Plfs::get_groups( vector<gid_t> *vec )
+{
     int ngroups = getgroups(0, 0);
     gid_t *groups = new gid_t[ngroups];
     //(gid_t *) malloc(ngroups * sizeof (gid_t));
@@ -615,11 +635,11 @@ int Plfs::get_groups( vector<gid_t> *vec ) {
 // fills the set of supplementary groups of a uid
 // I'm not sure right now and am doing testing.  hopefully I come back
 // and clean up this comment but as of right now we are doing this at
-// every entry point in PLFS_ENTER which makes this a very frequent
+// every entry point in FUSE_PLFS_ENTER which makes this a very frequent
 // operation.  I tried this once w/out a mutex and it seemed to make it
 // segfault.  I'm scared that getgrent is not thread-safe so now this is
-// in a mutex which seems ugly since it happens at every PLFS_ENTER.  So
-// if we indeed execute this code at every PLFS_ENTER, we should probably
+// in a mutex which seems ugly since it happens at every FUSE_PLFS_ENTER.  So
+// if we indeed execute this code at every FUSE_PLFS_ENTER, we should probably
 // consider caching mappings of uid's to group lists and we should probably
 // also remember the age of each cache entry so that we periodically forget
 // old cachings.  ugh.
@@ -636,7 +656,8 @@ int Plfs::get_groups( vector<gid_t> *vec ) {
 // HEY!  HEY!  When we can get fuse 2.8.XX, we can throw some of this crap
 // away since Miklos has added fuse_getgroups which does this all for us!
 // http://article.gmane.org/gmane.comp.file-systems.fuse.devel/7952
-int Plfs::set_groups( uid_t uid ) {
+int Plfs::set_groups( uid_t uid )
+{
     char *username;
     struct passwd *pwd;
     vector<gid_t> groups;
@@ -694,10 +715,11 @@ int Plfs::set_groups( uid_t uid ) {
     return 0;
 }
 
-int Plfs::f_chown (const char *path, uid_t uid, gid_t gid ) {
-    PLFS_ENTER;
+int Plfs::f_chown (const char *path, uid_t uid, gid_t gid )
+{
+    FUSE_PLFS_ENTER;
     ret = plfs_chown(strPath.c_str(),uid,gid);
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
     // ignore this clean-up code for now
     /*
     SET_IDS(s_uid,s_gid);
@@ -712,16 +734,18 @@ int Plfs::f_chown (const char *path, uid_t uid, gid_t gid ) {
     */
 }
 
-int Plfs::f_mkdir (const char *path, mode_t mode ) {
-    PLFS_ENTER;
+int Plfs::f_mkdir (const char *path, mode_t mode )
+{
+    FUSE_PLFS_ENTER;
     ret = plfs_mkdir(strPath.c_str(),mode);
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
-int Plfs::f_rmdir( const char *path ) {
-    PLFS_ENTER;
+int Plfs::f_rmdir( const char *path )
+{
+    FUSE_PLFS_ENTER;
     ret = plfs_rmdir(strPath.c_str());
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
 // what if someone is calling unlink on an open file?
@@ -731,19 +755,21 @@ int Plfs::f_rmdir( const char *path ) {
 //
 // anyway, not sure we need to worry about handling this weird stuff
 // fine to leave it undefined.  users shouldn't do stupid stuff like this anyway
-int Plfs::f_unlink( const char *path ) {
-    PLFS_ENTER;
+int Plfs::f_unlink( const char *path )
+{
+    FUSE_PLFS_ENTER;
     ret = plfs_unlink( strPath.c_str() );
     if ( ret == 0 ) {
         self->createdContainers.erase( strPath );
     }
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
 // see f_readdir for some documentation here
 // returns 0 or -errno
-int Plfs::f_opendir( const char *path, struct fuse_file_info *fi ) {
-    PLFS_ENTER;
+int Plfs::f_opendir( const char *path, struct fuse_file_info *fi )
+{
+    FUSE_PLFS_ENTER;
     OpenDir *opendir = new OpenDir;
     opendir->last_offset = 0;
     fi->fh = (uint64_t)NULL;
@@ -753,12 +779,13 @@ int Plfs::f_opendir( const char *path, struct fuse_file_info *fi ) {
     } else {
         delete opendir;
     }
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
 int Plfs::f_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
-                    off_t offset, struct fuse_file_info *fi) {
-    PLFS_ENTER;
+                    off_t offset, struct fuse_file_info *fi)
+{
+    FUSE_PLFS_ENTER;
     // pull the opendir that was stashed on the open
     OpenDir *opendir = (OpenDir *)fi->fh;
     bool EOD = false; // are we at end of directory already?
@@ -796,15 +823,16 @@ int Plfs::f_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
             }
         }
     }
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
-int Plfs::f_releasedir( const char *path, struct fuse_file_info *fi ) {
-    PLFS_ENTER;
+int Plfs::f_releasedir( const char *path, struct fuse_file_info *fi )
+{
+    FUSE_PLFS_ENTER;
     if (fi->fh) {
         delete (OpenDir *)fi->fh;
     }
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
 // returns 0 or -errno
@@ -812,10 +840,11 @@ int Plfs::f_releasedir( const char *path, struct fuse_file_info *fi ) {
 // O_RDONLY is handled as a read
 // PLFS is optimized for O_WRONLY and tries to do OK for O_RDONLY
 // O_RDWR is optimized for writes but the reads might be horrible
-int Plfs::f_open(const char *path, struct fuse_file_info *fi) {
+int Plfs::f_open(const char *path, struct fuse_file_info *fi)
+{
     fi->fh = (uint64_t)NULL;
     EXIT_IF_DEBUG;
-    PLFS_ENTER;
+    FUSE_PLFS_ENTER;
     Plfs_fd *pfd = NULL;
     bool newly_created = false;
     mode_t mode = getMode( strPath );
@@ -867,7 +896,7 @@ int Plfs::f_open(const char *path, struct fuse_file_info *fi) {
         plfs_serious_error(oss.str().c_str(),fuse_get_context()->pid);
         cerr << "Calling plfs_serious_error" << endl;
     }
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
 // the release happens when all pids on a machine close the file
@@ -880,8 +909,9 @@ int Plfs::f_open(const char *path, struct fuse_file_info *fi) {
 // so it should be safe to close all fd's on the first release
 // and delete it.  But it's safer to wait until the last release
 //
-int Plfs::f_release( const char *path, struct fuse_file_info *fi ) {
-    PLFS_ENTER;
+int Plfs::f_release( const char *path, struct fuse_file_info *fi )
+{
+    FUSE_PLFS_ENTER;
     GET_OPEN_FILE;
     // there is one 'Plfs_fd *of' shared by multiple procs
     // the Plfs_fd *of is removed by plfs_close since plfs_open created it
@@ -923,11 +953,12 @@ int Plfs::f_release( const char *path, struct fuse_file_info *fi ) {
         openfile = NULL;
         plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
     }
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
 // the fd_mutex should be held when calling this
-int Plfs::addOpenFile( string expanded, pid_t pid, Plfs_fd *pfd) {
+int Plfs::addOpenFile( string expanded, pid_t pid, Plfs_fd *pfd)
+{
     ostringstream oss;
     oss << __FUNCTION__ << " adding OpenFile for " <<
         expanded << " (" << pfd << ") pid " << pid;
@@ -942,7 +973,8 @@ int Plfs::addOpenFile( string expanded, pid_t pid, Plfs_fd *pfd) {
 // this might sometimes fail to remove a file if we did a rename on an open file
 // because the rename removes the open file and then when the release comes
 // it has already been removed
-int Plfs::removeOpenFile(string expanded, pid_t pid, Plfs_fd *pfd) {
+int Plfs::removeOpenFile(string expanded, pid_t pid, Plfs_fd *pfd)
+{
     ostringstream oss;
     int erased = 0;
     erased = self->open_files.erase( expanded );
@@ -956,7 +988,8 @@ int Plfs::removeOpenFile(string expanded, pid_t pid, Plfs_fd *pfd) {
 
 // just look to see if we already have a certain file open
 // when this is called, we should already be in a mux
-Plfs_fd *Plfs::findOpenFile( string expanded ) {
+Plfs_fd *Plfs::findOpenFile( string expanded )
+{
     Plfs_fd *pfd  = NULL;
     HASH_MAP<string, Plfs_fd *>::iterator itr;
     itr = self->open_files.find( expanded );
@@ -976,7 +1009,8 @@ Plfs_fd *Plfs::findOpenFile( string expanded ) {
 // look up a mode to pass to plfs_open.  We need to stash it bec FUSE doesn't
 // pass mode on open instead it passes it on mknod
 // we assume this is only called on a container.  might be weird otherwise.
-mode_t Plfs::getMode( string expanded ) {
+mode_t Plfs::getMode( string expanded )
+{
     mode_t mode;
     char *whence;
     HASH_MAP<string, mode_t>::iterator itr =
@@ -996,7 +1030,8 @@ mode_t Plfs::getMode( string expanded ) {
 }
 
 int Plfs::f_write(const char *path, const char *buf, size_t size, off_t offset,
-                  struct fuse_file_info *fi) {
+                  struct fuse_file_info *fi)
+{
     // special case the debug files
     struct pfuse_debug_driver *dd;
     if ((dd = get_dbgdrv(path)) != NULL) {
@@ -1005,49 +1040,53 @@ int Plfs::f_write(const char *path, const char *buf, size_t size, off_t offset,
         }
         return(dd->dbgwrite(buf, size, offset));
     }
-    PLFS_ENTER;
+    FUSE_PLFS_ENTER;
     GET_OPEN_FILE;
     ret = plfs_write( of, buf, size, offset, fuse_get_context()->pid );
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
 // not sure if this should return 0 on success like most FUSE ops
 // or the number of chars placed in buffer like the system call readlink does
 // I think it should return 0 for success
-int Plfs::f_readlink (const char *path, char *buf, size_t bufsize) {
-    PLFS_ENTER;
+int Plfs::f_readlink (const char *path, char *buf, size_t bufsize)
+{
+    FUSE_PLFS_ENTER;
     ret = plfs_readlink(strPath.c_str(),buf,bufsize);
     if ( ret > 0 ) {
         ret = 0;
     }
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
 // see comments for f_symlink.  handled the same way
-int Plfs::f_link( const char *path, const char *to ) {
-    PLFS_ENTER;
+int Plfs::f_link( const char *path, const char *to )
+{
+    FUSE_PLFS_ENTER;
     mlog(FUSE_DAPI, "%s: %s to %s", __FUNCTION__,path,to);
     string toPath = expandPath(to);
     ret = plfs_link(path,toPath.c_str());
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
 // I think we don't want to expand the path here, but just want to pass it
 // unmodified since that's what should be in a symlink.
 // we do need to expand the toPath though since that's the PLFS file being
 // created
-int Plfs::f_symlink( const char *path, const char *to ) {
-    PLFS_ENTER;
+int Plfs::f_symlink( const char *path, const char *to )
+{
+    FUSE_PLFS_ENTER;
     mlog(FUSE_DAPI, "%s: %s to %s", __FUNCTION__,path,to);
     string toPath = expandPath(to);
     ret = plfs_symlink(path,toPath.c_str());
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
 // forwards statfs to one of the backends
 // however, if statfs is defined in a plfsrc, then forward it there
-int Plfs::f_statfs(const char *path, struct statvfs *stbuf) {
-    PLFS_ENTER;
+int Plfs::f_statfs(const char *path, struct statvfs *stbuf)
+{
+    FUSE_PLFS_ENTER;
     // tempting to stick some identifying info in here that we could
     // then pull into our test results like a version or some string
     // identifying any optimizations we're trying.  but the statvfs struct
@@ -1066,12 +1105,13 @@ int Plfs::f_statfs(const char *path, struct statvfs *stbuf) {
     } else {
         ret = plfs_statvfs(strPath.c_str(), stbuf);
     }
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
 // returns bytes read or -errno
 int Plfs::f_readn(const char *path, char *buf, size_t size, off_t offset,
-                  struct fuse_file_info *fi) {
+                  struct fuse_file_info *fi)
+{
     // special case the debug files
     struct pfuse_debug_driver *dd;
     if ((dd = get_dbgdrv(path)) != NULL) {
@@ -1081,7 +1121,7 @@ int Plfs::f_readn(const char *path, char *buf, size_t size, off_t offset,
             return(dd->dbgread(buf, size, offset));
         }
     }
-    PLFS_ENTER;
+    FUSE_PLFS_ENTER;
     GET_OPEN_FILE;
     ostringstream os;
     os << __FUNCTION__ << " reading from " << of;
@@ -1091,11 +1131,12 @@ int Plfs::f_readn(const char *path, char *buf, size_t size, off_t offset,
         plfs_sync( of, fuse_get_context()->pid );
     }
     ret = plfs_read( of, buf, size, offset );
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
 // fd_mutex should be held when this is called
-string Plfs::openFilesToString(bool verbose) {
+string Plfs::openFilesToString(bool verbose)
+{
     ostringstream oss;
     size_t readers, writers;
     int quant = self->open_files.size();
@@ -1116,7 +1157,8 @@ string Plfs::openFilesToString(bool verbose) {
 }
 
 void
-printBackends(const char *type, vector<string> &backends, ostringstream& oss) {
+printBackends(const char *type, vector<string> &backends, ostringstream& oss)
+{
     oss << type << " Backends: ";
     for(vector<string>::iterator i = backends.begin(); i!=backends.end(); i++) {
         oss << *i << ",";
@@ -1124,7 +1166,8 @@ printBackends(const char *type, vector<string> &backends, ostringstream& oss) {
     oss << endl;
 }
 
-string Plfs::confToString(PlfsConf *p, PlfsMount *pmnt) {
+string Plfs::confToString(PlfsConf *p, PlfsMount *pmnt)
+{
     ostringstream oss;
     oss << "Mount point: "      << pmnt->mnt_pt << endl
         << "Direct IO: "        << p->direct_io << endl
@@ -1148,13 +1191,14 @@ string Plfs::confToString(PlfsConf *p, PlfsMount *pmnt) {
 // actually, we don't want to close here because sometimes this can
 // be called before some IO's.  So for safety sake, we should sync
 // here and do the close in the release
-int Plfs::f_flush( const char *path, struct fuse_file_info *fi ) {
-    PLFS_ENTER;
+int Plfs::f_flush( const char *path, struct fuse_file_info *fi )
+{
+    FUSE_PLFS_ENTER;
     GET_OPEN_FILE;
     if ( of ) {
         ret = plfs_sync( of, fuse_get_context()->pid );
     }
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
 // returns 0 or -errno
@@ -1169,8 +1213,9 @@ int Plfs::f_flush( const char *path, struct fuse_file_info *fi ) {
 // unlock the mutex
 // update other cached stuff such as created files and known modes
 // not actually sure we should maintain those caches though....
-int Plfs::f_rename( const char *path, const char *to ) {
-    PLFS_ENTER;
+int Plfs::f_rename( const char *path, const char *to )
+{
+    FUSE_PLFS_ENTER;
     string toPath = expandPath(to);
     // when I do a cvs co plfs, it dies here
     // it creates a CVS/Entries.Backup file, then opens it, then
@@ -1241,10 +1286,11 @@ int Plfs::f_rename( const char *path, const char *to ) {
             self->known_modes.erase(strPath);
         }
     }
-    PLFS_EXIT;
+    FUSE_PLFS_EXIT;
 }
 
-void Plfs::catch_exception( string func_id, exception& e) {
+void Plfs::catch_exception( string func_id, exception& e)
+{
     string sysmsg("Caught exception in function: ");
     mlog(PLFS_ERR, "%s", sysmsg.c_str());
     sysmsg = func_id;
@@ -1254,7 +1300,8 @@ void Plfs::catch_exception( string func_id, exception& e) {
     throw e;
 }
 
-string Plfs::pathToHash ( string expanded , uid_t uid , int flags ) {
+string Plfs::pathToHash ( string expanded , uid_t uid , int flags )
+{
     stringstream converter;
     converter << "." << uid << "." << flags;
     expanded.append( converter.str() );
@@ -1267,7 +1314,8 @@ string Plfs::pathToHash ( string expanded , uid_t uid , int flags ) {
     list< struct hash_element > results;
 
     struct hash_element current;
-    for( searcher = self->open_files.begin() ; searcher != self->open_files.end() ; searcher++)
+    for( searcher = self->open_files.begin() ;
+         searcher != self->open_files.end() ; searcher++)
     {
         if ( !strncmp( expanded.c_str() , searcher->first.c_str() ,
                         expanded.size() ) ) {
@@ -1280,7 +1328,8 @@ string Plfs::pathToHash ( string expanded , uid_t uid , int flags ) {
 }
 */
 void
-Plfs::findAllOpenFiles( string expanded, list<struct hash_element > &results) {
+Plfs::findAllOpenFiles( string expanded, list<struct hash_element > &results)
+{
     HASH_MAP<string, Plfs_fd *>::iterator searcher;
     struct hash_element current;
     for( searcher = self->open_files.begin() ;
@@ -1296,7 +1345,8 @@ Plfs::findAllOpenFiles( string expanded, list<struct hash_element > &results) {
 
 // Convert to string using the current filename hash
 // oh, it just rips the .uid.mode off and appends them.
-string Plfs:: getRenameHash(string to, string current, string base) {
+string Plfs:: getRenameHash(string to, string current, string base)
+{
     string uid_mode;
     string pathHash;
     uid_mode = current.substr(base.size() , current.size());
@@ -1316,7 +1366,8 @@ string Plfs:: getRenameHash(string to, string current, string base) {
  * dbg_sizer: sizer for static debug files.
  * XXX: this just replicates the old code
  */
-static int dbg_sizer(struct pfuse_debug_driver *dd) {
+static int dbg_sizer(struct pfuse_debug_driver *dd)
+{
     if (strcmp(dd->name, "debug") == 0) {
         return(DEBUGFILESIZE);
     }
@@ -1329,7 +1380,8 @@ static int dbg_sizer(struct pfuse_debug_driver *dd) {
 /**
  * dbg_debug_read: read the debug/compile info
  */
-int Plfs::dbg_debug_read(char *buf, size_t size, off_t offset) {
+int Plfs::dbg_debug_read(char *buf, size_t size, off_t offset)
+{
     size_t validsize;
     off_t maxsize = DEBUGFILESIZE;
     /* make sure we don't allow them to read more than we have */
@@ -1394,7 +1446,8 @@ int Plfs::dbg_debug_read(char *buf, size_t size, off_t offset) {
 /**
  * dbg_log_read: read the debug log
  */
-static int dbg_log_read(char *buf, size_t size, off_t offset) {
+static int dbg_log_read(char *buf, size_t size, off_t offset)
+{
     size_t validsize;
     off_t maxsize = DEBUGLOGSIZE;
     /* make sure we don't allow them to read more than we have */
@@ -1430,14 +1483,16 @@ static int dbg_log_read(char *buf, size_t size, off_t offset) {
 /**
  * dbg_msgbufsz: get the message buffer size
  */
-static int dbg_msgbufsz(struct pfuse_debug_driver *dd) {
+static int dbg_msgbufsz(struct pfuse_debug_driver *dd)
+{
     return(mlog_mbcount());
 }
 
 /**
  * dbg_msgbuf_read: read the message buffer
  */
-static int dbg_msgbuf_read(char *buf, size_t size, off_t offset) {
+static int dbg_msgbuf_read(char *buf, size_t size, off_t offset)
+{
     int rv;
     /*
      * we already used DEBUGMAXOFF to make sure the 64 off_t offset isn't
@@ -1453,7 +1508,8 @@ static int dbg_msgbuf_read(char *buf, size_t size, off_t offset) {
 /**
  * dbg_mlogsize: get the size of the mlog mask info...
  */
-static int dbg_mlogsize(struct pfuse_debug_driver *dd) {
+static int dbg_mlogsize(struct pfuse_debug_driver *dd)
+{
     int rv;
     rv = mlog_getmasks(NULL, 0, 0, 1);
     return(rv);
@@ -1462,7 +1518,8 @@ static int dbg_mlogsize(struct pfuse_debug_driver *dd) {
 /**
  * dbg_mlogmask_read: read the current mlog mask...
  */
-static int dbg_mlogmask_read(char *buf, size_t size, off_t offset) {
+static int dbg_mlogmask_read(char *buf, size_t size, off_t offset)
+{
     int rv;
     rv = mlog_getmasks(buf, offset, size, 1);
     return(rv);
@@ -1471,7 +1528,8 @@ static int dbg_mlogmask_read(char *buf, size_t size, off_t offset) {
 /**
  * dbg_mlogmask_write: change the current mlog mask...
  */
-static int dbg_mlogmask_write(const char *buf, size_t size, off_t offset) {
+static int dbg_mlogmask_write(const char *buf, size_t size, off_t offset)
+{
     mlog_setmasks((char *)buf, size);
     return(size);
 }

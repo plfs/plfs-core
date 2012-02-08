@@ -18,7 +18,8 @@ using namespace std;
 // so we can have an operation that is applied on all backends
 // or operations that are applied on all files within canonical and shadows
 class
-        FileOp {
+    FileOp
+{
     public:
         // first arg to op is path, second is type of path
         int op(const char *, unsigned char type); // ret 0 or -errno
@@ -36,7 +37,8 @@ class
 };
 
 class
-        AccessOp : public FileOp {
+    AccessOp : public FileOp
+{
     public:
         AccessOp(int);
         int do_op(const char *, unsigned char);
@@ -51,7 +53,8 @@ class
 };
 
 class
-        ChownOp : public FileOp {
+    ChownOp : public FileOp
+{
     public:
         ChownOp(uid_t, gid_t);
         int do_op(const char *, unsigned char);
@@ -64,7 +67,8 @@ class
 };
 
 class
-        UtimeOp : public FileOp {
+    UtimeOp : public FileOp
+{
     public:
         UtimeOp(struct utimbuf *);
         int do_op(const char *, unsigned char);
@@ -83,7 +87,8 @@ class
 // if the file is closed, it unlinks all physical files
 // the caller should tell it to ignore special files
 class
-        TruncateOp : public FileOp {
+    TruncateOp : public FileOp
+{
     public:
         TruncateOp(bool open_file);
         int do_op(const char *, unsigned char);
@@ -116,7 +121,8 @@ RmdirOp : public FileOp {
 // file name
 // the second bool controls whether it ignores "." and ".."
 class
-        ReaddirOp : public FileOp {
+    ReaddirOp : public FileOp
+{
     public:
         ReaddirOp(map<string,unsigned char>*,set<string>*, bool, bool);
         int do_op(const char *, unsigned char);
@@ -133,7 +139,8 @@ class
 };
 
 class
-        CreateOp : public FileOp {
+    CreateOp : public FileOp
+{
     public:
         CreateOp(mode_t);
         int do_op(const char *, unsigned char);
@@ -145,7 +152,8 @@ class
 };
 
 class
-        ChmodOp : public FileOp {
+    ChmodOp : public FileOp
+{
     public:
         ChmodOp(mode_t);
         int do_op(const char *, unsigned char);
@@ -157,7 +165,8 @@ class
 };
 
 class
-        UnlinkOp : public FileOp {
+    UnlinkOp : public FileOp
+{
     public:
         UnlinkOp() { }
         int do_op(const char *, unsigned char);

@@ -16,7 +16,8 @@ string           log_array[LOG_BUFFER_SZ];
 long unsigned    log_array_index;   // ptr to current input point
 long unsigned    log_array_size;    // number of valid entries
 
-int LogMessage::init( ) {
+int LogMessage::init( )
+{
     int ret = 0;
     log_array_index = 0;
     log_array_size  = 0;
@@ -24,10 +25,12 @@ int LogMessage::init( ) {
     return ret;
 }
 
-void LogMessage::Flush() {
+void LogMessage::Flush()
+{
 }
 
-string LogMessage::Dump() {
+string LogMessage::Dump()
+{
     ostringstream dump;
     long unsigned start_index   = 0;
     long unsigned valid_entries = 0;
@@ -44,7 +47,8 @@ string LogMessage::Dump() {
     return dump.str();
 }
 
-void LogMessage::flush() {
+void LogMessage::flush()
+{
     string test;
     pthread_mutex_lock( &log_mutex );
     log_array[log_array_index] = this->str();
@@ -57,26 +61,32 @@ void LogMessage::flush() {
     // for some reason flushing doesn't clear it?
 }
 
-void LogMessage::addTime( double t ) {
+void LogMessage::addTime( double t )
+{
     *this << setw(22) << setprecision(22) << t << " ";
 }
 
-void LogMessage::addIds( uid_t uid, gid_t gid ) {
+void LogMessage::addIds( uid_t uid, gid_t gid )
+{
     *this << " UID " << uid << " GID " << gid;
 }
 
-void LogMessage::addPid( pid_t pid ) {
+void LogMessage::addPid( pid_t pid )
+{
     *this << " PID " << pid;
 }
 
-void LogMessage::addOff( off_t off ) {
+void LogMessage::addOff( off_t off )
+{
     *this << " offset " << off;
 }
 
-void LogMessage::addSize( size_t size ) {
+void LogMessage::addSize( size_t size )
+{
     *this << " size " << size;
 }
 
-void LogMessage::addFunction( const char *func ) {
+void LogMessage::addFunction( const char *func )
+{
     *this << setw(13) << func << " ";
 }

@@ -24,7 +24,8 @@ struct
     int writers;
 };
 
-class WriteFile : public Metadata {
+class WriteFile : public Metadata
+{
     public:
         WriteFile( string, string, mode_t, size_t index_buffer_mbs );
         ~WriteFile();

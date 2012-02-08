@@ -28,7 +28,8 @@ FlatFileSystem flatfs;
     string new_canonical(physical_path);        \
     free(physical_path);
 
-Flat_fd::~Flat_fd() {
+Flat_fd::~Flat_fd()
+{
     if (refs > 0 || backend_fd >= 0) {
         plfs_debug("File %s is not closed!\n", backend_pathname.c_str());
         Util::Close(backend_fd);
@@ -37,7 +38,8 @@ Flat_fd::~Flat_fd() {
 
 int
 Flat_fd::open(const char *filename, int flags, pid_t pid,
-              mode_t mode, Plfs_open_opt *unused) {
+              mode_t mode, Plfs_open_opt *unused)
+{
     if (backend_fd != -1) {// This fd has already been opened.
         refs++;
     } else {
@@ -53,7 +55,8 @@ Flat_fd::open(const char *filename, int flags, pid_t pid,
 }
 
 int
-Flat_fd::close(pid_t pid, uid_t u, int flags, Plfs_close_opt *unused) {
+Flat_fd::close(pid_t pid, uid_t u, int flags, Plfs_close_opt *unused)
+{
     refs--;
     if (refs > 0) {
         return refs;    // Others are still using this fd.
@@ -66,38 +69,44 @@ Flat_fd::close(pid_t pid, uid_t u, int flags, Plfs_close_opt *unused) {
 }
 
 ssize_t
-Flat_fd::read(char *buf, size_t size, off_t offset) {
+Flat_fd::read(char *buf, size_t size, off_t offset)
+{
     int ret = Util::Pread(backend_fd, buf, size, offset);
     FLAT_EXIT(ret);
 }
 
 ssize_t
-Flat_fd::write(const char *buf, size_t size, off_t offset, pid_t pid) {
+Flat_fd::write(const char *buf, size_t size, off_t offset, pid_t pid)
+{
     int ret = Util::Pwrite(backend_fd, buf, size, offset);
     FLAT_EXIT(ret);
 }
 
 int
-Flat_fd::sync(pid_t pid) {
+Flat_fd::sync(pid_t pid)
+{
     int ret = Util::Fsync(backend_fd);
     FLAT_EXIT(ret);
 }
 
 int
-Flat_fd::trunc(const char *path, off_t offset) {
+Flat_fd::trunc(const char *path, off_t offset)
+{
     int ret = Util::Ftruncate(backend_fd, offset);
     FLAT_EXIT(ret);
 }
 
 int
-Flat_fd::getattr(const char *path, struct stat *stbuf, int sz_only) {
+Flat_fd::getattr(const char *path, struct stat *stbuf, int sz_only)
+{
     int ret = Util::Fstat(backend_fd, stbuf);
     FLAT_EXIT(ret);
 }
 
 int
 Flat_fd::query(size_t *writers, size_t *readers, size_t *bytes_written,
-               bool *reopen) {
+               bool *reopen)
+{
     if (bytes_written) {
         *bytes_written = 1;    // set to 1 temporarily
     }
@@ -108,7 +117,8 @@ Flat_fd::query(size_t *writers, size_t *readers, size_t *bytes_written,
     return 0;
 }
 
-bool Flat_fd::is_good() {
+bool Flat_fd::is_good()
+{
     if (backend_fd > 0 && refs > 0) {
         return true;
     }
@@ -117,7 +127,8 @@ bool Flat_fd::is_good() {
 
 int
 FlatFileSystem::open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,
-                     mode_t mode, Plfs_open_opt *open_opt) {
+                     mode_t mode, Plfs_open_opt *open_opt)
+{
     FLAT_ENTER;
     int newly_created = 0;
     if (*pfd == NULL) {
@@ -138,7 +149,8 @@ FlatFileSystem::open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,
 // the PLFS version of create won't open the file. So close the
 // file after POSIX creat() is called.
 int
-FlatFileSystem::create(const char *logical, mode_t mode, int flags, pid_t pid ) {
+FlatFileSystem::create(const char *logical, mode_t mode, int flags, pid_t pid )
+{
     FLAT_ENTER;
     //     An open(... O_CREAT) gets turned into a mknod followed by an
     //      open in fuse. So a common problem is that open(..., O_RDWR |
@@ -153,21 +165,24 @@ FlatFileSystem::create(const char *logical, mode_t mode, int flags, pid_t pid ) 
 }
 
 int
-FlatFileSystem::chown( const char *logical, uid_t u, gid_t g ) {
+FlatFileSystem::chown( const char *logical, uid_t u, gid_t g )
+{
     FLAT_ENTER;
     ret = Util::Lchown(path.c_str(),u,g);
     FLAT_EXIT(ret);
 }
 
 int
-FlatFileSystem::chmod( const char *logical, mode_t mode ) {
+FlatFileSystem::chmod( const char *logical, mode_t mode )
+{
     FLAT_ENTER;
     ret = Util::Chmod(path.c_str(),mode);
     FLAT_EXIT(ret);
 }
 
 int
-FlatFileSystem::getmode( const char *logical, mode_t *mode) {
+FlatFileSystem::getmode( const char *logical, mode_t *mode)
+{
     struct stat stbuf;
     FLAT_ENTER;
     ret = Util::Lstat(path.c_str(), &stbuf);
@@ -178,14 +193,16 @@ FlatFileSystem::getmode( const char *logical, mode_t *mode) {
 }
 
 int
-FlatFileSystem::access( const char *logical, int mask ) {
+FlatFileSystem::access( const char *logical, int mask )
+{
     FLAT_ENTER;
     ret = Util::Access(path.c_str(),mask);
     FLAT_EXIT(ret);
 }
 
 int
-FlatFileSystem::rename( const char *logical, const char *to ) {
+FlatFileSystem::rename( const char *logical, const char *to )
+{
     FLAT_ENTER;
     EXPAND_TARGET;
     struct stat stbuf;
@@ -239,51 +256,59 @@ out:
 }
 
 int
-FlatFileSystem::link(const char *logical, const char *to) {
+FlatFileSystem::link(const char *logical, const char *to)
+{
     // Hard link is not supported in PLFS file system.
     return -ENOSYS;
 }
 
 int
-FlatFileSystem::utime( const char *logical, struct utimbuf *ut ) {
+FlatFileSystem::utime( const char *logical, struct utimbuf *ut )
+{
     FLAT_ENTER;
     ret = Util::Utime(path.c_str(),ut);
     FLAT_EXIT(ret);
 }
 
 int
-FlatFileSystem::getattr(const char *logical, struct stat *stbuf,int sz_only) {
+FlatFileSystem::getattr(const char *logical, struct stat *stbuf,int sz_only)
+{
     FLAT_ENTER;
     ret = Util::Lstat(path.c_str(),stbuf);
     FLAT_EXIT(ret);
 }
 
 int
-FlatFileSystem::trunc(const char *logical, off_t offset, int open_file) {
+FlatFileSystem::trunc(const char *logical, off_t offset, int open_file)
+{
     FLAT_ENTER;
     ret = Util::Truncate(path.c_str(),offset);
     FLAT_EXIT(ret);
 }
 
 int
-FlatFileSystem::unlink( const char *logical ) {
+FlatFileSystem::unlink( const char *logical )
+{
     FLAT_ENTER;
     ret = Util::Unlink(path.c_str());
     FLAT_EXIT(ret);
 }
 
 int
-FlatFileSystem::mkdir(const char *logical, mode_t mode) {
+FlatFileSystem::mkdir(const char *logical, mode_t mode)
+{
     return container_mkdir(logical, mode);
 }
 
 int
-FlatFileSystem::readdir(const char *logical, void *buf) {
+FlatFileSystem::readdir(const char *logical, void *buf)
+{
     return container_readdir(logical, buf);
 }
 
 int
-FlatFileSystem::readlink(const char *logical, char *buf, size_t bufsize) {
+FlatFileSystem::readlink(const char *logical, char *buf, size_t bufsize)
+{
     FLAT_ENTER;
     ret = Util::Readlink(path.c_str(), buf, bufsize);
     if (ret > 0 && (size_t)ret < bufsize) {
@@ -293,12 +318,14 @@ FlatFileSystem::readlink(const char *logical, char *buf, size_t bufsize) {
 }
 
 int
-FlatFileSystem::rmdir(const char *logical) {
+FlatFileSystem::rmdir(const char *logical)
+{
     return container_rmdir(logical);
 }
 
 int
-FlatFileSystem::symlink(const char *logical, const char *to) {
+FlatFileSystem::symlink(const char *logical, const char *to)
+{
     int ret = 0;
     string path(logical);
     char *physical_path = NULL;
@@ -308,7 +335,8 @@ FlatFileSystem::symlink(const char *logical, const char *to) {
 }
 
 int
-FlatFileSystem::statvfs(const char *logical, struct statvfs *stbuf) {
+FlatFileSystem::statvfs(const char *logical, struct statvfs *stbuf)
+{
     FLAT_ENTER;
     ret = Util::Statvfs(path.c_str(), stbuf);
     FLAT_EXIT(ret);

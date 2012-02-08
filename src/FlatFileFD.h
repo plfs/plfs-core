@@ -6,7 +6,8 @@
 #include "LogicalFD.h"
 #include <string>
 
-class Flat_fd : public Plfs_fd {
+class Flat_fd : public Plfs_fd
+{
     public:
         Flat_fd() {
             backend_fd = -1;

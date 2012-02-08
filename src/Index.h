@@ -11,12 +11,13 @@ using namespace std;
 #include "Util.h"
 #include "Metadata.h"
 
-// the LocalEntry (HostEntry) and the ContainerEntry should maybe be derived from one another.
-// there are two types of index files
+// the LocalEntry (HostEntry) and the ContainerEntry should maybe be derived
+// from one another. there are two types of index files
 // on a write, every host has a host index
 // on a read, all the host index files get aggregated into one container index
 
-class IndexFileInfo {
+class IndexFileInfo
+{
     public:
         IndexFileInfo();
         void *listToStream(vector<IndexFileInfo> &list,int *bytes);
@@ -29,7 +30,8 @@ class IndexFileInfo {
 
 // this is the class that represents the records that get written into the
 // index file for each host.
-class HostEntry {
+class HostEntry
+{
     public:
         HostEntry() { }
         HostEntry( off_t o, size_t s, pid_t p ) {
@@ -68,7 +70,8 @@ class HostEntry {
 // index files).
 // this in-memory structure is used to answer read's by finding the appropriate
 // requested logical offset within one of the physical host index files
-class ContainerEntry : HostEntry {
+class ContainerEntry : HostEntry
+{
     public:
         bool mergable( const ContainerEntry& );
         bool abut( const ContainerEntry& );
@@ -93,7 +96,8 @@ typedef struct {
     int fd;
 } ChunkFile;
 
-class Index : public Metadata {
+class Index : public Metadata
+{
     public:
         Index( string );
         Index( string path, int fd );
@@ -130,7 +134,8 @@ class Index : public Metadata {
         int setChunkFd( pid_t chunk_id, int fd );
 
         int globalLookup( int *fd, off_t *chunk_off, size_t *length,
-                          string& path, bool *hole, pid_t *chunk_id, off_t logical );
+                          string& path, bool *hole, pid_t *chunk_id,
+                          off_t logical );
 
         int insertGlobal( ContainerEntry * );
         void merge( Index *other);
@@ -154,10 +159,12 @@ class Index : public Metadata {
         void init( string );
         int chunkFound( int *, off_t *, size_t *, off_t,
                         string&, pid_t *, ContainerEntry * );
-        int cleanupReadIndex(int, void *, off_t, int, const char *, const char *);
+        int cleanupReadIndex(int, void *, off_t, int, const char *,
+                             const char *);
         void *mapIndex( string, int *, off_t * );
         int handleOverlap( ContainerEntry& g_entry,
-                           pair< map<off_t,ContainerEntry>::iterator, bool > &insert_ret );
+                           pair< map<off_t,ContainerEntry>::iterator,
+                           bool > &insert_ret );
         map<off_t,ContainerEntry>::iterator insertGlobalEntryHint(
             ContainerEntry *g_entry ,map<off_t,ContainerEntry>::iterator hint);
         pair<map<off_t,ContainerEntry>::iterator,bool> insertGlobalEntry(

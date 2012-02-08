@@ -3,7 +3,8 @@
 #define POORMANS_GDB \
     printf("%d in %s:%d\n", rank, __FUNCTION__,__LINE__);
 
-void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code) {
+void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code)
+{
     static char myname[] = "ADIOI_PLFS_SETINFO";
     char *value;
     int flag, tmp_val = -1;

@@ -7,7 +7,8 @@
 #include <iomanip>
 using namespace std;
 
-class LogMessage : public ostringstream {
+class LogMessage : public ostringstream
+{
     public:
         static int init( );
         static int changeLogFile( const char *logfile );

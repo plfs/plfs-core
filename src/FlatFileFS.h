@@ -3,7 +3,8 @@
 
 // These are file-system level operations:
 
-class FlatFileSystem : public LogicalFileSystem {
+class FlatFileSystem : public LogicalFileSystem
+{
     public:
 
         // here are the methods for creating an instatiated object

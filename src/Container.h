@@ -51,7 +51,8 @@ typedef struct {
 
 #include "Index.h"
 
-class Container {
+class Container
+{
     public:
         // static stuff
         static int create( const string&, const string&,
@@ -73,7 +74,8 @@ class Container {
         static int removeOpenrecord( const string&, const string&, pid_t );
 
         static size_t getHostDirId( const string& );
-        static string getHostDirPath( const string&, const string&, subdir_type );
+        static string getHostDirPath( const string&,
+                                      const string&, subdir_type );
         static string getMetaDirPath( const string& );
         static string getVersionDir( const string& path );
         static string getAccessFilePath( const string& path );
@@ -93,9 +95,11 @@ class Container {
         static int makeHostDir(const string& path, const string& host,
                                mode_t mode, parentStatus);
         static int makeHostDir(const ContainerPaths& paths,mode_t mode,
-                               parentStatus pstat, string& physical_hostdir,bool& use_metalink);
+                               parentStatus pstat, string& physical_hostdir,
+                               bool& use_metalink);
         static int transferCanonical(const string& from,
-                                     const string& to, const string& from_backend,
+                                     const string& to,
+                                     const string& from_backend,
                                      const string& to_backend, mode_t);
 
         static int getattr( const string&, struct stat * );
@@ -134,7 +138,8 @@ class Container {
         static int truncateMeta(const string& path, off_t offset);
         // Added for par read index
         static Index parAggregateIndices(vector<IndexFileInfo>& index_list,
-                                         int rank, int ranks_per_comm,string path);
+                                         int rank, int ranks_per_comm,
+                                         string path);
         static int indexTaskManager(deque<IndexerTask> &tasks,
                                     Index *index,string path);
         static int indices_from_subdir(string,vector<IndexFileInfo>&);
@@ -143,14 +148,16 @@ class Container {
         // static stuff
         static bool istype(const string& dropping, const char *type);
         static int createHelper( const string&, const string&,
-                                 mode_t mode, int flags, int *extra_attempts, pid_t,unsigned,
+                                 mode_t mode, int flags, int *extra_attempts,
+                                 pid_t,unsigned,
                                  bool lazy_subdir);
         static int makeTopLevel(const string&, const string&, mode_t, pid_t,
                                 unsigned, bool lazy_subdir);
         static string getChunkPath( const string&, const string&,
                                     int pid, const char *, double );
         static string chunkPath( const string& hostdir, const char *type,
-                                 const string& host, int pid, const string& ts );
+                                 const string& host, int pid,
+                                 const string& ts );
         static string getOpenrecord( const string&, const string&, pid_t );
         static string getOpenHostsDir( const string&);
         static int discoverOpenHosts( set<string> &, set<string> & );
