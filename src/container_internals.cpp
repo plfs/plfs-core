@@ -3,29 +3,29 @@
 
 #include "plfs.h"
 #include "plfs_private.h"
-#include "Index.h"
-#include "WriteFile.h"
 #include "Container.h"
-#include "Util.h"
+#include "ContainerFS.h"
+#include "FileOp.h"
+#include "FlatFileFS.h"
+#include "Index.h"
+#include "LogMessage.h"
 #include "OpenFile.h"
 #include "ThreadPool.h"
-#include "FileOp.h"
+#include "Util.h"
+#include "WriteFile.h"
 #include "container_internals.h"
-#include "ContainerFS.h"
-#include "FlatFileFS.h"
 
-#include <errno.h>
-#include <list>
-#include <stdarg.h>
-#include <limits>
-#include <limits.h>
 #include <assert.h>
-#include <queue>
-#include <vector>
-#include <sstream>
-#include <stdlib.h>
 #include <ctype.h>
-
+#include <errno.h>
+#include <limits.h>
+#include <limits>
+#include <list>
+#include <queue>
+#include <sstream>
+#include <stdarg.h>
+#include <stdlib.h>
+#include <vector>
 #include <syslog.h>    /* for mlog init */
 
 using namespace std;
@@ -1957,6 +1957,7 @@ get_plfs_conf() {
 
     if (pconf) {
         setup_mlog(pconf);
+        LogMessage::init();
     }
     
     return pconf;

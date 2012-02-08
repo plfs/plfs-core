@@ -9,7 +9,7 @@ using namespace std;
 #include "Util.h"
 #include "mlogfacs.h"
 
-#define LOG_BUFFER_SZ 1000
+#define LOG_BUFFER_SZ 1
 
 pthread_mutex_t  log_mutex;
 string           log_array[LOG_BUFFER_SZ];
@@ -20,6 +20,7 @@ int LogMessage::init( ) {
     int ret = 0;
     log_array_index = 0;
     log_array_size  = 0;
+    pthread_mutex_init ( &log_mutex, NULL );
     return ret;
 }
 
@@ -45,6 +46,7 @@ string LogMessage::Dump() {
 
 void LogMessage::flush() {
 
+    string test;
     pthread_mutex_lock( &log_mutex );
     log_array[log_array_index] = this->str();
     log_array_index = (log_array_index + 1) % LOG_BUFFER_SZ;

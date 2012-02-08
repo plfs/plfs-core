@@ -238,6 +238,7 @@ Index::init( string physical ) {
     populated       = false;
     buffering       = false;
     buffer_filled   = false;
+    compress_contiguous = true;
     chunk_id        = 0;
     last_offset     = 0;
     total_bytes     = 0;
@@ -325,6 +326,18 @@ Index::isBuffering() {
 // and then inserts into the existing one
 void 
 Index::compress() {
+    return;
+    /*
+        this whole function is deprecated now that
+        we successfully compress at the time that we
+        build the index for both writes and reads.
+        It was just a bandaid for after the fact compression
+        which is now no longer neeeded.
+        Furthermore, it is buggy since it merges entries which
+        abut backwards whereas it should only merge those which
+        abut forwards (i.e. yes when b follows a but no conversely)
+    */
+    /*
     if ( global_index.size() <= 1 ) return;
     map<off_t,ContainerEntry> old_global = global_index;
     map<off_t,ContainerEntry>::const_iterator itr = old_global.begin();
@@ -340,6 +353,7 @@ Index::compress() {
     }
     // need to put in the last one(s)
     insertGlobal( &pEntry );
+    */
 }
 
 // merge another index into this one
@@ -559,7 +573,7 @@ int Index::global_from_stream(void *addr) {
         // this happens on our broadcast on close optimization
         
         // Something fishy here we insert the address of the entry
-        // in the Index::insertGlobal code 
+        // in the insertGlobal code 
         //global_index[e.logical_offset] = e;
         insertGlobalEntry(&e);
     }
@@ -891,12 +905,12 @@ pair<map<off_t,ContainerEntry>::iterator,bool> Index::insertGlobalEntry(
 int Index::insertGlobal( ContainerEntry *g_entry ) {
     pair<map<off_t,ContainerEntry>::iterator,bool> ret;
     bool overlap  = false;
+    ostringstream oss;
 
     mlog(IDX_DAPI, "Inserting offset %ld into index of %s",
             (long)g_entry->logical_offset, physical_path.c_str());
     ret = insertGlobalEntry( g_entry ); 
     if ( ret.second == false ) {
-        ostringstream oss;
         oss << "overlap1" <<endl<< *g_entry <<endl << ret.first->second << endl;
         mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
         overlap  = true;
@@ -925,20 +939,25 @@ int Index::insertGlobal( ContainerEntry *g_entry ) {
             << "overlap at " << g_entry->logical_offset;
         mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
         handleOverlap( *g_entry, ret );
-    } else {
-            // might as well try to merge any potentially adjoining regions
-        /*
-        if ( next != global_index.end() && g_entry->abut(next->second) ) {
-            cerr << "Merging index for " << *g_entry << " and " << next->second 
-                 << endl;
-            g_entry->length += next->second.length;
-            global_index.erase( next );
-        }
+    } else if (compress_contiguous) {  
+        // does it abuts with the one before it
         if (ret.first!=global_index.begin() && g_entry->abut(prev->second) ){
-            cerr << "Merging index for " << *g_entry << " and " << prev->second 
+            oss << "Merging index for " << *g_entry << " and " << prev->second 
                  << endl;
+            mlog(IDX_DCOMMON, "%s", oss.str().c_str());
             prev->second.length += g_entry->length;
             global_index.erase( ret.first );
+        }
+        /*
+        // does it abuts with the one after it.  This code hasn't been tested.
+        // also, not even sure this would be possible.  Even if it is logically
+        // contiguous with the one after, it wouldn't be physically so.
+        if ( next != global_index.end() && g_entry->abut(next->second) ) {
+            oss << "Merging index for " << *g_entry << " and " << next->second 
+                 << endl;
+            mlog(IDX_DCOMMON, "%s", oss.str().c_str());
+            g_entry->length += next->second.length;
+            global_index.erase( next );
         }
         */
     }
@@ -1146,12 +1165,11 @@ Index::addWrite( off_t offset, size_t length, pid_t pid,
 {
     Metadata::addWrite( offset, length ); 
 
-    bool compress_contiguous = true; // set false if you want to collect a trace
-
        // check whether incoming abuts with last and we want to compress
     if ( compress_contiguous && !hostIndex.empty() &&
         hostIndex.back().id == pid  &&
-        hostIndex.back().logical_offset + hostIndex.back().length == offset)
+        hostIndex.back().logical_offset + 
+            (off_t)hostIndex.back().length == offset)
     {
         mlog(IDX_DCOMMON, "Merged new write with last at offset %ld."
             " New length is %d.\n",

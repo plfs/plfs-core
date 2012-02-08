@@ -256,7 +256,8 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid){
             Util::MutexLock(   &index_mux , __FUNCTION__);
             index->addWrite( offset, ret, pid, begin, end );
             // TODO: why is 1024 a magic number?
-            if (write_count%1024==0 && write_count>0) {
+            int flush_count = 1024;
+            if (write_count%flush_count==0) {
                 ret = index->flush();
                 // Check if the index has grown too large stop buffering
                 if(index->memoryFootprintMBs() > index_buffer_mbs) {

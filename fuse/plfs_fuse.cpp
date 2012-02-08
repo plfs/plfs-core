@@ -259,8 +259,6 @@ int Plfs::init( int *argc, char **argv ) {
     // we've been stashing stuff in self but we can also stash in
     // fuse_get_context()->private_data
 
-    LogMessage::init( );
-
     // ask the library to read in our configuration parameters
     pconf = get_plfs_conf();
     if (!pconf || pconf->err_msg) {
