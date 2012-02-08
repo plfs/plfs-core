@@ -17,11 +17,20 @@ using namespace std;
 
 #define SVNVERS $Rev$
 
+// some functions require that the path passed be a PLFS path
+// some (like symlink) don't
+enum
+requirePlfsPath {
+    PLFS_PATH_REQUIRED,
+    PLFS_PATH_NOTREQUIRED,
+};
 
-#define EISDIR_DEBUG \
-    if(ret!=0) {\
-        Util::OpenError(__FILE__,__FUNCTION__,__LINE__,pid,errno);\
-    }
+enum
+expansionMethod {
+    EXPAND_CANONICAL,
+    EXPAND_SHADOW,
+    EXPAND_TO_I,
+};
 
 typedef enum {
     CONTAINER,
@@ -42,7 +51,38 @@ typedef struct {
 } PlfsMount;
 
 typedef struct {
-    string file; // which top-level plfsrc was used
+    bool is_mnt_pt;
+    bool expand_error;
+    PlfsMount *mnt_pt;
+    int Errno;  // can't use just errno, it's a weird macro
+    string expanded;
+    string backend; // I tried to not put this in to save space . . .  
+} ExpansionInfo;
+
+#define PLFS_ENTER PLFS_ENTER2(PLFS_PATH_REQUIRED)
+
+#define PLFS_ENTER2(X) \
+ int ret = 0;\
+ ExpansionInfo expansion_info; \
+ string path = expandPath(logical,&expansion_info,EXPAND_CANONICAL,-1,0); \
+ mlog(INT_DAPI, "EXPAND in %s: %s->%s",__FUNCTION__,logical,path.c_str()); \
+ if (expansion_info.expand_error && X==PLFS_PATH_REQUIRED) { \
+     PLFS_EXIT(-ENOENT); \
+ } \
+ if (expansion_info.Errno && X==PLFS_PATH_REQUIRED) { \
+     PLFS_EXIT(expansion_info.Errno); \
+ }
+
+#define PLFS_EXIT(X) return(X);
+
+
+#define EISDIR_DEBUG \
+    if(ret!=0) {\
+        Util::OpenError(__FILE__,__FUNCTION__,__LINE__,pid,errno);\
+    }
+
+typedef struct {
+    string file; // which top-level plfsrc was used 
     set<string> files;     /* to detect recursive includes in plfsrc */
     set<string> backends;  /* to detect a backend being reused in plfsrc */
     size_t num_hostdirs;
@@ -66,6 +106,8 @@ typedef struct {
     char *mlog_setmasks;   /* initial non-default log level settings */
 } PlfsConf;
 
+PlfsConf *parse_conf(FILE *fp, string file, PlfsConf *pconf);
+
 /* get_plfs_conf
    get a pointer to a struct holding plfs configuration values
    parse $HOME/.plfsrc or /etc/plfsrc to find parameter values
@@ -77,6 +119,16 @@ PlfsConf *get_plfs_conf( );
 PlfsMount *find_mount_point(PlfsConf *pconf, const string& path, bool& found);
 PlfsMount *find_mount_point_using_tokens(PlfsConf *, vector <string> &, bool&);
 int find_all_expansions(const char *logical, vector<string> &containers);
+
+string expandPath(string logical, ExpansionInfo *exp_info, 
+        expansionMethod hash_method, int which_backend, int depth);
+int mkdir_dash_p(const string &path, bool parent_only);
+int recover_directory(const char *logical, bool parent_only);
+
+int plfs_iterate_backends(const char *logical, FileOp &op);
+
+const string & get_backend(const ExpansionInfo &exp);
+const string & get_backend(const ExpansionInfo &exp, size_t which);
 
 /* plfs_init
     it just warms up the plfs structures used in expandPath
