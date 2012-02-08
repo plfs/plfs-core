@@ -150,7 +150,8 @@ int plfs_protect(const char *path, pid_t pid);
 /* query a plfs_fd about how many writers and readers are using it,
  * and the bytes written by user, the lazy_stat flag.
  */
-int plfs_query( Plfs_fd *, size_t *writers, size_t *readers, size_t *bytes_written, int *lazy_stat);
+int plfs_query( Plfs_fd *, size_t *writers, size_t *readers, 
+        size_t *bytes_written, int *lazy_stat);
 
 ssize_t plfs_read( Plfs_fd *, char *buf, size_t size, off_t offset );
 
