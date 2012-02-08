@@ -72,7 +72,7 @@ plfsunit_SOURCES = \
 plfsunit.h plfsunit.cpp unitmain.cpp
 
 plfsunit_CXXFLAGS = \
-	-D_FILE_OFFSET_BITS=64 @CPPUNIT_CFLAGS@
+	-I../src -D_FILE_OFFSET_BITS=64 @CPPUNIT_CFLAGS@
 
 plfsunit_LDFLAGS = \
 	@CPPUNIT_LIBS@ -lplfs -L../src -lpthread
