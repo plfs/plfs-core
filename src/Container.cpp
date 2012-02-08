@@ -19,7 +19,8 @@ using namespace std;
 
 #define BLKSIZE 512
 
-blkcnt_t Container::bytesToBlocks( size_t total_bytes ) {
+blkcnt_t 
+Container::bytesToBlocks( size_t total_bytes ) {
     return (blkcnt_t)ceil((float)total_bytes/BLKSIZE);
     //return (blkcnt_t)((total_bytes + BLKSIZE - 1) & ~(BLKSIZE-1));
 }
@@ -32,7 +33,9 @@ blkcnt_t Container::bytesToBlocks( size_t total_bytes ) {
 // returns 0 or -errno
 int
 Container::transferCanonical(const string& from, const string& to,
-                             const string& from_backend, const string& to_backend, mode_t mode) {
+                             const string& from_backend, 
+                             const string& to_backend, mode_t mode) 
+{
     int ret = 0;
     //  foreach entry in from:
     //    if empty file: create file w/ same name in to; remove
@@ -148,7 +151,8 @@ Container::transferCanonical(const string& from, const string& to,
     return ret;
 }
 
-size_t Container::hashValue( const char *str ) {
+size_t 
+Container::hashValue( const char *str ) {
     // wonder if we need a fancy hash function or if we could just
     // count the bits or something in the string?
     // be pretty simple to just sum each char . . .
@@ -191,7 +195,8 @@ size_t Container::hashValue( const char *str ) {
 // why not try the accessfile stat first and if that succeeds then everything
 // is good?  oh.  bec if there is a symlink to the plfs file and we stat
 // the symlink, then it will appear as a regular file instead of as a symlink
-bool Container::isContainer( const string& physical_path, mode_t *mode ) {
+bool 
+Container::isContainer( const string& physical_path, mode_t *mode ) {
     mlog(CON_DAPI, "%s checking %s", __FUNCTION__, physical_path.c_str());
     struct stat buf;
     int ret = Util::Lstat( physical_path.c_str(), &buf );
@@ -266,7 +271,8 @@ bool Container::isContainer( const string& physical_path, mode_t *mode ) {
     */
 }
 
-int Container::freeIndex( Index **index ) {
+int 
+Container::freeIndex( Index **index ) {
     delete *index;
     *index = NULL;
     return 0;
@@ -275,7 +281,8 @@ int Container::freeIndex( Index **index ) {
 // a helper routine for functions that are accessing a file
 // which may not exist.  It's not an error if it doesn't
 // exist since it might not exist yet due to an error condition
-int Container::ignoreNoEnt( int ret ) {
+int 
+Container::ignoreNoEnt( int ret ) {
     if ( ret != 0 && ( errno == ENOENT || errno == ENOTDIR ) ) {
         return 0;
     } else {
@@ -284,7 +291,8 @@ int Container::ignoreNoEnt( int ret ) {
 }
 
 // really just need to do the access file
-int Container::Utime( const string& path, const struct utimbuf *ut ) {
+int 
+Container::Utime( const string& path, const struct utimbuf *ut ) {
     string accessfile = getAccessFilePath(path);
     mlog(CON_DAPI, "%s on %s", __FUNCTION__,path.c_str());
     return Util::retValue(Util::Utime(accessfile.c_str(),ut));
@@ -334,7 +342,8 @@ indexer_thread( void *va ) {
 }
 
 // returns 0 or -errno
-int Container::flattenIndex( const string& path, Index *index ) {
+int 
+Container::flattenIndex( const string& path, Index *index ) {
     // get unique names, and then rename on success so it's atomic
     string globalIndex = getGlobalIndexPath(path);
     string unique_temporary = makeUniquePath(globalIndex);
@@ -363,7 +372,8 @@ int Container::flattenIndex( const string& path, Index *index ) {
 // this is the function that returns the container index
 // should first check for top-level index and if it exists, just use it
 // returns -errno or 0
-int Container::populateIndex(const string& path, Index *index,bool use_global) {
+int 
+Container::populateIndex(const string& path, Index *index,bool use_global) {
     int ret = 0;
     // first try for the top-level global index
     mlog(CON_DAPI, "%s on %s %s attempt to use flattened index",
@@ -398,8 +408,9 @@ int Container::populateIndex(const string& path, Index *index,bool use_global) {
     return ret;
 }
 
-int Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index,
-                                string path) {
+int 
+Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index, string path)
+{
     int ret=0;
     if ( tasks.empty() ) {
         ret = 0;    // easy, 0 length file
@@ -456,7 +467,8 @@ int Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index,
 // a VERSIONPREFIX directory.  If nothing is found, then it assumes
 // 0.1.6.  Otherwise, it parses the version out of the VERSIONPREFIX file
 #define VERSION_LEN 1024
-const char *Container::version(const string& path) {
+const char *
+Container::version(const string& path) {
     mlog(CON_DAPI, "%s checking %s", __FUNCTION__, path.c_str());
     // first look for the version file idea that we started in 2.0.1
     map<string,unsigned char> entries;
@@ -532,8 +544,10 @@ Container::indices_from_subdir(string path, vector<IndexFileInfo> &indices) {
     return 0;
 }
 
-Index Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
-                                     int rank, int ranks_per_comm,string path) {
+Index 
+Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
+                                     int rank, int ranks_per_comm,string path) 
+{
     Index index(path);
     IndexerTask task;
     deque<IndexerTask> tasks;
@@ -569,12 +583,14 @@ Index Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
 // try to use subdir directory in canonical container.
 // return path to physical hostdir if it's created.
 // returns 0 or -errno
-int Container::createMetalink(
+int 
+Container::createMetalink(
     const string& canonical_backend,
     const string& shadow_backend,
     const string& canonical_hostdir,
     string& physical_hostdir,
-    bool& use_metalink) {
+    bool& use_metalink) 
+{
     PlfsConf *pconf = get_plfs_conf();
     string container_path;
     size_t current_hostdir;
@@ -670,7 +686,8 @@ int Container::createMetalink(
 //
 // it's OK to fail: we use this to check if things are metalinks
 // returns 0 or -errno
-int Container::resolveMetalink(const string& metalink, string& resolved) {
+int 
+Container::resolveMetalink(const string& metalink, string& resolved) {
     size_t canonical_backend_length;
     int ret = 0;
     mlog(CON_DAPI, "%s resolving %s", __FUNCTION__, metalink.c_str());
@@ -691,7 +708,8 @@ int Container::resolveMetalink(const string& metalink, string& resolved) {
 // to get L we just remove the first X bytes from P
 // then we can easily get S/L
 // returns 0 or -errno
-int Container::readMetalink(const string& P, string& S, size_t& X) {
+int 
+Container::readMetalink(const string& P, string& S, size_t& X) {
     istringstream iss;
     char buf[METALINK_MAX];
     int ret = Util::Readlink(P.c_str(),buf,METALINK_MAX);
@@ -710,8 +728,10 @@ int Container::readMetalink(const string& P, string& S, size_t& X) {
     return ret;
 }
 
-int Container::collectIndices(const string& physical, vector<string> &indices,
-                              bool full_path) {
+int 
+Container::collectIndices(const string& physical, vector<string> &indices,
+                              bool full_path) 
+{
     vector<string> filters;
     filters.push_back(INDEXPREFIX);
     filters.push_back(HOSTDIRPREFIX);
@@ -725,12 +745,14 @@ int Container::collectIndices(const string& physical, vector<string> &indices,
 // it'd be nice if the only place that container structure was understood
 // was in this class.  but I don't think that's quite true.
 // That's our goal though!
-int Container::collectContents(const string& physical,
+int 
+Container::collectContents(const string& physical,
                                vector<string> &files,
                                vector<string> *dirs,
                                vector<string> *mlinks,
                                vector<string> &filters,
-                               bool full_path) {
+                               bool full_path) 
+{
     map<string,unsigned char> entries;
     map<string,unsigned char>::iterator e_itr;
     vector<string>::iterator f_itr;
@@ -778,7 +800,8 @@ int Container::collectContents(const string& physical,
 // this function traverses the container, finds all the index droppings,
 // and aggregates them into a global in-memory index structure
 // returns 0 or -errno
-int Container::aggregateIndices(const string& path, Index *index) {
+int 
+Container::aggregateIndices(const string& path, Index *index) {
     vector<string> files;
     int ret = collectIndices(path,files,true);
     if (ret!=0) {
@@ -802,13 +825,17 @@ int Container::aggregateIndices(const string& path, Index *index) {
     return ret;
 }
 
-string Container::getDataPath(const string& path, const string& host, int pid,
-                              double ts) {
+string 
+Container::getDataPath(const string& path, const string& host, int pid,
+                              double ts) 
+{
     return getChunkPath( path, host, pid, DATAPREFIX, ts );
 }
 
-string Container::getIndexHostPath(const string& path,const string& host,
-                                   int pid, double ts) {
+string 
+Container::getIndexHostPath(const string& path,const string& host,
+                                   int pid, double ts) 
+{
     ostringstream oss;
     oss.setf(ios::fixed,ios::floatfield);
     oss << path << "/" << INDEXPREFIX;
@@ -816,8 +843,10 @@ string Container::getIndexHostPath(const string& path,const string& host,
     return oss.str();
 }
 
-string Container::getIndexPath(const string& path, const string& host, int pid,
-                               double ts) {
+string 
+Container::getIndexPath(const string& path, const string& host, int pid,
+                               double ts) 
+{
     return getChunkPath( path, host, pid, INDEXPREFIX, ts );
 }
 
@@ -825,8 +854,10 @@ string Container::getIndexPath(const string& path, const string& host, int pid,
 // returns a path to a chunk (type is either DATAPREFIX or INDEXPREFIX)
 // the resulting path looks like this:
 // container/HOSTDIRPREFIX.hash(host)/type.host.pid
-string Container::getChunkPath( const string& container, const string& host,
-                                int pid, const char *type, double timestamp ) {
+string 
+Container::getChunkPath( const string& container, const string& host,
+                                int pid, const char *type, double timestamp ) 
+{
     ostringstream oss;
     oss.setf(ios::fixed,ios::floatfield);
     oss << timestamp;
@@ -834,7 +865,8 @@ string Container::getChunkPath( const string& container, const string& host,
                      pid,oss.str());
 }
 
-string Container::makeUniquePath( const string& physical ) {
+string 
+Container::makeUniquePath( const string& physical ) {
     static bool init = false;
     static char hostname[_POSIX_PATH_MAX];
     if ( ! init ) {
@@ -850,21 +882,25 @@ string Container::makeUniquePath( const string& physical ) {
     return oss.str();
 }
 
-string Container::getGlobalIndexPath( const string& physical ) {
+string 
+Container::getGlobalIndexPath( const string& physical ) {
     ostringstream oss;
     oss << physical << "/" << GLOBALINDEX;
     return oss.str();
 }
 
 // this function is weird currently.  We have no global chunks...
-string Container::getGlobalChunkPath( const string& physical ) {
+string 
+Container::getGlobalChunkPath( const string& physical ) {
     ostringstream oss;
     oss << physical << "/" << GLOBALCHUNK;
     return oss.str();
 }
 
-string Container::chunkPath( const string& hostdir, const char *type,
-                             const string& host, int pid, const string& ts ) {
+string 
+Container::chunkPath( const string& hostdir, const char *type,
+                             const string& host, int pid, const string& ts ) 
+{
     ostringstream oss;
     oss << hostdir << "/" << type << ts << "." << host << "." << pid;
     mlog(CON_DAPI, "%s: ts %s, host %s",__FUNCTION__,ts.c_str(),host.c_str());
@@ -872,7 +908,8 @@ string Container::chunkPath( const string& hostdir, const char *type,
 }
 
 // container/HOSTDIRPREFIX.XXX/type.ts.host.pid
-string Container::hostdirFromChunk( string chunkpath, const char *type ) {
+string 
+Container::hostdirFromChunk( string chunkpath, const char *type ) {
     // this finds the type (either INDEX or DATA prefix and deletes up to it
     chunkpath.erase( chunkpath.rfind(type), chunkpath.size() );
     return chunkpath;
@@ -881,7 +918,8 @@ string Container::hostdirFromChunk( string chunkpath, const char *type ) {
 // take the path to an index and a pid, and return the path to that chunk file
 // path to index looks like:
 // container/HOSTDIRPREFIX.XXX/INDEXPREFIX.ts.host.pid
-string Container::chunkPathFromIndexPath( const string& hostindex, pid_t pid ) {
+string 
+Container::chunkPathFromIndexPath( const string& hostindex, pid_t pid ) {
     string host      = hostFromChunk( hostindex, INDEXPREFIX);
     string hostdir   = hostdirFromChunk( hostindex, INDEXPREFIX);
     string timestamp = timestampFromChunk(hostindex,INDEXPREFIX);
@@ -892,7 +930,8 @@ string Container::chunkPathFromIndexPath( const string& hostindex, pid_t pid ) {
 }
 
 // a chunk looks like: container/HOSTDIRPREFIX.XXX/type.ts.host.pid
-string Container::timestampFromChunk( string chunkpath, const char *type ) {
+string 
+Container::timestampFromChunk( string chunkpath, const char *type ) {
     // cut off everything through the type
     mlog(CON_DAPI, "%s:%d path is %s",__FUNCTION__,__LINE__,chunkpath.c_str());
     chunkpath.erase( 0, chunkpath.rfind(type) + strlen(type) );
@@ -910,14 +949,16 @@ string Container::timestampFromChunk( string chunkpath, const char *type ) {
 }
 
 // a chunk looks like: container/HOSTDIRPREFIX.XXX/type.ts.host.pid
-string Container::containerFromChunk( string chunkpath ) {
+string 
+Container::containerFromChunk( string chunkpath ) {
     chunkpath.erase( chunkpath.rfind(HOSTDIRPREFIX), chunkpath.size() );
     return chunkpath;
 }
 
 // a chunk looks like: container/HOSTDIRPREFIX.XXX/type.ts.host.pid
 // where type is either DATAPREFIX or INDEXPREFIX
-string Container::hostFromChunk( string chunkpath, const char *type ) {
+string 
+Container::hostFromChunk( string chunkpath, const char *type ) {
     // cut off everything through the type
     chunkpath.erase( 0, chunkpath.rfind(type) + strlen(type) );
     // cut off everything though the ts
@@ -931,9 +972,11 @@ string Container::hostFromChunk( string chunkpath, const char *type ) {
 
 // this function drops a file in the metadir which contains
 // stat info so that we can later satisfy stats using just readdir
-int Container::addMeta( off_t last_offset, size_t total_bytes,
+int 
+Container::addMeta( off_t last_offset, size_t total_bytes,
                         const string& path, const string& host, uid_t uid,
-                        double createtime, int interface, size_t max_writers) {
+                        double createtime, int interface, size_t max_writers) 
+{
     string metafile;
     struct timeval time;
     int ret = 0;
@@ -981,9 +1024,11 @@ int Container::addMeta( off_t last_offset, size_t total_bytes,
     return ret;
 }
 
-string Container::fetchMeta( const string& metafile_name,
+string 
+Container::fetchMeta( const string& metafile_name,
                              off_t *last_offset, size_t *total_bytes,
-                             struct timespec *time ) {
+                             struct timespec *time ) 
+{
     istringstream iss( metafile_name );
     string host;
     char dot;
@@ -997,25 +1042,29 @@ string Container::fetchMeta( const string& metafile_name,
 // this returns the path to the metadir
 // don't ever assume that this exists bec it's possible
 // that it doesn't yet
-string Container::getMetaDirPath( const string& strPath ) {
+string 
+Container::getMetaDirPath( const string& strPath ) {
     string metadir( strPath + "/" + METADIR );
     return metadir;
 }
 
 // open hosts and meta dir currently share a name
-string Container::getOpenHostsDir( const string& path ) {
+string 
+Container::getOpenHostsDir( const string& path ) {
     return getMetaDirPath(path);
 }
 
 // simple function to see if a dropping is a particular type such as OPENPREFIX
-bool Container::istype(const string& dropping, const char *type) {
+bool 
+Container::istype(const string& dropping, const char *type) {
     return (dropping.compare(0,strlen(type),type)==0);
 }
 
 // a function that reads the open hosts dir to discover which hosts currently
 // have the file open
 // now the open hosts file has a pid in it so we need to separate this out
-int Container::discoverOpenHosts(set<string> &entries, set<string> &openhosts) {
+int 
+Container::discoverOpenHosts(set<string> &entries, set<string> &openhosts) {
     set<string>::iterator itr;
     string host;
     for(itr=entries.begin(); itr!=entries.end(); itr++) {
@@ -1030,7 +1079,8 @@ int Container::discoverOpenHosts(set<string> &entries, set<string> &openhosts) {
     return 0;
 }
 
-string Container::getOpenrecord( const string& path, const string& host, pid_t pid) {
+string 
+Container::getOpenrecord( const string& path, const string& host, pid_t pid) {
     ostringstream oss;
     oss << getOpenHostsDir( path ) << "/" << OPENPREFIX << host << "." << pid;
     mlog(CON_DAPI, "created open record path %s", oss.str().c_str() );
@@ -1039,7 +1089,8 @@ string Container::getOpenrecord( const string& path, const string& host, pid_t p
 
 // if this fails because the openhostsdir doesn't exist, then make it
 // and try again
-int Container::addOpenrecord( const string& path, const string& host, pid_t pid) {
+int 
+Container::addOpenrecord( const string& path, const string& host, pid_t pid) {
     string openrecord = getOpenrecord( path, host, pid );
     int ret = Util::Creat( openrecord.c_str(), DEFAULT_MODE );
     if ( ret != 0 && ( errno == ENOENT || errno == ENOTDIR ) ) {
@@ -1053,14 +1104,16 @@ int Container::addOpenrecord( const string& path, const string& host, pid_t pid)
     return ret;
 }
 
-int Container::removeOpenrecord(const string& path,const string& host,pid_t pid) {
+int 
+Container::removeOpenrecord(const string& path,const string& host,pid_t pid) {
     string openrecord = getOpenrecord( path, host, pid );
     return Util::Unlink( openrecord.c_str() );
 }
 
 // can this work without an access file?
 // just return the directory mode right but change it to be a normal file
-mode_t Container::getmode( const string& path ) {
+mode_t 
+Container::getmode( const string& path ) {
     struct stat stbuf;
     if ( Util::Lstat( path.c_str(), &stbuf ) < 0 ) {
         mlog(CON_WARN, "Failed to getmode for %s", path.c_str() );
@@ -1072,7 +1125,8 @@ mode_t Container::getmode( const string& path ) {
 
 // this function does a stat of a plfs file by examining the internal droppings
 // returns 0 or -errno
-int Container::getattr( const string& path, struct stat *stbuf ) {
+int 
+Container::getattr( const string& path, struct stat *stbuf ) {
     // Need to walk the whole structure
     // and build up the stat.
     // three ways to do so:
@@ -1209,9 +1263,11 @@ int Container::getattr( const string& path, struct stat *stbuf ) {
 // the above is out of date.  We don't use S_ISUID anymore.  Now we use
 // the existence of the access file
 // returns -errno or 0
-int Container::makeTopLevel( const string& expanded_path,
+int 
+Container::makeTopLevel( const string& expanded_path,
                              const string& hostname, mode_t mode, pid_t pid,
-                             unsigned mnt_pt_checksum, bool lazy_subdir ) {
+                             unsigned mnt_pt_checksum, bool lazy_subdir ) 
+{
     /*
         // ok, instead of mkdir tmp ; chmod tmp ; rename tmp top
         // we tried just mkdir top ; chmod top to remove the rename
@@ -1406,7 +1462,8 @@ Container::makeDropping(const string& path) {
 // returns 0 or -errno
 int
 Container::makeHostDir(const string& path,
-                       const string& host, mode_t mode, parentStatus pstat) {
+                       const string& host, mode_t mode, parentStatus pstat) 
+{
     int ret = 0;
     if (pstat == PARENT_ABSENT) {
         mlog(CON_DCOMMON, "Making absent parent %s", path.c_str());
@@ -1428,7 +1485,9 @@ Container::makeHostDir(const string& path,
 // return 0 or -errno
 int
 Container::makeHostDir(const ContainerPaths& paths,mode_t mode,
-                       parentStatus pstat, string& physical_hostdir, bool& use_metalink) {
+                       parentStatus pstat, string& physical_hostdir, 
+                       bool& use_metalink) 
+{
     char *hostname = Util::hostname();
     int ret = 0;
     // if it's a shadow container, then link it in
@@ -1439,7 +1498,8 @@ Container::makeHostDir(const ContainerPaths& paths,mode_t mode,
              paths.shadow.c_str(), paths.shadow_backend.c_str(),
              paths.canonical.c_str());
         ret = createMetalink(paths.canonical_backend,paths.shadow_backend,
-                             paths.canonical_hostdir, physical_hostdir, use_metalink);
+                             paths.canonical_hostdir, physical_hostdir, 
+                             use_metalink);
     } else {
         use_metalink = false;
         // make the canonical container and hostdir
@@ -1546,7 +1606,8 @@ Container::getDroppingPid(const string& path) {
 // if the hostdir path includes a symlink....
 string
 Container::getHostDirPath( const string& expanded_path,
-                           const string& hostname, subdir_type type ) {
+                           const string& hostname, subdir_type type ) 
+{
     //if expanded_path contains HOSTDIRPREFIX, then return it.
     if (expanded_path.find(HOSTDIRPREFIX) != string::npos) {
         return expanded_path;
@@ -1563,8 +1624,10 @@ Container::getHostDirPath( const string& expanded_path,
     return oss.str();
 }
 
-size_t Container::decomposeHostDirPath(const string& hostdir,
-                                       string& container_path, size_t& id) {
+size_t 
+Container::decomposeHostDirPath(const string& hostdir,
+                                       string& container_path, size_t& id) 
+{
     size_t lastdot = hostdir.rfind('.');
     id = atoi(hostdir.substr(lastdot+1).c_str());
     string hostdir_without_dot = hostdir.substr(0,lastdot);
@@ -1576,7 +1639,8 @@ size_t Container::decomposeHostDirPath(const string& hostdir,
 // this makes the mode of a directory look like it's the mode
 // of a file.
 // e.g. someone does a stat on a container, make it look like a file
-mode_t Container::fileMode( mode_t mode ) {
+mode_t 
+Container::fileMode( mode_t mode ) {
     int dirmask  = ~(S_IFDIR);
     mode         = ( mode & dirmask ) | S_IFREG;
     return mode;
@@ -1588,20 +1652,24 @@ mode_t Container::fileMode( mode_t mode ) {
 // need to add S_IWUSR to the flag incase a file has --r--r--r
 //    the file can be --r--r--r but the top level dir can't
 // also need to make it a dir and need to make exec by all
-mode_t Container::dirMode( mode_t mode ) {
+mode_t 
+Container::dirMode( mode_t mode ) {
     mode = (mode) | S_IRUSR | S_IWUSR | S_IXUSR | S_IXGRP | S_IXOTH;
     return mode;
 }
 
-mode_t Container::containerMode( mode_t mode ) {
+mode_t 
+Container::containerMode( mode_t mode ) {
     return dirMode(mode);
 }
 
 // this has a return value but the caller also consults errno so if we
 // want to error out we need to explicitly set errno
-int Container::createHelper(const string& expanded_path, const string& hostname,
-                            mode_t mode, int flags, int *extra_attempts, pid_t pid,
-                            unsigned mnt_pt_cksum, bool lazy_subdir ) {
+int 
+Container::createHelper(const string& expanded_path, const string& hostname,
+                            mode_t mode, int flags, int *extra_attempts, 
+                            pid_t pid, unsigned mnt_pt_cksum, bool lazy_subdir )
+{
     // this below comment is specific to FUSE
     // TODO we're in a mutex here so only one thread will
     // make the dir, and the others will stat it
@@ -1643,9 +1711,11 @@ int Container::createHelper(const string& expanded_path, const string& hostname,
 
 // This should be in a mutex if multiple procs on the same node try to create
 // it at the same time
-int Container::create( const string& expanded_path, const string& hostname,
+int 
+Container::create( const string& expanded_path, const string& hostname,
                        mode_t mode, int flags, int *extra_attempts, pid_t pid,
-                       unsigned mnt_pt_cksum, bool lazy_subdir ) {
+                       unsigned mnt_pt_cksum, bool lazy_subdir ) 
+{
     int res = 0;
     do {
         res = createHelper(expanded_path, hostname, mode,flags,extra_attempts,
@@ -1666,7 +1736,8 @@ int Container::create( const string& expanded_path, const string& hostname,
 }
 
 // returns the first dirent that matches a prefix (or NULL)
-struct dirent *Container::getnextent( DIR *dir, const char *prefix ) {
+struct dirent *
+Container::getnextent( DIR *dir, const char *prefix ) {
     if ( dir == NULL ) {
         return NULL;    // this line not necessary, but doesn't hurt
     }
@@ -1690,9 +1761,12 @@ struct dirent *Container::getnextent( DIR *dir, const char *prefix ) {
 // but that's a bit complicated as well.  This code isn't bad just a bit complex
 // this returns 0 if done.  1 if OK.  -errno if a problem
 // currently only used by Truncate.
-int Container::nextdropping( const string& physical_path,
+int 
+Container::nextdropping( const string& physical_path,
                              string *droppingpath, const char *dropping_type,
-                             DIR **topdir, DIR **hostdir, struct dirent **topent ) {
+                             DIR **topdir, DIR **hostdir, 
+                             struct dirent **topent ) 
+{
     ostringstream oss;
     string resolved;
     int ret;
@@ -1759,7 +1833,8 @@ int Container::nextdropping( const string& physical_path,
 // when a file is truncated to zero, that is handled separately and
 // that does actually remove data files
 // returns 0 or -errno
-int Container::Truncate( const string& path, off_t offset ) {
+int 
+Container::Truncate( const string& path, off_t offset ) {
     int ret=0;
     string indexfile;
     mlog(CON_DAPI, "%s on %s to %ld", __FUNCTION__, path.c_str(),
