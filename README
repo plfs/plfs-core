@@ -4,7 +4,9 @@
 
 This README is largely deprecated.  Most of this info is found more accurately
 in README.install.  Also, the man pages such as the man page for plfsrc are
-pretty good.
+pretty good.  One small miscellaneous bit that I don't know where else to
+put is to make sure that you prefix 'plfs:' to your path if you are using
+the MPI-IO interface after having patched your MPI.
 
 ***************************************************************************
 User Installation (Default Configuration Values. See configure --help)
