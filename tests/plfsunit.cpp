@@ -160,12 +160,12 @@ PlfsUnit::chmodTest() {
     ret = plfs_create(pathname, 0666, 0, pid);
     CPPUNIT_ASSERT_EQUAL(0, ret);
     for (mode_t mode = 0; mode<01000; mode++) {
-	mode_t result;
-	ret = plfs_chmod(pathname, mode);
-	CPPUNIT_ASSERT_EQUAL(0, ret);
-	ret = plfs_mode(pathname, &result);
-	CPPUNIT_ASSERT_EQUAL(0, ret);
-	CPPUNIT_ASSERT_EQUAL(mode, (result & 0777));
+        mode_t result;
+        ret = plfs_chmod(pathname, mode);
+        CPPUNIT_ASSERT_EQUAL(0, ret);
+        ret = plfs_mode(pathname, &result);
+        CPPUNIT_ASSERT_EQUAL(0, ret);
+        CPPUNIT_ASSERT_EQUAL(mode, (mode_t)(result & 0777));
     }
     ret = plfs_unlink(pathname);
     CPPUNIT_ASSERT_EQUAL(0, ret);
@@ -180,12 +180,12 @@ PlfsUnit::chmodDirTest() {
     ret = plfs_mkdir(pathname, PLFSUNIT_DEFAULT_DIR_MODE);
     CPPUNIT_ASSERT_EQUAL(0, ret);
     for (mode_t mode = 0; mode<01000; mode++) {
-	mode_t result;
-	ret = plfs_chmod(pathname, mode);
-	CPPUNIT_ASSERT_EQUAL(0, ret);
-	ret = plfs_mode(pathname, &result);
-	CPPUNIT_ASSERT_EQUAL(0, ret);
-	CPPUNIT_ASSERT_EQUAL(mode, (result & 0777));
+        mode_t result;
+        ret = plfs_chmod(pathname, mode);
+        CPPUNIT_ASSERT_EQUAL(0, ret);
+        ret = plfs_mode(pathname, &result);
+        CPPUNIT_ASSERT_EQUAL(0, ret);
+        CPPUNIT_ASSERT_EQUAL(mode, (mode_t)(result & 0777));
     }
     ret = plfs_rmdir(pathname);
     CPPUNIT_ASSERT_EQUAL(0, ret);
@@ -272,7 +272,7 @@ PlfsUnit::symlinkTest() {
 	ret = plfs_symlink(linkcontent.c_str(), pathname2);
 	CPPUNIT_ASSERT_EQUAL(0, ret);
 	ret = plfs_readlink(pathname2, buf, 256);
-	CPPUNIT_ASSERT(linkcontent.length() == ret);
+	CPPUNIT_ASSERT((int)linkcontent.length() == ret);
 	CPPUNIT_ASSERT(strcmp(linkcontent.c_str(), buf) == 0);
 	ret = plfs_unlink(pathname2);
 	CPPUNIT_ASSERT_EQUAL(0, ret);
@@ -310,7 +310,6 @@ PlfsUnit::renameTest() {
     const char *pathname2 = path2.c_str();
     string path3 = mountpoint + "/dirtoberenamed";
     int ret;
-    Plfs_fd *fd = NULL;
 
     ret = plfs_create(pathname, 0666, 0, pid);
     CPPUNIT_ASSERT_EQUAL(0, ret);
