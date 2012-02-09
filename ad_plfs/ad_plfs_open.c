@@ -383,8 +383,8 @@ int broadcast_index(Plfs_fd **pfd, ADIO_File fd,
     // Original index stream size
     if (!rank) {
         plfs_debug("Broadcasting the sizes of the index:%d "
-                   "and compressed index%d\n" ,index_size[0],index_size[1])
-    };
+                   "and compressed index%d\n" ,index_size[0],index_size[1]);
+    }
     MPIBCAST(index_size, 2, MPI_LONG, 0, fd->comm);
     if(rank!=0) {
         index_stream = malloc(index_size[0]);
