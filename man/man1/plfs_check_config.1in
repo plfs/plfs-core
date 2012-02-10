@@ -3,7 +3,7 @@
 .SH NAME
 plfs_check_config
 .SH SYNOPSIS
-.B ./plfs_check_config
+.B ./plfs_check_config [-mkdir]
 
 .SH DESCRIPTION
 This command will check for a valid PLFS configuration file. If both the user
@@ -19,6 +19,8 @@ Threadpool size: 16
 Num Mountpoints: 1
 .br
 Backend: /tmp/.plfs_store
+.br
+The -mkdir option will attempt to create any required and missing directories.
 
 .SH FILES
 In order to use any of these interfaces, a configuration file must be
