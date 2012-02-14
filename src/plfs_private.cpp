@@ -1045,8 +1045,12 @@ parse_conf(FILE *fp, string file, PlfsConf *pconf)
 PlfsConf *
 get_plfs_conf()
 {
+    static pthread_mutex_t confmutex = PTHREAD_MUTEX_INITIALIZER;
     static PlfsConf *pconf = NULL;   /* note static */
+
+    pthread_mutex_lock(&confmutex);
     if (pconf ) {
+        pthread_mutex_unlock(&confmutex);
         return pconf;
     }
     /*
@@ -1098,6 +1102,7 @@ get_plfs_conf()
     if (pconf) {
         setup_mlog(pconf);
     }
+    pthread_mutex_unlock(&confmutex);
     return pconf;
 }
 
