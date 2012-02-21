@@ -86,6 +86,7 @@ IndexFileInfo::listToStream(vector<IndexFileInfo> &list,int *bytes)
     char *buf_pos;
     int size;
     vector<IndexFileInfo>::iterator itr;
+    (*bytes) = 0;
     for(itr=list.begin(); itr!=list.end(); itr++) {
         (*bytes)+=sizeof(double);
         (*bytes)+=sizeof(pid_t);
