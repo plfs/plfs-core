@@ -44,6 +44,8 @@ class HostEntry
         bool splittable ( off_t ) const;
         bool abut   ( const HostEntry& );
         off_t logical_tail( ) const;
+        bool follows(const HostEntry&);
+        bool preceeds(const HostEntry&);
 
     protected:
         off_t  logical_offset;
@@ -75,6 +77,8 @@ class ContainerEntry : HostEntry
     public:
         bool mergable( const ContainerEntry& );
         bool abut( const ContainerEntry& );
+        bool follows( const ContainerEntry& );
+        bool preceeds( const ContainerEntry& );
         ContainerEntry split(off_t); //split in half, this is back, return front
 
     protected:

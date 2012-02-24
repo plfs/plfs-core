@@ -51,11 +51,23 @@ HostEntry::splittable( off_t offset ) const
     return(offset > logical_offset && offset < logical_offset + (off_t)length);
 }
 
+bool 
+HostEntry::preceeds( const HostEntry& other ) {
+     return    logical_offset  + length == other.logical_offset
+           &&  physical_offset + length == other.physical_offset;
+}
+
+bool
+HostEntry::follows( const HostEntry& other )
+{
+    return    other.logical_offset  + other.length == logical_offset
+           && other.physical_offset + other.length == physical_offset;
+}
+
 bool
 HostEntry::abut( const HostEntry& other )
 {
-    return logical_offset + (off_t)length == other.logical_offset
-           || other.logical_offset + (off_t)other.length == logical_offset;
+    return (follows(other) || preceeds(other));
 }
 
 off_t
@@ -183,12 +195,21 @@ ContainerEntry::split(off_t offset)
 }
 
 bool
+ContainerEntry::preceeds( const ContainerEntry &other ) {
+    if (!HostEntry::preceeds(other)) return false;
+    return (physical_offset + (off_t)length == other.physical_offset);
+}
+
+bool
+ContainerEntry::follows( const ContainerEntry &other ) {
+    if (!HostEntry::follows(other)) return false;
+    return (other.physical_offset + (off_t)other.length == physical_offset);
+}
+
+bool
 ContainerEntry::abut( const ContainerEntry& other )
 {
-    return ( HostEntry::abut(other) &&
-             ( physical_offset + (off_t)length == other.physical_offset
-               || other.physical_offset + (off_t)other.length
-               == physical_offset ) );
+    return (preceeds(other) || follows(other));
 }
 
 bool
@@ -910,8 +931,8 @@ Index::insertGlobal( ContainerEntry *g_entry )
     pair<map<off_t,ContainerEntry>::iterator,bool> ret;
     bool overlap  = false;
     ostringstream oss;
-    mlog(IDX_DAPI, "Inserting offset %ld into index of %s",
-         (long)g_entry->logical_offset, physical_path.c_str());
+    mlog(IDX_DAPI, "Inserting offset %ld into index of %s (%d)",
+         (long)g_entry->logical_offset, physical_path.c_str(),g_entry->id);
     ret = insertGlobalEntry( g_entry );
     if ( ret.second == false ) {
         oss << "overlap1" <<endl<< *g_entry <<endl << ret.first->second << endl;
@@ -944,7 +965,7 @@ Index::insertGlobal( ContainerEntry *g_entry )
         handleOverlap( *g_entry, ret );
     } else if (compress_contiguous) {
         // does it abuts with the one before it
-        if (ret.first!=global_index.begin() && g_entry->abut(prev->second) ) {
+        if (ret.first!=global_index.begin() && g_entry->follows(prev->second)) {
             oss << "Merging index for " << *g_entry << " and " << prev->second
                 << endl;
             mlog(IDX_DCOMMON, "%s", oss.str().c_str());
