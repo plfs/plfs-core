@@ -24,3 +24,9 @@ be empty
 
 6) In flat file mode, a user can't create a read-only file. A newly created
 file can always be writen by its owner with the mode bit S_IWUSR set.
+
+7) in FUSE, rm -rf on a directory that contains files which are currently open
+through FUSE will fail with ENOTEMPTY.  This is actually a FUSE problem since
+FUSE does a rename on open files into .fuse_hidden when the user tries to
+unlink them.  Then FUSE tries to rmdir the parent directory and PLFS refuses 
+since there is a .fuse_hidden file in it.
