@@ -32,6 +32,10 @@ class Plfs_fd
         // a function that all might not necessarily implement
         virtual int compress_metadata(const char *path) = 0;
 
+        // a function called to rename an open file
+        // the caller must also call the FS rename separately
+        virtual int rename(const char *path) = 0;
+
 };
 
 inline Plfs_fd::~Plfs_fd() {};

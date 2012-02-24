@@ -35,6 +35,8 @@ int container_readdir( const char *path, void * );
 
 int container_readlink( const char *path, char *buf, size_t bufsize );
 
+int container_rename_open_file(Container_OpenFile *of, const char *logical);
+
 int container_rename( const char *from, const char *to );
 
 int container_rmdir( const char *path );

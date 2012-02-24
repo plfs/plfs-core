@@ -478,6 +478,18 @@ container_readdir( const char *logical, void *vptr )
     PLFS_EXIT(ret);
 }
 
+// this function is important because when an open file is renamed
+// we need to know about it bec when the file is closed we need
+// to know the correct phyiscal path to the container in order to
+// create the meta dropping
+int
+container_rename_open_file(Container_OpenFile *of, const char *logical) 
+{
+    PLFS_ENTER;
+    of->setPath(path.c_str());
+    PLFS_EXIT(ret);
+}
+
 // just rename all the shadow and canonical containers
 // then call recover_file to move canonical stuff if necessary
 int

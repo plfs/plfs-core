@@ -39,6 +39,10 @@ class Flat_fd : public Plfs_fd
         const char *getPath() {
             return path.c_str();
         }
+        int rename(const char *path) {
+            setPath(path);
+            return 0;
+        }
 
     private:
         int refs;

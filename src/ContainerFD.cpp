@@ -31,6 +31,11 @@ Container_fd::read(char *buf, size_t size, off_t offset)
     return container_read(fd, buf, size, offset);
 }
 
+int
+Container_fd::rename(const char *path) {
+    return container_rename_open_file(fd,path);
+}
+
 ssize_t
 Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid)
 {
