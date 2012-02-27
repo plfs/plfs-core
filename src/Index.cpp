@@ -53,15 +53,15 @@ HostEntry::splittable( off_t offset ) const
 
 bool 
 HostEntry::preceeds( const HostEntry& other ) {
-     return    logical_offset  + length == other.logical_offset
-           &&  physical_offset + length == other.physical_offset;
+     return    logical_offset  + length == (unsigned int)other.logical_offset
+           &&  physical_offset + length == (unsigned int)other.physical_offset;
 }
 
 bool
 HostEntry::follows( const HostEntry& other )
 {
-    return    other.logical_offset  + other.length == logical_offset
-           && other.physical_offset + other.length == physical_offset;
+    return    other.logical_offset  + other.length == (unsigned int)logical_offset
+           && other.physical_offset + other.length == (unsigned int)physical_offset;
 }
 
 bool
