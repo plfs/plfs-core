@@ -22,7 +22,7 @@ to an instantiated file handle.  Note that the user should not themselves
 free this handle; rather it is freed by calling plfs_close().   Multiple
 threads can open on the same path and share a file handle; however this
 call is not thread-safe, the call must ensure serialization.  Subsequent
-calls to plfs_read, plfs_write, plfs_close, etc. are thread-safe however.
+calls to plfs_read, plfs_write, etc. are thread-safe however.  
 .TP 1i
 path
 path to open file
