@@ -4,9 +4,15 @@
 
 This README is largely deprecated.  Most of this info is found more accurately
 in README.install.  Also, the man pages such as the man page for plfsrc are
-pretty good.  One small miscellaneous bit that I don't know where else to
+pretty good.  And for users trying to use the PLFS API directly (instead of
+the recommended FUSE or MPI-IO interfaces) is to read the comments in the 
+plfs.h file.  One small miscellaneous bit that I don't know where else to
 put is to make sure that you prefix 'plfs:' to your path if you are using
-the MPI-IO interface after having patched your MPI.
+the MPI-IO interface after having patched your MPI.  
+
+################################################################################
+Deprecated below this point.  Proceed at your own caution.
+################################################################################
 
 ***************************************************************************
 User Installation (Default Configuration Values. See configure --help)
