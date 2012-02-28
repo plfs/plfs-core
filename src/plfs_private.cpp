@@ -4,6 +4,7 @@
 #include "plfs_private.h"
 #include "Util.h"
 #include "mlog.h"
+#include "LogMessage.h"
 
 // why is these included???!!!????
 #include "FlatFileFS.h"
@@ -444,16 +445,45 @@ remove_all(vector<string> &unlinks)
     return ret;
 }
 
+// a (non-thread proof) way to ensure we only init once
 bool
-plfs_init(PlfsConf *pconf)
-{
-    map<string,PlfsMount *>::iterator itr = pconf->mnt_pts.begin();
-    if (itr==pconf->mnt_pts.end()) {
-        return false;
+plfs_conditional_init() {
+    static bool inited = false;
+    bool ret = true;
+    if (!inited) {
+        ret = plfs_init();
+        inited = true;
     }
+    return ret;
+}
+
+bool
+plfs_warm_path_resolution(PlfsConf *pconf) { 
+    map<string,PlfsMount*>::iterator itr = pconf->mnt_pts.begin();
+    if (itr==pconf->mnt_pts.end()) return false;
     ExpansionInfo exp_info;
-    expandPath(itr->first,&exp_info,EXPAND_CANONICAL,-1,0);
+    expandPath(itr->first,&exp_info,EXPAND_SHADOW,-1,0);
     return(exp_info.expand_error ? false : true);
+}
+
+// this init's the library if it hasn't been done yet
+bool
+plfs_init()
+{
+    static PlfsConf *pconf = NULL;
+    if ( ! pconf ) {
+        LogMessage::init();
+        pconf = get_plfs_conf();
+        if ( !pconf ) {
+            return 0;
+        }
+        bool warmed = plfs_warm_path_resolution(pconf); 
+        if ( !warmed ) {
+            mlog(MLOG_WARN, "Unable to warm path resolution\n"); 
+        }
+        return (int)warmed;
+    }
+    return 1;
 }
 
 /**

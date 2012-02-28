@@ -64,6 +64,7 @@ typedef struct {
 #define PLFS_ENTER2(X) \
  int ret = 0;\
  ExpansionInfo expansion_info; \
+ plfs_conditional_init(); \
  string path = expandPath(logical,&expansion_info,EXPAND_CANONICAL,-1,0); \
  mlog(INT_DAPI, "EXPAND in %s: %s->%s",__FUNCTION__,logical,path.c_str()); \
  if (expansion_info.expand_error && X==PLFS_PATH_REQUIRED) { \
@@ -133,7 +134,8 @@ const string& get_backend(const ExpansionInfo& exp, size_t which);
 /* plfs_init
     it just warms up the plfs structures used in expandPath
 */
-bool plfs_init(PlfsConf *);
+bool plfs_init();
+bool plfs_conditional_init();
 char **plfs_mlogargs(int *mlargc, char **mlargv);
 char *plfs_mlogtag(char *newtag);
 
