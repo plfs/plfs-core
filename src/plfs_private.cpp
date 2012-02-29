@@ -470,20 +470,28 @@ plfs_warm_path_resolution(PlfsConf *pconf) {
 bool
 plfs_init()
 {
+    static pthread_mutex_t confmutex = PTHREAD_MUTEX_INITIALIZER;
     static PlfsConf *pconf = NULL;
-    if ( ! pconf ) {
-        LogMessage::init();
-        pconf = get_plfs_conf();
-        if ( !pconf ) {
-            return 0;
+    bool ret = true;
+    if ( ! pconf ) {    // not yet initialized.  Try to do so.
+        pthread_mutex_lock(&confmutex); // who should initialize?
+        if (pconf) { // someone beat us in race.  they will initialize.
+            ret = true;
+        } else {    // we won race.  we need to initialize.
+            LogMessage::init();
+            pconf = get_plfs_conf();
+            if ( !pconf ) {
+                ret = false;    // something failed
+            } else {
+                ret = plfs_warm_path_resolution(pconf); 
+                if ( !ret ) {
+                    mlog(MLOG_WARN, "Unable to warm path resolution\n"); 
+                }
+            }
         }
-        bool warmed = plfs_warm_path_resolution(pconf); 
-        if ( !warmed ) {
-            mlog(MLOG_WARN, "Unable to warm path resolution\n"); 
-        }
-        return (int)warmed;
+        pthread_mutex_unlock(&confmutex); 
     }
-    return 1;
+    return ret;
 }
 
 /**
