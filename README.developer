@@ -55,3 +55,7 @@ Don't edit Makefiles directly.  Edit the Makefile.am files and then redo autogen
 
 7) DEBUGGING WITH MLOG
 Please read README.mlog
+
+8) valgrind on OS X
+You will need to run dsymutil on the plfs binary and libplfs.0.dylib to get 
+debug symbols available for valgrind so it can report line numbers.
