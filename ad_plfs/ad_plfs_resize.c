@@ -62,9 +62,11 @@ void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code)
 	// since we can't tell for sure that someone else doesn't have it
 	// open.  then plfs_trunc internal will only truncate droppings and
 	// not delete
-	file_is_open=0;
+	file_is_open=1;
         err = plfs_trunc(fd->fs_ptr, fd->filename, size, file_is_open);
     }
+    // we want to barrier so that no-one leaves until we are done truncating
+    // we are relying on MPI_Bcast to do an effective barrier for us
     MPI_Bcast(&err, 1, MPI_INT, fd->hints->ranklist[0], fd->comm);
     if (err < 0) {
         *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,

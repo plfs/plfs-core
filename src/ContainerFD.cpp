@@ -51,7 +51,8 @@ Container_fd::sync(pid_t pid)
 int
 Container_fd::trunc(const char *path, off_t offset)
 {
-    return container_trunc(fd, path, offset, 0);
+    bool open_file = true; // Yes, I am an open file handle.
+    return container_trunc(fd, path, offset, open_file);
 }
 
 int
