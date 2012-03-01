@@ -134,6 +134,7 @@ FlatFileSystem::open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,
     if (*pfd == NULL) {
         *pfd = new Flat_fd();
         newly_created = 1;
+        (*pfd)->setPath(logical);
     }
     ret = (*pfd)->open(path.c_str(), flags, pid, mode, open_opt);
     if (ret < 0) {
