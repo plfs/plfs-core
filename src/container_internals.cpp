@@ -1061,9 +1061,10 @@ plfs_parindex_read(int rank,int ranks_per_comm,void *index_files,
 
 // TODO: change name to container_*
 int
-plfs_merge_indexes(Container_OpenFile **pfd, char *index_streams,
+plfs_merge_indexes(Plfs_fd **fd_in, char *index_streams,
                    int *index_sizes, int procs)
 {
+    Container_OpenFile **pfd = (Container_OpenFile **)fd_in;
     int count;
     Index *root_index;
     mlog(INT_DAPI, "Entering plfs_merge_indexes");
@@ -1120,8 +1121,9 @@ plfs_parindexread_merge(const char *path,char *index_streams,
 // Can't directly access the FD struct in ADIO
 // TODO: change name to container_*
 int
-plfs_index_stream(Container_OpenFile **pfd, char **buffer)
+plfs_index_stream(Plfs_fd **fd_in, char **buffer)
 {
+    Container_OpenFile **pfd = (Container_OpenFile **)fd_in;
     size_t length;
     int ret;
     if ( (*pfd)->getIndex() !=  NULL ) {
