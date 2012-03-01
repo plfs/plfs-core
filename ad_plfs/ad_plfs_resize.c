@@ -53,6 +53,16 @@ void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code)
     }
     /* do the truncate */
     if (rank == fd->hints->ranklist[0]) {
+	// running the silverton test code we are seeing that
+	// rank 1 has already opened the file and then rank 0 
+	// gets the Resize call and doesn't see that the file is open
+	// then we 0 calls this with file_is_open==0, plfs_trunc in
+	// container mode does unlink of droppings thereby destroying
+	// rank 1's open files.  Thus, let's always do open_file==1 here
+	// since we can't tell for sure that someone else doesn't have it
+	// open.  then plfs_trunc internal will only truncate droppings and
+	// not delete
+	file_is_open=0;
         err = plfs_trunc(fd->fs_ptr, fd->filename, size, file_is_open);
     }
     MPI_Bcast(&err, 1, MPI_INT, fd->hints->ranklist[0], fd->comm);
