@@ -350,7 +350,7 @@ static int mlog_setnfac(int n)
     }
     /* must grow the array */
     try = (n < 1024) ? (n + 32) : n;    /* pad a bit for small values of n */
-    nfacs = malloc(try * sizeof(*nfacs));
+    nfacs = calloc(1, try * sizeof(*nfacs));
     if (!nfacs) {
         return(-1);
     }
@@ -735,7 +735,7 @@ int mlog_open(char *tag, int maxfac_hint, int default_mask, int stderr_mask,
     mst.logfd = mst.udpsock = -1;
     /* start filling it in */
     tagblen = strlen(tag) + MLOG_TAGPAD;     /* add a bit for pid */
-    mlog_xst.tag = malloc(tagblen);
+    mlog_xst.tag = calloc(1, tagblen);
     if (!mlog_xst.tag) {
         return(-1);
     }
@@ -779,7 +779,7 @@ int mlog_open(char *tag, int maxfac_hint, int default_mask, int stderr_mask,
         goto error;
     }
     if (msgbuf_len) {
-        mst.mb = malloc(msgbuf_len + sizeof(struct mlog_mbhead));
+        mst.mb = calloc(1, msgbuf_len + sizeof(struct mlog_mbhead));
         if (!mst.mb) {
             goto error;
         }
@@ -804,7 +804,7 @@ int mlog_open(char *tag, int maxfac_hint, int default_mask, int stderr_mask,
                 mst.ucon_cnt++;
             }
         }
-        mst.ucons = malloc(mst.ucon_cnt * sizeof(*mst.ucons));
+        mst.ucons = calloc(1, mst.ucon_cnt * sizeof(*mst.ucons));
         if (!mst.ucons) {
             goto error;
         }
@@ -1545,7 +1545,7 @@ int mlog_ucon_add(char *host, int port)
     /* grow the array if necessary */
     if (mst.ucon_cnt == mst.ucon_nslots) {
         sz = mst.ucon_cnt + 1;
-        newbuf = malloc(sz * sizeof(*mst.ucons));
+        newbuf = calloc(1, sz * sizeof(*mst.ucons));
         if (!newbuf) {
             goto done;
         }

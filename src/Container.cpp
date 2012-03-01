@@ -1113,7 +1113,8 @@ Container::getOpenrecord( const string& path, const string& host, pid_t pid)
     ostringstream oss;
     oss << getOpenHostsDir( path ) << "/" << OPENPREFIX << host << "." << pid;
     mlog(CON_DAPI, "created open record path %s", oss.str().c_str() );
-    return oss.str();
+    string retstring = oss.str(); // suppress valgrind complaint
+    return retstring;
 }
 
 // if this fails because the openhostsdir doesn't exist, then make it

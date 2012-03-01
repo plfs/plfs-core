@@ -425,7 +425,7 @@ int Util::CopyFile( const char *path, const char *to )
     }
     ret = -1;
     if (S_ISLNK(sbuf.st_mode)) { // copy a symbolic link.
-        buf = (char *)malloc(PATH_MAX);
+        buf = (char *)calloc(1,PATH_MAX);
         if (!buf) {
             goto out;
         }
@@ -453,7 +453,7 @@ int Util::CopyFile( const char *path, const char *to )
         goto done;
     }
     buf_size = sbuf.st_blksize;
-    buf = (char *)malloc(buf_size);
+    buf = (char *)calloc(1,buf_size);
     if (!buf) {
         goto done;
     }

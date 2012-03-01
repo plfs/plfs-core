@@ -51,19 +51,20 @@ HostEntry::splittable( off_t offset ) const
     return(offset > logical_offset && offset < logical_offset + (off_t)length);
 }
 
-bool 
-HostEntry::preceeds( const HostEntry& other ) {
-     return    logical_offset  + length == (unsigned int)other.logical_offset
-           &&  physical_offset + length == (unsigned int)other.physical_offset
-           &&  id == other.id;
+bool
+HostEntry::preceeds( const HostEntry& other )
+{
+    return    logical_offset  + length == (unsigned int)other.logical_offset
+              &&  physical_offset + length == (unsigned int)other.physical_offset
+              &&  id == other.id;
 }
 
 bool
 HostEntry::follows( const HostEntry& other )
 {
     return other.logical_offset + other.length == (unsigned int)logical_offset
-      && other.physical_offset + other.length == (unsigned int)physical_offset
-      && other.id == id;
+           && other.physical_offset + other.length == (unsigned int)physical_offset
+           && other.id == id;
 }
 
 bool
@@ -111,7 +112,7 @@ IndexFileInfo::listToStream(vector<IndexFileInfo> &list,int *bytes)
     // Make room for number of Index File Info
     (*bytes)+=sizeof(int);
     // This has to be freed somewhere
-    buffer=(char *)malloc(*bytes);
+    buffer=(char *)calloc(1, *bytes);
     if(!buffer) {
         *bytes=-1;
         return (void *)buffer;
@@ -197,14 +198,20 @@ ContainerEntry::split(off_t offset)
 }
 
 bool
-ContainerEntry::preceeds( const ContainerEntry &other ) {
-    if (!HostEntry::preceeds(other)) return false;
+ContainerEntry::preceeds( const ContainerEntry& other )
+{
+    if (!HostEntry::preceeds(other)) {
+        return false;
+    }
     return (physical_offset + (off_t)length == other.physical_offset);
 }
 
 bool
-ContainerEntry::follows( const ContainerEntry &other ) {
-    if (!HostEntry::follows(other)) return false;
+ContainerEntry::follows( const ContainerEntry& other )
+{
+    if (!HostEntry::follows(other)) {
+        return false;
+    }
     return (other.physical_offset + (off_t)other.length == physical_offset);
 }
 
@@ -721,7 +728,7 @@ int Index::global_to_stream(void **buffer,size_t *length)
     *length += quant*sizeof(ContainerEntry);
     *length += chunks_length;
     // allocate the buffer
-    *buffer = malloc(*length);
+    *buffer = calloc(1, *length);
     // Let's check this malloc and make sure it succeeds
     if(!buffer) {
         mlog(IDX_DRARE, "%s, Malloc of stream buffer failed",__FUNCTION__);
@@ -1204,6 +1211,7 @@ Index::addWrite( off_t offset, size_t length, pid_t pid,
     } else {
         // create a new index entry for this write
         HostEntry entry;
+        memset(&entry,0,sizeof(HostEntry)); // suppress valgrind complaint
         entry.logical_offset = offset;
         entry.length         = length;
         entry.id             = pid;

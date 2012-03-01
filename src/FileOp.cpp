@@ -60,9 +60,14 @@ int Access( const string& path, int mask )
     int ret;
     errno = 0;
     bool mode_set=false;
-    string accessfile = path;
-    mlog(FOP_DAPI, "%s Check existence of %s",__FUNCTION__,accessfile.c_str());
-    ret = Util::Access( accessfile.c_str(), F_OK );
+
+    //doing this to suppress a valgrind complaint
+    char *cstr = strdup(path.c_str());
+
+    mlog(FOP_DAPI, "%s Check existence of %s",
+        __FUNCTION__, cstr);
+
+    ret = Util::Access( cstr, F_OK );
     if ( ret == 0 ) {
         // at this point, we know the file exists
         if(checkMask(mask,W_OK|R_OK)) {
@@ -75,16 +80,18 @@ int Access( const string& path, int mask )
             open_mode = O_WRONLY;
             mode_set=true;
         } else if(checkMask(mask,F_OK)) {
+            delete cstr;
             return 0;   // we already know this
         }
         assert(mode_set);
         mlog(FOP_DCOMMON, "The file exists attempting open");
-        ret = Util::Open(accessfile.c_str(),open_mode);
+        ret = Util::Open(cstr,open_mode);
         mlog(FOP_DCOMMON, "Open returns %d",ret);
         if(ret >= 0 ) {
             ret = Util::Close(ret);
         }
     }
+    delete cstr;
     return ret;
 }
 

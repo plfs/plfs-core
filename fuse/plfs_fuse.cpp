@@ -224,7 +224,7 @@ static void plfsfuse_mlogargfilter(int *argc, char **argv)
         return;    /* no args, no work */
     }
     mlac = 0;
-    mlav = (char **) malloc(*argc * sizeof(*argv));
+    mlav = (char **) calloc(1, *argc * sizeof(*argv));
     if (mlav == NULL) {
         fprintf(stderr, "plfsfuse_mlogargfilter: malloc failed?  skipping.\n");
         return;
@@ -623,7 +623,7 @@ int Plfs::get_groups( vector<gid_t> *vec )
 {
     int ngroups = getgroups(0, 0);
     gid_t *groups = new gid_t[ngroups];
-    //(gid_t *) malloc(ngroups * sizeof (gid_t));
+    //(gid_t *) calloc(1, ngroups * sizeof (gid_t));
     int val = getgroups (ngroups, groups);
     //int val = fuse_getgroups(ngroups, groups);
     for( int i = 0; i < val; i++ ) {

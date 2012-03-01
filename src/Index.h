@@ -33,11 +33,23 @@ class IndexFileInfo
 class HostEntry
 {
     public:
-        HostEntry() { }
+        HostEntry() {
+            // valgrind complains about unitialized bytes in this thing
+            // this is because there is padding in this object
+            // so let's initialize our entire self
+            memset(this,0,sizeof(*this));
+        }
         HostEntry( off_t o, size_t s, pid_t p ) {
             logical_offset = o;
             length = s;
             id = p;
+        }
+        HostEntry( const HostEntry& copy ) {
+            // similar to standard constructor, this
+            // is used when we do things like push a HostEntry
+            // onto a vector
+            memset(this,0,sizeof(*this));
+            memcpy(this,&copy,sizeof(*this));
         }
         bool overlap( const HostEntry& );
         bool contains ( off_t ) const;
