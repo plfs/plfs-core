@@ -9,6 +9,7 @@
 #include <dirent.h>
 #include <math.h>
 #include <assert.h>
+#include <string.h>
 #include <sys/syscall.h>
 #include <sys/param.h>
 #include <sys/mount.h>
@@ -30,6 +31,28 @@
 // unfortunately, not all platforms support this (but they're small)
 #define MAP_NOCACHE 0
 #endif
+
+HostEntry::HostEntry() {
+    // valgrind complains about unitialized bytes in this thing
+    // this is because there is padding in this object
+    // so let's initialize our entire self
+    memset(this,0,sizeof(*this));
+}
+
+HostEntry::HostEntry(off_t o, size_t s, pid_t p) {
+    logical_offset = o;
+    length = s;
+    id = p;
+}
+
+HostEntry::HostEntry(const HostEntry& copy) {
+    // similar to standard constructor, this
+    // is used when we do things like push a HostEntry
+    // onto a vector.  We can't rely on default constructor bec on the 
+    // same valgrind complaint as mentioned in the first constructor
+    memset(this,0,sizeof(*this));
+    memcpy(this,&copy,sizeof(*this));
+}
 
 bool
 HostEntry::overlap( const HostEntry& other )
