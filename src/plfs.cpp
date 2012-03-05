@@ -249,10 +249,15 @@ plfs_sync(Plfs_fd *fd, pid_t pid)
 int
 plfs_trunc(Plfs_fd *fd, const char *path, off_t offset, int open_file)
 {
-    debug_enter(__FUNCTION__,fd->getPath());
     if (fd) {
+        debug_enter(__FUNCTION__,fd->getPath());
         return fd->trunc(path, offset);
     }
+    else {
+        debug_enter(__FUNCTION__,path);
+    }
+
+
     LogicalFileSystem *logicalfs = plfs_get_logical_fs(path);
     if (logicalfs == NULL) {
         return -EINVAL;
