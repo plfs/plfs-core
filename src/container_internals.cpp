@@ -483,7 +483,7 @@ container_readdir( const char *logical, void *vptr )
 // to know the correct phyiscal path to the container in order to
 // create the meta dropping
 int
-container_rename_open_file(Container_OpenFile *of, const char *logical) 
+container_rename_open_file(Container_OpenFile *of, const char *logical)
 {
     PLFS_ENTER;
     of->setPath(path.c_str());
@@ -1937,10 +1937,10 @@ container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
         mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
         // in the case that extend file, need not truncateHostIndex
         if (offset <= stbuf.st_size) {
-			ret = Container::truncateMeta(path, offset);
-			if (ret==0) {
-				ret = of->getWritefile()->truncate( offset );
-			}
+            ret = Container::truncateMeta(path, offset);
+            if (ret==0) {
+                ret = of->getWritefile()->truncate( offset );
+            }
         }
         of->truncate( offset );
         // here's a problem, if the file is open for writing, we've
@@ -1951,7 +1951,7 @@ container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
         // them at the old path....
         if ( ret == 0 && of && of->getWritefile() ) {
             mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
-			bool droppings_were_truncd = (offset==0 && open_file);
+            bool droppings_were_truncd = (offset==0 && open_file);
             ret = of->getWritefile()->restoreFds(droppings_were_truncd);
             if ( ret != 0 ) {
                 mlog(PLFS_DRARE, "%s:%d failed: %s",

@@ -128,7 +128,7 @@ class Index : public Metadata
             this->fd = fd;
         }
 
-		int resetPhysicalOffsets();
+        int resetPhysicalOffsets();
 
         size_t totalBytes( );
 

@@ -32,23 +32,26 @@
 #define MAP_NOCACHE 0
 #endif
 
-HostEntry::HostEntry() {
+HostEntry::HostEntry()
+{
     // valgrind complains about unitialized bytes in this thing
     // this is because there is padding in this object
     // so let's initialize our entire self
     memset(this,0,sizeof(*this));
 }
 
-HostEntry::HostEntry(off_t o, size_t s, pid_t p) {
+HostEntry::HostEntry(off_t o, size_t s, pid_t p)
+{
     logical_offset = o;
     length = s;
     id = p;
 }
 
-HostEntry::HostEntry(const HostEntry& copy) {
+HostEntry::HostEntry(const HostEntry& copy)
+{
     // similar to standard constructor, this
     // is used when we do things like push a HostEntry
-    // onto a vector.  We can't rely on default constructor bec on the 
+    // onto a vector.  We can't rely on default constructor bec on the
     // same valgrind complaint as mentioned in the first constructor
     memset(this,0,sizeof(*this));
     memcpy(this,&copy,sizeof(*this));
@@ -325,9 +328,10 @@ Index::unlock( const char *function )
 }
 
 int
-Index::resetPhysicalOffsets() {
+Index::resetPhysicalOffsets()
+{
     map<pid_t,off_t>::iterator itr;
-    for(itr=physical_offsets.begin(); itr!=physical_offsets.end(); itr++){
+    for(itr=physical_offsets.begin(); itr!=physical_offsets.end(); itr++) {
         itr->second = 0;
         //physical_offsets[itr.first] = 0;
     }
