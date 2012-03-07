@@ -1686,9 +1686,8 @@ container_sync( Container_OpenFile *pfd, pid_t pid )
 // the TruncateOp internally does unlinks
 // TODO: rename to container_* ?
 int
-truncateFile(const char *logical,bool open_file)
+truncateFileToZero(const char *logical,bool open_file)
 {
-	PLFS_ENTER;
     TruncateOp op(open_file);
     // ignore ENOENT since it is possible that the set of files can contain
     // duplicates.
@@ -1698,16 +1697,7 @@ truncateFile(const char *logical,bool open_file)
     op.ignore(ACCESSFILE);
     op.ignore(OPENPREFIX);
     op.ignore(VERSIONPREFIX);
-    ret = plfs_file_operation(logical,op);
-
-	if (ret == 0 && open_file) {
-		// this is a bit goofy.  if open_file, we just truncate all the droppigns
-		// we don't remove droppings bec some other proc might have them open
-		// however, we do need to remove the droppings in the meta dir bec they
-		// are no longer accurate.  Then we prolly want to create a new meta dropping
-		ret = Container::truncateMeta(path, 0);
-	}
-	PLFS_EXIT(ret);
+    return plfs_file_operation(logical,op);
 }
 
 // this should only be called if the uid has already been checked
@@ -1884,10 +1874,8 @@ container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
         ret = Util::Truncate(access.c_str(),0);
         mlog(PLFS_DCOMMON, "Tested truncate of %s: %d",access.c_str(),ret);
         if ( ret == 0 ) {
-            // this is easy, just remove all droppings
-            // this now removes METADIR droppings instead of incorrectly
-            // truncating them
-            ret = truncateFile(logical,(bool)open_file);
+            // this is easy, just remove/trunc all droppings
+            ret = truncateFileToZero(logical,(bool)open_file);
         }
     } else {
         // either at existing end, before it, or after it
@@ -1948,8 +1936,11 @@ container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
     if ( ret == 0 && of && of->getWritefile() ) {
         mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
         // in the case that extend file, need not truncateHostIndex
-        if (offset <= stbuf.st_size ) {
-            ret = of->getWritefile()->truncate( offset );
+        if (offset <= stbuf.st_size) {
+			ret = Container::truncateMeta(path, offset);
+			if (ret==0) {
+				ret = of->getWritefile()->truncate( offset );
+			}
         }
         of->truncate( offset );
         // here's a problem, if the file is open for writing, we've
@@ -1960,7 +1951,8 @@ container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
         // them at the old path....
         if ( ret == 0 && of && of->getWritefile() ) {
             mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
-            ret = of->getWritefile()->restoreFds();
+			bool droppings_were_truncd = (offset==0 && open_file);
+            ret = of->getWritefile()->restoreFds(droppings_were_truncd);
             if ( ret != 0 ) {
                 mlog(PLFS_DRARE, "%s:%d failed: %s",
                      __FUNCTION__, __LINE__, strerror(errno));

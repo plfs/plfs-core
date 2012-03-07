@@ -295,8 +295,7 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
 
 // this assumes that the hostdir exists and is full valid path
 // returns 0 or -errno
-int WriteFile::openIndex( pid_t pid )
-{
+int WriteFile::openIndex( pid_t pid ) {
     int ret = 0;
     string index_path;
     int fd = openIndexFile(subdir_path, hostname, pid, DROPPING_MODE,
@@ -388,7 +387,7 @@ int WriteFile::openFile( string physicalpath, mode_t mode )
 // in that case, we need to restore them
 // what if rename is called and then f_truncate?
 // return 0 or -errno
-int WriteFile::restoreFds( )
+int WriteFile::restoreFds( bool droppings_were_truncd )
 {
     map<int,string>::iterator paths_itr;
     map<pid_t, OpenFd >::iterator pids_itr;
@@ -419,6 +418,10 @@ int WriteFile::restoreFds( )
             return -errno;
         }
         index->resetFd( ret );
+		if (droppings_were_truncd) {
+			// this means that they were truncd to 0 offset
+			index->resetPhysicalOffsets();
+		}
         Util::MutexUnlock( &index_mux, __FUNCTION__ );
     }
     // then the data fds

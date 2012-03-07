@@ -324,6 +324,16 @@ Index::unlock( const char *function )
     Util::MutexUnlock( &fd_mux, function );
 }
 
+int
+Index::resetPhysicalOffsets() {
+    map<pid_t,off_t>::iterator itr;
+    for(itr=physical_offsets.begin(); itr!=physical_offsets.end(); itr++){
+        itr->second = 0;
+        //physical_offsets[itr.first] = 0;
+    }
+    return 0;
+}
+
 Index::Index( string logical ) : Metadata::Metadata()
 {
     init( logical );
@@ -1338,6 +1348,7 @@ Index::truncate( off_t offset )
 void
 Index::truncateHostIndex( off_t offset )
 {
+    last_offset = offset;
     vector< HostEntry > new_entries;
     vector< HostEntry >::iterator itr;
     for( itr = hostIndex.begin(); itr != hostIndex.end(); itr++ ) {

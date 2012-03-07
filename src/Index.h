@@ -128,6 +128,8 @@ class Index : public Metadata
             this->fd = fd;
         }
 
+		int resetPhysicalOffsets();
+
         size_t totalBytes( );
 
         int getChunkFd( pid_t chunk_id );

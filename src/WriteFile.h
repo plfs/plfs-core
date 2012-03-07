@@ -50,7 +50,7 @@ class WriteFile : public Metadata
         void setContainerPath( string path );
         void setSubdirPath (string path);
 
-        int restoreFds();
+        int restoreFds(bool droppings_were_truncd);
         Index *getIndex() {
             return index;
         }
