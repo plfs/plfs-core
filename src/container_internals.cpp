@@ -1688,6 +1688,7 @@ container_sync( Container_OpenFile *pfd, pid_t pid )
 int
 truncateFile(const char *logical,bool open_file)
 {
+	PLFS_ENTER;
     TruncateOp op(open_file);
     // ignore ENOENT since it is possible that the set of files can contain
     // duplicates.
@@ -1697,7 +1698,16 @@ truncateFile(const char *logical,bool open_file)
     op.ignore(ACCESSFILE);
     op.ignore(OPENPREFIX);
     op.ignore(VERSIONPREFIX);
-    return plfs_file_operation(logical,op);
+    ret = plfs_file_operation(logical,op);
+
+	if (ret == 0 && open_file) {
+		// this is a bit goofy.  if open_file, we just truncate all the droppigns
+		// we don't remove droppings bec some other proc might have them open
+		// however, we do need to remove the droppings in the meta dir bec they
+		// are no longer accurate.  Then we prolly want to create a new meta dropping
+		ret = Container::truncateMeta(path, 0);
+	}
+	PLFS_EXIT(ret);
 }
 
 // this should only be called if the uid has already been checked
