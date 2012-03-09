@@ -49,7 +49,7 @@ void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code)
         plfs_close(fd->fs_ptr, rank, uid, amode, &close_opt);
         file_is_open = 0;
         fd->fs_ptr = NULL;
-        MPI_Barrier(fd->comm);
+        plfs_barrier(fd->comm,rank);
     }
     /* do the truncate */
     if (rank == fd->hints->ranklist[0]) {

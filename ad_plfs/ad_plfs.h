@@ -56,6 +56,16 @@ void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code);
 
 int plfs_protect_all(const char *file, MPI_Comm comm);
 
+#define plfs_barrier(X,Y) \
+    do { \
+        plfs_debug("Rank %d: Enter barrier from %s:%d", \
+            Y, __FUNCTION__, __LINE__ ); \
+        MPI_Barrier(X); \
+        plfs_debug("Rank %d: Exit barrier from %s:%d", \
+            Y, __FUNCTION__, __LINE__ ); \
+    } while(0);
+    
+
 int ad_plfs_amode( int access_mode );
 void malloc_check(void *test_me,int rank);
 void check_stream(int size,int rank);

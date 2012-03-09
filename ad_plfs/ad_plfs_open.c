@@ -305,11 +305,11 @@ int open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
         // everyone opens themselves (write mode or independent read mode)
         // hostdir_rank zeros do the open first on the write
         if (write_mode && hostdir_rank) {
-            MPI_Barrier(hostdir_comm);
+            plfs_barrier(hostdir_comm,rank);
         }
         err = plfs_open( pfd, fd->filename, amode, rank, perm ,&open_opt);
         if (write_mode && !hostdir_rank) {
-            MPI_Barrier(hostdir_comm);
+            plfs_barrier(hostdir_comm,rank);
         }
     }
     // clean up the communicator we used

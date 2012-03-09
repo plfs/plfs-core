@@ -27,9 +27,9 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
     Plfs_close_opt close_opt;
     close_opt.pinter=PLFS_MPIIO;
     int flatten=0;
-    plfs_debug("%s: begin\n", myname );
     MPI_Comm_rank( fd->comm, &rank );
     MPI_Comm_size( fd->comm, &procs);
+    plfs_debug("%s: begin\n", myname );
     close_opt.num_procs = procs;
     amode = ad_plfs_amode( fd->access_mode );
     if(fd->fs_ptr==NULL) {
@@ -57,6 +57,7 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
         plfs_debug("Rank: %d in regular close\n",rank);
         if(fd->access_mode!=ADIO_RDONLY) {
             reduce_meta(fd, fd->fs_ptr, fd->filename, &close_opt, rank);
+            printf("RANK %d: ad --> finished reducing the meta\n", rank);
         }
         err = plfs_close(fd->fs_ptr, rank, uid,amode,&close_opt);
     }
@@ -195,7 +196,7 @@ void reduce_meta(ADIO_File afd, Plfs_fd *fd,const char *filename,
     if (lazy_stat == 0) {
         // every rank calls plfs_sync to flush in-memory index.
         plfs_sync(fd, rank);
-        MPI_Barrier(afd->comm);
+        plfs_barrier(afd->comm,rank);
         // rank 0 does slow stat, need not BCAST here
         if (rank == 0) {
             size_only = 0;

@@ -295,8 +295,7 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
 
 // this assumes that the hostdir exists and is full valid path
 // returns 0 or -errno
-int WriteFile::openIndex( pid_t pid )
-{
+int WriteFile::openIndex( pid_t pid ) {
     int ret = 0;
     string index_path;
     int fd = openIndexFile(subdir_path, hostname, pid, DROPPING_MODE,

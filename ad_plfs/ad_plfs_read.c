@@ -38,7 +38,10 @@ void ADIOI_PLFS_ReadContig(ADIO_File fd, void *buf, int count,
         // index before any rank calling plfs_read.
         // need not do this for read-only file.
         plfs_sync( fd->fs_ptr, rank );
-        MPI_Barrier( fd->comm );
+        //we can't barrier here, MPI_File_read_at calls this function
+        //and is non-collective (we've seen a run hang where rank 0
+        //enters this function but rank 1 does not for example)
+        //plfs_barrier(fd->comm,rank);
     }
     err = plfs_read( fd->fs_ptr, buf, len, myoff );
 #ifdef HAVE_STATUS_SET_BYTES
