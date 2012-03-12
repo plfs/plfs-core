@@ -1656,6 +1656,12 @@ container_write(Container_OpenFile *pfd, const char *buf, size_t size,
 }
 
 int
+container_sync( Container_OpenFile *pfd )
+{
+    return ( pfd->getWritefile() ? pfd->getWritefile()->sync() : 0 );
+}
+
+int
 container_sync( Container_OpenFile *pfd, pid_t pid )
 {
     return ( pfd->getWritefile() ? pfd->getWritefile()->sync(pid) : 0 );

@@ -37,7 +37,7 @@ void ADIOI_PLFS_ReadContig(ADIO_File fd, void *buf, int count,
         // calls plfs_sync + barrier to ensure all ranks flush in-memory
         // index before any rank calling plfs_read.
         // need not do this for read-only file.
-        plfs_sync( fd->fs_ptr, rank );
+        plfs_sync( fd->fs_ptr);
         //we can't barrier here, MPI_File_read_at calls this function
         //and is non-collective (we've seen a run hang where rank 0
         //enters this function but rank 1 does not for example)

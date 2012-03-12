@@ -58,6 +58,30 @@ WriteFile::~WriteFile()
     pthread_mutex_destroy( &index_mux );
 }
 
+
+int WriteFile::sync()
+{
+    int ret = 0;
+    // iterate through and sync all open fds
+    Util::MutexLock( &data_mux, __FUNCTION__ );
+    map<pid_t, OpenFd >::iterator pids_itr;
+    for( pids_itr = fds.begin(); pids_itr != fds.end() && ret==0; pids_itr++ ) {
+        ret = Util::Fsync( pids_itr->second.fd );
+    }
+    Util::MutexUnlock( &data_mux, __FUNCTION__ );
+
+    // now sync the index
+    Util::MutexLock( &index_mux, __FUNCTION__ );
+    if ( ret == 0 ) {
+        index->flush();
+    }
+    if ( ret == 0 ) {
+        ret = Util::Fsync( index->getFd() );
+    }
+    Util::MutexUnlock( &index_mux, __FUNCTION__ );
+    return ret;
+}
+
 int WriteFile::sync( pid_t pid )
 {
     int ret=0;

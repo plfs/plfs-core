@@ -189,7 +189,9 @@ typedef void *Plfs_fd;
     int plfs_symlink( const char *path, const char *to );
 
     /* individual writers can be sync'd.  */
-    int plfs_sync( Plfs_fd *, pid_t );
+    //int plfs_sync( Plfs_fd *, pid_t );
+
+    int plfs_sync( Plfs_fd * );
 
     /* Plfs_fd can be NULL, but then path must be valid */
     int plfs_trunc( Plfs_fd *, const char *path, off_t, int open_file );

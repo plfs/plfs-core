@@ -16,6 +16,7 @@ class Plfs_fd
         virtual ssize_t read(char *buf, size_t size, off_t offset) = 0;
         virtual ssize_t write(const char *buf, size_t size, off_t offset,
                               pid_t pid) = 0;
+        virtual int sync() = 0;
         virtual int sync(pid_t pid) = 0;
         virtual int trunc(const char *path, off_t offset) = 0;
         virtual int getattr(const char *path, struct stat *stbuf,

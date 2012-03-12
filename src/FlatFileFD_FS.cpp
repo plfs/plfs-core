@@ -83,9 +83,16 @@ Flat_fd::write(const char *buf, size_t size, off_t offset, pid_t pid)
 }
 
 int
-Flat_fd::sync(pid_t pid)
+Flat_fd::sync()
 {
     int ret = Util::Fsync(backend_fd);
+    FLAT_EXIT(ret);
+}
+
+int
+Flat_fd::sync(pid_t pid)
+{
+    int ret = sync(); 
     FLAT_EXIT(ret);
 }
 

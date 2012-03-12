@@ -57,7 +57,6 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
         plfs_debug("Rank: %d in regular close\n",rank);
         if(fd->access_mode!=ADIO_RDONLY) {
             reduce_meta(fd, fd->fs_ptr, fd->filename, &close_opt, rank);
-            printf("RANK %d: ad --> finished reducing the meta\n", rank);
         }
         err = plfs_close(fd->fs_ptr, rank, uid,amode,&close_opt);
     }
@@ -195,7 +194,7 @@ void reduce_meta(ADIO_File afd, Plfs_fd *fd,const char *filename,
     plfs_query(fd, NULL, NULL, NULL, &lazy_stat);
     if (lazy_stat == 0) {
         // every rank calls plfs_sync to flush in-memory index.
-        plfs_sync(fd, rank);
+        plfs_sync(fd);
         plfs_barrier(afd->comm,rank);
         // rank 0 does slow stat, need not BCAST here
         if (rank == 0) {

@@ -45,6 +45,8 @@ int container_statvfs( const char *path, struct statvfs *stbuf );
 
 int container_symlink( const char *path, const char *to );
 
+int container_sync( Container_OpenFile * );
+
 int container_sync( Container_OpenFile *, pid_t );
 
 int container_trunc( Container_OpenFile *, const char *path, off_t,

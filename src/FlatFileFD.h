@@ -20,6 +20,7 @@ class Flat_fd : public Plfs_fd
         int close(pid_t, uid_t, int flags, Plfs_close_opt *);
         ssize_t read(char *buf, size_t size, off_t offset);
         ssize_t write(const char *buf, size_t size, off_t offset, pid_t pid);
+        int sync();
         int sync(pid_t pid);
         int trunc(const char *path, off_t offset);
         int getattr(const char *path, struct stat *stbuf, int sz_only);

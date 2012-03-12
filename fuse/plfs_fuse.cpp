@@ -166,6 +166,7 @@ class generic_exception: public exception
                    SAVE_IDS;                                                  \
                    SET_IDS(fuse_get_context()->uid,fuse_get_context()->gid);  \
                    int ret = 0;                                               \
+                    mlog(FUSE_DBG,"%s", lm.str().c_str());                  \
                     try{
 
 
@@ -181,6 +182,7 @@ class generic_exception: public exception
                    END_TIMES;                                           \
                    END_MESSAGE;                                         \
                    lm2 << funct_id.str() << endl; lm2.flush();          \
+                   mlog(FUSE_DBG,"%s", lm2.str().c_str());                  \
                    DEBUG_MUTEX_OFF;                                     \
                    return ret;
 
@@ -492,7 +494,7 @@ int Plfs::f_fsync(const char *path, int datasync, struct fuse_file_info *fi)
     FUSE_PLFS_ENTER;
     GET_OPEN_FILE;
     if (of) {
-        plfs_sync(of, fuse_get_context()->pid);
+        plfs_sync(of);
     }
     FUSE_PLFS_EXIT;
 }
@@ -506,7 +508,7 @@ int Plfs::f_ftruncate(const char *path, off_t offset,
     FUSE_PLFS_ENTER;
     GET_OPEN_FILE;
     if(of) {
-        plfs_sync(of,fuse_get_context()->pid);    // flush any index buffers
+        plfs_sync(of);    // flush any index buffers
     }
     ret = plfs_trunc( of, strPath.c_str(), offset, true );
     FUSE_PLFS_EXIT;
@@ -522,12 +524,36 @@ int Plfs::f_truncate( const char *path, off_t offset )
     FUSE_PLFS_EXIT;
 }
 
+// a helper to ensure that any open files are sync'd before stat'ing or read'ing
+int Plfs::syncIfOpen( const string &expanded ) {
+
+    plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
+    list< struct hash_element > results;
+    findAllOpenFiles ( expanded , results);
+    while(results.size()) {
+        struct hash_element current;
+        current = results.front();
+        results.pop_front();
+        Plfs_fd *pfd;
+        pfd = current.fd;
+        mlog(FUSE_DBG,"%s syncing %s", __FUNCTION__, pfd->getPath());
+        pfd->sync();
+    }
+    plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
+    
+    return 0;
+}
+
 // a helper for f_getattr and f_fgetattr.
 int Plfs::getattr_helper( string expanded, const char *path,
                           struct stat *stbuf, Plfs_fd *of )
 {
     struct pfuse_debug_driver *dd;
     bool sz_only = false;
+
+    // ok, if the file is currently open for write, let's sync it first
+    syncIfOpen(expanded);
+
     int ret = plfs_getattr( of, expanded.c_str(), stbuf, sz_only );
     if ( ret == -ENOENT ) {
         if ( (dd = get_dbgdrv(path)) != NULL ) {
@@ -1130,8 +1156,9 @@ int Plfs::f_readn(const char *path, char *buf, size_t size, off_t offset,
     mlog(FUSE_DCOMMON, "%s", os.str().c_str() );
     // calls plfs_sync to flush in-memory index.
     if (of) {
-        plfs_sync( of, fuse_get_context()->pid );
+        plfs_sync( of );
     }
+    syncIfOpen(strPath);
     ret = plfs_read( of, buf, size, offset );
     FUSE_PLFS_EXIT;
 }
@@ -1198,7 +1225,7 @@ int Plfs::f_flush( const char *path, struct fuse_file_info *fi )
     FUSE_PLFS_ENTER;
     GET_OPEN_FILE;
     if ( of ) {
-        ret = plfs_sync( of, fuse_get_context()->pid );
+        ret = plfs_sync( of );
     }
     FUSE_PLFS_EXIT;
 }
@@ -1337,6 +1364,8 @@ Plfs::findAllOpenFiles( string expanded, list<struct hash_element > &results)
     struct hash_element current;
     for( searcher = self->open_files.begin() ;
             searcher != self->open_files.end() ; searcher++) {
+        mlog(FUSE_DBG, "%s : %s =?= %s\n", __FUNCTION__, expanded.c_str(),
+                searcher->first.c_str());
         if ( !strncmp( expanded.c_str() , searcher->first.c_str() ,
                        expanded.size() ) ) {
             current.path = searcher->first;

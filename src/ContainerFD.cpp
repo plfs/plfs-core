@@ -43,6 +43,12 @@ Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid)
 }
 
 int
+Container_fd::sync()
+{
+    return container_sync(fd);
+}
+
+int
 Container_fd::sync(pid_t pid)
 {
     return container_sync(fd, pid);

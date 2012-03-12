@@ -45,6 +45,7 @@ class WriteFile : public Metadata
 
         ssize_t write( const char *, size_t, off_t, pid_t );
 
+        int sync( );
         int sync( pid_t pid );
 
         void setContainerPath( string path );

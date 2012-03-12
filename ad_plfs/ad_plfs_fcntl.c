@@ -19,7 +19,7 @@ void ADIOI_PLFS_Fcntl(ADIO_File fd, int flag, ADIO_Fcntl_t *fcntl_struct,
         plfs_query(fd->fs_ptr, NULL, NULL, NULL, &lazy_stat);
         if (lazy_stat == 0) {
             // every rank calls plfs_sync to flush in-memory index.
-            plfs_sync(fd->fs_ptr, rank);
+            plfs_sync(fd->fs_ptr);
             plfs_barrier(fd->comm,rank);
             // rank 0 does slow stat and broadcasts to all.
             MPI_Comm_rank(fd->comm, &rank);
