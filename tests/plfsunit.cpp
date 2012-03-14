@@ -118,7 +118,7 @@ PlfsUnit::readWriteTest() {
 	    off_t offset=rand();
 	    ret = plfs_write(fd, "HELLO WORLD.", 13, offset, fpid);
 	    CPPUNIT_ASSERT_EQUAL(13, ret);
-	    ret = plfs_sync(fd, fpid);
+	    ret = plfs_sync(fd);
 	    CPPUNIT_ASSERT_EQUAL(0, ret);
 	    ret = plfs_read(fd, rbuf, 13, offset);
 	    CPPUNIT_ASSERT_EQUAL(13, ret);
@@ -137,7 +137,7 @@ PlfsUnit::readWriteTest() {
             CPPUNIT_ASSERT(fd);
 	    ret = plfs_write(fd, "HELLO WORLD.", 13, offset, fpid);
 	    CPPUNIT_ASSERT_EQUAL(13, ret);
-	    ret = plfs_sync(fd, fpid);
+	    ret = plfs_sync(fd);
 	    CPPUNIT_ASSERT_EQUAL(0, ret);
 	    ret = plfs_read(fd, rbuf, 13, offset);
 	    CPPUNIT_ASSERT_EQUAL(13, ret);
