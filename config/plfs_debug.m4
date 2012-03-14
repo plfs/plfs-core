@@ -1,4 +1,4 @@
-dnl Copyright (c) 2009-2011, Los Alamos National Security, LLC.
+dnl Copyright (c) 2009-2012, Los Alamos National Security, LLC.
 dnl                          All rights reserved.
 dnl
 dnl This software was produced under U.S. Government contract DE-AC52-06NA25396
@@ -76,8 +76,8 @@ AC_DEFUN([AC_PLFS_DEUBG_FLAG_CHECK],
     # all debug flags
     AC_MSG_CHECKING([if want all PLFS developer debug flags enabled])
     AC_ARG_ENABLE(all-debug-flags,
-        AC_HELP_STRING([--enable-all-debug-flags],
-                       [enable all PLFS developer debug flags (default: enabled)]))
+        AC_HELP_STRING([--disable-all-debug-flags],
+                       [disable all PLFS developer debug flags (default: enabled)]))
     AS_IF([test "$enable_all_debug_flags" = "no"],
           [AC_MSG_RESULT([no])
            plfs_add_all_debug_flags=0],
