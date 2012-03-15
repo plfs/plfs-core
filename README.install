@@ -40,11 +40,6 @@ to your PATH environment.
   > ./autogen.sh # since we patched a Makefile.am
   > ./configure; make
 
-[XXXXXX If you are a user and downloaded a distribution tarball, then skip
-this.  If, on the other hand, you are a developer and you checked out the
-source, at this point you need to run ./scripts/make_plfs_patch.  This will
-build the patch file needed for the next steps.] 
-
   One tricky bit is that you have to make sure that your mpi build knows 
   how to find your plfs.h and your libplfs files.  We do that with a 
   platform file that has lines like this in it:
@@ -54,6 +49,11 @@ build the patch file needed for the next steps.]
     CXXFLAGS="-I/opt/panfs/include -m64 -I/users/johnbent/plfs/include "
     CCASFLAGS="-I/opt/panfs/include -m64 -I/users/johnbent/plfs/include " 
   Then your configure line is like this: ./configure --with-platform=./platform 
+
+[XXXXXX If you are a user and downloaded a distribution tarball, then skip
+this.  If, on the other hand, you are a developer and you checked out the
+source, at this point you need to run ./scripts/make_plfs_patch.  This will
+build the patch file needed for the next steps.] 
 
 3) To build the PLFS library and link apps against it.
 
