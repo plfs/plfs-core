@@ -23,6 +23,10 @@ typedef void *Plfs_fd;
         PLFS_API, PLFS_POSIX, PLFS_MPIIO
     } plfs_interface;
 
+    typedef enum {
+        CONTAINER, FLAT_FILE, PFT_UNKNOWN
+    } plfs_filetype;
+
     typedef struct {
         char *index_stream; /* Index stream passed in from another proc */
         int  buffer_index;  /* Buffer index yes/no                      */
@@ -209,6 +213,10 @@ typedef void *Plfs_fd;
     ssize_t plfs_write( Plfs_fd *, const char *, size_t, off_t, pid_t );
 
     double plfs_wtime();
+
+    // something needed for MPI-IO to know to avoid optimizations unless
+    // in container mode
+    plfs_filetype plfs_get_filetype(const char *path);
 
     // parindex read functions
     int plfs_partition_hostdir(void *entries, int rank,

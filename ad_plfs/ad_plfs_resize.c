@@ -33,36 +33,40 @@ void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code)
     }
     MPI_Comm_rank(fd->comm, &rank);
     MPI_Comm_size( fd->comm, &procs);
-    /* do close+reopen when user ever wrote something. */
-    plfs_query(fd->fs_ptr, NULL, NULL, &bytes_written, NULL);
-    MPI_Allreduce(&bytes_written, &total_bytes, 1, MPI_LONG_LONG,
-                  MPI_SUM, fd->comm);
-    if (bytes_written) {
-        do_close_reopen = 1;
-    }
-    if (do_close_reopen) {
-        plfs_debug( "%s: do close+reopen for truncate.\n", myname );
-        close_opt.pinter=PLFS_MPIIO;
-        close_opt.num_procs = procs;
-        reduce_meta(fd, fd->fs_ptr, fd->filename, &close_opt, rank);
-        amode = ad_plfs_amode(fd->access_mode);
-        plfs_close(fd->fs_ptr, rank, uid, amode, &close_opt);
-        file_is_open = 0;
-        fd->fs_ptr = NULL;
-        plfs_barrier(fd->comm,rank);
+    // in container mode, we might need to close then reopen to ensure
+    // the truncate works correctly.  flat file doesn't need this though
+    if (plfs_get_filetype(fd->filename) == CONTAINER) {
+        /* do close+reopen when user ever wrote something. */
+        plfs_query(fd->fs_ptr, NULL, NULL, &bytes_written, NULL);
+        MPI_Allreduce(&bytes_written, &total_bytes, 1, MPI_LONG_LONG,
+                      MPI_SUM, fd->comm);
+        if (bytes_written) {
+            do_close_reopen = 1;
+        }
+        if (do_close_reopen) {
+            plfs_debug( "%s: do close+reopen for truncate.\n", myname );
+            close_opt.pinter=PLFS_MPIIO;
+            close_opt.num_procs = procs;
+            reduce_meta(fd, fd->fs_ptr, fd->filename, &close_opt, rank);
+            amode = ad_plfs_amode(fd->access_mode);
+            plfs_close(fd->fs_ptr, rank, uid, amode, &close_opt);
+            file_is_open = 0;
+            fd->fs_ptr = NULL;
+            plfs_barrier(fd->comm,rank);
+        }
     }
     /* do the truncate */
     if (rank == fd->hints->ranklist[0]) {
-	// running the silverton test code we are seeing that
-	// rank 1 has already opened the file and then rank 0 
-	// gets the Resize call and doesn't see that the file is open
-	// then we 0 calls this with file_is_open==0, plfs_trunc in
-	// container mode does unlink of droppings thereby destroying
-	// rank 1's open files.  Thus, let's always do open_file==1 here
-	// since we can't tell for sure that someone else doesn't have it
-	// open.  then plfs_trunc internal will only truncate droppings and
-	// not delete
-	file_is_open=1;
+        // running the silverton test code we are seeing that
+        // rank 1 has already opened the file and then rank 0
+        // gets the Resize call and doesn't see that the file is open
+        // then we 0 calls this with file_is_open==0, plfs_trunc in
+        // container mode does unlink of droppings thereby destroying
+        // rank 1's open files.  Thus, let's always do open_file==1 here
+        // since we can't tell for sure that someone else doesn't have it
+        // open.  then plfs_trunc internal will only truncate droppings and
+        // not delete
+        file_is_open=1;
         err = plfs_trunc(fd->fs_ptr, fd->filename, size, file_is_open);
     }
     // we want to barrier so that no-one leaves until we are done truncating

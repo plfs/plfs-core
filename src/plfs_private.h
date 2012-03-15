@@ -32,11 +32,6 @@ expansionMethod {
     EXPAND_TO_I,
 };
 
-typedef enum {
-    CONTAINER,
-    FLAT_FILE
-} plfs_filetype;
-
 typedef struct {
     string mnt_pt;  // the logical mount point
     string *statfs; // where to resolve statfs calls

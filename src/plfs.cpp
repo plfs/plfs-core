@@ -32,6 +32,15 @@ plfs_get_logical_fs(const char *path)
     return pmount->fs_ptr;
 }
 
+plfs_filetype
+plfs_get_filetype(const char *path)
+{
+    bool found = false;
+    PlfsConf *pconf = get_plfs_conf();
+    PlfsMount *pmount = find_mount_point(pconf, path, found);
+    return (found && pmount ? pmount->file_type : PFT_UNKNOWN);
+}
+
 int
 plfs_access(const char *path, int mask)
 {
