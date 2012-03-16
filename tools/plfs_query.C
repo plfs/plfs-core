@@ -154,7 +154,9 @@ main (int argc, char **argv) {
         //Not a plfs file, attempt to treat it like a physical file
         std::string logical_file;
         if (logical_from_physical(target, logical_file) != 0) {
-            fprintf(stderr, "Couldn't query %s\n", target);
+            fprintf(stderr, "Error: %s is not in a PLFS mountpoint"
+                " configured with 'workload n-1' nor is it a physical"
+                " dropping.\n", target);
         } else {
             printf("Logical file location:\n%s\n", logical_file.c_str());
         }
