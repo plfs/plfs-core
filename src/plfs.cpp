@@ -91,9 +91,10 @@ int
 plfs_close(Plfs_fd *fd, pid_t pid, uid_t u, int open_flags,
            Plfs_close_opt *close_opt)
 {
-    debug_enter(__FUNCTION__,fd->getPath());
+    string debug_out = fd->getPath();
+    debug_enter(__FUNCTION__,debug_out);
     int ret = fd->close(pid, u, open_flags, close_opt);
-    debug_exit(__FUNCTION__,fd->getPath(),ret);
+    debug_exit(__FUNCTION__,debug_out,ret);
     if (ret <= 0) {
         delete fd;
     }
