@@ -78,7 +78,7 @@ findmesgbuf_LDFLAGS = \
 # plfs_map
 ################################################################################
 plfs_map_SOURCES = \
-plfs_map.C
+plfs_map.C plfs_tool_common.h
 
 plfs_map_CXXFLAGS = \
 -I$(top_srcdir)/src \
@@ -92,7 +92,7 @@ plfs_map_LDFLAGS = \
 # plfs_query
 ################################################################################
 plfs_query_SOURCES = \
-plfs_query.C
+plfs_query.C plfs_tool_common.h
 
 plfs_query_CXXFLAGS = \
 -I$(top_srcdir)/src \
@@ -106,7 +106,7 @@ plfs_query_LDFLAGS = \
 # plfs_flatten_index
 ################################################################################
 plfs_flatten_index_SOURCES = \
-plfs_flatten_index.C
+plfs_flatten_index.C plfs_tool_common.h
 
 plfs_flatten_index_CXXFLAGS = \
 -I$(top_srcdir)/src \
@@ -120,7 +120,7 @@ plfs_flatten_index_LDFLAGS = \
 # plfs_recover
 ################################################################################
 plfs_recover_SOURCES = \
-plfs_recover.C
+plfs_recover.C plfs_tool_common.h
 
 plfs_recover_CXXFLAGS = \
 -I$(top_srcdir)/src \
@@ -134,7 +134,7 @@ plfs_recover_LDFLAGS = \
 # plfs_version
 ################################################################################
 plfs_version_SOURCES = \
-plfs_version.C
+plfs_version.C plfs_tool_common.h
 
 plfs_version_CXXFLAGS = \
 -I$(top_srcdir)/src \
@@ -148,7 +148,7 @@ plfs_version_LDFLAGS = \
 # plfs_check_config
 ################################################################################
 plfs_check_config_SOURCES = \
-plfs_check_config.C
+plfs_check_config.C plfs_tool_common.h
 
 plfs_check_config_CXXFLAGS = \
 -I$(top_srcdir)/src \

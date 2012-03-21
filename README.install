@@ -49,6 +49,7 @@ to your PATH environment.
     CXXFLAGS="-I/opt/panfs/include -m64 -I/users/johnbent/plfs/include "
     CCASFLAGS="-I/opt/panfs/include -m64 -I/users/johnbent/plfs/include " 
   Then your configure line is like this: ./configure --with-platform=./platform 
+  You may also need to set LD_LIBRARY_PATH to where you install the plfs lib
 
 [XXXXXX If you are a user and downloaded a distribution tarball, then skip
 this.  If, on the other hand, you are a developer and you checked out the

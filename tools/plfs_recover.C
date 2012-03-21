@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <errno.h>
 
-#include "plfs_tool_common.hpp"
+#include "plfs_tool_common.h"
 #include "plfs.h"
 #include "COPYRIGHT.h"
 
@@ -24,7 +24,6 @@ int main (int argc, char **argv) {
             break;
         default:
             fprintf(stderr,"Couldn't recover %s: %s\n",target,strerror(-ret));
-            fprintf(stderr,"%s may not be on a n-1 mount point\n",target);
             break;
     }
     exit( ret );
