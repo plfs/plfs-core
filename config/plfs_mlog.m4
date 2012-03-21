@@ -47,7 +47,7 @@ AC_DEFUN([AC_PLFS_MLOG_FLAG_CHECK],
     AC_MSG_CHECKING([if want PLFS mlog support])
     AC_ARG_ENABLE(mlog,
         AC_HELP_STRING([--disable-mlog],
-                       [disable log (default: enabled)]))
+                       [disable PLFS logging capabilities (default: enabled)]))
     AS_IF([test "$enable_mlog" = "no"],
           [AC_MSG_RESULT([no])
            CFLAGS="$CFLAGS -DMLOG_NEVERLOG"
@@ -57,7 +57,7 @@ AC_DEFUN([AC_PLFS_MLOG_FLAG_CHECK],
     AC_MSG_CHECKING([if want PLFS mlog macro optimizations])
     AC_ARG_ENABLE(mlog-macro-opts,
         AC_HELP_STRING([--disable-mlog-macro-opts],
-                       [disable mlog macro optimizations (default: enabled)]))
+                       [disable mlog macro optimizations; useful when working with older C preprocessors (default: enabled)]))
     AS_IF([test "$enable_mlog_macro_opts" = "no"],
           [AC_MSG_RESULT([no])
            CFLAGS="$CFLAGS -DMLOG_NOMACRO_OPT"

@@ -55,8 +55,7 @@ plfs_flatten_index
 dcon_SOURCES = \
 dcon.c
 
-dcon_CFLAGS = \
-@PLFS_DEBUG_CFLAGS@
+dcon_CFLAGS = 
 
 dcon_LDFLAGS = 
 
@@ -67,8 +66,7 @@ findmesgbuf_SOURCES = \
 findmesgbuf.c
 
 findmesgbuf_CFLAGS = \
--I$(top_srcdir)/src \
-@PLFS_DEBUG_CFLAGS@
+-I$(top_srcdir)/src 
 
 findmesgbuf_LDFLAGS = \
 -L../src -lplfs \
@@ -81,8 +79,7 @@ plfs_map_SOURCES = \
 plfs_map.C plfs_tool_common.h
 
 plfs_map_CXXFLAGS = \
--I$(top_srcdir)/src \
-@PLFS_DEBUG_CFLAGS@
+-I$(top_srcdir)/src 
 
 plfs_map_LDFLAGS = \
 -L../src -lplfs \
@@ -95,8 +92,7 @@ plfs_query_SOURCES = \
 plfs_query.C plfs_tool_common.h
 
 plfs_query_CXXFLAGS = \
--I$(top_srcdir)/src \
-@PLFS_DEBUG_CFLAGS@
+-I$(top_srcdir)/src 
 
 plfs_query_LDFLAGS = \
 -L../src -lplfs \
@@ -109,8 +105,7 @@ plfs_flatten_index_SOURCES = \
 plfs_flatten_index.C plfs_tool_common.h
 
 plfs_flatten_index_CXXFLAGS = \
--I$(top_srcdir)/src \
-@PLFS_DEBUG_CFLAGS@
+-I$(top_srcdir)/src 
 
 plfs_flatten_index_LDFLAGS = \
 -L../src -lplfs \
@@ -123,8 +118,7 @@ plfs_recover_SOURCES = \
 plfs_recover.C plfs_tool_common.h
 
 plfs_recover_CXXFLAGS = \
--I$(top_srcdir)/src \
-@PLFS_DEBUG_CFLAGS@
+-I$(top_srcdir)/src 
 
 plfs_recover_LDFLAGS = \
 -L../src -lplfs \
@@ -137,8 +131,7 @@ plfs_version_SOURCES = \
 plfs_version.C plfs_tool_common.h
 
 plfs_version_CXXFLAGS = \
--I$(top_srcdir)/src \
-@PLFS_DEBUG_CFLAGS@
+-I$(top_srcdir)/src 
 
 plfs_version_LDFLAGS = \
 -L../src -lplfs \
@@ -151,8 +144,7 @@ plfs_check_config_SOURCES = \
 plfs_check_config.C plfs_tool_common.h
 
 plfs_check_config_CXXFLAGS = \
--I$(top_srcdir)/src \
-@PLFS_DEBUG_CFLAGS@
+-I$(top_srcdir)/src 
 
 plfs_check_config_LDFLAGS = \
 -L../src -lplfs \

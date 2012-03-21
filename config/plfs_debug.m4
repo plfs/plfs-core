@@ -48,67 +48,30 @@ AC_DEFUN([AC_PLFS_DEUBG_FLAG_CHECK],
     plfs_debug_cflags_save="$CFLAGS"
     plfs_debug_cxxflags_save="$CXXFLAGS"
 
-    plfs_all_debug_flags="-DPLFS_DEBUG_ON -DFUSE_COLLECT_TIMES -DUTIL_COLLECT_TIMES -DINDEX_CONTAINS_TIMESTAMPS"
+    plfs_stats_flags="-DFUSE_COLLECT_TIMES -DUTIL_COLLECT_TIMES"
     
     dnl --enable-all-debug-flags is always enabled by default
     dnl use --disable-all-debug-flags to disable this option
-    plfs_add_all_debug_flags=1
-    plfs_add_plfs_debug_flags=0
+    plfs_add_stats_flags=1
     plfs_debug_cflags=
     plfs_debug_cxxflags=
-    plfs_want_dev_support=0
 
     PLFS_DEBUG_CFLAGS=
     PLFS_DEBUG_CXXFLAGS=
 
-    # do we enable devel support?
-    AC_MSG_CHECKING([if want PLFS developer installation])
-    AC_ARG_ENABLE(plfs-dev,
-        AC_HELP_STRING([--plfs-dev],
-                       [enable PLFS developer installation (default: disabled)]))
-    AS_IF([test "$enable_plfs_dev" = "yes"],
-          [AC_MSG_RESULT([yes])
-           plfs_want_dev_support=1],
-          [AC_MSG_RESULT([no])])
-    AM_CONDITIONAL([PLFS_BUILD_DEV],
-                   [test "x$plfs_want_dev_support" = "x1"])
-
-    # all debug flags
-    AC_MSG_CHECKING([if want all PLFS developer debug flags enabled])
-    AC_ARG_ENABLE(all-debug-flags,
-        AC_HELP_STRING([--disable-all-debug-flags],
-                       [disable all PLFS developer debug flags (default: enabled)]))
-    AS_IF([test "$enable_all_debug_flags" = "no"],
+    # plfs stats
+    AC_MSG_CHECKING([if want PLFS stats flags enabled])
+    AC_ARG_ENABLE(plfs-stats,
+        AC_HELP_STRING([--disable-plfs-stats],
+                       [disable extra PLFS timing stats information (default: enabled)]))
+    AS_IF([test "$enable_plfs_stats" = "no"],
           [AC_MSG_RESULT([no])
-           plfs_add_all_debug_flags=0],
+           plfs_add_stats_flags=0],
           [AC_MSG_RESULT([yes])])
 
-    AS_IF([test "$plfs_add_all_debug_flags" = "1"],
-          [plfs_debug_cflags="$plfs_all_debug_flags"])
+    AS_IF([test "$plfs_add_stats_flags" = "1"],
+          [plfs_debug_cflags="$plfs_stats_flags"
+           CFLAGS="$plfs_debug_cflags $CFLAGS"
+           CXXFLAGS="$plfs_debug_cflags $CXXFLAGS"])
 
-    CFLAGS="$plfs_debug_cflags $plfs_debug_cflags_save"
-    CXXFLAGS="$plfs_debug_cflags $plfs_debug_cxxflags_save"
-
-    # do we want to add debug flags to PLFS src?
-    AC_MSG_CHECKING([if want PLFS developer debug flags enabled])
-    AC_ARG_ENABLE(plfs-debug-flags,
-        AC_HELP_STRING([--enable-plfs-debug-flags],
-                       [enable PLFS developer debug flags (default: disabled)]))
-    AS_IF([test "$enable_plfs_debug_flags" = "yes"],
-          [AC_MSG_RESULT([yes])
-           plfs_add_plfs_debug_flags=1],
-          [AC_MSG_RESULT([no])])
-
-    AS_IF([test "$plfs_add_all_debug_flags" = "1"],
-          [plfs_debug_cflags="$plfs_all_debug_flags"
-           CFLAGS="$plfs_debug_cflags $plfs_debug_cflags_save"
-           CXXFLAGS="$plfs_debug_cflags $plfs_debug_cxxflags_save"])
-
-    AS_IF([test "$plfs_add_plfs_debug_flags" = "1"],
-          [PLFS_DEBUG_CFLAGS="$plfs_all_debug_flags"
-           PLFS_DEBUG_CXXFLAGS="$plfs_all_debug_flags"])
-
-    # plfs debug
-    AC_SUBST(PLFS_DEBUG_CFLAGS)
-    AC_SUBST(PLFS_DEBUG_CXXFLAGS)
 ])dnl

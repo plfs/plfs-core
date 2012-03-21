@@ -54,7 +54,3 @@ make_plfs_patch
 EXTRA_DIST = \
 $(scripts)
 
-if PLFS_BUILD_DEV
-bin_SCRIPTS += $(scripts)
-endif
-
