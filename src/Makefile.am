@@ -51,6 +51,7 @@ plfs.h
 
 dist_pkginclude_HEADERS = \
 COPYRIGHT.h \
+mlogfacs.h \
 plfs_internal.h \
 Util.h
 

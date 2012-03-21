@@ -14,7 +14,7 @@ using namespace std;
 #include "plfs.h"
 #include "plfs_private.h"
 #include "COPYRIGHT.h"
-#include "plfs_tool_common.hpp"
+#include "plfs_tool_common.h"
 
 void 
 show_usage(char* app_name) {

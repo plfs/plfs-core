@@ -3,7 +3,7 @@
 #include <cerrno>
 #include <iostream>
 
-#include "plfs_tool_common.hpp"
+#include "plfs_tool_common.h"
 #include "plfs.h"
 #include "COPYRIGHT.h"
 int main (int argc, char **argv) {

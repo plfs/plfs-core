@@ -1,6 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
-#include "plfs_tool_common.hpp"
+#include "plfs_tool_common.h"
 #include "plfs.h"
 #include "Container.h"
 

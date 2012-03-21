@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <errno.h>
 
-#include "plfs_tool_common.hpp"
+#include "plfs_tool_common.h"
 #include "plfs.h"
 #include "COPYRIGHT.h"
 
