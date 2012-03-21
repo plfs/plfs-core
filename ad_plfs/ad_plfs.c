@@ -36,6 +36,14 @@ struct ADIOI_Fns_struct ADIO_PLFS_operations = {
     ADIOI_PLFS_Delete, /* Delete */
 };
 
+
+int
+plfs_protect_all(const char *file, MPI_Comm comm) {
+    int rank;
+    MPI_Comm_rank(comm,&rank);
+    return plfs_protect(file,rank);
+}
+
 int ad_plfs_amode( int access_mode )
 {
     int amode = 0; // O_META;
