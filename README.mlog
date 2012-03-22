@@ -58,9 +58,11 @@ the debug logs into channels, then the channel mask is also checked.
 Here is an example of how to add mlog directives to an plfsrc file:
 ================================================
 mlog_setmasks INFO,index=DEBUG,utilities=DEBUG
-mlog_file /tmp/pdebug
+mlog_file /tmp/pdebug.%p.%h.%t
 mlog_defmask WARN
 ================================================
+
+The %p macro in mlog_file expands to PID, %h to hostname, %t to UNIX epoch.
 
 If MLOG determines that the message should be logged, it can save the
 message to one or more of the following outputs:

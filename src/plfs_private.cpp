@@ -787,6 +787,36 @@ set_default_confs(PlfsConf *pconf)
     pconf->tmp_mnt = NULL;
 }
 
+
+
+// a helper function that expands %t, %p, %h in mlog file name
+string
+expand_macros(const char *target) {
+    ostringstream oss;
+    for(size_t i = 0; i < strlen(target); i++) {
+        if (target[i] != '%') {
+            oss << target[i];
+        } else {
+            switch(target[++i]) {
+                case 'h':
+                    oss << Util::hostname();
+                    break;
+                case 'p':
+                    oss << getpid(); 
+                    break;
+                case 't':
+                    oss << time(NULL); 
+                    break;
+                default:
+                    oss << "%";
+                    oss << target[i];
+                    break;
+            }
+        }
+    }
+    return oss.str();
+}
+
 /**
  * parse_conf_keyval: parse a single conf key/value entry.  void, but will
  * set pconf->err_msg on error.
@@ -937,7 +967,7 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
             pconf->err_msg = new string("Bad mlog_stderrmask value");
         }
     } else if (strcmp(key, "mlog_file") == 0) {
-        pconf->mlog_file = strdup(value);
+        pconf->mlog_file = strdup(expand_macros(value).c_str());
         if (pconf->mlog_file == NULL) {
             /*
              * XXX: strdup fails, new will too, and we don't handle

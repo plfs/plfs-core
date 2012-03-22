@@ -176,7 +176,9 @@ The default value is 0.
 mlog_file
 .RS
 If set, then this contains the name of the PLFS log file.   If not
-set (the default), then logs are not saved to a file.
+set (the default), then logs are not saved to a file.  Macros of %p, %h, and
+%t can be put in the filename; they are expanded to PID, HOSTNAME, and UNIX
+EPOCH respectively.
 .RE
 
 .B
