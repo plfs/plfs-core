@@ -25,6 +25,7 @@ int main (int argc, char **argv) {
             int ret = plfs_file_version(argv[1], &version);
             if ( ret != 0 ) {
                 printf("Error: %s\n", strerror(-ret));
+                printf("%s may not be on an n-1 mount point\n", argv[1]);
             } else {
                 printf("%s\n", version);
             }

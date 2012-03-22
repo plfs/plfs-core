@@ -32,8 +32,8 @@ int main (int argc, char **argv) {
 
     int ret = plfs_dump_index(stderr,target,0);
     if ( ret != 0 ) {
-        fprintf(stderr, "Couldn't read index from %s: %s\n",
-                target, strerror(-ret));
+        fprintf(stderr, "Error: %s is not in a PLFS mountpoint"
+               " configured with 'workload n-1'\n", target);
     }
     exit( ret );
 }
