@@ -210,7 +210,13 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
 {
     int ret = -ENOENT;  // be pessimistic
     int writers = 0;
-    // just loop a second time in order to deal with ENOENT
+    // might have to loop 3 times
+    // first discover that the subdir doesn't exist
+    // try to create it and try again
+    // if we fail to create it bec someone else created a metalink there
+    // then try again into where the metalink resolves
+    // but that might fail if our sibling hasn't created where it resolves yet
+    // so help our sibling create it, and then finally try the third time.
     for( int attempts = 0; attempts < 2; attempts++ ) {
         // ok, the WriteFile *wf has a container path in it which is
         // path to canonical.  It attempts to open a file in a subdir

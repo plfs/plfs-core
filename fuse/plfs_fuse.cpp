@@ -161,12 +161,13 @@ class generic_exception: public exception
                    SET_GROUPS(fuse_get_context()->uid);                       \
                    START_TIMES;                                               \
                    START_MESSAGE;                                             \
-                   lm << funct_id.str() << endl;                              \
+                   lm << funct_id.str();                              \
+                   mlog(FUSE_DBG,"%s BEGIN", lm.str().c_str());                  \
+                   lm << endl;                              \
                    lm.flush();                                                \
                    SAVE_IDS;                                                  \
                    SET_IDS(fuse_get_context()->uid,fuse_get_context()->gid);  \
                    int ret = 0;                                               \
-                    mlog(FUSE_DBG,"%s", lm.str().c_str());                  \
                     try{
 
 
@@ -181,8 +182,10 @@ class generic_exception: public exception
                    RESTORE_GROUPS;                                      \
                    END_TIMES;                                           \
                    END_MESSAGE;                                         \
-                   lm2 << funct_id.str() << endl; lm2.flush();          \
-                   mlog(FUSE_DBG,"%s", lm2.str().c_str());                  \
+                   lm2 << funct_id.str();\
+                   mlog(FUSE_DBG,"%s END", lm2.str().c_str());                  \
+                   lm2 << endl;                                         \
+                   lm2.flush();                                         \
                    DEBUG_MUTEX_OFF;                                     \
                    return ret;
 

@@ -65,9 +65,9 @@ off_t total_ops = 0;
                         ostringstream oss;                          \
                         oss << "Util::" << setw(13) << __FUNCTION__; \
                         if (path) oss << " on " << path << " ";     \
-                        oss << setw(7) << setprecision(0) << ret    \
+                        oss << setw(7) << " ret=" << setprecision(0) << ret    \
                             << " " << setprecision(4) << fixed      \
-                            << end-begin << endl;                   \
+                            << end-begin << endl; \
                         lm1 << oss.str();                           \
                         lm1.flush();                                \
                         mlog(UT_DAPI, "%s", oss.str().c_str());

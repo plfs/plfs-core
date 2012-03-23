@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <assert.h>
 #include <string>
+#include <libgen.h>
 using namespace std;
 
 #include "FileOp.h"
@@ -1099,7 +1100,7 @@ Container::discoverOpenHosts(set<string> &entries, set<string> &openhosts)
         if (istype(*itr,OPENPREFIX)) {
             host = (*itr);
             host.erase(0,strlen(OPENPREFIX));
-            host.erase(host.rfind("."), host.size());
+            host.erase(host.rfind("."), host.size()); // erase the pid
             mlog(CON_DCOMMON, "Host %s has open handle", host.c_str());
             openhosts.insert(host);
         }
@@ -1199,9 +1200,15 @@ Container::getattr( const string& path, struct stat *stbuf )
     set<string>::iterator itr;
     ReaddirOp rop(NULL,&entries,false,true);
     ret = rop.op(getMetaDirPath(path).c_str(),DT_DIR);
-    if (ret!=0) {
+    // ignore ENOENT.  Possible this is freshly created container and meta
+    // doesn't exist yet.
+    if (ret!=0 && ret!=-ENOENT) {    
+        mlog(CON_DRARE, "readdir of %s returned %d (%s)", 
+            getMetaDirPath(path).c_str(), ret, strerror(-ret));
         return ret;
-    }
+    } 
+    ret = 0;
+
     // first get the set of all open hosts
     discoverOpenHosts(entries, openHosts);
     // then consider the valid set of all meta droppings (not open droppings)
@@ -1362,13 +1369,19 @@ Container::makeTopLevel( const string& expanded_path,
             if ( saveerrno == ENOTDIR ) {
                 // there's a normal file where we want to make our container
                 saveerrno = Util::Unlink( expanded_path.c_str() );
+                mlog(CON_DRARE, "Unlink of %s: %d (%s)", expanded_path.c_str(), saveerrno, 
+                    saveerrno ? strerror(saveerrno): "SUCCESS"); 
                 // should be success or ENOENT if someone else already unlinked
                 if ( saveerrno != 0 && saveerrno != ENOENT ) {
+                    mlog(CON_DRARE, "%s failure %d (%s)\n", __FUNCTION__,
+                        saveerrno, strerror(saveerrno));
                     return -saveerrno;
                 }
                 continue;
             }
             // if we get here, we lost the race
+            mlog(CON_DCOMMON, "We lost the race to create toplevel %s,"
+                            " cleaning up\n", expanded_path.c_str());
             if ( Util::Unlink( tmpAccess.c_str() ) < 0 ) {
                 mlog(CON_DRARE, "unlink of temporary %s failed : %s",
                      tmpAccess.c_str(), strerror(errno) );
@@ -1471,6 +1484,7 @@ Container::makeTopLevel( const string& expanded_path,
             break;
         }
     }
+    mlog(CON_DCOMMON, "%s on %s success\n", __FUNCTION__, expanded_path.c_str());
     return 0;
 }
 
@@ -1555,8 +1569,15 @@ Container::makeHostDir(const ContainerPaths& paths,mode_t mode,
             string canonical_path_without_id =
                 paths.canonical + '/' + HOSTDIRPREFIX;
             ostringstream oss;
+
+            // just in case we can't find a slot to make a hostdir
+            // let's try to use someone else's metalink
+            bool metalink_found = false;
+            string possible_metalink;
+
             // loop all possible hostdir # to try to make subdir
-            // directory or use the first existing one
+            // directory or use the first existing one 
+            // (or try to find a valid metalink if all else fails)
             for(size_t i = 0; i < pconf->num_hostdirs; i ++ ) {
                 id = (current_hostdir + i)%pconf->num_hostdirs;
                 oss.str(std::string());
@@ -1571,18 +1592,46 @@ Container::makeHostDir(const ContainerPaths& paths,mode_t mode,
                          __FUNCTION__, oss.str().c_str(), ret);
                     physical_hostdir = oss.str();
                     break;
+                } else if ( !metalink_found ) {
+                    // we couldn't make a subdir here.  Is it a metalink?
+                    int my_ret = Container::resolveMetalink(oss.str(),
+                            possible_metalink);
+                    if (my_ret == 0) {
+                        metalink_found = true;
+                    }
                 }
             }
             if(!subdir) {
                 mlog(CON_DCOMMON, "Make subdir in %s failed bec no available"
                      "entry is found : %d", paths.canonical.c_str(), ret);
+                if (metalink_found) {
+                    mlog(CON_DRARE, "Not able to create a canonical hostdir."
+                        " Will use metalink %s\n", possible_metalink.c_str());
+                    ret = 0;
+                    physical_hostdir = possible_metalink;
+                    // try to make the subdir and it's parent
+                    // in case our sibling who created the metalink hasn't yet
+                    size_t last_slash = physical_hostdir.find_last_of('/');
+                    string parent_dir = physical_hostdir.substr(0,last_slash);
+                    ret = makeSubdir(parent_dir.c_str(),mode); 
+                    ret = makeSubdir(physical_hostdir.c_str(),mode); 
+                } else {
+                    mlog(CON_DRARE, "BIG PROBLEM: %s on %s failed (%s)",
+                            __FUNCTION__, paths.canonical.c_str(),
+                            strerror(errno));
+                }
             }
         }
     }
     return ( ret == 0 ? ret : -errno );
 }
 
-// returns 0 or -1
+
+// When we call makeSubdir, there are 4 possibilities that we want to deal with differently:
+// 1.  success: return 0
+// 2.  fails bec it already exists as a directory: return 0
+// 3.  fails bec it already exists as a metalink: return -EEXIST
+// 4.  fails for some other reason: return -errno
 int
 Container::makeSubdir( const string& path, mode_t mode )
 {
@@ -1590,7 +1639,11 @@ Container::makeSubdir( const string& path, mode_t mode )
     //mode = mode | S_IXUSR | S_IXGRP | S_IXOTH;
     mode = DROPPING_MODE;
     ret = Util::Mkdir( path.c_str(), mode );
-    return ( ret == 0 || errno == EEXIST || errno == EISDIR ) ? 0 : -ret;
+    if (errno == EEXIST && Util::isDirectory(path.c_str())){
+        ret = 0;
+    }
+
+    return ( ret == 0 || errno == EISDIR ) ? 0 : -errno;
 }
 // this just creates a dir/file but it ignores an EEXIST error
 int
