@@ -153,10 +153,11 @@ For FUSE-based PLFS applications, MLOG and other debugging information
 can also be accessed and configured at run time through special .plfs
 files in the root directory of the mount.  The supported files are:
 
- /.plfsdebug    - read-only text file with compile version and stats
- /.plfslog      - read-only text file with some non-mlog log info
- /.plfsmsgbuf   - read-only copy of the mlog message buffer (if enabled)
- /.plfsmlogmask - read-write version of mlog_setmasks
+ /.plfsdebug      - read-only text file with compile version and stats
+ /.plfslog        - read-only text file with some non-mlog log info
+ /.plfsmsgbuf     - read-only copy of the mlog message buffer (if enabled)
+ /.plfsmlogmask   - read-write version of mlog_setmasks
+ /.plfsmlogreopen - write-only, writing anything here triggers a logfile reopen
 
 The .plfsmlogmask file can be used to dynamically change the logging
 mask at run time.   For example:

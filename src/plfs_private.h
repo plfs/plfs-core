@@ -96,6 +96,7 @@ typedef struct {
     int mlog_flags;        /* mlog flag value to use (stderr,ucon,syslog) */
     int mlog_defmask;      /* default mlog logging level */
     int mlog_stderrmask;   /* force mlog to stderr if level >= to this value */
+    char *mlog_file_base;  /* pre-expanded version of logfile, if needed */
     char *mlog_file;       /* logfile, NULL if disabled */
     int mlog_msgbuf_size;  /* number of bytes in mlog message buffer */
     int mlog_syslogfac;    /* syslog facility to use, if syslog enabled */
@@ -115,6 +116,9 @@ PlfsConf *get_plfs_conf( );
 PlfsMount *find_mount_point(PlfsConf *pconf, const string& path, bool& found);
 PlfsMount *find_mount_point_using_tokens(PlfsConf *, vector <string> &, bool&);
 int find_all_expansions(const char *logical, vector<string> &containers);
+
+// a helper function that expands %t, %p, %h in mlog file name
+string expand_macros(const char *target);
 
 string expandPath(string logical, ExpansionInfo *exp_info,
                   expansionMethod hash_method, int which_backend, int depth);

@@ -59,12 +59,14 @@ static int dbg_msgbuf_read(char *buf, size_t size, off_t offset);
 static int dbg_mlogsize(struct pfuse_debug_driver *dd);
 static int dbg_mlogmask_read(char *buf, size_t size, off_t offset);
 static int dbg_mlogmask_write(const char *buf, size_t size, off_t offset);
+static int dbg_mlogreopen_write(const char *buf, size_t size, off_t offset);
 
 static struct pfuse_debug_driver pfuse_dbgfiles[] = {
-    { "debug",    dbg_sizer, Plfs::dbg_debug_read, NULL },
-    { "log",      dbg_sizer, dbg_log_read, NULL },
-    { "msgbuf",   dbg_msgbufsz, dbg_msgbuf_read, NULL },
-    { "mlogmask", dbg_mlogsize, dbg_mlogmask_read, dbg_mlogmask_write },
+    { "debug",      dbg_sizer, Plfs::dbg_debug_read, NULL },
+    { "log",        dbg_sizer, dbg_log_read, NULL },
+    { "msgbuf",     dbg_msgbufsz, dbg_msgbuf_read, NULL },
+    { "mlogmask",   dbg_mlogsize, dbg_mlogmask_read, dbg_mlogmask_write },
+    { "mlogreopen", NULL, NULL, dbg_mlogreopen_write },
 };
 
 // the reason we need this struct is because we want to know the original
@@ -162,7 +164,7 @@ class generic_exception: public exception
                    START_TIMES;                                               \
                    START_MESSAGE;                                             \
                    lm << funct_id.str();                              \
-                   mlog(FUSE_DBG,"%s BEGIN", lm.str().c_str());                  \
+                   mlog(FUSE_DBG,"%s BEGIN", lm.str().c_str());                 \
                    lm << endl;                              \
                    lm.flush();                                                \
                    SAVE_IDS;                                                  \
@@ -1568,3 +1570,40 @@ static int dbg_mlogmask_write(const char *buf, size_t size, off_t offset)
     mlog_setmasks((char *)buf, size);
     return(size);
 }
+
+/**
+ * dbg_mlogreopen_write: user-triggered mlog reopen (write data discarded)
+ */
+static int dbg_mlogreopen_write(const char *buf, size_t size, off_t offset)
+{
+    PlfsConf *pc;
+    char *newfile, *oldfile;
+    static pthread_mutex_t reopenmutex = PTHREAD_MUTEX_INITIALIZER;
+
+    pc = get_plfs_conf();   /* can't fail this deep in */
+    if (pc->mlog_file_base != NULL) {
+        /* be safe: protect from concurrent writes */
+        pthread_mutex_lock(&reopenmutex);
+        newfile = strdup(expand_macros(pc->mlog_file_base).c_str());
+        if (newfile) {
+            oldfile = pc->mlog_file;
+            pc->mlog_file = newfile;
+            free(oldfile);
+            (void) mlog_reopen(pc->mlog_file);
+        }
+        pthread_mutex_unlock(&reopenmutex);
+    } else {
+        /* 
+         * no locking required at this level since filename never changes 
+         * 
+         * XXX: C++ complains about "" as reopen arg ....
+         *   deprecated conversion from string constant to 'char *'
+         * so use pc->mlog_file instead. 
+         */
+          
+          
+        (void) mlog_reopen(pc->mlog_file);  
+    }
+    return(size);
+}
+

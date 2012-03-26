@@ -780,6 +780,7 @@ set_default_confs(PlfsConf *pconf)
     pconf->mlog_flags = MLOG_LOGPID;
     pconf->mlog_defmask = MLOG_WARN;
     pconf->mlog_stderrmask = MLOG_CRIT;
+    pconf->mlog_file_base = NULL;
     pconf->mlog_file = NULL;
     pconf->mlog_msgbuf_size = 4096;
     pconf->mlog_syslogfac = LOG_USER;
@@ -967,12 +968,26 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
             pconf->err_msg = new string("Bad mlog_stderrmask value");
         }
     } else if (strcmp(key, "mlog_file") == 0) {
-        pconf->mlog_file = strdup(expand_macros(value).c_str());
+        v = (strchr(value, '%') != NULL);  /* expansion required? */
+        if (!v) {
+            /* mlog_file_base remains NULL */
+            pconf->mlog_file = strdup(value);
+        } else {
+            /* save value for expanding when calling mlog_reopen() */
+            pconf->mlog_file_base = strdup(value);
+            if (pconf->mlog_file_base != NULL) {
+                pconf->mlog_file = strdup(expand_macros(value).c_str());
+            }
+        }
         if (pconf->mlog_file == NULL) {
             /*
              * XXX: strdup fails, new will too, and we don't handle
              * exceptions... so we'll assert here.
              */
+            if (pconf->mlog_file_base != NULL) {
+                free(pconf->mlog_file_base);
+                pconf->mlog_file_base = NULL;
+            }
             pconf->err_msg = new string("Unable to malloc mlog_file");
         }
     } else if (strcmp(key, "mlog_msgbuf_size") == 0) {
