@@ -565,7 +565,7 @@ int Plfs::getattr_helper( string expanded, const char *path,
                 stbuf->st_mode |= 0200;
             }
             stbuf->st_nlink = 1;
-            stbuf->st_size = dd->getsize(dd);
+            stbuf->st_size = (dd->getsize == NULL) ? 0 : dd->getsize(dd);
             struct timeval  tv;
             gettimeofday(&tv, NULL);
             stbuf->st_mtime = tv.tv_sec;
