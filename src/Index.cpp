@@ -1008,7 +1008,11 @@ Index::insertGlobal( ContainerEntry *g_entry )
         oss << __FUNCTION__ << " of " << physical_path << " trying to insert "
             << "overlap at " << g_entry->logical_offset;
         mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
-        handleOverlap( *g_entry, ret );
+        //handleOverlap with entry length 0 is broken
+        //not exactly sure why
+        if (g_entry->length != 0){
+            handleOverlap( *g_entry, ret );
+        }
     } else if (compress_contiguous) {
         // does it abuts with the one before it
         if (ret.first!=global_index.begin() && g_entry->follows(prev->second)) {

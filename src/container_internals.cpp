@@ -1811,22 +1811,22 @@ container_mode(const char *logical, mode_t *mode)
 // returns 0 or -errno
 // TODO: rename to container_*
 int
-extendFile(Container_OpenFile *of, string strPath, const char *logical,
+extendFile(Container_OpenFile *of, string canonical, const char *logical,
            off_t offset)
 {
     int ret = 0;
     bool newly_opened = false;
     WriteFile *wf = ( of && of->getWritefile() ? of->getWritefile() : NULL );
     pid_t pid = ( of ? of->getPid() : 0 );
-    mode_t mode = Container::getmode( strPath );
+    mode_t mode = Container::getmode( canonical );
     if ( wf == NULL ) {
-        wf = new WriteFile(strPath.c_str(), Util::hostname(), mode, 0);
+        wf = new WriteFile(canonical.c_str(), Util::hostname(), mode, 0);
         ret = wf->openIndex( pid );
         newly_opened = true;
     }
     assert(wf);
     // in case that plfs_trunc is called with NULL Plfs_fd*.
-    ret = addWriter(wf, pid, strPath.c_str(), mode, logical);
+    ret = addWriter(wf, pid, canonical.c_str(), mode, logical);
     mlog(INT_DCOMMON, "%s added writer: %d", __FUNCTION__, ret );
     if ( ret > 0 ) {
         ret = 0;    // add writer returns # of current writers
@@ -1835,7 +1835,15 @@ extendFile(Container_OpenFile *of, string strPath, const char *logical,
         ret = wf->extend( offset );
     }
     wf->removeWriter( pid );
+
     if ( newly_opened ) {
+        size_t total_bytes = 0;
+        uid_t uid = 0;  // just needed for stats 
+        int plfs_interface = -1;
+        Container::addMeta(offset, 0, canonical.c_str(), 
+                   Util::hostname(),uid,wf->createTime(),
+                   plfs_interface,
+                    wf->maxWriters());
         delete wf;
         wf = NULL;
     }
@@ -1867,7 +1875,7 @@ container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
     mode_t mode = 0;
     struct stat stbuf;
     stbuf.st_size = 0;
-    if ( ! is_plfs_file( logical, &mode ) ) {
+    if ( !of && ! is_plfs_file( logical, &mode ) ) {
         // this is weird, we expect only to operate on containers
         if ( mode == 0 ) {
             ret = -ENOENT;

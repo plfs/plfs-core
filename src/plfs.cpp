@@ -405,7 +405,10 @@ plfs_write(Plfs_fd *fd, const char *buf, size_t size,
     ostringstream oss;
     oss << fd->getPath() << " -> " <<offset << ", " << size;
     debug_enter(__FUNCTION__,oss.str());
-    ssize_t wret = fd->write(buf, size, offset, pid);
+    ssize_t wret = 0;
+    if (size > 0){
+        wret = fd->write(buf, size, offset, pid);
+    }
     debug_exit(__FUNCTION__,oss.str(),(int)wret);
     return wret;
 }

@@ -19,7 +19,7 @@ using namespace std;
 // if we get multiple writers, we create an index mutex to protect it
 
 struct
-        OpenFd {
+OpenFd {
     int fd;
     int writers;
 };
