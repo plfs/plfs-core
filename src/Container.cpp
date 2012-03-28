@@ -2016,6 +2016,10 @@ Container::truncateMeta(const string& path, off_t offset)
                 << offset    << "." << time.tv_sec
                 << "." << time.tv_nsec << "." << host;
             ret = Util::Rename(full_path.c_str(), oss.str().c_str());
+            //if a sibling raced us we may see ENOENT
+            if (ret != 0 and errno == ENOENT){
+               ret = 0;
+            }
             if ( ret != 0 ) {
                 mlog(CON_DRARE, "%s wtf, Rename: %s",__FUNCTION__,
                      strerror(errno));

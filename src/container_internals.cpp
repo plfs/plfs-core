@@ -1698,8 +1698,9 @@ container_sync( Container_OpenFile *pfd, pid_t pid )
 // the TruncateOp internally does unlinks
 // TODO: rename to container_* ?
 int
-truncateFileToZero(const char *logical,bool open_file)
+truncateFileToZero(const string &physical_canonical, const char *logical,bool open_file)
 {
+    int ret;
     TruncateOp op(open_file);
     // ignore ENOENT since it is possible that the set of files can contain
     // duplicates.
@@ -1709,7 +1710,15 @@ truncateFileToZero(const char *logical,bool open_file)
     op.ignore(ACCESSFILE);
     op.ignore(OPENPREFIX);
     op.ignore(VERSIONPREFIX);
-    return plfs_file_operation(logical,op);
+
+    ret = plfs_file_operation(logical,op);
+    if (ret == 0 && open_file == 1){
+        //if we successfully truncated the file to zero
+        //and the file is open, we also need to truncate
+        //the metadata droppings
+        ret = Container::truncateMeta(physical_canonical, 0);
+    }
+    return ret;
 }
 
 // this should only be called if the uid has already been checked
@@ -1895,7 +1904,7 @@ container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
         mlog(PLFS_DCOMMON, "Tested truncate of %s: %d",access.c_str(),ret);
         if ( ret == 0 ) {
             // this is easy, just remove/trunc all droppings
-            ret = truncateFileToZero(logical,(bool)open_file);
+            ret = truncateFileToZero(path, logical,(bool)open_file);
         }
     } else {
         // either at existing end, before it, or after it
