@@ -1838,13 +1838,14 @@ Container::create( const string& expanded_path, const string& hostname,
 // returns the first dirent that matches a prefix (or NULL)
 struct dirent *
 Container::getnextent( DIR *dir, const char *prefix ) {
+    int rv;
     if ( dir == NULL ) {
         return NULL;    // this line not necessary, but doesn't hurt
     }
     struct dirent *next = NULL;
     do {
-        next = readdir( dir );
-    } while( next && prefix &&
+        rv = Util::Readdir(dir, &next);
+    } while( rv == 0 && next && prefix &&
              strncmp( next->d_name, prefix, strlen(prefix) ) != 0 );
     return next;
 }
