@@ -10,7 +10,7 @@
 void ADIOI_PLFS_Fcntl(ADIO_File fd, int flag, ADIO_Fcntl_t *fcntl_struct,
                       int *error_code)
 {
-    static char myname[] = "ADIOI_PVFS_FCNTL";
+    static char myname[] = "ADIOI_PLFS_FCNTL";
     struct stat buf;
     int ret, rank, size_only, lazy_stat=1;
     plfs_debug( "%s: begin\n", myname );

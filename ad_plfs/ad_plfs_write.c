@@ -9,17 +9,28 @@
 #include "ad_plfs.h"
 #include "adio_extern.h"
 
+#ifdef ROMIO_CRAY
+#include "../ad_cray/ad_cray.h"
+#endif /* ROMIO_CRAY */
 
 void ADIOI_PLFS_WriteContig(ADIO_File fd, void *buf, int count,
                             MPI_Datatype datatype, int file_ptr_type,
                             ADIO_Offset offset, ADIO_Status *status,
                             int *error_code)
 {
-    int err=-1, datatype_size, len, rank;
+    /* --BEGIN CRAY MODIFICATION-- */
+    int err=-1, datatype_size, rank;
+    ADIO_Offset len;
+    /* --END CRAY MODIFICATION-- */
     ADIO_Offset myoff;
     static char myname[] = "ADIOI_PLFS_WRITECONTIG";
+#ifdef ROMIO_CRAY
+MPIIO_TIMER_START(WSYSIO);
+#endif /* ROMIO_CRAY */
     MPI_Type_size(datatype, &datatype_size);
-    len = datatype_size * count;
+    /* --BEGIN CRAY MODIFICATION-- */
+    len = (ADIO_Offset)datatype_size * (ADIO_Offset)count;
+    /* --END CRAY MODIFICATION-- */
     MPI_Comm_rank( fd->comm, &rank );
     // for the romio/test/large_file we always get an offset of 0
     // maybe we need to increment fd->fp_ind ourselves?
@@ -50,5 +61,8 @@ void ADIOI_PLFS_WriteContig(ADIO_File fd, void *buf, int count,
         }
         *error_code = MPI_SUCCESS;
     }
+#ifdef ROMIO_CRAY
+MPIIO_TIMER_END(WSYSIO);
+#endif /* ROMIO_CRAY */
 }
 

@@ -10,16 +10,24 @@
 #include "adio_extern.h"
 #include "ad_plfs.h"
 
+#ifdef ROMIO_CRAY
+#include "../ad_cray/ad_cray.h"
+#endif /* ROMIO_CRAY */
+
 void ADIOI_PLFS_ReadContig(ADIO_File fd, void *buf, int count,
                            MPI_Datatype datatype, int file_ptr_type,
                            ADIO_Offset offset, ADIO_Status *status,
                            int *error_code)
 {
-    int err=-1, datatype_size, len, rank;
+    int err=-1, datatype_size, rank;
+    ADIO_Offset len;
     ADIO_Offset myoff;
     static char myname[] = "ADIOI_PLFS_READCONTIG";
+#ifdef ROMIO_CRAY
+MPIIO_TIMER_START(RSYSIO);
+#endif /* ROMIO_CRAY */
     MPI_Type_size(datatype, &datatype_size);
-    len = datatype_size * count;
+    len = (ADIO_Offset)datatype_size * (ADIO_Offset)count;
     MPI_Comm_rank( fd->comm, &rank );
     // for the romio/test/large_file we always get an offset of 0
     // maybe we need to increment fd->fp_ind ourselves?
@@ -60,4 +68,7 @@ void ADIOI_PLFS_ReadContig(ADIO_File fd, void *buf, int count,
         }
         *error_code = MPI_SUCCESS;
     }
+#ifdef ROMIO_CRAY
+MPIIO_TIMER_END(RSYSIO);
+#endif /* ROMIO_CRAY */
 }

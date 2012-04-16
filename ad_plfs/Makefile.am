@@ -1,5 +1,8 @@
 # Copyright (c) 2009-2010, Los Alamos National Security, LLC. All rights
 # reserved.
+#                                                                     
+# Copyright (C) 2008, Cray Inc.                          
+#                                                                     
 #
 # This software was produced under U.S. Government contract DE-AC52-06NA25396
 # for Los Alamos National Laboratory (LANL), which is operated by Los Alamos
@@ -43,6 +46,7 @@ sources = \
 ad_plfs_close.c \
 ad_plfs_delete.c \
 ad_plfs_fcntl.c \
+ad_plfs_features.c \
 ad_plfs_flush.c \
 ad_plfs_open.c \
 ad_plfs_read.c \

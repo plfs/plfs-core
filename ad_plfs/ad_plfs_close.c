@@ -30,6 +30,11 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
     plfs_debug("%s: begin\n", myname );
     MPI_Comm_rank( fd->comm, &rank );
     MPI_Comm_size( fd->comm, &procs);
+    #if 0 /* TODO: original code - probably an error, but it is never used. */
+      close_opt.num_procs = &procs;
+    #else
+      close_opt.num_procs = procs;
+    #endif
     close_opt.num_procs = procs;
     amode = ad_plfs_amode( fd->access_mode );
     if(fd->fs_ptr==NULL) {
@@ -63,8 +68,8 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
             err = plfs_close(fd->fs_ptr, rank, uid,amode,&close_opt);
         }
     } 
-
-    plfs_debug("%d: close time: %.2f\n", rank,MPI_Wtime()-start_time);
+    end_time=MPI_Wtime();
+    plfs_debug("%d: close time: %.2f\n", rank,end_time-start_time);
     fd->fs_ptr = NULL;
     if (err < 0 ) {
         *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,

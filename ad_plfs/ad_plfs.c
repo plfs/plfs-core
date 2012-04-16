@@ -8,6 +8,10 @@
 
 #include "ad_plfs.h"
 
+#ifdef ROMIO_CRAY
+#include "../ad_cray/ad_cray.h"
+#endif /* ROMIO_CRAY */
+
 /* adioi.h has the ADIOI_Fns_struct define */
 #include "adioi.h"
 
@@ -15,8 +19,13 @@ struct ADIOI_Fns_struct ADIO_PLFS_operations = {
     ADIOI_PLFS_Open, /* Open */
     ADIOI_PLFS_ReadContig, /* ReadContig */
     ADIOI_PLFS_WriteContig, /* WriteContig */
+#ifdef ROMIO_CRAY
+    ADIOI_CRAY_ReadStridedColl, /* ReadStridedColl */
+    ADIOI_CRAY_WriteStridedColl, /* WriteStridedColl */
+#else
     ADIOI_GEN_ReadStridedColl, /* ReadStridedColl */
     ADIOI_GEN_WriteStridedColl, /* WriteStridedColl */
+#endif /* ROMIO_CRAY */
     ADIOI_GEN_SeekIndividual, /* SeekIndividual */
     ADIOI_PLFS_Fcntl, /* Fcntl */
     ADIOI_PLFS_SetInfo, /* SetInfo */
@@ -101,3 +110,177 @@ void check_stream(int size,int rank)
         MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
     }
 }
+
+/* --BEGIN CRAY ADDITION-- */
+
+/*
+ * If the PLFS library is not linked into the executable, these weak
+ * stubs will be called to issue an informative message and then abort.
+ */
+
+static void no_link_abort(void)
+{
+    FPRINTF(stderr,"A PLFS routine was called but the PLFS library "
+                   "is not linked into the program\n");
+    MPI_Abort(MPI_COMM_WORLD, __LINE__);
+}
+
+int plfs_close(Plfs_fd *,pid_t,uid_t,int open_flags,Plfs_close_opt *close_opt)  __attribute__ ((weak));
+int plfs_close(Plfs_fd *fd,pid_t pid,uid_t uid,int open_flags,Plfs_close_opt *close_opt)
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+int plfs_create( const char *path, mode_t mode, int flags, pid_t pid )  __attribute__ ((weak));
+int plfs_create( const char *path, mode_t mode, int flags, pid_t pid )
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+void plfs_debug( const char *format, ... )  __attribute__ ((weak));
+void plfs_debug( const char *format, ... )
+{
+    no_link_abort();
+}
+
+int plfs_expand_path(char *logical,char **physical)  __attribute__ ((weak));
+int plfs_expand_path(char *logical,char **physical)
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+int plfs_flatten_index( Plfs_fd *, const char *path )  __attribute__ ((weak));
+int plfs_flatten_index( Plfs_fd *fd, const char *path )
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+int plfs_getattr(Plfs_fd *, const char *path, struct stat *st, int size_only)  __attribute__ ((weak));
+int plfs_getattr(Plfs_fd *fd, const char *path, struct stat *st, int size_only)
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+size_t plfs_gethostdir_id(char *)  __attribute__ ((weak));
+size_t plfs_gethostdir_id(char *id)
+{
+    no_link_abort();
+    return 1; /* never gets here */
+}
+
+char *plfs_gethostname()  __attribute__ ((weak));
+char *plfs_gethostname()
+{
+    no_link_abort();
+    return NULL; /* never gets here */
+}
+
+int plfs_hostdir_rddir(void **index_stream,char *targets,
+        int rank,char * top_level)  __attribute__ ((weak));
+int plfs_hostdir_rddir(void **index_stream,char *targets,
+        int rank,char * top_level)
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+int plfs_hostdir_zero_rddir(void **entries,const char* path,int rank)  __attribute__ ((weak));
+int plfs_hostdir_zero_rddir(void **entries,const char* path,int rank)
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+int plfs_index_stream(Plfs_fd **pfd, char ** buffer)  __attribute__ ((weak));
+int plfs_index_stream(Plfs_fd **pfd, char ** buffer)
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+int plfs_merge_indexes(Plfs_fd **pfd, char *index_streams,
+                        int *index_sizes, int procs)  __attribute__ ((weak));
+int plfs_merge_indexes(Plfs_fd **pfd, char *index_streams,
+                        int *index_sizes, int procs)
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+int plfs_open( Plfs_fd **, const char *path,
+        int flags, pid_t pid, mode_t , Plfs_open_opt *open_opt)  __attribute__ ((weak));
+int plfs_open( Plfs_fd **fd, const char *path,
+        int flags, pid_t pid, mode_t mode, Plfs_open_opt *open_opt)
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+int plfs_parindex_read(int rank, int ranks_per_comm,void *index_files,
+        void **index_stream,char *top_level)  __attribute__ ((weak));
+int plfs_parindex_read(int rank, int ranks_per_comm,void *index_files,
+        void **index_stream,char *top_level)
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+int plfs_parindexread_merge(const char *path,char *index_streams,
+    int *index_sizes, int procs, void **index_stream)  __attribute__ ((weak));
+int plfs_parindexread_merge(const char *path,char *index_streams,
+    int *index_sizes, int procs, void **index_stream)
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+ssize_t plfs_read( Plfs_fd *, char *buf, size_t size, off_t offset ) 
+    __attribute__ ((weak));
+ssize_t plfs_read( Plfs_fd *fd, char *buf, size_t size, off_t offset )
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+int plfs_sync( Plfs_fd *, pid_t )  __attribute__ ((weak));
+int plfs_sync( Plfs_fd *fd, pid_t pid)
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+int plfs_trunc( Plfs_fd *, const char *path, off_t, int open_file )  
+    __attribute__ ((weak));
+int plfs_trunc( Plfs_fd *fd, const char *path, off_t off, int open_file )
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+int plfs_unlink( const char *path )  __attribute__ ((weak));
+int plfs_unlink( const char *path )
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+ssize_t plfs_write( Plfs_fd *, const char *, size_t, off_t, pid_t )  
+    __attribute__ ((weak));
+ssize_t plfs_write( Plfs_fd *fd,
+    const char *buf, size_t size, off_t off, pid_t pid)
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+#ifdef ROMIO_CRAY
+/* Process any hints set with the MPICH_MPIIO_HINTS environment variable. */
+ADIOI_CRAY_getenv_mpiio_hints(&users_info, fd);
+#endif /* ROMIO_CRAY */
+
+/* --END CRAY ADDITION-- */
