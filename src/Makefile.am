@@ -73,6 +73,8 @@ LogicalFS.h \
 LogicalFD.h \
 FlatFileFS.h \
 FlatFileFD.h \
+IOStore.h \
+PosixIOStore.h \
 $(include_HEADERS) \
 $(dist_pkginclude_HEADERS)
 

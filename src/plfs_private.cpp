@@ -6,6 +6,8 @@
 #include "mlog.h"
 #include "LogMessage.h"
 
+#include "PosixIOStore.h"
+
 // why is these included???!!!????
 #include "FlatFileFS.h"
 #include "ContainerFS.h"
@@ -17,6 +19,10 @@
 static void parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
                               char *key, char *value);
 
+
+void plfs_posix_init() {
+    Util::ioStore = new PosixIOStore;
+}
 
 // the expansion info doesn't include a string for the backend
 // to save a bit of space (probably an unnecessary optimization but anyway)
@@ -478,6 +484,7 @@ plfs_init()
         if (pconf) { // someone beat us in race.  they will initialize.
             ret = true;
         } else {    // we won race.  we need to initialize.
+            plfs_posix_init();
             LogMessage::init();
             pconf = get_plfs_conf();
             if ( !pconf ) {
