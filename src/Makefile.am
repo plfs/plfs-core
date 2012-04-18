@@ -75,6 +75,8 @@ FlatFileFS.h \
 FlatFileFD.h \
 mlog_oss.h \
 XAttrs.h  \
+IOStore.h \
+PosixIOStore.h \
 $(include_HEADERS) \
 $(dist_pkginclude_HEADERS)
 

@@ -6,6 +6,7 @@
 #endif
 
 #include "COPYRIGHT.h"
+#include "IOStore.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
@@ -118,6 +119,10 @@ class Util
                                          vector<string> &files,
                                          vector<string> &dirs,
                                          vector<string>&links);
+
+        // Used to access underlying filesystems
+        static IOStore* ioStore;
+
     private:
         static void addBytes( string, size_t );
         static string timeToString(      HASH_MAP<string,double>::iterator,
