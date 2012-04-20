@@ -145,8 +145,8 @@ void plfs_debug( const char *format, ... )
     no_link_abort();
 }
 
-int plfs_expand_path(char *logical,char **physical)  __attribute__ ((weak));
-int plfs_expand_path(char *logical,char **physical)
+int plfs_expand_path(const char *logical,char **physical)  __attribute__ ((weak));
+int plfs_expand_path(const char *logical,char **physical)
 {
     no_link_abort();
     return -1; /* never gets here */
@@ -247,8 +247,8 @@ ssize_t plfs_read( Plfs_fd *fd, char *buf, size_t size, off_t offset )
     return -1; /* never gets here */
 }
 
-int plfs_sync( Plfs_fd *, pid_t )  __attribute__ ((weak));
-int plfs_sync( Plfs_fd *fd, pid_t pid)
+int plfs_sync( Plfs_fd *)  __attribute__ ((weak));
+int plfs_sync( Plfs_fd *fd)
 {
     no_link_abort();
     return -1; /* never gets here */
