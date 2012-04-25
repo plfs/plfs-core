@@ -17,6 +17,15 @@
 
 struct ADIOI_Fns_struct ADIO_PLFS_operations = {
     ADIOI_PLFS_Open, /* Open */
+#ifdef ROMIO_CRAY
+    /* BEGIN CRAY ADDITION */
+    /*
+     * The ROMIO that PLFS was developed against is old and doesn't have
+     * the following entry or Feature
+     */
+    ADIOI_GEN_OpenColl,  /* OpenColl */
+    /* END CRAY ADDITION */
+#endif
     ADIOI_PLFS_ReadContig, /* ReadContig */
     ADIOI_PLFS_WriteContig, /* WriteContig */
 #ifdef ROMIO_CRAY
@@ -43,11 +52,18 @@ struct ADIOI_Fns_struct ADIO_PLFS_operations = {
     ADIOI_PLFS_Flush, /* Flush */
     ADIOI_PLFS_Resize, /* Resize */
     ADIOI_PLFS_Delete, /* Delete */
+#ifdef ROMIO_CRAY
+    /* BEGIN CRAY ADDITION */
+    /*
+     * The ROMIO that PLFS was developed against is old and doesn't have
+     * the following entry or OpenColl
+     */
+     ADIOI_GEN_Feature, /* Features */
+    /* END CRAY ADDITION */
+#endif
 };
 
-
-int
-plfs_protect_all(const char *file, MPI_Comm comm) {
+int plfs_protect_all(const char *file, MPI_Comm comm) {
     int rank;
     MPI_Comm_rank(comm,&rank);
     return plfs_protect(file,rank);
@@ -278,9 +294,50 @@ ssize_t plfs_write( Plfs_fd *fd,
     return -1; /* never gets here */
 }
 
-#ifdef ROMIO_CRAY
-/* Process any hints set with the MPICH_MPIIO_HINTS environment variable. */
-ADIOI_CRAY_getenv_mpiio_hints(&users_info, fd);
-#endif /* ROMIO_CRAY */
+int plfs_protect(const char *, pid_t)
+     __attribute__ ((weak));
+int plfs_protect(const char *path, pid_t pid)
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+int plfs_query( Plfs_fd *, size_t *, size_t *, size_t *, int *)
+     __attribute__ ((weak));
+int plfs_query( Plfs_fd *fd, size_t *writers, size_t *readers,
+                    size_t *bytes_written, int *lazy_stat)
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+plfs_filetype plfs_get_filetype(const char *path)
+     __attribute__ ((weak));
+plfs_filetype plfs_get_filetype(const char *path)
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+
+int compress( char *compr_index, unsigned long *index_size_1,
+        char *index_stream, unsigned long index_size_0)
+    __attribute__ ((weak));
+int compress( char *compr_index, unsigned long *index_size_1,
+        char *index_stream, unsigned long index_size_0)
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+int uncompress( char *index_stream, unsigned long *uncompr_len,
+      char *compr_index, unsigned long index_size_1)
+    __attribute__ ((weak));
+int uncompress( char *index_stream, unsigned long *uncompr_len,
+      char *compr_index, unsigned long index_size_1)
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
 
 /* --END CRAY ADDITION-- */
