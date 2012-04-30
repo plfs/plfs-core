@@ -67,6 +67,7 @@ plfs_is_mnt_ancestor(const char *path){
         Util::tokenize(this_mnt,"/",mnt_tokens);
         Util::tokenize(path,"/",target_tokens);
         vector<string> token_itr;
+        match = true;
         for(size_t i=0; i<target_tokens.size(); i++) {
             if (i>=mnt_tokens.size()) {
                 break;    // no good
@@ -79,8 +80,11 @@ plfs_is_mnt_ancestor(const char *path){
                 break;
             }
         }
+        if (match){
+            return true;
+        }
     }
-    return match;
+    return false;
 }
 
 int
