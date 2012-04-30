@@ -41,6 +41,48 @@ plfs_get_filetype(const char *path)
     return (found && pmount ? pmount->file_type : PFT_UNKNOWN);
 }
 
+bool
+plfs_is_mnt_ancestor(const char *path){
+    // this might be the weird thing where user has path /mnt/plfs/file
+    // and they are calling container_access(/mnt)
+    // AND they are on a machine
+    // without FUSE and therefore /mnt doesn't actually exist
+    // calls to /mnt/plfs/file will be resolved by plfs because that is
+    // a virtual PLFS path that PLFS knows how to resolve but /mnt is
+    // not a virtual PLFS path.  So the really correct thing to do
+    // would be to return a semantic error like EDEVICE which means
+    // cross-device error.  But code team is a whiner who doesn't want
+    // to write code.  So the second best thing to do is to check /mnt
+    // for whether it is a substring of any of our valid mount points
+    PlfsConf *pconf = get_plfs_conf();
+    map<string,PlfsMount *>::iterator itr;
+    bool match = true;
+    for(itr=pconf->mnt_pts.begin(); itr!=pconf->mnt_pts.end(); itr++) {
+        // ok, check to see if the request target matches a mount point
+        // can't just do a substring bec maybe a mount point is /mnt
+        // and they're asking for /m.  So tokenize and compare tokens
+        string this_mnt = itr->first;
+        vector<string> mnt_tokens;
+        vector<string> target_tokens;
+        Util::tokenize(this_mnt,"/",mnt_tokens);
+        Util::tokenize(path,"/",target_tokens);
+        vector<string> token_itr;
+        for(size_t i=0; i<target_tokens.size(); i++) {
+            if (i>=mnt_tokens.size()) {
+                break;    // no good
+            }
+            mlog(INT_DCOMMON, "%s: compare %s and %s",
+                 __FUNCTION__,mnt_tokens[i].c_str(),
+                 target_tokens[i].c_str());
+            if (mnt_tokens[i]!=target_tokens[i]) {
+                match = false;
+                break;
+            }
+        }
+    }
+    return match;
+}
+
 int
 plfs_access(const char *path, int mask)
 {
@@ -48,7 +90,12 @@ plfs_access(const char *path, int mask)
     debug_enter(__FUNCTION__,path);
     LogicalFileSystem *logicalfs = plfs_get_logical_fs(path);
     if (logicalfs == NULL) {
-        ret = -EINVAL;
+        if (plfs_is_mnt_ancestor(path) == true){
+            ret = 0;
+        }
+        else{
+            ret = -EINVAL;
+        }
     }else { 
         ret = logicalfs->access(path, mask);
     }   
