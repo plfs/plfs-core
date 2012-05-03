@@ -320,20 +320,20 @@ plfs_filetype plfs_get_filetype(const char *path)
 }
 
 
-int compress( char *compr_index, unsigned long *index_size_1,
+int plfs_compress( char *compr_index, unsigned long *index_size_1,
         char *index_stream, unsigned long index_size_0)
     __attribute__ ((weak));
-int compress( char *compr_index, unsigned long *index_size_1,
+int plfs_compress( char *compr_index, unsigned long *index_size_1,
         char *index_stream, unsigned long index_size_0)
 {
     no_link_abort();
     return -1; /* never gets here */
 }
 
-int uncompress( char *index_stream, unsigned long *uncompr_len,
+int plfs_uncompress( char *index_stream, unsigned long *uncompr_len,
       char *compr_index, unsigned long index_size_1)
     __attribute__ ((weak));
-int uncompress( char *index_stream, unsigned long *uncompr_len,
+int plfs_uncompress( char *index_stream, unsigned long *uncompr_len,
       char *compr_index, unsigned long index_size_1)
 {
     no_link_abort();
