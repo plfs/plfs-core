@@ -90,7 +90,7 @@ void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code)
         if (flatten != -1) {
             open_opt.buffer_index = flatten;
         }
-        perm = asplfs_getPerm(fd);
+        perm = adplfs_getPerm(fd);
         err = plfs_open( (Plfs_fd **)&(fd->fs_ptr), fd->filename, amode, rank,
                          perm, &open_opt);
         if ((err < 0) && (*error_code == MPI_SUCCESS)) {
