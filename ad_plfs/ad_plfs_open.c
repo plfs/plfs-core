@@ -393,7 +393,7 @@ int adplfs_broadcast_index(Plfs_fd **pfd, ADIO_File fd,
             }
             plfs_debug("About to compress the index\n");
             // Check the compress
-            if(adplfs_compress(compr_index,&index_size[1],index_stream,index_size[0])
+            if(plfs_compress(compr_index,&index_size[1],index_stream,index_size[0])
                     !=Z_OK) {
                 plfs_debug("Compression of index has failed\n");
                 MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
@@ -439,7 +439,7 @@ int adplfs_broadcast_index(Plfs_fd **pfd, ADIO_File fd,
         if(compress_flag) {
             plfs_debug("Rank: %d has compr_len %d and expected expanded of %d\n"
                        ,rank,index_size[1],uncompr_len);
-            int ret=adplfs_uncompress(index_stream,
+            int ret=plfs_uncompress(index_stream,
                                &uncompr_len,compr_index,index_size[1]);
             if(ret!=Z_OK) {
                 plfs_debug("Rank %d aborting bec failed uncompress\n",rank);
@@ -789,7 +789,7 @@ adplfs_num_host_dirs(int *hostdir_count,char *target)
             }
             plfs_debug("Added a hostdir for %d\n", index);
             (*hostdir_count)++;
-            sadplfs_etBit(index,bitmap);
+            adplfs_setBit(index,bitmap);
         } else if (strncmp(ACCESSFILE,dirent->d_name,strlen(ACCESSFILE))==0) {
             isfile = 1;
         }
@@ -844,7 +844,7 @@ char *adplfs_count_to_hostdir(Bitmap *bitmap,int stop_point,int *count,
     char hostdir_num[16];
     plfs_debug("Searching bitmap from %d to %d\n",*count,stop_point);
     while((*hostdir_found)<stop_point) {
-        if(badplfs_itIsSet(*count,bitmap)) {
+        if(adplfs_bitIsSet(*count,bitmap)) {
             (*hostdir_found)++;
         }
         (*count)++;
