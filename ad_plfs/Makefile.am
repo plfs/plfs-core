@@ -46,7 +46,6 @@ sources = \
 ad_plfs_close.c \
 ad_plfs_delete.c \
 ad_plfs_fcntl.c \
-ad_plfs_features.c \
 ad_plfs_flush.c \
 ad_plfs_open.c \
 ad_plfs_read.c \
