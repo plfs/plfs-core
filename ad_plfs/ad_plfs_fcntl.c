@@ -17,19 +17,23 @@ void ADIOI_PLFS_Fcntl(ADIO_File fd, int flag, ADIO_Fcntl_t *fcntl_struct,
     switch(flag) {
     case ADIO_FCNTL_GET_FSIZE:
         plfs_query(fd->fs_ptr, NULL, NULL, NULL, &lazy_stat);
+        //force lazy_stat to be 0 since the lazy call relies on MPI_Allreduce
+        lazy_stat = 0;
         if (lazy_stat == 0) {
             // every rank calls plfs_sync to flush in-memory index.
+            // this is not a collective operation, take out
+            // all collective calls.
             plfs_sync(fd->fs_ptr);
-            plfs_barrier(fd->comm,rank);
+            //plfs_barrier(fd->comm,rank);
             // rank 0 does slow stat and broadcasts to all.
-            MPI_Comm_rank(fd->comm, &rank);
-            if (rank == 0) {
-                size_only = 0;
-                ret = plfs_getattr( fd->fs_ptr, fd->filename, &buf, size_only );
-            }
-            MPI_Bcast(&ret, 1, MPI_INT, 0, fd->comm);
+            //MPI_Comm_rank(fd->comm, &rank);
+            //if (rank == 0) {
+            size_only = 0;
+            ret = plfs_getattr( fd->fs_ptr, fd->filename, &buf, size_only );
+            //}
+            //MPI_Bcast(&ret, 1, MPI_INT, 0, fd->comm);
             if (ret == 0) {
-                MPI_Bcast(&(buf.st_size), 1, MPI_LONG_LONG, 0, fd->comm);
+                //MPI_Bcast(&(buf.st_size), 1, MPI_LONG_LONG, 0, fd->comm);
                 fcntl_struct->fsize = buf.st_size;
                 *error_code = MPI_SUCCESS;
             } else {
