@@ -48,8 +48,7 @@ bin_SCRIPTS =
 scripts = \
 plfs_index_parser.py \
 plfs_randomize_plfsrc.py \
-discover_write_size.tcsh \
-make_plfs_patch
+discover_write_size.tcsh
 
 EXTRA_DIST = \
 $(scripts)

@@ -68,6 +68,5 @@ ad-patches
 ACLOCAL_AMFLAGS = -I config
 
 dist-hook:
-	pushd $(distdir) && \
 	scripts/make_plfs_patch && \
-	popd
+	cp -fv ad-patches/openmpi/ompi-1.4.3-plfs.patch $(distdir)/ad-patches/openmpi/
