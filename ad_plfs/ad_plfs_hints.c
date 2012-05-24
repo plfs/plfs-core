@@ -19,7 +19,6 @@ void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code)
     int flag, tmp_val = -1;
     // The initial values make a difference.
     int disable_broadcast = 0;
-    int compress_index = 0;
     int flatten_close = 0;
     int disable_parindex_read = 0;
     int gen_error_code,rank;
@@ -34,7 +33,6 @@ void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code)
     // these optimizations only make sense in container mode
     if (plfs_get_filetype(fd->filename) != CONTAINER) {
         disable_broadcast = 1;
-        compress_index = 0;
         flatten_close = 0;
         disable_parindex_read = 1;
     }
@@ -59,21 +57,6 @@ void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code)
                     MPI_Abort(MPI_COMM_WORLD, 1);
                 }
                 MPI_Info_set(fd->info, "plfs_disable_broadcast", value);
-            }
-            MPI_Info_get(users_info, "plfs_compress_index", MPI_MAX_INFO_VAL,
-                         value, &flag);
-            /* Compression flag*/
-            if(flag) {
-                compress_index = atoi(value);
-                tmp_val = compress_index;
-                MPI_Bcast(&tmp_val,1,MPI_INT,0,fd->comm);
-                if (tmp_val != compress_index) {
-                    FPRINTF(stderr, "ADIOI_PLFS_SetInfo: "
-                            "the value for key \"plfs_compress_index\" "
-                            "must be the same on all processes\n");
-                    MPI_Abort(MPI_COMM_WORLD, 1);
-                }
-                MPI_Info_set(fd->info, "plfs_compress_index", value);
             }
             /* flatten_close */
             MPI_Info_get(users_info, "plfs_flatten_close", MPI_MAX_INFO_VAL,

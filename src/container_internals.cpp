@@ -2115,10 +2115,7 @@ container_close( Container_OpenFile *pfd, pid_t pid, uid_t uid, int open_flags,
             delete wf;
             wf = NULL;
             pfd->setWritefile(NULL);
-        } else if ( writers < 0 ) {
-            ret = writers;
-            writers = wf->numWriters();
-        } else if ( writers > 0 ) {
+        } else {
             ret = 0;
         }
         ref_count = pfd->incrementOpens(-1);

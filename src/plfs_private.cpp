@@ -1,5 +1,6 @@
 #define MLOG_FACSARRAY   /* need to define before include mlog .h files */
 
+#include <cstdlib>
 #include "plfs_internal.h"
 #include "plfs_private.h"
 #include "Util.h"
@@ -834,9 +835,6 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
     int v;
     if(strcmp(key,"index_buffer_mbs")==0) {
         pconf->buffer_mbs = atoi(value);
-        if (pconf->buffer_mbs <0) {
-            pconf->err_msg = new string("illegal negative value");
-        }
     } else if(strcmp(key,"workload")==0) {
         if( !*pmntp ) {
             pconf->err_msg = new string("No mount point yet declared");

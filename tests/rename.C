@@ -64,10 +64,7 @@ main( int argc, char **argv ) {
             perror( "fopen" );
             exit( 1 );
         }
-        if ( fread( buf, 4096, 1, cat ) < 0 ) {
-            perror( "fread" );
-            exit( 1 );
-        }
+        fread( buf, 4096, 1, cat ); 
         printf( "Read %s from %s\n", buf, cattarg );
         fclose(cat);
         memset( buf, 0, 4096 );
@@ -91,10 +88,7 @@ main( int argc, char **argv ) {
     }
 
     // now read the thing
-    if ( fread( buf, 100, 1, fp ) < 0 ) {
-        perror( "fread" );
-        exit( 1 );
-    }
+    fread( buf, 100, 1, fp );
     printf( "Read %s from %s\n", buf, ( newtarg ? newtarg : target ) );
 
     if ( strcmp( buf, "Hello world!\nGoodbye world!\n" ) != 0 ) {
