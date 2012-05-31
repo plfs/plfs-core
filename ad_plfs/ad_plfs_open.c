@@ -287,7 +287,6 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     // get specified behavior from hints
     if (fd->access_mode==ADIO_RDONLY) {
         disabl_broadcast = ad_plfs_hints(fd,rank,"plfs_disable_broadcast");
-        compress_flag = ad_plfs_hints(fd,rank,"plfs_compress_index");
         parallel_index_read =!ad_plfs_hints(fd,rank,"plfs_disable_paropen");
         plfs_debug("Disable_bcast:%d,compress_flag:%d,parindex:%d\n",
                    disabl_broadcast,compress_flag,parallel_index_read);
@@ -392,12 +391,6 @@ int adplfs_broadcast_index(Plfs_fd **pfd, ADIO_File fd,
                 MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
             }
             plfs_debug("About to compress the index\n");
-            // Check the compress
-            if(plfs_compress(compr_index,&index_size[1],index_stream,index_size[0])
-                    !=Z_OK) {
-                plfs_debug("Compression of index has failed\n");
-                MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
-            }
         }
     }
     // Original index stream size
