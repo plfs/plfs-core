@@ -25,20 +25,29 @@ to your PATH environment.
 
 2) To install PLFS as a ROMIO ADIO layer for MPI-IO.
 
-  This should be straight-forward for openmpi-1.4.3.  For other mpi's, you'll
+  This should be straight-forward for Open MPI.  For other mpi's, you'll
   need to adjust accordingly.  The instruction marked with '>>>>' is for
   developers only who have checked out PLFS.  For typical cases in which
   you are instead building from a distribution tarball, you can skip that
   line.  Please note that all other patch files have 
   been deprecated.  You must use the two patch files below.
-  > make install of plfs 
-  > XXXXXXX # see below
-  > get openmpi-1.4.3
-  > cd openmpi-1.4.3
-  > patch -p1 < /path/to/plfs/ad-patches/openmpi/ompi-1.4.3-plfs-prep.patch
-  > patch -p1 < /path/to/plfs/ad-patches/openmpi/ompi-1.4.3-plfs.patch
-  > ./autogen.sh # since we patched a Makefile.am
-  > ./configure; make
+  1) make install of plfs 
+    a) XXXXXXX # see below
+  2) get openmpi-<version>
+  3) cd openmpi-<version>
+  4) patch -p1 < /path/to/plfs/ad-patches/openmpi/ompi-<version>-plfs-prep.patch
+    Note that ompi-<version>-plfs-prep.patch may not exist for every version.
+    There are prep.patch files that work for more than one version of Open MPI.
+    These will have an 'x' in the version string to help signify which versions
+    a particualr patch can be applied to. For example, ompi-1.4.x-plfs-pre.patch
+    can be applied to any 1.4.x release such as 1.4.3 or 1.4.5. Please see what
+    patches are available in ad-patches/openmpi.
+    We have verified that PLFS works with Open MPI 1.4.3, 1.4.5, and 1.6.
+  5) patch -p1 < /path/to/plfs/ad-patches/openmpi/ompi-plfs.patch
+    This patch will work on any version of Open MPI. It copies the necessary
+    ad_plfs files in to the Open MPI directory structure.
+  6) ./autogen.sh # since we patched a Makefile.am
+  7) ./configure; make
 
   One tricky bit is that you have to make sure that your mpi build knows 
   how to find your plfs.h and your libplfs files.  We do that with a 
@@ -50,6 +59,12 @@ to your PATH environment.
     CCASFLAGS="-I/opt/panfs/include -m64 -I/users/johnbent/plfs/include " 
   Then your configure line is like this: ./configure --with-platform=./platform 
   You may also need to set LD_LIBRARY_PATH to where you install the plfs lib
+
+  NOTE: for Open MPI 1.4.x, a certain directive must be set when building Open
+  MPI in order for the ROMIO in Open MPI 1.4.x to work with the PLFS ADIO
+  layer. The directive is ROMIO_OPENMPI_14x. If using a platform file, add the
+  following line:
+    CPPFLAGS="-DROMIO_OPENMPI_14x"
 
 [XXXXXX If you are a user and downloaded a distribution tarball, then skip
 this.  If, on the other hand, you are a developer and you checked out the

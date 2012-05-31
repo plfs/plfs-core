@@ -1,3 +1,8 @@
+~~~ Version 2.2.2
+* Ticket #86: Fixed an issue in ad_plfs/ad_plfs.c so that Open MPI v1.6 can be
+patched. Updated supporting patches and patching scripts to be able to work
+with more than one version of Open MPI.
+
 ~~~ Version 2.2.1
 * Fixed an issue in ad_plfs/ad_plfs_fcntl.c where a non-collective call to
 MPI_File_get_size() would hang and could crash on a subsequent close call from

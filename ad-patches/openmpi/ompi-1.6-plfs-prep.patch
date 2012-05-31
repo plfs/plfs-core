@@ -1,0 +1,218 @@
+--- openmpi-1.6/ompi/mca/io/romio/romio/configure.in	2012-04-03 08:30:23.000000000 -0600
++++ openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/configure.in	2012-05-16 12:23:49.670589000 -0600
+@@ -144,7 +144,7 @@
+ #
+ have_aio=no
+ #
+-known_filesystems="nfs ufs pfs pvfs pvfs2 testfs xfs panfs gridftp lustre bgl bglockless zoidfs"
++known_filesystems="nfs ufs pfs pvfs pvfs2 testfs xfs panfs plfs gridftp lustre bgl bglockless zoidfs"
+ # Open MPI: added "open_mpi_mpi"
+ known_mpi_impls="mpich2_mpi mpich_mpi sgi_mpi hp_mpi cray_mpi lam_mpi open_mpi_mpi"
+ #
+@@ -1175,6 +1175,9 @@
+ if test -n "$file_system_panfs"; then
+     AC_DEFINE(ROMIO_PANFS,1,[Define for ROMIO with PANFS])
+ fi
++if test -n "$file_system_plfs"; then
++    AC_DEFINE(ROMIO_PLFS,1,[Define for ROMIO with PLFS])
++fi
+ if test -n "$file_system_ufs"; then
+     AC_DEFINE(ROMIO_UFS,1,[Define for ROMIO with UFS])
+ fi
+@@ -2126,7 +2129,7 @@
+ 
+ # Open MPI: setup the AM_CONDITIONALs to build the different adio devices
+  m4_foreach([my_fs], 
+-  [bgl, bglockless, gridftp, lustre, nfs, panfs, pfs, pvfs, pvfs2, sfs, testfs, ufs, xfs, zoidfs],
++  [bgl, bglockless, gridftp, lustre, nfs, panfs, pfs, pvfs, pvfs2, sfs, testfs, ufs, xfs, zoidfs, plfs],
+   [AM_CONDITIONAL(BUILD_[]AS_TR_CPP(my_fs), [test -n "$file_system_]my_fs["])])
+ 
+ echo "setting CC to $CC"
+@@ -2255,6 +2258,7 @@
+     adio/ad_nfs/Makefile 
+     adio/ad_ntfs/Makefile 
+     adio/ad_panfs/Makefile
++    adio/ad_plfs/Makefile
+     adio/ad_pfs/Makefile
+     adio/ad_pvfs/Makefile
+     adio/ad_pvfs2/Makefile
+diff -Naur openmpi-1.6/ompi/mca/io/romio/romio/README openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/README
+--- openmpi-1.6/ompi/mca/io/romio/romio/README	2012-04-03 08:30:23.000000000 -0600
++++ openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/README	2012-05-16 12:25:38.517012000 -0600
+@@ -1,5 +1,14 @@
+           ROMIO: A High-Performance, Portable MPI-IO Implementation
+ 
++                      Version 2012-05-16
++
++Major Changes in this version:
++------------------------------
++* added PLFS support
++  http://sourceforge.net/projects/plfs/
++  http://institutes.lanl.gov/plfs/
++
++
+                       Version 2008-03-09
+ 
+ Major Changes in this version:
+diff -Naur openmpi-1.6/ompi/mca/io/romio/romio/adio/Makefile.am openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/Makefile.am
+--- openmpi-1.6/ompi/mca/io/romio/romio/adio/Makefile.am	2012-04-03 08:30:23.000000000 -0600
++++ openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/Makefile.am	2012-05-16 12:19:54.561579000 -0600
+@@ -87,6 +87,14 @@
+ PANFS_LIB =
+ endif
+ 
++if BUILD_PLFS
++PLFS_DIR = ad_plfs
++PLFS_LIB = ad_plfs/libadio_plfs.la
++else
++PLFS_DIR =
++PLFS_LIB =
++endif
++
+ if BUILD_PFS
+ PFS_DIR = ad_pfs
+ PFS_LIB = ad_pfs/libadio_pfs.la
+@@ -163,11 +171,11 @@
+ SUBDIRS = common include \
+ 	$(BG_DIR) $(BGLOCKLESS_DIR) \
+ 	$(GRIDFTP_DIR) $(LUSTRE_DIR) $(NFS_DIR) $(NTFS_DIR) $(PANFS_DIR) \
+-	$(PFS_DIR) $(PVFS_DIR) $(PVFS2_DIR) $(SFS_DIR) \
++	$(PLFS_DIR) $(PFS_DIR) $(PVFS_DIR) $(PVFS2_DIR) $(SFS_DIR) \
+ 	$(TESTFS_DIR) $(UFS_DIR) $(XFS_DIR) $(ZOID_DIR)
+ DIST_SUBDIRS = common include \
+         ad_bgl ad_bglockless ad_gridftp ad_lustre ad_nfs ad_ntfs \
+-        ad_panfs ad_pfs ad_pvfs	ad_pvfs2 ad_sfs ad_testfs ad_ufs \
++        ad_panfs ad_plfs ad_pfs ad_pvfs	ad_pvfs2 ad_sfs ad_testfs ad_ufs \
+         ad_xfs ad_zoidfs
+ 
+ # Library
+@@ -177,5 +185,5 @@
+         common/libadio_common.la \
+ 	$(BG_LIB) $(BGLOCKLESS_LIB) \
+         $(GRIDFTP_LIB) $(LUSTRE_LIB) $(NFS_LIB) $(NTFS_LIB) $(PANFS_LIB) \
+-        $(PFS_LIB) $(PVFS_LIB) $(PVFS2_LIB) $(SFS_LIB) \
++        $(PLFS_LIB) $(PFS_LIB) $(PVFS_LIB) $(PVFS2_LIB) $(SFS_LIB) \
+         $(TESTFS_LIB) $(UFS_LIB) $(XFS_LIB) $(ZOID_LIB)
+diff -Naur openmpi-1.6/ompi/mca/io/romio/romio/adio/common/ad_fstype.c openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/common/ad_fstype.c
+--- openmpi-1.6/ompi/mca/io/romio/romio/adio/common/ad_fstype.c	2012-04-03 08:30:22.000000000 -0600
++++ openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/common/ad_fstype.c	2012-05-16 12:06:22.160728000 -0600
+@@ -510,6 +510,9 @@
+     else if (!strncmp(filename, "panfs:", 6) || !strncmp(filename, "PANFS:", 6)) {
+ 	*fstype = ADIO_PANFS;
+     }
++    else if (!strncmp(filename, "plfs:", 5) || !strncmp(filename, "PLFS:", 5)) {
++	*fstype = ADIO_PLFS;
++    }
+     else if (!strncmp(filename, "hfs:", 4) || !strncmp(filename, "HFS:", 4)) {
+ 	*fstype = ADIO_HFS;
+     }
+@@ -712,6 +715,16 @@
+ 	*ops = &ADIO_PANFS_operations;
+ #endif
+     }
++    if (file_system == ADIO_PLFS) {
++#ifndef ROMIO_PLFS
++	*error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
++					   myname, __LINE__, MPI_ERR_IO,
++					   "**iofstypeunsupported", 0);
++	return;
++#else
++	*ops = &ADIO_PLFS_operations;
++#endif
++    }
+     if (file_system == ADIO_HFS) {
+ #ifndef ROMIO_HFS
+ 	*error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
+diff -Naur openmpi-1.6/ompi/mca/io/romio/romio/adio/common/ad_opencoll.c openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/common/ad_opencoll.c
+--- openmpi-1.6/ompi/mca/io/romio/romio/adio/common/ad_opencoll.c	2012-04-03 08:30:22.000000000 -0600
++++ openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/common/ad_opencoll.c	2012-05-16 11:59:12.594192000 -0600
+@@ -80,7 +80,7 @@
+    in fd, so that get_amode returns the right answer. */
+ 
+     orig_amode_wronly = access_mode;
+-    if (access_mode & ADIO_WRONLY) {
++    if (access_mode & ADIO_WRONLY && fd->file_system != ADIO_PLFS) {
+ 	access_mode = access_mode ^ ADIO_WRONLY;
+ 	access_mode = access_mode | ADIO_RDWR;
+     }
+diff -Naur openmpi-1.6/ompi/mca/io/romio/romio/adio/common/ad_opencoll_failsafe.c openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/common/ad_opencoll_failsafe.c
+--- openmpi-1.6/ompi/mca/io/romio/romio/adio/common/ad_opencoll_failsafe.c	2012-04-03 08:30:22.000000000 -0600
++++ openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/common/ad_opencoll_failsafe.c	2012-05-16 11:59:58.952603000 -0600
+@@ -60,7 +60,7 @@
+    in fd, so that get_amode returns the right answer. */
+ 
+     orig_amode_wronly = access_mode;
+-    if (access_mode & ADIO_WRONLY) {
++    if (access_mode & ADIO_WRONLY && fd->file_system != ADIO_PLFS) {
+ 	access_mode = access_mode ^ ADIO_WRONLY;
+ 	access_mode = access_mode | ADIO_RDWR;
+     }
+diff -Naur openmpi-1.6/ompi/mca/io/romio/romio/adio/common/ad_opencoll_scalable.c openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/common/ad_opencoll_scalable.c
+--- openmpi-1.6/ompi/mca/io/romio/romio/adio/common/ad_opencoll_scalable.c	2012-04-03 08:30:22.000000000 -0600
++++ openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/common/ad_opencoll_scalable.c	2012-05-16 12:01:15.211551000 -0600
+@@ -32,7 +32,7 @@
+        write_only in fd, so that get_amode returns the right answer. */
+ 
+     orig_amode_wronly = access_mode;
+-    if (access_mode & ADIO_WRONLY) {
++    if (access_mode & ADIO_WRONLY && fd->file_system != ADIO_PLFS) {
+ 	access_mode = access_mode ^ ADIO_WRONLY;
+ 	access_mode = access_mode | ADIO_RDWR;
+     }
+diff -Naur openmpi-1.6/ompi/mca/io/romio/romio/adio/include/adio.h openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/include/adio.h
+--- openmpi-1.6/ompi/mca/io/romio/romio/adio/include/adio.h	2012-04-03 08:30:21.000000000 -0600
++++ openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/include/adio.h	2012-05-16 12:08:40.191472000 -0600
+@@ -300,6 +300,7 @@
+ #define ADIO_LUSTRE              163   /* Lustre */
+ #define ADIO_BGL                 164   /* IBM BGL */
+ #define ADIO_BGLOCKLESS          165   /* IBM BGL (lock-free) */
++#define ADIO_PLFS                166   /* PLFS */
+ #define ADIO_ZOIDFS              167   /* ZoidFS: the I/O forwarding fs */
+ 
+ #define ADIO_SEEK_SET            SEEK_SET
+diff -Naur openmpi-1.6/ompi/mca/io/romio/romio/adio/include/adioi_errmsg.h openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/include/adioi_errmsg.h
+--- openmpi-1.6/ompi/mca/io/romio/romio/adio/include/adioi_errmsg.h	2012-04-03 08:30:21.000000000 -0600
++++ openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/include/adioi_errmsg.h	2012-05-16 12:10:22.277350000 -0600
+@@ -42,7 +42,7 @@
+ 
+ MPI_ERR_IO
+     MPIR_ERR_ETYPE_FRACTIONAL "Only an integral number of etypes can be accessed"
+-    MPIR_ERR_NO_FSTYPE "Can't determine the file-system type. Check the filename/path you provided and try again. Otherwise, prefix the filename with a string to indicate the type of file sytem (piofs:, pfs:, nfs:, ufs:, hfs:, xfs:, sfs:, pvfs:, panfs: ftp: gsiftp:)"
++    MPIR_ERR_NO_FSTYPE "Can't determine the file-system type. Check the filename/path you provided and try again. Otherwise, prefix the filename with a string to indicate the type of file sytem (piofs:, pfs:, nfs:, ufs:, hfs:, xfs:, sfs:, pvfs:, panfs: plfs: ftp: gsiftp:)"
+     MPIR_ERR_NO_PFS "ROMIO has not been configured to use the PFS file system"
+     MPIR_ERR_NO_PIOFS "ROMIO has not been configured to use the PIOFS file system"
+     MPIR_ERR_NO_UFS "ROMIO has not been configured to use the UFS file system"
+@@ -52,6 +52,7 @@
+     MPIR_ERR_NO_SFS "ROMIO has not been configured to use the SFS file system"
+     MPIR_ERR_NO_PVFS "ROMIO has not been configured to use the PVFS file system"
+     MPIR_ERR_NO_PANFS "ROMIO has not been configured to use the PANFS file system"
++    MPIR_ERR_NO_PLFS "ROMIO has not been configured to use the PLFS file system"
+     MPIR_ERR_MULTIPLE_SPLIT_COLL "Only one active split collective I/O operation allowed per file handle"
+     MPIR_ERR_NO_SPLIT_COLL "No previous split collective begin"
+     MPIR_ERR_ASYNC_OUTSTANDING "There are outstanding nonblocking I/O operations on this file"
+diff -Naur openmpi-1.6/ompi/mca/io/romio/romio/adio/include/adioi_fs_proto.h openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/include/adioi_fs_proto.h
+--- openmpi-1.6/ompi/mca/io/romio/romio/adio/include/adioi_fs_proto.h	2012-04-03 08:30:21.000000000 -0600
++++ openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/include/adioi_fs_proto.h	2012-05-16 12:11:31.868131000 -0600
+@@ -19,6 +19,11 @@
+ /* prototypes are in adio/ad_panfs/ad_panfs.h */
+ #endif
+ 
++#ifdef ROMIO_PLFS
++extern struct ADIOI_Fns_struct ADIO_PLFS_operations;
++/* prototypes are in adio/ad_plfs/ad_plfs.h */
++#endif
++
+ #ifdef ROMIO_PFS
+ extern struct ADIOI_Fns_struct ADIO_PFS_operations;
+ /* prototypes are in adio/ad_pfs/ad_pfs.h */
+diff -Naur openmpi-1.6/ompi/mca/io/romio/romio/adio/include/mpio_error.h openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/include/mpio_error.h
+--- openmpi-1.6/ompi/mca/io/romio/romio/adio/include/mpio_error.h	2012-04-03 08:30:21.000000000 -0600
++++ openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/include/mpio_error.h	2012-05-16 12:12:25.041976000 -0600
+@@ -52,6 +52,7 @@
+ #define MPIR_ERR_NO_HFS 15
+ #define MPIR_ERR_NO_XFS 17
+ #define MPIR_ERR_NO_SFS 19
++#define MPIR_ERR_NO_PLFS 20
+ #define MPIR_ERR_NO_PVFS 21
+ #define MPIR_ERR_NO_PANFS 22
+ #define MPIR_ERR_MULTIPLE_SPLIT_COLL 23

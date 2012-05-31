@@ -1,19 +1,83 @@
 #! /bin/tcsh -f
 
-set OMPI_VERSION = 1.4.3
-set adio_path = ${USER}-ompi-${OMPI_VERSION}/ompi/mca/io/romio/romio/adio
-set patch = ad-patches/openmpi/ompi-${OMPI_VERSION}-plfs.patch
+set script_name = `basename $0`
 
-\rm -rf /tmp/${USER}-ompi-${OMPI_VERSION}
-mkdir -p $adio_path/ad_plfs
-cp ad_plfs/* $adio_path/ad_plfs
-/bin/cp -f $adio_path/ad_plfs/Makefile.am.ompi $adio_path/ad_plfs/Makefile.am
+# command line defaults
+set mpi = openmpi
+
+# Parse command line parameters
+set i = 1
+while ( $i <= $#argv )
+    switch ("$argv[$i]")
+        case --mpi=*:
+           set mpi = `echo $argv[$i] | sed 's/[-a-zA-Z0-9]*=//'`
+           breaksw
+        case -h:
+        case --help:
+            echo "${script_name}: create a patch file that will add the ad_plfs layer"
+            echo "to an MPI implementation."
+            echo ""
+            echo "Usage:"
+            echo "\t$script_name [OPTIONS ...]"
+            echo ""
+            echo "OPTIONS:"
+            echo "\t--mpi=MPI"
+            echo "\t\tSpecify what MPI implementation to patch for. Possible values are"
+            echo "\t\topenmpi and mpich2. Default is $mpi."
+            exit 0
+            breaksw
+        default:
+            echo "Unknown command line parameter $i. Type --help for usage information."
+            exit 1
+            breaksw
+    endsw
+    @ i = $i + 1
+end
+
+# Paths for different MPI to the romio/adio directory. This is where ad_plfs
+# needs to be copied to.
+set unique_str = plfs-patch
+set ompi_path_base = openmpi-${unique_str}
+set ompi_path = ompi/mca/io/romio/romio/adio 
+set mpich2_path_base = mpich2-${unique_str}
+set mpich2_path = src/mpi/romio/adio
+
+# Patch files that can be generated
+set ompi_patch = ad-patches/openmpi/ompi-plfs.patch
+set mpich2_patch = ad-patches/mpich2/mpich2-plfs.patch
+
+# Choose one MPI to deal with. Set up paths and filenames that need to be
+# dealt with.
+if ( "$mpi" == openmpi ) then #Open MPI
+    set adio_path_base = $ompi_path_base
+    set adio_path = $ompi_path
+    set patch = $ompi_patch
+    set in_makefile = Makefile.am.ompi
+    set out_makefile = Makefile.am
+else if ( "$mpi" == mpich2 ) then # MPICH2
+    set adio_path_base = $mpich2_path_base
+    set adio_path = $mpich2_path
+    set patch = $mpich2_patch
+    set in_makefile = Makefile.in.mpich2
+    set out_makefile = Makefile.in
+else
+    echo "Invalid value of '${mpi}' given to --mpi. See --help for help."
+    exit 1
+endif
+
+#\rm -rf /tmp/${USER}-ompi-${OMPI_VERSION}
+\rm -rf $adio_path_base
+mkdir -p ${adio_path_base}/${adio_path}/ad_plfs
+cp ad_plfs/* ${adio_path_base}/${adio_path}/ad_plfs
+/bin/cp -f ${adio_path_base}/${adio_path}/ad_plfs/${in_makefile} ${adio_path_base}/${adio_path}/ad_plfs/${out_makefile}
 
 rm -f $patch; touch $patch
-foreach file ( ad_plfs/*.[ch] ad_plfs/Makefile.am )
+foreach file ( ad_plfs/*.[ch] ad_plfs/${out_makefile} )
   echo "Creating patch for $file"
-  diff -Naur openmpi-${OMPI_VERSION}/ompi/mca/io/romio/romio/adio/$file $adio_path/$file >> $patch
+  #diff -Naur openmpi-${OMPI_VERSION}/ompi/mca/io/romio/romio/adio/$file $adio_path/$file >> $patch
+  diff -Naur $mpi/${adio_path}/${file} ${adio_path_base}/${adio_path}/${file} >> $patch
 end
-\rm -rf ${USER}-ompi-${OMPI_VERSION}
+#\rm -rf ${USER}-ompi-${OMPI_VERSION}
+\rm -rf $adio_path_base
 
 echo Your patchfile is `pwd`/$patch 

@@ -17,14 +17,12 @@
 
 struct ADIOI_Fns_struct ADIO_PLFS_operations = {
     ADIOI_PLFS_Open, /* Open */
-#ifdef ROMIO_CRAY
-    /* BEGIN CRAY ADDITION */
+#ifndef ROMIO_OPENMPI_14x
     /*
-     * The ROMIO that PLFS was developed against is old and doesn't have
+     * The ROMIO that is in Open MPI 1.4.x is old and doesn't have
      * the following entry or Feature
      */
     ADIOI_GEN_OpenColl,  /* OpenColl */
-    /* END CRAY ADDITION */
 #endif
     ADIOI_PLFS_ReadContig, /* ReadContig */
     ADIOI_PLFS_WriteContig, /* WriteContig */
@@ -52,14 +50,12 @@ struct ADIOI_Fns_struct ADIO_PLFS_operations = {
     ADIOI_PLFS_Flush, /* Flush */
     ADIOI_PLFS_Resize, /* Resize */
     ADIOI_PLFS_Delete, /* Delete */
-#ifdef ROMIO_CRAY
-    /* BEGIN CRAY ADDITION */
+#ifndef ROMIO_OPENMPI_14x
     /*
-     * The ROMIO that PLFS was developed against is old and doesn't have
+     * The ROMIO that is in Open MPI 1.4.x is old and doesn't have
      * the following entry or OpenColl
      */
      ADIOI_GEN_Feature, /* Features */
-    /* END CRAY ADDITION */
 #endif
 };
 

@@ -1,0 +1,64 @@
+CC          = @CC@
+AR          = @AR@
+RANLIB      = @RANLIB@
+LIBNAME     = @LIBNAME@
+srcdir      = @srcdir@
+CC_SHL      = @CC_SHL@
+SHLIBNAME   = @SHLIBNAME@
+
+CPPFLAGS        = @CPPFLAGS@
+INCLUDES    = -I@MPI_INCLUDE_DIR@ -I${srcdir}/../include -I../include -I../../include -I${srcdir}/../../../../include -I../../../../include
+CFLAGS      = @CFLAGS@ 
+
+top_builddir  = @master_topbuild_dir@
+LIBTOOL       = @LIBTOOL@
+C_COMPILE       = $(CC) $(DEFS) $(INCLUDES) $(CFLAGS) $(CPPFLAGS)
+C_COMPILE_SHL   = $(CC_SHL) $(DEFS) $(INCLUDES) $(CFLAGS) $(CPPFLAGS)
+
+@VPATH@
+
+AD_PLFS_OBJECTS = ad_plfs.o ad_plfs_close.o ad_plfs_delete.o ad_plfs_fcntl.o ad_plfs_flush.o ad_plfs_hints.o ad_plfs_open.o ad_plfs_read.o ad_plfs_resize.o ad_plfs_write.o
+
+
+default: $(LIBNAME)
+	@if [ "@ENABLE_SHLIB@" != "none" ] ; then \
+		$(MAKE) $(SHLIBNAME).la ;\
+	fi
+
+.SUFFIXES: $(SUFFIXES) .p .lo
+
+.c.o:
+	@if [ "x$(VERBOSE)" != "x1" ] ; then \
+	  echo "  CC              $<" ; \
+	else \
+	  echo $(C_COMPILE) -c $< ; \
+	fi
+	@$(C_COMPILE) -c $<
+
+.c.lo:
+	@if [ "x$(VERBOSE)" != "x1" ] ; then \
+	  echo "  CC              $<" ; \
+	else \
+	  echo $(C_COMPILE_SHL) -c $< -o _s$*.o ; \
+	  echo mv -f _s$*.o $*.lo ; \
+	fi
+	@$(C_COMPILE_SHL) -c $< -o _s$*.o
+	@mv -f _s$*.o $*.lo
+
+
+$(LIBNAME): $(AD_PLFS_OBJECTS)
+	$(AR) $(LIBNAME) $(AD_PLFS_OBJECTS)
+	$(RANLIB) $(LIBNAME) 
+
+AD_PLFS_LOOBJECTS=$(AD_PLFS_OBJECTS:.o=.lo)
+$(SHLIBNAME).la: $(AD_PLFS_LOOBJECTS)
+	$(AR) $(SHLIBNAME).la $(AD_PLFS_LOOBJECTS)
+
+coverage:
+	-@for file in  ${AD_PLFS_OBJECTS:.o=.c} ; do \
+		gcov -b -f $$file ; done
+
+clean:
+	@rm -f *.o *.lo *.gcno *.gcda *.bb *.bbg
+	@rm -f ${srcdir}/*.gcno ${srcdir}/*.gcda 
+	@rm -f ${srcdir}/*.bb ${srcdir}/*.bbg

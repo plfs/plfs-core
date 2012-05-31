@@ -47,7 +47,8 @@ mpich2/plfs-prep-mpich2.patch \
 openmpi/Makefile.ompi-1.4.3 \
 openmpi/README.BEN \
 openmpi/README.BUILD \
-openmpi/ompi-1.4.3-plfs-prep.patch \
+openmpi/ompi-1.4.x-plfs-prep.patch \
+openmpi/ompi-1.6-plfs-prep.patch \
 openmpi/optimized-panfs-plfs \
 openmpi/optimized-panfs-plfs.conf \
 romio13/plfs-prep-romio-1.3.0p1.patch \
