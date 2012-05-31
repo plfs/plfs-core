@@ -432,21 +432,6 @@ int adplfs_broadcast_index(Plfs_fd **pfd, ADIO_File fd,
         if(compress_flag) {
             plfs_debug("Rank: %d has compr_len %d and expected expanded of %d\n"
                        ,rank,index_size[1],uncompr_len);
-            int ret=plfs_uncompress(index_stream,
-                               &uncompr_len,compr_index,index_size[1]);
-            if(ret!=Z_OK) {
-                plfs_debug("Rank %d aborting bec failed uncompress\n",rank);
-                if(ret==Z_MEM_ERROR) {
-                    plfs_debug("Mem error\n");
-                }
-                if(ret==Z_BUF_ERROR) {
-                    plfs_debug("Buffer error\n");
-                }
-                if(ret==Z_DATA_ERROR) {
-                    plfs_debug("Data error\n");
-                }
-                MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
-            }
             // Error if the uncompressed length doesn't match original length
             if(uncompr_len!=index_size[0]) {
                 plfs_debug("Uncompressed len != original index size\n");
