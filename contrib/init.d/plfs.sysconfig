@@ -7,6 +7,10 @@
 #
 
 #
+# Set the location of the PLFS binary
+#PLFS_BINARY='/usr/local/sbin/plfs'
+
+#
 # This is the list of PLFS mount points that are defined in /etc/plfsrc file. There can be one
 # or more.
 #

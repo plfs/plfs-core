@@ -49,6 +49,7 @@ EXTRA_DIST = \
 BUGS \
 Changelog \
 easyconf.sh \
+plfsrc.example \
 README.install \
 README.testing \
 README.POSIX

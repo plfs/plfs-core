@@ -40,8 +40,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 EXTRA_DIST = \
-plfs.sysconfig \
-plfs.init \
 README
 
 ################################################################################
