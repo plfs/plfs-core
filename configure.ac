@@ -197,13 +197,13 @@ Makefile
 config/Makefile
 src/Makefile
 fuse/Makefile
-ad_plfs/Makefile
 scripts/Makefile
 tests/Makefile
 tools/Makefile
 man/Makefile
 contrib/Makefile
-ad-patches/Makefile
+mpi_adio/Makefile
+mpi_adio/ad_plfs/Makefile
 ])
 
 AC_OUTPUT

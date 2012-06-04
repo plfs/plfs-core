@@ -58,16 +58,20 @@ SUBDIRS = \
 config \
 src \
 fuse \
-ad_plfs \
 scripts \
 tools \
 tests \
 man \
 contrib \
-ad-patches
+mpi_adio
 
 ACLOCAL_AMFLAGS = -I config
 
 dist-hook:
-	scripts/make_plfs_patch && \
-	cp -fv ad-patches/openmpi/ompi-plfs.patch $(distdir)/ad-patches/openmpi/
+	cd mpi_adio && \
+	scripts/make_ad_plfs_patch --mpi=openmpi && \
+	cp -fv patches/openmpi/ompi-plfs.patch ../$(distdir)/mpi_adio/patches/openmpi/ && \
+	scripts/make_ad_plfs_patch --mpi=mpich2 && \
+	cp -fv patches/mpich2/mpich2-plfs.patch ../$(distdir)/mpi_adio/patches/mpich2/ && \
+	cd ..
+

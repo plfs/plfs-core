@@ -43,8 +43,8 @@ set mpich2_path_base = mpich2-${unique_str}
 set mpich2_path = src/mpi/romio/adio
 
 # Patch files that can be generated
-set ompi_patch = ad-patches/openmpi/ompi-plfs.patch
-set mpich2_patch = ad-patches/mpich2/mpich2-plfs.patch
+set ompi_patch = patches/openmpi/ompi-plfs.patch
+set mpich2_patch = patches/mpich2/mpich2-plfs.patch
 
 # Choose one MPI to deal with. Set up paths and filenames that need to be
 # dealt with.

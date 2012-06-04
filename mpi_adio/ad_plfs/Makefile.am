@@ -78,3 +78,7 @@ libadplfs_la_CFLAGS = \
 libadplfs_la_LDFLAGS = \
 -version-info 0:0:0
 endif
+
+EXTRA_DIST = \
+Makefile.am.ompi \
+Makefile.in.mpich2

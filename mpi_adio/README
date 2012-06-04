@@ -1,0 +1,33 @@
+###############################################################################
+    PLFS MPI_ADIO
+###############################################################################
+
+*** Directories ***
+
+ad_plfs: code to be placed in an MPI's ROMIO. It is MPI_IO's interface to PLFS
+patches: generated patches
+scripts: helper scripts for use in patching MPI implementations
+
+
+*** Patching ***
+
+Once the PLFS library has been compiled, it can be used through the MPI_IO
+layer. At this time, the MPI implementation has to be patched to make it aware
+of PLFS. Instructions for patching and building MPI implementations are given
+in README.patching.
+
+
+*** Using PLFS through MPI_IO ***
+
+To use PLFS's MPI_IO layer, append 'plfs:' in front of a file name that is
+used with an MPI_IO command like this:
+
+fs_test.x -target plfs:/path/to/target
+
+See the MPI_IO documentation for more information.
+
+
+*** Developer Information ***
+
+Developer information, such as tips for generating a new prep.path, is kept in
+README.developer.
