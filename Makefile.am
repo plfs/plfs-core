@@ -50,9 +50,10 @@ BUGS \
 Changelog \
 easyconf.sh \
 plfsrc.example \
+README \
+README.POSIX \
 README.install \
-README.testing \
-README.POSIX
+README.mlog
 
 SUBDIRS = \
 config \

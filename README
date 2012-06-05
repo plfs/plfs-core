@@ -76,11 +76,12 @@ Other Info
 
 For information on PLFS's POSIX-compliance, please see README.POSIX.
 
+Information about the logging capabilities of PLFS is contained in
+README.mlog. Please see that file for more information about getting log
+information from PLFS.
+
 Information for developers, such as rules for coding and working with the
 source repository, is contained in README.developer.
-
-Information about the logging capabilities is contained in README.mlog. Please
-see that file for more information about getting log information from PLFS.
 
 
 ***************************************************************************
