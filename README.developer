@@ -28,13 +28,16 @@ change, and describe the decisions you made about how to implement your
 changes.  Allow three business days before merging into the trunk.  
 
 4) AUTOGEN
-./autogen.sh is not your friend.  Very strict requirements.  Makefile.tools
-is your friend.  Do 'make -f Makefile.tools' to install all the necessary
-build tools into ./buildtools/bin.  Then prepend that to your PATH and
-then ./autogen.sh will just work.  Except sometimes recently Makefile.tools
-doesn't work always.  Very annoying.  In this case, just find one machine
-where you have all the right versions and then use sshfs from that machine
-to the target machine to do the autogen
+./autogen.sh checks for versions of the autotools to create the PLFS build
+scripts. The check is a greater than or equal to check. That is, any version
+of the autotools that is greater than or equal to a minimum will work. 
+Makefile.tools can be used to quickly download and build the needed versions.
+Do 'make -f Makefile.tools' to install all the necessary build tools into
+./buildtools/bin. Then prepend that to your PATH and then ./autogen.sh will
+just work. Except sometimes recently Makefile.tools doesn't work always. Very
+annoying. In this case, just find one machine where you have all the right
+versions and then use sshfs from that machine to the target machine to do the
+autogen.
 
 5) CONFIGURE
 ./easyconf.sh is your friend.  Here are the environment variables I set:
@@ -59,3 +62,22 @@ Please read README.mlog
 8) valgrind on OS X
 You will need to run dsymutil on the plfs binary and libplfs.0.dylib to get 
 debug symbols available for valgrind so it can report line numbers.
+
+9) Release Process
+   1) Make sure that the local svn instance has an updated ChangeLog
+   2) The local svn instance needs to be already checked in, be it trunk or a
+      release branch.
+   2) Copy the local svn instance to the versions directory. Here's an example
+      using trunk:
+      svn co https://plfs.svn.sourceforge.net/svnroot/plfs plfs 
+      cd plfs
+      svn copy trunk versions/<release>
+   3) Update info specific to the release
+      cd versions/<release>
+      Update the VERSION file to contain <release>
+      svn commit
+   4) Generate a tarball
+      ./autogen.sh
+      ./configure
+      make dist # Creates plfs-<version>.tar.gz
+   5) Upload the tarball to sourceforge.net
