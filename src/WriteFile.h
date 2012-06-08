@@ -4,6 +4,8 @@
 #include "COPYRIGHT.h"
 #include <map>
 using namespace std;
+
+#include "PhysicalLogfile.h"
 #include "Util.h"
 #include "Index.h"
 #include "Metadata.h"
@@ -20,7 +22,8 @@ using namespace std;
 
 struct
 OpenFd {
-    int fd;
+    PhysicalLogfile *fd;
+    //int fd;
     int writers;
 };
 
@@ -63,7 +66,8 @@ class WriteFile : public Metadata
     private:
         int openIndexFile( string path, string host, pid_t, mode_t
                            , string *index_path);
-        int openDataFile(string path, string host, pid_t, mode_t );
+        PhysicalLogfile * openDataFile(string path, string host, pid_t, mode_t, 
+                int &);
         int openFile( string, mode_t mode );
         int Close( );
         int closeFd( int fd );

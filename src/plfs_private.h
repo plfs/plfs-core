@@ -83,7 +83,8 @@ typedef struct {
     set<string> backends;  /* to detect a backend being reused in plfsrc */
     size_t num_hostdirs;
     size_t threadpool_size;
-    size_t buffer_mbs;  // how many mbs to buffer for write indexing
+    size_t index_buffer_mbs;  // how many mbs to buffer for write indexing
+    size_t data_buffer_mbs;  // how many mbs to buffer for write logs 
     map<string,PlfsMount *> mnt_pts;
     bool direct_io; // a flag FUSE needs.  Sorry ADIO and API for the wasted bit
     bool test_metalink; // for developers only

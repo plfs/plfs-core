@@ -66,7 +66,8 @@ int WriteFile::sync()
     Util::MutexLock( &data_mux, __FUNCTION__ );
     map<pid_t, OpenFd >::iterator pids_itr;
     for( pids_itr = fds.begin(); pids_itr != fds.end() && ret==0; pids_itr++ ) {
-        ret = Util::Fsync( pids_itr->second.fd );
+        ret = pids_itr->second.fd->sync();
+        //ret = Util::Fsync( pids_itr->second.fd );
     }
     Util::MutexUnlock( &data_mux, __FUNCTION__ );
 
@@ -90,7 +91,8 @@ int WriteFile::sync( pid_t pid )
         // ugh, sometimes FUSE passes in weird pids, just ignore this
         //ret = -ENOENT;
     } else {
-        ret = Util::Fsync( ofd->fd );
+        ret = ofd->fd->sync();
+        //ret = Util::Fsync( ofd->fd );
         Util::MutexLock( &index_mux, __FUNCTION__ );
         if ( ret == 0 ) {
             index->flush();
@@ -116,15 +118,15 @@ int WriteFile::addWriter( pid_t pid, bool child )
     if ( ofd ) {
         ofd->writers++;
     } else {
-        int fd = openDataFile( subdir_path, hostname, pid, DROPPING_MODE);
-        if ( fd >= 0 ) {
+        PhysicalLogfile *fd = 
+            openDataFile( subdir_path, hostname, pid, DROPPING_MODE, ret);
+        if ( fd ) {
             struct OpenFd ofd;
             ofd.writers = 1;
             ofd.fd = fd;
             fds[pid] = ofd;
-        } else {
-            ret = -errno;
-        }
+        } // else ret is set in openDataFile
+
     }
     int writers = incrementOpens(0);
     if ( ret == 0 && ! child ) {
@@ -236,7 +238,9 @@ WriteFile::removeWriter( pid_t pid )
     } else {
         ofd->writers--;
         if ( ofd->writers <= 0 ) {
-            ret = closeFd( ofd->fd );
+            ret = ofd->fd->close();
+            delete ofd->fd;
+            ofd->fd = NULL;
             fds.erase( pid );
         }
     }
@@ -285,11 +289,10 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
         }
     }
     if ( ofd && ret >= 0 ) {
-        int fd = ofd->fd;
         // write the data file
         double begin, end;
         begin = Util::getTime();
-        ret = written = ( size ? Util::Write( fd, buf, size ) : 0 );
+        ret = written = ofd->fd->append(buf,size);
         end = Util::getTime();
         // then the index
         if ( ret >= 0 ) {
@@ -360,9 +363,11 @@ int WriteFile::Close()
     // these should already be closed here
     // from each individual pid's close but just in case
     for( itr = fds.begin(); itr != fds.end(); itr++ ) {
-        if ( closeFd( itr->second.fd ) != 0 ) {
+        if (itr->second.fd->close() != 0) {
             failures++;
         }
+        delete itr->second.fd;
+        itr->second.fd = NULL;
     }
     fds.clear();
     Util::MutexUnlock( &data_mux, __FUNCTION__ );
@@ -384,9 +389,18 @@ int WriteFile::openIndexFile(string path, string host, pid_t p, mode_t m,
     return openFile(*index_path,m);
 }
 
-int WriteFile::openDataFile(string path, string host, pid_t p, mode_t m)
+PhysicalLogfile * 
+WriteFile::openDataFile(string path, string host, pid_t p, mode_t m,
+        int &neg_errno)
 {
-    return openFile(Container::getDataPath(path,host,p,createtime),m);
+    string physical_path = Container::getDataPath(path,host,p,createtime);
+    PhysicalLogfile *plf = new PhysicalLogfile(physical_path);
+    neg_errno = plf->open(m);
+    if (neg_errno != 0) {
+        delete plf;
+        plf = NULL;
+    }
+    return plf;
 }
 
 // returns an fd or -1
@@ -450,19 +464,16 @@ int WriteFile::restoreFds( bool droppings_were_truncd )
     }
     // then the data fds
     for( pids_itr = fds.begin(); pids_itr != fds.end(); pids_itr++ ) {
-        paths_itr = paths.find( pids_itr->second.fd );
-        if ( paths_itr == paths.end() ) {
-            return -ENOENT;
+        PhysicalLogfile *plf = pids_itr->second.fd;
+        ret = plf->close();
+        if ( ret == 0 ) {
+            ret = plf->open(mode);
         }
-        string datapath = paths_itr->second;
-        if ( closeFd( pids_itr->second.fd ) != 0 ) {
-            return -errno;
-        }
-        pids_itr->second.fd = openFile( datapath, mode );
-        if ( pids_itr->second.fd < 0 ) {
-            return -errno;
+        if (ret != 0) {
+            return ret;
         }
     }
+
     // normally we return ret at the bottom of our functions but this
     // function had so much error handling, I just cut out early on any
     // error.  therefore, if we get here, it's happy days!

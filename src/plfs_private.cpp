@@ -298,8 +298,10 @@ plfs_dump_config(int check_dirs, int make_dir)
     cout << "Config file " << pconf->file << " correctly parsed:" << endl
          << "Num Hostdirs: " << pconf->num_hostdirs << endl
          << "Threadpool size: " << pconf->threadpool_size << endl
-         << "Write index buffer size (mbs): " << pconf->buffer_mbs << endl
-         << "Num Mountpoints: " << pconf->mnt_pts.size() << endl;
+         << "Write index buffer size (mbs): " << pconf->index_buffer_mbs << endl
+         << "Write data buffer size (mbs): " << pconf->data_buffer_mbs << endl
+         << "Num Mountpoints: " << pconf->mnt_pts.size() << endl
+         << "Lazy Stat: " << (int)pconf->lazy_stat << endl;
     if (pconf->global_summary_dir) {
         cout << "Global summary dir: " << *(pconf->global_summary_dir) << endl;
         if(check_dirs) {
@@ -774,7 +776,8 @@ set_default_confs(PlfsConf *pconf)
     pconf->direct_io = 0;
     pconf->lazy_stat = 1;
     pconf->err_msg = NULL;
-    pconf->buffer_mbs = 64;
+    pconf->data_buffer_mbs = 64;
+    pconf->index_buffer_mbs = 64;
     pconf->global_summary_dir = NULL;
     pconf->test_metalink = 0;
     /* default mlog settings */
@@ -834,7 +837,9 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
 {
     int v;
     if(strcmp(key,"index_buffer_mbs")==0) {
-        pconf->buffer_mbs = atoi(value);
+        pconf->index_buffer_mbs = atoi(value);
+    } else if(strcmp(key,"data_buffer_mbs")==0) {
+        pconf->data_buffer_mbs = atoi(value);
     } else if(strcmp(key,"workload")==0) {
         if( !*pmntp ) {
             pconf->err_msg = new string("No mount point yet declared");

@@ -64,6 +64,7 @@ Metadata.h \
 mlog.h \
 OpenFile.h \
 plfs_private.h \
+PhysicalLogFile.h \
 ThreadPool.h \
 WriteFile.h \
 container_internals.h \
@@ -83,6 +84,7 @@ FileOp.cpp \
 Index.cpp \
 LogMessage.cpp \
 OpenFile.cpp \
+PhysicalLogFile.cpp \
 ThreadPool.cpp \
 WriteFile.cpp \
 mlog.c \

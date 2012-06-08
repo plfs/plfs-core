@@ -1359,7 +1359,7 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
             if(open_opt&&open_opt->pinter==PLFS_MPIIO &&
                     open_opt->buffer_index) {
                 // this means we want to flatten on close
-                indx_sz = get_plfs_conf()->buffer_mbs;
+                indx_sz = get_plfs_conf()->index_buffer_mbs;
             }
             wf = new WriteFile(path, Util::hostname(), mode, indx_sz);
             new_writefile = true;

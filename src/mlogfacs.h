@@ -51,7 +51,8 @@ static const char *mlog_facsarray[] = {
     "STO",           /* 8 */
     "FUSE",          /* 9 */
     "MPI",           /* 10 */
-    0,               /* 11 */
+    "PLOG",          /* 11 */
+    0,               /* 12 */
 };
 #endif /* MLOG_FACSARRAY || MLOG_AFACSARRAY */
 
@@ -68,7 +69,8 @@ static const char *mlog_lfacsarray[] = {
     "store",         /* 8 */
     "FUSE",          /* 9 */
     "MPI",           /* 10 */
-    0,               /* 11 */
+    "logfile",       /* 11 */
+    0,               /* 12 */
 };
 #endif /* MLOG_LFACSARRAY || MLOG_LFACSARRAY */
 
@@ -85,6 +87,7 @@ static const char *mlog_lfacsarray[] = {
 #define MLOGFAC_STO       8 /* store */
 #define MLOGFAC_FUSE      9 /* FUSE */
 #define MLOGFAC_MPI      10 /* MPI */
+#define MLOGFAC_PLOG     11 /* logfile */
 
 /*
  * plfs_misc MLOG levels
@@ -285,5 +288,25 @@ static const char *mlog_lfacsarray[] = {
 #define MPI_DCOMMON       MPI_DBG2
 #define MPI_DBG3         (10 | MLOG_DBG3)
 #define MPI_DRARE         MPI_DBG3
+
+/*
+ * logfile MLOG levels
+ */
+#define PLOG_EMERG       (11 | MLOG_EMERG)
+#define PLOG_ALERT       (11 | MLOG_ALERT)
+#define PLOG_CRIT        (11 | MLOG_CRIT)
+#define PLOG_ERR         (11 | MLOG_ERR)
+#define PLOG_WARN        (11 | MLOG_WARN)
+#define PLOG_NOTE        (11 | MLOG_NOTE)
+#define PLOG_INFO        (11 | MLOG_INFO)
+#define PLOG_DBG         (11 | MLOG_DBG)
+#define PLOG_DBG0        (11 | MLOG_DBG0)
+#define PLOG_DAPI         PLOG_DBG0
+#define PLOG_DBG1        (11 | MLOG_DBG1)
+#define PLOG_DINTAPI      PLOG_DBG1
+#define PLOG_DBG2        (11 | MLOG_DBG2)
+#define PLOG_DCOMMON      PLOG_DBG2
+#define PLOG_DBG3        (11 | MLOG_DBG3)
+#define PLOG_DRARE        PLOG_DBG3
 
 #endif /* _MLOGFACS_H_ */

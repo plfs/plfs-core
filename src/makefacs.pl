@@ -43,6 +43,7 @@
      "STO"      => "store",
      "FUSE"     => "FUSE",
      "MPI"      => "MPI",
+     "PLOG"     => "logfile",
 );
 
 @mloglvls = (

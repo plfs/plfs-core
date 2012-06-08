@@ -568,9 +568,14 @@ int Plfs::getattr_helper( string expanded, const char *path,
             }
             stbuf->st_nlink = 1;
             stbuf->st_size = (dd->getsize == NULL) ? 0 : dd->getsize(dd);
+            stbuf->st_blocks = 1;
             struct timeval  tv;
             gettimeofday(&tv, NULL);
+            stbuf->st_atime = tv.tv_sec;
+            stbuf->st_ctime = tv.tv_sec;
             stbuf->st_mtime = tv.tv_sec;
+            stbuf->st_gen = tv.tv_sec;
+            //stbuf->st_birthtimespec = tv.tv_sec;
             ret = 0;
         } else {
             // let's remove this from our created containers
