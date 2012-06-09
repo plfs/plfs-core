@@ -794,8 +794,8 @@ set_default_confs(PlfsConf *pconf)
     pconf->direct_io = 0;
     pconf->lazy_stat = 1;
     pconf->err_msg = NULL;
-    pconf->data_buffer_mbs = 64;
-    pconf->index_buffer_mbs = 64;
+    pconf->data_buffer_mbs = 4;
+    pconf->index_buffer_mbs = 4;
     pconf->global_summary_dir = NULL;
     pconf->test_metalink = 0;
     /* default mlog settings */
