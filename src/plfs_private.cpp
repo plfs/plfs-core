@@ -265,18 +265,69 @@ plfs_check_dir(string type, string dir,int previous_ret, bool make_dir)
     }
 }
 
-int
-print_backends(vector<string> &backends,const char *which,bool check_dirs,
-               int ret,bool make_dir)
+string
+backendsToString(vector<string> &backends,const char *which,bool check_dirs,
+               int &ret,bool make_dir)
 {
+    ostringstream oss;
     vector<string>::iterator bitr;
     for(bitr = backends.begin(); bitr != backends.end(); bitr++) {
-        cout << "\t" << which << " Backend: " << *bitr << endl;
+        oss << "\t" << which << "Backend: " << *bitr << endl;
         if(check_dirs) {
             ret = plfs_check_dir("backend",*bitr,ret,make_dir);
         }
     }
-    return ret;
+    return oss.str();
+}
+
+string
+pconfToString(PlfsConf *pconf) {
+    ostringstream oss;
+    oss << "Config file " << pconf->file << " correctly parsed:" << endl
+         << "Num Hostdirs: " << pconf->num_hostdirs << endl
+         << "Threadpool size: " << pconf->threadpool_size << endl
+         << "Write index buffer size (mbs): " << pconf->index_buffer_mbs << endl
+         << "Write data buffer size (mbs): " << pconf->data_buffer_mbs << endl
+         << "Num Mountpoints: " << pconf->mnt_pts.size() << endl
+         << "Lazy Stat: " << (int)pconf->lazy_stat << endl;
+    if (pconf->global_summary_dir) {
+        oss << "Global summary dir: " << *(pconf->global_summary_dir) << endl;
+    }
+    if (pconf->test_metalink) {
+        oss << "Test metalink: TRUE" << endl;
+    }
+    return oss.str(); 
+}
+
+string
+mountToString(PlfsMount *pmnt,int check_dirs,int make_dir, int &ret) 
+{
+    ostringstream oss;
+    oss << "Mount Point " << pmnt->mnt_pt << " :" << endl;
+    oss << "\tExpected Workload: "
+         << (pmnt->file_type == CONTAINER ? "shared_file (N-1)"
+             : pmnt->file_type == FLAT_FILE ? "file_per_proc (N-N)"
+             : "UNKNOWN.  WTF.  email plfs-devel@lists.sourceforge.net")
+         << endl;
+    if(check_dirs) {
+        ret = plfs_check_dir("mount_point",pmnt->mnt_pt,ret,make_dir);
+    }
+    oss << backendsToString(pmnt->backends,"",check_dirs,ret,make_dir);
+    oss << backendsToString(pmnt->canonical_backends,"Canonical ",
+                         check_dirs,ret,make_dir);
+    oss << backendsToString(pmnt->shadow_backends,"Shadow ",check_dirs,ret,
+                         make_dir);
+    if(pmnt->syncer_ip) {
+        oss << "\tSyncer IP: " << pmnt->syncer_ip->c_str() << endl;
+    }
+    if(pmnt->statfs) {
+        oss << "\tStatfs: " << pmnt->statfs->c_str() << endl;
+        if(check_dirs) {
+            ret=plfs_check_dir("statfs",pmnt->statfs->c_str(),ret,make_dir);
+        }
+    }
+    oss << "\tChecksum: " << pmnt->checksum << endl;
+    return oss.str();
 }
 
 // returns 0 or -EINVAL or -ENOENT
@@ -295,51 +346,18 @@ plfs_dump_config(int check_dirs, int make_dir)
     // if we make it here, we've parsed correctly
     vector<int> rets;
     int ret = 0;
-    cout << "Config file " << pconf->file << " correctly parsed:" << endl
-         << "Num Hostdirs: " << pconf->num_hostdirs << endl
-         << "Threadpool size: " << pconf->threadpool_size << endl
-         << "Write index buffer size (mbs): " << pconf->index_buffer_mbs << endl
-         << "Write data buffer size (mbs): " << pconf->data_buffer_mbs << endl
-         << "Num Mountpoints: " << pconf->mnt_pts.size() << endl
-         << "Lazy Stat: " << (int)pconf->lazy_stat << endl;
-    if (pconf->global_summary_dir) {
-        cout << "Global summary dir: " << *(pconf->global_summary_dir) << endl;
-        if(check_dirs) {
-            ret = plfs_check_dir("global_summary_dir",
-                                 pconf->global_summary_dir->c_str(),ret,
-                                 make_dir);
-        }
+    cout << pconfToString(pconf) << endl;
+
+    // make sure a global_summary_dir exists if requested
+    if (pconf->global_summary_dir && check_dirs) {
+        ret = plfs_check_dir("global_summary_dir",
+             pconf->global_summary_dir->c_str(),ret, make_dir);
     }
-    if (pconf->test_metalink) {
-        cout << "Test metalink: TRUE" << endl;
-    }
+
+    // now check each mount point
     map<string,PlfsMount *>::iterator itr;
     for(itr=pconf->mnt_pts.begin(); itr!=pconf->mnt_pts.end(); itr++) {
-        PlfsMount *pmnt = itr->second;
-        cout << "Mount Point " << itr->first << " :" << endl;
-        cout << "\tExpected Workload "
-             << (pmnt->file_type == CONTAINER ? "shared_file (N-1)"
-                 : pmnt->file_type == FLAT_FILE ? "file_per_proc (N-N)"
-                 : "UNKNOWN.  WTF.  email plfs-devel@lists.sourceforge.net")
-             << endl;
-        if(check_dirs) {
-            ret = plfs_check_dir("mount_point",itr->first,ret,make_dir);
-        }
-        ret = print_backends(pmnt->backends,"",check_dirs,ret,make_dir);
-        ret = print_backends(pmnt->canonical_backends,"Canonical",
-                             check_dirs,ret,make_dir);
-        ret = print_backends(pmnt->shadow_backends,"Shadow",check_dirs,ret,
-                             make_dir);
-        if(pmnt->syncer_ip) {
-            cout << "\tSyncer IP: " << pmnt->syncer_ip->c_str() << endl;
-        }
-        if(pmnt->statfs) {
-            cout << "\tStatfs: " << pmnt->statfs->c_str() << endl;
-            if(check_dirs) {
-                ret=plfs_check_dir("statfs",pmnt->statfs->c_str(),ret,make_dir);
-            }
-        }
-        cout << "\tChecksum: " << pmnt->checksum << endl;
+        cout << mountToString(itr->second, check_dirs,make_dir,ret);
     }
     return ret;
 }

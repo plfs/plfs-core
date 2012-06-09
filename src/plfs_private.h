@@ -118,6 +118,13 @@ PlfsMount *find_mount_point(PlfsConf *pconf, const string& path, bool& found);
 PlfsMount *find_mount_point_using_tokens(PlfsConf *, vector <string> &, bool&);
 int find_all_expansions(const char *logical, vector<string> &containers);
 
+// helper functions to print the contents of a conf file 
+// currently shared by .plfsdebug in fuse and by plfs_check_config in tools
+string pconfToString(PlfsConf *pconf);
+string mountToString(PlfsMount *pmnt,int check_dirs,int make_dir, 
+        int &ret);
+
+
 // a helper function that expands %t, %p, %h in mlog file name
 string expand_macros(const char *target);
 

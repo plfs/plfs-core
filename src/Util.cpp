@@ -2,6 +2,7 @@
 #include "config.h"
 #endif
 
+#include <assert.h>
 #include <stdlib.h>
 #include <errno.h>
 #include "COPYRIGHT.h"
@@ -727,8 +728,9 @@ double Util::getTime( )
 // returns n or returns -1
 ssize_t Util::Writen( int fd, const void *vptr, size_t n )
 {
-    ENTER_UTIL;
+    ENTER_IO;
     size_t      nleft;
+    size_t size = n; // needed for EXIT_IO stats collection
     ssize_t     nwritten;
     const char  *ptr;
     ptr = (const char *)vptr;
@@ -746,7 +748,8 @@ ssize_t Util::Writen( int fd, const void *vptr, size_t n )
         nleft -= nwritten;
         ptr   += nwritten;
     }
-    EXIT_UTIL;
+    assert(ret == -1 || nleft==0);
+    EXIT_IO;
 }
 
 string Util::openFlagsToString( int flags )

@@ -1195,30 +1195,27 @@ string Plfs::openFilesToString(bool verbose)
     return oss.str();
 }
 
+/*
+   deprecated.  Delete this commented out block if you find it later
 void
 printBackends(const char *type, vector<string> &backends, ostringstream& oss)
 {
-    oss << type << " Backends: ";
-    for(vector<string>::iterator i = backends.begin(); i!=backends.end(); i++) {
-        oss << *i << ",";
+    if (backends.size() > 0) {
+        oss << type << "Backends: ";
+        for(vector<string>::iterator i = backends.begin(); i!=backends.end(); i++) {
+            oss << *i << ",";
+        }
+        oss << endl;
     }
-    oss << endl;
 }
+*/
 
 string Plfs::confToString(PlfsConf *p, PlfsMount *pmnt)
 {
     ostringstream oss;
-    oss << "Mount point: "      << pmnt->mnt_pt << endl
-        << "Direct IO: "        << p->direct_io << endl
-        << "Executable bit: "   << ! p->direct_io << endl
-        ;
-    printBackends("", pmnt->backends, oss);
-    printBackends("Canonical", pmnt->canonical_backends,oss);
-    printBackends("Shadow", pmnt->shadow_backends, oss);
-    oss << endl
-        << "Backend checksum: " << pmnt->checksum << endl
-        << "Threadpool size: " << p->threadpool_size << endl
-        << "Max hostdirs per container: " << p->num_hostdirs << endl;
+    int ret;    // silently ignored
+    oss << mountToString(pmnt,0,0,ret);
+    oss << pconfToString(p);
     return oss.str();
 }
 
@@ -1462,7 +1459,7 @@ int Plfs::dbg_debug_read(char *buf, size_t size, off_t offset)
                     plfs_buildtime(),
                     self->myhost.c_str(),
                     plfs_wtime() - self->begin_time,
-                    confToString(self->pconf,self->pmnt).c_str(),
+                    confToString(self->pconf,self->pmnt).c_str(), 
                     stats.c_str(),
                     self->make_container_time,
                     self->wtfs,

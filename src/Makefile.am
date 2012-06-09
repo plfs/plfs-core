@@ -65,6 +65,7 @@ mlog.h \
 OpenFile.h \
 plfs_private.h \
 PhysicalLogFile.h \
+ScopeMutex.h \
 ThreadPool.h \
 WriteFile.h \
 container_internals.h \
