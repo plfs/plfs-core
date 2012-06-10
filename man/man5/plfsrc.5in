@@ -31,10 +31,18 @@ This value is set to the number of threads to run on a machine; for machines use
 .RE
 
 .B
+data_buffer_mbs
+.RS
+This is the amount of memory (in megabytes) that PLFS can use to buffer file data.  This is useful on all systems where the backend does not itself buffer on 
+the node itself.  This is true for Cray systems with DVS and IOFSL systems and
+PVFS.  When setting this value, bear in mind that every open file handle can buffer this much memory so that total memory being used can be much larger than this value.  Optional; set to 0 to disable.  Default is 4. 
+.RE
+
+.B
 index_buffer_mbs
 .RS
 This is the amount of memory (in megabytes) that PLFS can use to buffer indexing information while it is writing files.  This buffer, if sufficiently large, enables subsequent optimizations which improve read open times.  This behavior is only available through the MPI-IO interface and can be controlled by an optional
-hint of "plfs_flatten_close."  When setting this value, bear in mind that every open file handle can buffer this much memory so that total memory being used can be much larger than this value.  Optional.  Default is 64.
+hint of "plfs_flatten_close."  When setting this value, bear in mind that every open file handle can buffer this much memory so that total memory being used can be much larger than this value.  Optional; set to 0 to disable.  Default is 4.
 .RE
 
 .B

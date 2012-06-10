@@ -44,6 +44,13 @@ be run in the mount point but increases performance for PLFS.
 big_writes
 Available for newer versions of fuse.  Includes benefits of direct_io
 option and allows executables to be run in the mount point.
+.TP 1i
+allow_other
+This is needed for a system mount when mounted by root to allow non-root users to access the mount point.
+.TP 1i
+auto_cache
+This is just useful for the special .plfsdebug file on a Mac.  So this is
+mainly for developers.
 
 .SH RETURN VALUE
 A 1 is returned on success and 0 or -errno is returned on failure.
