@@ -574,7 +574,8 @@ int Plfs::getattr_helper( string expanded, const char *path,
             stbuf->st_atime = tv.tv_sec;
             stbuf->st_ctime = tv.tv_sec;
             stbuf->st_mtime = tv.tv_sec;
-            stbuf->st_gen = tv.tv_sec;
+            // these next two are specific to OS X
+            //stbuf->st_gen = tv.tv_sec;
             //stbuf->st_birthtimespec = tv.tv_sec;
             ret = 0;
         } else {
