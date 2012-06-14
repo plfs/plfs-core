@@ -165,7 +165,6 @@ PhysicalLogfile::append(const void *src, size_t nbyte) {
 
     // all done
     if (ret >= 0 ) {
-        cerr << "Appended buf " << src << endl;
         mlog(PLOG_DAPI, "Appended %lu to %s\n", 
             (unsigned long)nbyte, path.c_str());
         return nbyte;
