@@ -46,7 +46,6 @@ VERSION.LAYOUT \
 VERSION
 
 EXTRA_DIST = \
-BUGS \
 Changelog \
 easyconf.sh \
 plfsrc.example \
