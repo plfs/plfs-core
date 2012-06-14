@@ -477,31 +477,43 @@ container_rename( const char *logical, const char *to )
             PLFS_EXIT(ret);
         }
     }
-    // now check whether it is a file of a directory we are renaming
+
+    // now check what type of entry it is 
     mode_t mode;
     bool isfile = Container::isContainer(old_canonical,&mode);
-    // get the list of all possible entries for both src and dest
-    vector<string> srcs, dsts;
-    vector<string>::iterator itr;
-    if ( (ret = find_all_expansions(logical,srcs)) != 0 ) {
-        PLFS_EXIT(ret);
-    }
-    if ( (ret = find_all_expansions(to,dsts)) != 0 ) {
-        PLFS_EXIT(ret);
-    }
-    assert(srcs.size()==dsts.size());
-    // now go through and rename all of them (ignore ENOENT)
-    for(size_t i = 0; i < srcs.size(); i++) {
-        int err = retValue(Util::Rename(srcs[i].c_str(),dsts[i].c_str()));
-        if (err == -ENOENT) {
-            err = 0;    // a file might not be distributed on all
+    if (S_ISLNK(mode)) { // copy a symbolic link.
+        // symlink is easy, just use the CopyFile routine that is symlink aware
+        ret = Util::CopyFile(old_canonical.c_str(),new_canonical.c_str());
+        if (ret==0) {
+            Util::Unlink(old_canonical.c_str());
         }
-        if (err != 0) {
-            ret = err;    // keep trying but save the error
+    } else {
+        // handle logical files and logical dirs the same
+        // do a rename of all expansions across all backends
+        vector<string> srcs, dsts;
+        vector<string>::iterator itr;
+        if ( (ret = find_all_expansions(logical,srcs)) != 0 ) {
+            PLFS_EXIT(ret);
         }
-        mlog(INT_DCOMMON, "rename %s to %s: %d",
-             srcs[i].c_str(),dsts[i].c_str(),err);
+        if ( (ret = find_all_expansions(to,dsts)) != 0 ) {
+            PLFS_EXIT(ret);
+        }
+        assert(srcs.size()==dsts.size());
+
+        // now go through and rename all of them (ignore ENOENT)
+        for(size_t i = 0; i < srcs.size(); i++) {
+            int err = retValue(Util::Rename(srcs[i].c_str(),dsts[i].c_str()));
+            if (err == -ENOENT) {
+                err = 0;    // a file might not be distributed on all
+            }
+            if (err != 0) {
+                ret = err;    // keep trying but save the error
+            }
+            mlog(INT_DCOMMON, "rename %s to %s: %d",
+                 srcs[i].c_str(),dsts[i].c_str(),err);
+        }
     }
+
     // if it's a file whose canonical location has moved, recover it
     bool moved = (old_canonical_backend!=new_canonical_backend);
     if (moved && isfile) {
