@@ -93,6 +93,37 @@ plfs_dump_index( FILE *fp, const char *logical, int compress )
     PLFS_EXIT(ret);
 }
 
+int
+plfs_shard_map_free(struct Plfs_shard *head) {
+    return Index::free_shards(head);
+}
+
+int 
+plfs_shard_map( const char *logical, struct Plfs_shard **head ) {
+    PLFS_ENTER;
+    Index ndx(path);
+    map<string,string> locations;
+    PlfsConf *pconf = get_plfs_conf();
+    bool found = false;
+    string logical_str = logical;
+    PlfsMount *pmount = find_mount_point(pconf, logical, found);
+    if (!found || !pmount) {
+        cout << "Didn't find mount " << pmount << endl;
+        PLFS_EXIT(-ENOSYS);
+    }
+
+    cout << "Found mount " << pmount << endl;
+
+    ret = Container::populateIndex(path,&ndx,true);
+    if (ret != 0) {
+        PLFS_EXIT(ret);
+    }
+
+    ret = ndx.shard_map(head,locations);
+
+    PLFS_EXIT(ret);
+}
+
 // should be called with a logical path and already_expanded false
 // or called with a physical path and already_expanded true
 // returns 0 or -errno

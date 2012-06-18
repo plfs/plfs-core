@@ -34,6 +34,14 @@ typedef void *Plfs_fd;
         int  reopen;
     } Plfs_open_opt;
 
+    struct Plfs_shard {
+        off_t offset;
+        size_t size;
+        char *location;
+        Plfs_shard *next;
+        Plfs_shard *prev;
+    };
+
     typedef struct {
         off_t last_offset;
         size_t total_bytes;
@@ -181,6 +189,13 @@ typedef void *Plfs_fd;
     int plfs_rmdir( const char *path );
 
     void plfs_serious_error(const char *msg,pid_t pid );
+
+    /*
+        query which shard is where physically for a plfs file
+    */
+    int plfs_shard_map( const char *path, struct Plfs_shard **head );
+    int plfs_shard_map_free(struct Plfs_shard *head);
+
     /*
        a funtion to get stats back from plfs operations
        the void * needs to be a pointer to an STL string but void * is used here

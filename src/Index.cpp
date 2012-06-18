@@ -397,6 +397,50 @@ Index::isBuffering()
     return this->buffering;
 }
 
+struct Plfs_shard *
+new_pshard() 
+{
+    struct Plfs_shard *pshard = new struct Plfs_shard;
+    memset((void*)pshard,0,sizeof(*pshard));
+    return pshard;
+}
+
+int
+Index::free_shards(struct Plfs_shard *head) 
+{
+    while(head) {
+        struct Plfs_shard *pshard = head;
+        head = head->next;
+        free(pshard->location);
+        delete pshard;
+    }
+    return 0;
+}
+
+int
+Index::shard_map(struct Plfs_shard **head, const map<string,string> &locations) 
+{
+    *head = NULL;
+    struct Plfs_shard *cur = *head;
+    map<off_t,ContainerEntry>::const_iterator itr;
+    for(itr = global_index.begin(); itr != global_index.end(); itr++) {
+        Plfs_shard *pshard = new_pshard();
+        pshard->offset = itr->second.logical_offset;
+        pshard->size = itr->second.length;
+        pshard->prev = cur;
+        pshard->next = NULL;
+        pshard->location = Util::Strdup(chunk_map[itr->second.id].path.c_str());
+        if (*head == NULL) {
+            *head = pshard;
+            cur = *head;
+        } else {
+            cur->next = pshard;
+            cur = pshard;
+        }
+    }
+    return 0;
+}
+
 // this function makes a copy of the index
 // and then clears the existing one
 // walks the copy and merges where possible

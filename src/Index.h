@@ -130,6 +130,9 @@ class Index : public Metadata
 
         int resetPhysicalOffsets();
 
+        int shard_map(struct Plfs_shard **head, const map<string,string> &);
+        static int free_shards(struct Plfs_shard *head);
+
         size_t totalBytes( );
 
         int getChunkFd( pid_t chunk_id );
