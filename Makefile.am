@@ -46,29 +46,32 @@ VERSION.LAYOUT \
 VERSION
 
 EXTRA_DIST = \
-BUGS \
 Changelog \
 easyconf.sh \
+plfsrc.example \
+README \
+README.POSIX \
 README.install \
-README.testing \
-README.POSIX
+README.mlog
 
 SUBDIRS = \
 config \
 src \
 fuse \
-ad_plfs \
 scripts \
 tools \
 tests \
 man \
 contrib \
-ad-patches
+mpi_adio
 
 ACLOCAL_AMFLAGS = -I config
 
 dist-hook:
-	cp -f ad_plfs/Makefile.am.ompi /tmp/ 
-	pushd $(distdir) && \
-	scripts/make_plfs_patch && \
-	popd
+	cd mpi_adio && \
+	scripts/make_ad_plfs_patch --mpi=openmpi && \
+	cp -fv patches/openmpi/ompi-plfs.patch ../$(distdir)/mpi_adio/patches/openmpi/ && \
+	scripts/make_ad_plfs_patch --mpi=mpich2 && \
+	cp -fv patches/mpich2/mpich2-plfs.patch ../$(distdir)/mpi_adio/patches/mpich2/ && \
+	cd ..
+

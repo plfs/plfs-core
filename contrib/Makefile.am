@@ -40,6 +40,10 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 EXTRA_DIST = \
+init.d/plfs.init \
+init.d/plfs.init.suse \
+init.d/plfs.sysconfig \
+init.d/README \
 LANL/configuration_files/README \
 LANL/configuration_files/plfs.sysconfig.cerrillos.compute \
 LANL/configuration_files/plfs.sysconfig.cerrillos.fe \
@@ -140,6 +144,9 @@ LANL/configuration_files/plfsrc.yellow.threadpool_size.compute \
 LANL/configuration_files/plfsrc.yellow.threadpool_size.fta \
 LANL/configuration_files/plfsrc.yellowrail \
 LANL/configuration_files/plfsrc.yellowrail.old \
+LANL/RPMs/LANL_RPM_Building.txt \
+LANL/RPMs/plfs-2.1.spec \
+LANL/RPMs/sys_typ.sh \
 syncer/Makefile \
 syncer/README \
 syncer/etc/example.conf \

@@ -1,5 +1,6 @@
 #define MLOG_FACSARRAY   /* need to define before include mlog .h files */
 
+#include <cstdlib>
 #include "plfs_internal.h"
 #include "plfs_private.h"
 #include "Util.h"
@@ -304,7 +305,8 @@ plfs_dump_config(int check_dirs, int make_dir)
          << "Num Hostdirs: " << pconf->num_hostdirs << endl
          << "Threadpool size: " << pconf->threadpool_size << endl
          << "Write index buffer size (mbs): " << pconf->buffer_mbs << endl
-         << "Num Mountpoints: " << pconf->mnt_pts.size() << endl;
+         << "Num Mountpoints: " << pconf->mnt_pts.size() << endl
+         << "Lazy Stat: " << (int)pconf->lazy_stat << endl;
     if (pconf->global_summary_dir) {
         cout << "Global summary dir: " << *(pconf->global_summary_dir) << endl;
         if(check_dirs) {
@@ -841,9 +843,6 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
     int v;
     if(strcmp(key,"index_buffer_mbs")==0) {
         pconf->buffer_mbs = atoi(value);
-        if (pconf->buffer_mbs <0) {
-            pconf->err_msg = new string("illegal negative value");
-        }
     } else if(strcmp(key,"workload")==0) {
         if( !*pmntp ) {
             pconf->err_msg = new string("No mount point yet declared");

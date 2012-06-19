@@ -46,7 +46,6 @@ sources = \
 ad_plfs_close.c \
 ad_plfs_delete.c \
 ad_plfs_fcntl.c \
-ad_plfs_features.c \
 ad_plfs_flush.c \
 ad_plfs_open.c \
 ad_plfs_read.c \
@@ -79,3 +78,7 @@ libadplfs_la_CFLAGS = \
 libadplfs_la_LDFLAGS = \
 -version-info 0:0:0
 endif
+
+EXTRA_DIST = \
+Makefile.am.ompi \
+Makefile.in.mpich2

@@ -1564,7 +1564,7 @@ Container::makeHostDir(const ContainerPaths& paths,mode_t mode,
         }
         if (ret == 0 || errno == EEXIST || errno == EISDIR) {
             PlfsConf *pconf = get_plfs_conf();
-            size_t current_hostdir = getHostDirId(hostname), id = -1;
+            size_t current_hostdir = getHostDirId(hostname), id = 0;
             bool subdir=false;
             string canonical_path_without_id =
                 paths.canonical + '/' + HOSTDIRPREFIX;

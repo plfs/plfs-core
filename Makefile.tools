@@ -5,10 +5,10 @@
 
 TOP = $(shell pwd)/buildtools
 BIN = ${TOP}/bin
-MVERS = 1.4.14
-ACVERS = 2.65
-AMVERS = 1.11.1
-LVERS = 2.2.6b
+MVERS = 1.4.16
+ACVERS = 2.68
+AMVERS = 1.11.3
+LVERS = 2.4.2
 CLEAN = rm -rf m4* auto* libtool*
 BEGIN = cd ${TOP}
 FINI = ./configure --prefix ${TOP}; make install; cd ..; ${CLEAN}

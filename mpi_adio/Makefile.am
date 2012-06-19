@@ -39,16 +39,17 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+SUBDIRS = \
+ad_plfs
+
 EXTRA_DIST = \
 README \
-mpich2/README.BEN \
-mpich2/plfs-mpich2.patch \
-mpich2/plfs-prep-mpich2.patch \
-openmpi/Makefile.ompi-1.4.3 \
-openmpi/README.BEN \
-openmpi/README.BUILD \
-openmpi/ompi-1.4.3-plfs-prep.patch \
-openmpi/optimized-panfs-plfs \
-openmpi/optimized-panfs-plfs.conf \
-romio13/plfs-prep-romio-1.3.0p1.patch \
-romio13/plfs-romio-1.3.0p1.patch
+README.developer \
+README.patching \
+patches/mpich2/mpich2-1.2.1p1-plfs-prep.patch \
+patches/mpich2/mpich2-1.4.1p1-plfs-prep.patch \
+patches/openmpi/ompi-1.4.x-plfs-prep.patch \
+patches/openmpi/ompi-1.6-plfs-prep.patch \
+patches/openmpi/optimized-panfs-plfs \
+patches/openmpi/optimized-panfs-plfs.conf \
+scripts/make_ad_plfs_patch

@@ -632,9 +632,6 @@ int Index::global_from_stream(void *addr)
     size_t quant = 0;
     size_t *sarray = (size_t *)addr;
     quant = sarray[0];
-    if ( quant < 0 ) {
-        return -EBADF;
-    }
     mlog(IDX_DAPI, "%s for %s has %ld entries",
          __FUNCTION__,physical_path.c_str(),(long)quant);
     // then skip past the header
@@ -681,10 +678,6 @@ int Index::debug_from_stream(void *addr)
     size_t quant = 0;
     size_t *sarray = (size_t *)addr;
     quant = sarray[0];
-    if ( quant < 0 ) {
-        mlog(IDX_DRARE, "WTF the size of your stream index is less than 0");
-        return -1;
-    }
     mlog(IDX_DAPI, "%s for %s has %ld entries",
          __FUNCTION__,physical_path.c_str(),(long)quant);
     // then skip past the entries

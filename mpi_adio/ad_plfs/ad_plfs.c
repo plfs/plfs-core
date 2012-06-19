@@ -17,6 +17,13 @@
 
 struct ADIOI_Fns_struct ADIO_PLFS_operations = {
     ADIOI_PLFS_Open, /* Open */
+#ifndef ROMIO_OPENMPI_14x
+    /*
+     * The ROMIO that is in Open MPI 1.4.x is old and doesn't have
+     * the following entry or Feature
+     */
+    ADIOI_GEN_OpenColl,  /* OpenColl */
+#endif
     ADIOI_PLFS_ReadContig, /* ReadContig */
     ADIOI_PLFS_WriteContig, /* WriteContig */
 #ifdef ROMIO_CRAY
@@ -43,11 +50,16 @@ struct ADIOI_Fns_struct ADIO_PLFS_operations = {
     ADIOI_PLFS_Flush, /* Flush */
     ADIOI_PLFS_Resize, /* Resize */
     ADIOI_PLFS_Delete, /* Delete */
+#ifndef ROMIO_OPENMPI_14x
+    /*
+     * The ROMIO that is in Open MPI 1.4.x is old and doesn't have
+     * the following entry or OpenColl
+     */
+     ADIOI_GEN_Feature, /* Features */
+#endif
 };
 
-
-int
-plfs_protect_all(const char *file, MPI_Comm comm) {
+int plfs_protect_all(const char *file, MPI_Comm comm) {
     int rank;
     MPI_Comm_rank(comm,&rank);
     return plfs_protect(file,rank);
@@ -145,8 +157,8 @@ void plfs_debug( const char *format, ... )
     no_link_abort();
 }
 
-int plfs_expand_path(char *logical,char **physical)  __attribute__ ((weak));
-int plfs_expand_path(char *logical,char **physical)
+int plfs_expand_path(const char *logical,char **physical)  __attribute__ ((weak));
+int plfs_expand_path(const char *logical,char **physical)
 {
     no_link_abort();
     return -1; /* never gets here */
@@ -247,8 +259,8 @@ ssize_t plfs_read( Plfs_fd *fd, char *buf, size_t size, off_t offset )
     return -1; /* never gets here */
 }
 
-int plfs_sync( Plfs_fd *, pid_t )  __attribute__ ((weak));
-int plfs_sync( Plfs_fd *fd, pid_t pid)
+int plfs_sync( Plfs_fd *)  __attribute__ ((weak));
+int plfs_sync( Plfs_fd *fd)
 {
     no_link_abort();
     return -1; /* never gets here */
@@ -278,9 +290,29 @@ ssize_t plfs_write( Plfs_fd *fd,
     return -1; /* never gets here */
 }
 
-#ifdef ROMIO_CRAY
-/* Process any hints set with the MPICH_MPIIO_HINTS environment variable. */
-ADIOI_CRAY_getenv_mpiio_hints(&users_info, fd);
-#endif /* ROMIO_CRAY */
+int plfs_protect(const char *, pid_t)
+     __attribute__ ((weak));
+int plfs_protect(const char *path, pid_t pid)
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+int plfs_query( Plfs_fd *, size_t *, size_t *, size_t *, int *)
+     __attribute__ ((weak));
+int plfs_query( Plfs_fd *fd, size_t *writers, size_t *readers,
+                    size_t *bytes_written, int *lazy_stat)
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
+plfs_filetype plfs_get_filetype(const char *path)
+     __attribute__ ((weak));
+plfs_filetype plfs_get_filetype(const char *path)
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
 
 /* --END CRAY ADDITION-- */

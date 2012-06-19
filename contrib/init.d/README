@@ -1,0 +1,24 @@
+These files can be used to start PLFS daemons at system startup.
+
+Files:
+- plfs.init: init.d file to be used on RedHat systems
+- plfs.init.suse: init.d file to be used on SUSE systems (like Cray)
+- plfs.sysconfig: sysconfig file to be used in conjunction with plfs.init*
+
+Setup:
+As root, do the following:
+1) Copy either plfs.init or plfs.init.suse to /etc/init.d/plfs
+2) Copy plfs.sysconfig to /etc/sysconfig/plfs
+3) Modify variables in /etc/sysconfig/plfs to match the PLFS configuration on
+   the system. Please see the comments in that file for help. A working 
+   /etc/plfsrc should already be in place.
+4) Add PLFS to chkconfig: chkconfig --add plfs
+
+Start PLFS deamons:
+chkconfig start plfs
+
+To stop deamons:
+chkconfig stop plfs
+
+Removal:
+Do the Setup steps in reverse, removing instead of adding.

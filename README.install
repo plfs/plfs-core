@@ -1,65 +1,37 @@
-0) All PLFS installations need a valid plfsrc file.  Check examples to
-   create one either in $HOME/.plfsrc or in /etc/plfsrc.  Check it with
+0) All PLFS installations need a valid plfsrc file.  Please see plfsrc.example
+   to create one in either $HOME/.plfsrc or in /etc/plfsrc.  Check it with
    tools/plfs_check_config after building PLFS.  Please note that the
    'map' directive has been deprecated and is not included in plfsrc's
-   even since 2.0.  All of the documentation should be updated to reflect
-   this.  Any old plfsrc's containing this directive need to be edited
+   since 2.0. Any old plfsrc's containing this directive need to be edited
    beforing updating to 2.0 or above.
 
-0.0) if you are a developer and check out PLFS code from sourceforge, you 
-will need to run ./autogen.sh which will probably complain about version
-build tool versions.  We do supply a Makefile.tools which tries to download,
-configure, and install the correct versions of these tools in buildtools/bin.
-So you can do 'make -f Makefile.tools' and then prefix `pwd`/buildtools/bin 
-to your PATH environment.
+0.0) If you are a building PLFS from a checkout of the code from sourceforge,
+   you will need to run ./autogen.sh to create the needed build files. The
+   following versions of autotools should be used:
+      m4:         1.4.16   (ftp://ftp.gnu.org/gnu/m4/)
+      autoconf:   2.68     (ftp://ftp.gnu.org/gnu/autoconf/)
+      automake:   1.11.3   (ftp://ftp.gnu.org/gnu/automake/)
+      libtool:    2.4.2    (ftp://ftp.gnu.org/gnu/libtool/)
+   Build them in the following order: m4, autoconf, automake, libtool.
 
-1) To install PLFS as a FUSE filesystem.
+1) Build the PLFS library and supporting tools.
 
-  0) you'll need to have fuse installed and have /dev/libfuse loaded
-  1) ./configure ; make
-  2) then create a $HOME/.plfsrc or /etc/plfsrc file.  Check the examples.  
-  3) check your .plfsrc file with tools/plfs_check_config
-  4) launch your plfs executable (e.g. plfs -obig_writes /mnt/plfs)
-  5) cat /mnt/plfs/.plfsdebug to see if it's working
-  6) use /mnt/plfs as you would any posix file system
+   0) In order to build the tools that work with fuse, you'll need to have fuse
+      installed and have /dev/libfuse loaded.
+   1) ./configure
+      Please see ./configure --help for all of the options available.
+   2) make
+   3) make install
+      The default installation path is /usr/local.
+   4) Add the paths to the PLFS binaries to PATH. If using the default install
+      path, then /usr/local/bin and /usr/local/sbin need to be added to PATH.
+      PLFS's lib directory can also be added to LD_LIBRARY_PATH. The default
+      is /usr/local/lib.
+   5) check your plfsrc file with plfs_check_config (located in the tools
+      directory in the PLFS source tree after running make or in the
+      installation directory's bin directory)
 
 2) To install PLFS as a ROMIO ADIO layer for MPI-IO.
 
-  This should be straight-forward for openmpi-1.4.3.  For other mpi's, you'll
-  need to adjust accordingly.  The instruction marked with '>>>>' is for
-  developers only who have checked out PLFS.  For typical cases in which
-  you are instead building from a distribution tarball, you can skip that
-  line.  Please note that all other patch files have 
-  been deprecated.  You must use the two patch files below.
-  > make install of plfs 
-  > XXXXXXX # see below
-  > get openmpi-1.4.3
-  > cd openmpi-1.4.3
-  > patch -p1 < /path/to/plfs/ad-patches/openmpi/ompi-1.4.3-plfs-prep.patch
-  > patch -p1 < /path/to/plfs/ad-patches/openmpi/ompi-1.4.3-plfs.patch
-  > ./autogen.sh # since we patched a Makefile.am
-  > ./configure; make
-
-  One tricky bit is that you have to make sure that your mpi build knows 
-  how to find your plfs.h and your libplfs files.  We do that with a 
-  platform file that has lines like this in it:
-    with_io_romio_flags=--with-file-system=ufs+nfs+panfs+plfs
-    LDFLAGS="-m64 -L/users/johnbent/plfs/lib -lz -lpthread -lplfs -lstdc++ "
-    CFLAGS="-I/opt/panfs/include -m64 -I/users/johnbent/plfs/include "
-    CXXFLAGS="-I/opt/panfs/include -m64 -I/users/johnbent/plfs/include "
-    CCASFLAGS="-I/opt/panfs/include -m64 -I/users/johnbent/plfs/include " 
-  Then your configure line is like this: ./configure --with-platform=./platform 
-  You may also need to set LD_LIBRARY_PATH to where you install the plfs lib
-
-[XXXXXX If you are a user and downloaded a distribution tarball, then skip
-this.  If, on the other hand, you are a developer and you checked out the
-source, at this point you need to run ./scripts/make_plfs_patch.  This will
-build the patch file needed for the next steps.] 
-
-3) To build the PLFS library and link apps against it.
-
-  Build and install PLFS.  Then look at plfs.h and figure out how to use it.
-  Basically you just change your opens to plfs_opens and etc. 
-
-Email plfs-users@lists.sourceforge.net with any user questions.
-Email plfs-devel@lists.sourceforge.net with any developer questions.
+  Please see mpi_adio/README.patching for instructions on getting PLFS
+  to work as a ROMIO ADIO layer.

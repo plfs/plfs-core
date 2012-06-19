@@ -16,12 +16,12 @@ fi
 RETVAL=0
 
 start() {
-   if [ -x /usr/sbin/plfs ]; then
+   if [ -x ${PLFS_BINARY} ]; then
       echo -n $"Starting plfs: "
       /sbin/modprobe fuse >/dev/null
       sleep 2
       for i in $PLFS_MNT; do
-        /usr/sbin/plfs $i $PLFSOPTS >/dev/null
+        eval ${PLFS_BINARY} $i $PLFSOPTS >/dev/null
       done
       RETVAL=$?
       echo

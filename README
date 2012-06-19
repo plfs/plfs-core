@@ -1,80 +1,111 @@
-################################################################################
-            PLFS: A Checkpoint Filesystem for Parallel Applications
-################################################################################
+###############################################################################
+          PLFS: A Checkpoint Filesystem for Parallel Applications
+###############################################################################
 
-This README is largely deprecated.  Most of this info is found more accurately
-in README.install.  Also, the man pages such as the man page for plfsrc are
-pretty good.  And for users trying to use the PLFS API directly (instead of
-the recommended FUSE or MPI-IO interfaces) is to read the comments in the 
-plfs.h file.  One small miscellaneous bit that I don't know where else to
-put is to make sure that you prefix 'plfs:' to your path if you are using
-the MPI-IO interface after having patched your MPI.  
+PLFS is a parallel virtual file system that rearranges random, concurrent
+writes into sequential writes to unique files (i.e. N-1 into N-N). This
+rearrangment allows write access patterns to be optimized for the underlying
+file system.
 
-################################################################################
-Deprecated below this point.  Proceed at your own caution.
-################################################################################
+Additional info:
+http://institutes.lanl.gov/plfs. Available under LANL LA-CC-08-104.
 
-***************************************************************************
-User Installation (Default Configuration Values. See configure --help)
-***************************************************************************
-svn co https://plfs.svn.sourceforge.net/svnroot/plfs plfs
-cd plfs/versions/<VERSION>
-./configure
-make all install
+Email plfs-users@lists.sourceforge.net with any user questions.
+Email plfs-devel@lists.sourceforge.net with any developer questions.
 
 ***************************************************************************
-Mounting a PLFS file system using FUSE
+Installing PLFS
 ***************************************************************************
-# install FUSE: http://fuse.sourceforge.net/
-# make sure the fuse module is loaded.  it should be at /dev/fuse
-cd plfs/versions/<VERSION>/trunk
-# put the plfs config file into place
-cp plfsrc.example $HOME/.plfsrc <normal user>
-- or - 
-cp plfsrc.example /etc/plfsrc <root>
-# customize the plfs config file for your system
-# the weird map thing is for LANL to distribute users across multiple
-# panasas directors.  Most systems can have a simple map function.
-./plfs [fuse_options] <mount point>
-- or -
-./plfs <mount point> [fuse_options] 
 
-# some useful options to pass to fuse:
-# -o allow_other   : if mounting as root, this allows others to use plfs
-# -o big_writes    : newer versions of fuse can break writes into 128K chunks 
-# -o direct_io     : older versions can too, but then mmap doesn't work
-# -h               : prints all options to pass to fuse (e.g. ./plfs -h)
+For building and installation instructions, please see README.install.
+
 
 ***************************************************************************
-Developer Installation (Default Configuration Values. See configure --help)
+Using PLFS
 ***************************************************************************
-svn co https://plfs.svn.sourceforge.net/svnroot/plfs plfs
 
-######################################################################
-NOTE: For distributions, please use the following (before autogen.sh):
-######################################################################
-m4       1.4.14
-autoconf 2.65
-automake 1.11.1
-libtool  2.2.6b
+There are three ways to use PLFS: through the FUSE system, through MPI/IO, and
+through the PLFS API.
 
-*********************
-Download Source From:
-*********************
-ftp://ftp.gnu.org/gnu/m4/
-ftp://ftp.gnu.org/gnu/autoconf/
-ftp://ftp.gnu.org/gnu/automake/
-ftp://ftp.gnu.org/gnu/libtool/
 
-*****************************
-Build In The Following Order:
-*****************************
-m4
-autoconf
-automake
-libtool
+*** Mounting a PLFS file system using FUSE: ***
 
-cd plfs/trunk
-./autogen.sh
-./configure
-make all install
+1) Build and install PLFS with FUSE support (please see README.install)
+2) Make sure your plfsrc file is correct by using plfs_check_config. In order
+   to quickly create the needed directories, use 'plfs_check_config -mkdir'.
+3) Launch the PLFS daemon (which calls fusermount):
+   plfs /path/to/mount
+4) The PLFS daemon can be killed via fusermount:
+   fusermount -u /path/to/mount
+
+/path/to/mount can now be used as any POSIX file system. To check FUSE stats
+and make sure everything is working, run the following:
+cat /path/to/mount/.plfsdebug
+
+Several options can be passed to the plfs binary that are passed on to the FUSE
+system. Use the plfs binary's -o command line parameter. Use 'plfs -h' to see
+all options that can be passed. Some useful ones are:
+allow_other   : if mounting as root, this allows others to use plfs
+big_writes    : newer versions of fuse can break writes into 128K chunks 
+direct_io     : older versions can too, but then mmap doesn't work
+
+Example:
+plfs -o big_writes,allow_other /path/to/mount
+
+
+*** Using PLFS as a ROMIO ADIO layer for MPI/IO ***
+
+Please see mpi_adio/README for information on using PLFS as a ROMIO ADIO layer.
+
+
+*** Using the PLFS API ***
+
+1) Build and install the PLFS library. Verify your plfsrc file is correct by
+   using plfs_check_config.
+2) Look at plfs.h to become familar with the PLFS API.
+3) Modify application source to use the PLFS API. Basically, you just change
+   opens to plfs_opens, etc.
+4) Link the PLFS library to your application at compile time. Please see the
+   linking requirements in using PLFS as a ROMIO ADIO layer for what the
+   linking command should look like.
+
+
+***************************************************************************
+Other Info
+***************************************************************************
+
+For information on PLFS's POSIX-compliance, please see README.POSIX.
+
+Information about the logging capabilities of PLFS is contained in
+README.mlog. Please see that file for more information about getting log
+information from PLFS.
+
+Information for developers, such as rules for coding and working with the
+source repository, is contained in README.developer.
+
+
+***************************************************************************
+Testing
+***************************************************************************
+
+Some functionality tests are provided in the 'tests' directory. Please see and
+use tests/Tester.tcsh.
+
+A regression suite is also available for PLFS, but is not included in the
+normal source tree for PLFS. It can be checked out from the PLFS repository:
+
+svn co https://plfs.svn.sourceforge.net/svnroot/plfs/regression regression
+
+The regression suite is kept up-to-date with PLFS's trunk. As working with
+PLFS changes, the regression suite changes. This means that the regression
+suite may not work with a particular release if there has been significant
+divergence in source tree layout and PLFS configuration capabilities between
+the release and trunk. Versions of the regression suite that are known to work
+with specific versions of PLFS are contained in
+https://plfs.svn.sourceforge.net/svnroot/plfs/versions/rs. To find out which
+versions are available, it is probably easiest to browse the repository's code
+on sourceforge.net. Checking out the whole repository will also get these
+versions of the regression suite.
+
+The regression suite has its own set of documentation, so please refer to its
+README for further information.
