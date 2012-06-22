@@ -27,7 +27,7 @@ plfs_get_logical_fs(const char *path)
     bool found = false;
     PlfsConf *pconf = get_plfs_conf();
     PlfsMount *pmount = find_mount_point(pconf, path, found);
-    if (!found) {
+    if (!found || pmount == NULL) {
         return NULL;
     }
     return pmount->fs_ptr;
@@ -39,7 +39,7 @@ plfs_get_filetype(const char *path)
     bool found = false;
     PlfsConf *pconf = get_plfs_conf();
     PlfsMount *pmount = find_mount_point(pconf, path, found);
-    return (found && pmount ? pmount->file_type : PFT_UNKNOWN);
+    return ((found && pmount) ? pmount->file_type : PFT_UNKNOWN);
 }
 
 bool

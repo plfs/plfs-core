@@ -32,14 +32,24 @@ void plfs_posix_init() {
 const string&
 get_backend(const ExpansionInfo& exp, size_t which)
 {
-    return exp.mnt_pt->backends[which];
+    return exp.mnt_pt->backends[which]->path;
 }
 const string&
 get_backend(const ExpansionInfo& exp)
 {
-    return exp.backend;
+    return exp.backend->path;
 }
 
+/**
+ * find_mount_point: find the PLFS mount point for a given logical path.
+ * note that we can return NULL even if found is set to true, this
+ * indicates some sort of error getting to a filesystem we know about.
+ *
+ * @param pconf the current configuration
+ * @param logical the path we are considering
+ * @param found set to true if we found the mount point
+ * @return the mount point or null on error
+ */
 PlfsMount *
 find_mount_point(PlfsConf *pconf, const string& logical, bool& found)
 {
@@ -54,6 +64,7 @@ find_mount_point_using_tokens(PlfsConf *pconf,
                               vector<string> &logical_tokens, bool& found)
 {
     map<string,PlfsMount *>::iterator itr;
+    PlfsMount *rv;
     for(itr=pconf->mnt_pts.begin(); itr!=pconf->mnt_pts.end(); itr++) {
         if (itr->second->mnt_tokens.size() > logical_tokens.size() ) {
             continue;
@@ -73,7 +84,11 @@ find_mount_point_using_tokens(PlfsConf *pconf,
         // if we make it here, every token in the mount point matches the
         // corresponding token in the incoming logical path
         if (found) {
-            return itr->second;
+            rv = itr->second;
+            if (rv->attached == 0 && plfs_attach(rv) < 0) {
+                return(NULL);
+            }
+            return rv;
         }
     }
     found = false;
@@ -136,8 +151,8 @@ expandPath(string logical, ExpansionInfo *exp_info,
     Util::tokenize(logical,"/",logical_tokens);
     PlfsMount *pm = find_mount_point_using_tokens(pconf,logical_tokens,
                     mnt_pt_found);
-    if(!mnt_pt_found) {
-        if (depth==0 && logical[0]!='/') {
+    if(!mnt_pt_found || pm == NULL) {
+        if (!mnt_pt_found && depth==0 && logical[0]!='/') {
             // here's another weird thing
             // sometimes users want to do cd /mnt/plfs/johnbent/dir
             // plfs_version ./file
@@ -155,7 +170,13 @@ expandPath(string logical, ExpansionInfo *exp_info,
                                   which_backend,depth+1));
             } // else fall through to error below
         }
-        mlog (INT_WARN,"WARNING: %s is not on a PLFS mount.\n",logical.c_str());
+        if (mnt_pt_found) {
+            mlog (INT_WARN,"WARNING: %s: PLFS unable to attach to backing fs",
+                  logical.c_str());
+        } else {
+            mlog (INT_WARN,"WARNING: %s is not on a PLFS mount",
+                  logical.c_str());
+        }
         exp_info->expand_error = true;
         exp_info->Errno = -EPROTOTYPE;
         // we used to return a bogus string as an error indication
@@ -191,33 +212,32 @@ expandPath(string logical, ExpansionInfo *exp_info,
     // choose a backend unless the caller explicitly requested one
     // also set the set of backends to use.  If the plfsrc has separate sets
     // for shadows and for canonical, then use them appropriately
-    int hash_val;
-    vector<string> *backends = &pm->backends;
+    int hash_val, backcnt;
+    struct plfs_backend **backends = NULL;
     switch(hash_method) {
     case EXPAND_CANONICAL:
         hash_val = Container::hashValue(filename.c_str());
-        backends = pm->canonical_backends.size()>0 ?
-                   &pm->canonical_backends :
-                   &pm->backends;
+        backends = pm->canonical_backends;
+        backcnt = pm->ncanback;
         break;
     case EXPAND_SHADOW:
         hash_val = Container::hashValue(Util::hostname());
-        backends = pm->shadow_backends.size()>0 ?
-                   &pm->shadow_backends :
-                   &pm->backends;
+        backends = pm->shadow_backends;
+        backcnt = pm->nshadowback;
         break;
     case EXPAND_TO_I:
         hash_val = which_backend; // user specified
-        backends = &pm->backends;
+        backends = pm->backends;
+        backcnt = pm->nback;
         break;
     default:
         hash_val = -1;
         assert(0);
         break;
     }
-    hash_val %= backends->size();   // don't index out of vector
-    exp_info->backend  = (*backends)[hash_val];
-    exp_info->expanded = exp_info->backend + "/" + remaining;
+    hash_val = (hash_val % backcnt);  /* don't index out of array */
+    exp_info->backend  = backends[hash_val];
+    exp_info->expanded = exp_info->backend->path + "/" + remaining;
     mlog(INT_DCOMMON, "%s: %s -> %s (%d.%d)", __FUNCTION__,
          logical.c_str(), exp_info->expanded.c_str(),
          hash_method,hash_val);
@@ -236,7 +256,7 @@ find_all_expansions(const char *logical, vector<string> &containers)
 {
     PLFS_ENTER;
     ExpansionInfo exp_info;
-    for(unsigned i = 0; i < expansion_info.mnt_pt->backends.size(); i++) {
+    for(unsigned i = 0; i < expansion_info.mnt_pt->nback; i++) {
         path = expandPath(logical,&exp_info,EXPAND_TO_I,i,0);
         if(exp_info.Errno) {
             PLFS_EXIT(exp_info.Errno);
@@ -272,14 +292,16 @@ plfs_check_dir(string type, string dir,int previous_ret, bool make_dir)
 }
 
 int
-print_backends(vector<string> &backends,const char *which,bool check_dirs,
-               int ret,bool make_dir)
+print_backends(struct plfs_backend **backends, int nb, const char *which,
+               bool check_dirs, int ret, bool make_dir)
 {
-    vector<string>::iterator bitr;
-    for(bitr = backends.begin(); bitr != backends.end(); bitr++) {
-        cout << "\t" << which << " Backend: " << *bitr << endl;
+    int lcv;
+    for (lcv = 0 ; lcv < nb ; lcv++) {
+        cout << "\t" << which << " Backend: "
+             << backends[lcv]->fullname << endl;
         if(check_dirs) {
-            ret = plfs_check_dir("backend",*bitr,ret,make_dir);
+            ret = plfs_check_dir("backend", backends[lcv]->path,
+                                 ret,make_dir);
         }
     }
     return ret;
@@ -330,11 +352,12 @@ plfs_dump_config(int check_dirs, int make_dir)
         if(check_dirs) {
             ret = plfs_check_dir("mount_point",itr->first,ret,make_dir);
         }
-        ret = print_backends(pmnt->backends,"",check_dirs,ret,make_dir);
-        ret = print_backends(pmnt->canonical_backends,"Canonical",
+        ret = print_backends(pmnt->backends,pmnt->nback,"",
                              check_dirs,ret,make_dir);
-        ret = print_backends(pmnt->shadow_backends,"Shadow",check_dirs,ret,
-                             make_dir);
+        ret = print_backends(pmnt->canonical_backends,pmnt->ncanback,
+                             "Canonical", check_dirs,ret,make_dir);
+        ret = print_backends(pmnt->shadow_backends,pmnt->nshadowback,
+                             "Shadow",check_dirs,ret, make_dir);
         if(pmnt->syncer_ip) {
             cout << "\tSyncer IP: " << pmnt->syncer_ip->c_str() << endl;
         }
@@ -695,74 +718,253 @@ setup_mlog(PlfsConf *pconf)
     return;
 }
 
-int
-insert_backends(vector<string> &incoming, vector<string> &outgoing)
-{
-    set<string> existing;   // copy vector to a set to make query easy
-    vector<string>::iterator itr;
-    set<string>::iterator sitr;
-    pair<set<string>::iterator,bool> insert_ret;
-    vector<string>::const_iterator citr;
-    // put all the existing in so we don't put any in more than once
-    for(itr=outgoing.begin(); itr!=outgoing.end(); itr++) {
-        insert_ret = existing.insert(*itr);
-        if(!insert_ret.second) {
-            return -1;    // multiply defined???
+/**
+ * plfs_attach_factory: attach to the given backend by creating its iostore
+ *
+ * @param pmnt mount point (mainly for log/err msgs)
+ * @param bend the backend to attach
+ * @return 0 on success, -1 on error
+ */
+static int plfs_attach_factory(PlfsMount *pmnt, struct plfs_backend *bend) {
+
+    if (bend->fullname[0] == '/' ||
+        strncmp(bend->fullname, "posix:", sizeof("posix:")-1) == 0) {
+        /* XXXCDC: TMP POSIX INIT HERE */
+        if (bend->fullname[0] == '/') {
+            bend->path = bend->fullname;
+        } else {
+            bend->path = bend->fullname + sizeof("posix:")-1;
         }
+        bend->store = new PosixIOStore;
+        goto done;
+        /* XXXCDC: END TMP */
     }
-    // now put all the incoming in if they don't already exist
-    for(citr=incoming.begin(); citr!=incoming.end(); citr++) {
-        sitr = existing.find(*citr);
-        if (sitr == existing.end()) {
-            outgoing.push_back(*citr);
-        }
+    if (strncmp(bend->fullname, "hdfs:", sizeof("hdfs:")-1) == 0) {
+        /* do HDFS */
     }
-    return 0;
+
+ done:
+    return((bend->store == NULL) ? -1 : 0);
 }
 
-// inserts a mount point into a plfs conf structure
-// also tokenizes the mount point to set up find_mount_point
-// TODO: check to make sure that if canonical_backends or shadow_backends are
-// defined that they are then also in the set of backends.  Also there shouldn't
-// be any in backends that are in neither canonical_backends or shadow_backends
-// (bec if there were, they would never have data stored on them)
-// returns an error string if there's any problems
+/**
+ * plfs_attach: attach a filesystem.  must protect pmnt iostore data
+ * with a mutex.
+ *
+ * @param pmnt the mount to attach to
+ * @return 0 if attached, -1 on error
+ */
+int plfs_attach(PlfsMount *pmnt) {
+    static pthread_mutex_t attachmutex = PTHREAD_MUTEX_INITIALIZER;
+    int rv, lcv;
+
+    rv = 0;
+    pthread_mutex_lock(&attachmutex);
+    if (pmnt->attached)       /* lost race, ok since someone else attached */
+        goto done;
+
+    /* be careful about partly attached mounts */
+    for (lcv = 0 ; lcv < pmnt->nback && rv == 0 ; lcv++) {
+        if (pmnt->backends[lcv]->store != NULL)
+            continue;        /* this one already done, should be ok */
+        rv = plfs_attach_factory(pmnt, pmnt->backends[lcv]);
+    }
+
+ done:
+    pthread_mutex_unlock(&attachmutex);
+    return(rv);
+}
+
+
+/**
+ * insert_backends: insert some backends into a mount
+ *
+ * @param pconf current config (so we can look for dups)
+ * @param spec the cfg string from plfsrc
+ * @param n the number of mounts in the string
+ * @param bas free backend store array
+ * @return NULL on success, otherwise error message
+ */
+string *insert_backends(PlfsConf *pconf, char *spec, int n,
+                        struct plfs_backend *bas) {
+    string *error;
+    int idx;
+    char *sp, *nsp;
+
+    for (idx = 0, sp = spec ; idx < n && sp ; idx++, sp = nsp) {
+        nsp = strchr(sp, ',');   /* tokenize */
+        if (nsp) {
+            *nsp++ = 0;
+        }
+
+        /* check for dups in cfg */
+        pair<set<string>::iterator,bool> insert_ret2;
+        insert_ret2 = pconf->backends.insert(sp);  /* malloc */
+        if (!insert_ret2.second) {
+            error = new string("Backend illegally used more than once: ");
+            error->append(sp); /* malloc */
+            return(error);
+        }
+
+        bas[idx].fullname = sp;
+        /* we will fill .path and .store at attach time */
+    }
+    
+    return(NULL);
+}
+
+/**
+ * countchar: count number of times a char occurs in a string
+ *
+ * @param c the char to look for
+ * @param str the string to look in (can be NULL)
+ * @return the count, -1 if string is null
+ */
+static int countchar(int c, char *str) {
+    int tot;
+    char *p;
+    if (!str) {
+        return(-1);
+    }
+    for (tot = 0, p = str ; *p ; p++) {
+        if (*p == c) {
+            tot++;
+        }
+    }
+    return(tot);
+}
+
+/**
+ * insert_mount_point: insert a mount point into config (mnt_pts).
+ *
+ * @param pconf the current config
+ * @param pmnt the mount point to try and insert
+ * @param file the cfg file we are currently reading
+ * @return NULL on success, otherwise an error message string
+ */
 string *
 insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt, char *file)
 {
-    string *error = NULL;
+    string *error;
+    int backspeccnt, canspeccnt, shadowspeccnt;     /* counts */
+    int backsoff, cansoff, shadsoff;                /* in backstore */
+    int backptroff, canptroff, shadowptroff;        /* in bpa */
+    int lcv;
+    struct plfs_backend **bpa;
     pair<map<string,PlfsMount *>::iterator, bool> insert_ret;
-    vector<string>::iterator itr;
-    // put all canonical and all shadows in backends
-    if (0 != insert_backends(pmnt->canonical_backends,pmnt->backends)) {
-        error = new string("Something wrong with inserting canonical backends");
+
+    /* this makes use of countchar() returning -1 if string is NULL */
+    backspeccnt = countchar(',', pmnt->backspec) + 1;
+    canspeccnt = countchar(',', pmnt->canspec) + 1;
+    shadowspeccnt = countchar(',', pmnt->shadowspec) + 1;
+
+    /*
+     * backspec backends will be referenced from all 3 arrays.
+     * canspec and shadowspec backends will be referenced from 2 arrays.
+     */
+    pmnt->nback       = backspeccnt + canspeccnt + shadowspeccnt;
+    pmnt->ncanback    = backspeccnt + canspeccnt;
+    pmnt->nshadowback = backspeccnt + shadowspeccnt;
+    /*
+     * quick sanity check.   what else should we check?
+     */
+    if (pmnt->nback == 0) { 
+        error = new string("no backends for mount: ");
+        error->append(pmnt->mnt_pt);
+        return(error);
     }
-    if (0 != insert_backends(pmnt->shadow_backends,pmnt->backends)) {
-        error = new string("Something wrong with inserting shadow backends");
+    
+    /*
+     * start allocating memory.   backstore is ordered as
+     * backspec, canspec, then shadowspec, compute offsets based
+     * on that.   bpa has sections for backends (B+C+S),
+     * canonical_backends (B+C), and shadow_backends (B+S).
+     */
+    pmnt->backstore = (struct plfs_backend *)
+        calloc(pmnt->nback, sizeof(pmnt->backstore[0]));
+    backsoff = 0;
+    cansoff = backsoff + backspeccnt;
+    shadsoff = cansoff + canspeccnt;
+
+    bpa = (struct plfs_backend **)
+        calloc(pmnt->nback + pmnt->ncanback + pmnt->nshadowback,
+               sizeof(bpa[0]));
+    backptroff = 0;
+    canptroff = backptroff + pmnt->nback;
+    shadowptroff = canptroff + pmnt->ncanback;
+    
+    /* ... but malloc could have failed */
+    if (pmnt->backstore == NULL || bpa == NULL) {
+        if (pmnt->backstore) free(pmnt->backstore);
+        if (bpa) free(bpa);
+        /* XXX: 'new' does a malloc, likely to fail here too. */
+        error = new string("insert_mount_point: backstore malloc failed");
+        return(error);
     }
-    if( pmnt->backends.size() == 0 ) {
-        error = new string("No backends specified for mount point");
-    } else {
-        mlog(INT_DCOMMON, "Inserting mount point %s as discovered in %s",
-             pmnt->mnt_pt.c_str(),file);
-        insert_ret = pconf->mnt_pts.insert(
-                         pair<string,PlfsMount *>(pmnt->mnt_pt,pmnt));
-        if (!insert_ret.second) {
-            error = new string("Mount point multiply defined\n");
+    for (lcv = 0 ; lcv < pmnt->nback ; lcv++) {
+        /* placement new to properly init C++ string plfs_backend.path */
+        new(&pmnt->backstore[lcv]) plfs_backend;
+    }
+
+    /* setup the backstore array */
+    if (backspeccnt) {
+        if ((error = insert_backends(pconf, pmnt->backspec, backspeccnt,
+                                     &pmnt->backstore[backsoff])) != NULL) {
+            goto got_error;
         }
-        // check that no backend is used more than once
-        for(itr=pmnt->backends.begin(); itr!=pmnt->backends.end(); itr++) {
-            pair<set<string>::iterator,bool> insert_ret2;
-            insert_ret2 = pconf->backends.insert(*itr);
-            if (!insert_ret2.second) {
-                error = new string("Backend illegally used more than once: ");
-                error->append(*itr);
-                break;
-            }
-        }
-        //pconf->mnt_pts[pmnt->mnt_pt] = pmnt;
     }
-    return error;
+    if (canspeccnt) {
+        if ((error = insert_backends(pconf, pmnt->canspec, canspeccnt,
+                                     &pmnt->backstore[cansoff])) != NULL) {
+            goto got_error;
+        }
+    }
+    if (shadowspeccnt) {
+        if ((error = insert_backends(pconf, pmnt->shadowspec, shadowspeccnt,
+                                     &pmnt->backstore[shadsoff])) != NULL) {
+            goto got_error;
+        }
+    }
+
+    /* now setup the pointer arrays */
+    pmnt->backends = bpa + backptroff;
+    pmnt->canonical_backends = bpa + canptroff;
+    pmnt->shadow_backends = bpa + shadowptroff;
+
+    for (lcv = 0 ; lcv < backspeccnt ; lcv++) {
+        pmnt->backends[lcv] = pmnt->canonical_backends[lcv] =
+            pmnt->shadow_backends[lcv] = &pmnt->backstore[lcv];
+    }
+    for (lcv = 0 ; lcv < canspeccnt ; lcv++) {
+        pmnt->backends[lcv+backspeccnt] =
+            pmnt->canonical_backends[lcv+backspeccnt] =
+            &pmnt->backstore[cansoff + lcv];
+    }
+    for (lcv = 0 ; lcv < shadowspeccnt ; lcv++) {
+        pmnt->backends[lcv+backspeccnt+canspeccnt] =
+            pmnt->shadow_backends[lcv+backspeccnt] =
+            &pmnt->backstore[shadsoff + lcv];
+    }
+
+    /* finally, insert into list of global mount points */
+    mlog(INT_DCOMMON, "Inserting mount point %s as discovered in %s",
+         pmnt->mnt_pt.c_str(), file);
+    insert_ret = pconf->mnt_pts.insert(pair<string,PlfsMount *>(pmnt->mnt_pt,
+                                                                pmnt));
+    if (!insert_ret.second) {
+        error = new string("mount point multiply defined");
+        goto got_error;
+    }
+
+    /*
+     * done!
+     */
+    return(NULL);
+
+ got_error:
+    free(pmnt->backstore);
+    free(bpa);
+    return(error);
 }
 
 void
@@ -772,6 +974,10 @@ set_default_mount(PlfsMount *pmnt)
     pmnt->file_type = CONTAINER;
     pmnt->fs_ptr = &containerfs;
     pmnt->checksum = (unsigned)-1;
+    pmnt->backspec = pmnt->canspec = pmnt->shadowspec = NULL;
+    pmnt->attached = pmnt->nback = pmnt->ncanback = pmnt->nshadowback = 0;
+    pmnt->backstore = NULL;
+    pmnt->backends = pmnt->canonical_backends = pmnt->shadow_backends = NULL;
 }
 
 void
@@ -916,23 +1122,30 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
         if( !*pmntp ) {
             pconf->err_msg = new string("No mount point yet declared");
         } else {
-            mlog(MLOG_DBG, "Gonna tokenize %s", value);
-            Util::tokenize(value,",",(*pmntp)->backends);
-            (*pmntp)->checksum = (unsigned)Container::hashValue(value);
+            (*pmntp)->backspec = strdup(value); /* XXX (old val?) */
+            if ((*pmntp)->backspec == NULL) {
+                pconf->err_msg = new string("unable to malloc backends");
+            } else {
+                (*pmntp)->checksum = (unsigned)Container::hashValue(value);
+            }
         }
     } else if (strcmp(key, "canonical_backends") == 0) {
         if( !*pmntp ) {
             pconf->err_msg = new string("No mount point yet declared");
         } else {
-            mlog(MLOG_DBG, "Gonna tokenize %s\n", value);
-            Util::tokenize(value,",",(*pmntp)->canonical_backends);
+            (*pmntp)->canspec = strdup(value); /* XXX (old val?) */
+            if ((*pmntp)->canspec == NULL) {
+                pconf->err_msg = new string("unable to malloc can backends");
+            } 
         }
     } else if (strcmp(key, "shadow_backends") == 0) {
         if( !*pmntp ) {
             pconf->err_msg = new string("No mount point yet declared");
         } else {
-            mlog(MLOG_DBG, "Gonna tokenize %s\n", value);
-            Util::tokenize(value,",",(*pmntp)->shadow_backends);
+            (*pmntp)->shadowspec = strdup(value); /* XXX (old val?) */
+            if ((*pmntp)->shadowspec == NULL) {
+                pconf->err_msg = new string("malloc shadow backends failed");
+            } 
         }
     } else if (strcmp(key, "syncer_ip") == 0) {
         if( !*pmntp ) {
@@ -1181,6 +1394,7 @@ get_plfs_conf()
         fclose(fp);
         if(tmppconf) {
             if(tmppconf->err_msg) {
+                pthread_mutex_unlock(&confmutex);
                 return tmppconf;
             } else {
                 pconf = tmppconf;

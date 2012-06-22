@@ -177,7 +177,7 @@ container_create( const char *logical, mode_t mode, int flags, pid_t pid )
     // that the subdir doesn't exist and they'll set up the shadow and the
     // metalink at that time
     bool lazy_subdir = false;
-    if (expansion_info.mnt_pt->shadow_backends.size()>0) {
+    if (expansion_info.mnt_pt->shadowspec != NULL) {
         // ok, user has explicitly set a set of shadow_backends
         // this suggests that the user wants the subdir somewhere else
         // beside the canonical location.  Let's double check though.
