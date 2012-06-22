@@ -1174,6 +1174,7 @@ get_plfs_conf()
         fclose(fp);
         if(tmppconf) {
             if(tmppconf->err_msg) {
+                pthread_mutex_unlock(&confmutex);
                 return tmppconf;
             } else {
                 pconf = tmppconf;
