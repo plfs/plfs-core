@@ -32,17 +32,48 @@ expansionMethod {
     EXPAND_TO_I,
 };
 
+/**
+ * plfs_backend: describes a single backend filesystem.   each mount
+ * point may have one or more backends, as per the plfsrc config.
+ */
+struct plfs_backend {
+    char *fullname;  /*!< from plfsrc, e.g. /mnt/panfs, hdfs://h:port/plfs */
+    string path;     /*!< just the path part */
+    /*
+     * note: store must be protected by a mutex since we allow apps
+     * defer attaching to a mount until its first reference.
+     */
+    IOStore *store;  /*!<  store (non-NULL if we've attached to this mount) */
+};
+
+/**
+ * PlfsMount: describes a PLFS mount point.   the mount point is backed
+ * by one or more backend filesystems.
+ */
 typedef struct {
     string mnt_pt;  // the logical mount point
     string *statfs; // where to resolve statfs calls
     string *syncer_ip; // where to send commands within plfs_protect
-    vector<string> backends;    // a list of physical locations
-    vector<string> canonical_backends;
-    vector<string> shadow_backends;
     vector<string> mnt_tokens;
     plfs_filetype file_type;
     LogicalFileSystem *fs_ptr;
     unsigned checksum;
+
+    /* backend filesystem info */
+    char *backspec;       /*!< backend spec from plfsrc */
+    char *canspec;        /*!< canonical spec from plfsrc */
+    char *shadowspec;     /*!< shadow sepc from plfsrc */
+
+    /* must hold attach mutex to modify any of the following group */
+    int attached;         /*!< non-zero if we've attached to backends */
+    int nback;            /*!< number of backends */
+    int ncanback;         /*!< number of canonical */
+    int nshadowback;      /*!< number of shadow */
+    struct plfs_backend *backstore;             /*!< array of backends */
+    struct plfs_backend **backends;             /*!< all backends */
+    struct plfs_backend **canonical_backends;   /*!< ok for canonical */
+    struct plfs_backend **shadow_backends;      /*!< ok for shadow */
+
 } PlfsMount;
 
 typedef struct {
@@ -51,7 +82,7 @@ typedef struct {
     PlfsMount *mnt_pt;
     int Errno;  // can't use just errno, it's a weird macro
     string expanded;
-    string backend; // I tried to not put this in to save space . . .
+    struct plfs_backend *backend;
 } ExpansionInfo;
 
 #define PLFS_ENTER PLFS_ENTER2(PLFS_PATH_REQUIRED)
@@ -137,6 +168,8 @@ bool plfs_init();
 bool plfs_conditional_init();
 char **plfs_mlogargs(int *mlargc, char **mlargv);
 char *plfs_mlogtag(char *newtag);
+
+int plfs_attach(PlfsMount *pmnt);
 
 int plfs_chmod_cleanup(const char *logical,mode_t mode );
 int plfs_chown_cleanup (const char *logical,uid_t uid,gid_t gid );

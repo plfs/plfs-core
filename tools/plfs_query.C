@@ -34,6 +34,7 @@ int
 logical_from_physical(char * physical_target, std::string &file_location) {
     char * c_physical;
     string full_physical;
+    int lcv;
 
     //We'll need the full path to find the PLFS file
     if ( (c_physical = 
@@ -85,14 +86,9 @@ logical_from_physical(char * physical_target, std::string &file_location) {
                         mount_itr++ ) 
                 {
                     PlfsMount * pmount = mount_itr->second;
-                    vector<string> pmount_backends = pmount->backends;
-                    vector<string>::const_iterator backend_check_itr;
-                    //Make sure this backend belongs to this mountpoint
-                    for(backend_check_itr = pmount_backends.begin();
-                            backend_check_itr != pmount_backends.end();
-                            backend_check_itr++) 
-                    {
-                        if (backend.compare(*backend_check_itr) == 0) {
+                    for (lcv = 0 ; lcv < pmount->nback ; lcv++) {
+                        if (backend.compare(pmount->backends[lcv]->fullname) 
+                                                                     == 0) {
                             mountPoint = pmount->mnt_pt;
                         }
                         foundMountPoint = true;

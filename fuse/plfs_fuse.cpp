@@ -303,11 +303,12 @@ int Plfs::init( int *argc, char **argv )
         if ( argv[i][0] != '-' && ! mnt_pt_found ) {
             string mnt_pt = argv[i];
             pmnt = find_mount_point(pconf,mnt_pt,mnt_pt_found);
-            if ( ! mnt_pt_found ) {
-                fprintf(stderr,"FATAL mount point mismatch: %s not found\n",
-                        argv[i] );
+            if ( ! mnt_pt_found || pmnt == NULL) {
+                fprintf(stderr,"FATAL mount point error: %s %s\n",
+                        argv[i],
+                        (mnt_pt_found) ? "attach error" : "not found" );
                 plfs_dump_config(false, false);
-                return -ECONNREFUSED;
+                return((mnt_pt_found) ? -EIO : -ECONNREFUSED);
             }
             mnt_pt_found = true;
         }
@@ -1190,16 +1191,6 @@ string Plfs::openFilesToString(bool verbose)
     return oss.str();
 }
 
-void
-printBackends(const char *type, vector<string> &backends, ostringstream& oss)
-{
-    oss << type << " Backends: ";
-    for(vector<string>::iterator i = backends.begin(); i!=backends.end(); i++) {
-        oss << *i << ",";
-    }
-    oss << endl;
-}
-
 string Plfs::confToString(PlfsConf *p, PlfsMount *pmnt)
 {
     ostringstream oss;
@@ -1207,9 +1198,9 @@ string Plfs::confToString(PlfsConf *p, PlfsMount *pmnt)
         << "Direct IO: "        << p->direct_io << endl
         << "Executable bit: "   << ! p->direct_io << endl
         ;
-    printBackends("", pmnt->backends, oss);
-    printBackends("Canonical", pmnt->canonical_backends,oss);
-    printBackends("Shadow", pmnt->shadow_backends, oss);
+    oss << "Backends: " << pmnt->backspec << endl;
+    oss << "Canonical Backends: " << pmnt->canspec << endl;
+    oss << "Shadow Backends: " << pmnt->shadowspec << endl;
     oss << endl
         << "Backend checksum: " << pmnt->checksum << endl
         << "Threadpool size: " << p->threadpool_size << endl
