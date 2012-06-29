@@ -166,6 +166,9 @@ AC_TYPE_UINT64_T
 
 # check for extra stuff that plfs uses
 AX_PTHREAD
+# XXX this really should be in config/ax_pthread.m4, but for now this will do.
+# make sure we add -lpthread if needed...
+AC_CHECK_LIB(pthread, pthread_create)
 AC_FUNC_MALLOC
 AC_FUNC_MMAP
 AC_STRUCT_ST_BLOCKS
