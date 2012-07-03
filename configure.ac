@@ -168,7 +168,7 @@ AC_TYPE_UINT64_T
 AX_PTHREAD
 # XXX this really should be in config/ax_pthread.m4, but for now this will do.
 # make sure we add -lpthread if needed...
-AC_CHECK_LIB(pthread, pthread_create)
+AC_CHECK_LIB([pthread], [pthread_create])
 AC_FUNC_MALLOC
 AC_FUNC_MMAP
 AC_STRUCT_ST_BLOCKS
@@ -180,6 +180,7 @@ AC_FUNC_STRTOD
 AC_CHECK_MEMBERS([struct stat.st_blksize])
 
 AC_SEARCH_LIBS([gzseek], [z])
+AC_CHECK_LIB([m], [ceilf])
 
 AC_PLFS_DEUBG_FLAG_CHECK
 AC_PLFS_MLOG_FLAG_CHECK
