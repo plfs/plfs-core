@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2011, Los Alamos National Security, LLC.
+# Copyright (c) 2009-2012, Los Alamos National Security, LLC.
 #                          All rights reserved.
 #
 # This software was produced under U.S. Government contract DE-AC52-06NA25396
@@ -166,6 +166,9 @@ AC_TYPE_UINT64_T
 
 # check for extra stuff that plfs uses
 AX_PTHREAD
+# XXX this really should be in config/ax_pthread.m4, but for now this will do.
+# make sure we add -lpthread if needed...
+AC_CHECK_LIB([pthread], [pthread_create])
 AC_FUNC_MALLOC
 AC_FUNC_MMAP
 AC_STRUCT_ST_BLOCKS
@@ -177,6 +180,7 @@ AC_FUNC_STRTOD
 AC_CHECK_MEMBERS([struct stat.st_blksize])
 
 AC_SEARCH_LIBS([gzseek], [z])
+AC_CHECK_LIB([m], [ceilf])
 
 AC_PLFS_DEUBG_FLAG_CHECK
 AC_PLFS_MLOG_FLAG_CHECK

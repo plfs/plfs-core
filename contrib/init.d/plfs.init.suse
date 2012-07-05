@@ -1,4 +1,21 @@
-#!/bin/bash
+#!/bin/sh
+#
+# /etc/init.d/plfs
+#
+# System startup script to get PLFS mounts
+#
+### BEGIN INIT INFO
+# Provides:            plfs
+# Required-Start:      $all
+# Required-Stop:
+# X-UnitedLinux-Should-Start:
+# X-UnitedLinux-Should-Stop:
+# Default-Start:       3 4 5
+# Default-Stop:        0 1 6
+# Description:         PLFS mounts a FUSE based middleware filesystem
+#   to speed up N to 1 writes on a parallel filesystem
+### END INIT INFO
+###
 #
 # chkconfig: 345 95 05
 # description: PLFS mounts a FUSE based middleware filesystem
@@ -38,7 +55,7 @@ stop() {
 }
 
 stats() {
-   /bin/mount -t fuse
+   /bin/mount -t fuse.plfs
 }
 
 case "$1" in
