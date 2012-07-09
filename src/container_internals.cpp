@@ -10,6 +10,7 @@
 #include "FileOp.h"
 #include "container_internals.h"
 #include "ContainerFS.h"
+#include "mlog_oss.h"
 
 #include <errno.h>
 #include <list>
@@ -685,7 +686,7 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
         }
         // then if there is anything to it, add it to the queue
         if ( ret == 0 && task.length > 0 ) {
-            ostringstream oss;
+            mss::mlog_oss oss(INT_DCOMMON);
             oss << chunk << ".1) Found index entry offset "
                 << task.chunk_offset << " len "
                 << task.length << " fd " << task.fd << " path "
@@ -771,7 +772,7 @@ perform_read_task( ReadTask *task, Index *index )
         ret = Util::Pread( task->fd, task->buf, task->length,
                            task->chunk_offset );
     }
-    ostringstream oss;
+    mss::mlog_oss oss(INT_DCOMMON);
     oss << "\t READ TASK: offset " << task->chunk_offset << " len "
         << task->length << " fd " << task->fd << ": ret " << ret;
     mlog(INT_DCOMMON, "%s", oss.str().c_str() );
@@ -1751,7 +1752,7 @@ container_getattr(Container_OpenFile *of, const char *logical,
              logical,of?of->getPath():"NULL",path.c_str(),
              strerror(errno));
     }
-    ostringstream oss;
+    mss::mlog_oss oss(PLFS_DAPI);
     oss << __FUNCTION__ << " of " << path << "("
         << (of == NULL ? "closed" : "open")
         << ") size is " << stbuf->st_size;
@@ -2051,7 +2052,7 @@ plfs_reference_count( Container_OpenFile *pfd )
         ref_count += in->incrementOpens(0);
     }
     if ( ref_count != pfd->incrementOpens(0) ) {
-        ostringstream oss;
+        mss::mlog_oss oss(INT_DRARE);
         oss << __FUNCTION__ << " not equal counts: " << ref_count
             << " != " << pfd->incrementOpens(0) << endl;
         mlog(INT_DRARE, "%s", oss.str().c_str() );
@@ -2137,7 +2138,7 @@ container_close( Container_OpenFile *pfd, pid_t pid, uid_t uid, int open_flags,
     // make sure the reference counting is correct
     plfs_reference_count(pfd);
     if ( ret == 0 && ref_count == 0 ) {
-        ostringstream oss;
+        mss::mlog_oss oss(PLFS_DCOMMON);
         oss << __FUNCTION__ << " removing OpenFile " << pfd;
         mlog(PLFS_DCOMMON, "%s", oss.str().c_str() );
         delete pfd;

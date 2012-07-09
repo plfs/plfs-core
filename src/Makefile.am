@@ -73,6 +73,7 @@ LogicalFS.h \
 LogicalFD.h \
 FlatFileFS.h \
 FlatFileFD.h \
+mlog_oss.h \
 $(include_HEADERS) \
 $(dist_pkginclude_HEADERS)
 
@@ -91,7 +92,8 @@ ContainerFD.cpp \
 FlatFileFD_FS.cpp \
 plfs_private.cpp \
 container_internals.cpp \
-plfs.cpp
+plfs.cpp \
+mlog_oss.cpp
 
 libplfs_la_SOURCES = \
 $(headers) \

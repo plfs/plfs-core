@@ -62,6 +62,7 @@
 
 #include "mlog.h"
 
+
 /*
  * dispose of the mlog() macro function, if it is defined.   we need
  * the real thing here...

@@ -24,6 +24,7 @@
 #include "Container.h"
 #include "Index.h"
 #include "plfs_private.h"
+#include "mlog_oss.h"
 
 #ifndef MAP_NOCACHE
 // this is a way to tell mmap not to waste buffer cache.  since we just
@@ -353,7 +354,7 @@ Index::setPath( string p )
 
 Index::~Index()
 {
-    ostringstream os;
+    mss::mlog_oss os(IDX_DAPI);
     os << __FUNCTION__ << ": " << this
        << " removing index on " << physical_path << ", "
        << chunk_map.size() << " chunks";
@@ -540,7 +541,7 @@ int Index::readIndex( string hostindex )
     int   fd = -1;
     void  *maddr = NULL;
     populated = true;
-    ostringstream os;
+    mss::mlog_oss os(IDX_DAPI);
     os << __FUNCTION__ << ": " << this << " reading index on " <<
        physical_path;
     mlog(IDX_DAPI, "%s", os.str().c_str() );
@@ -857,7 +858,7 @@ int Index::handleOverlap(ContainerEntry& incoming,
     multimap<off_t,ContainerEntry> overlaps;    // all offending entries
     multimap<off_t,ContainerEntry> chunks;   // offending entries nicely split
     map<off_t,ContainerEntry> winners;      // the set to keep
-    ostringstream oss;
+    mss::mlog_oss oss(IDX_DCOMMON);
     // OLD: this function is easier if incoming is not already in global_index
     // NEW: this used to be true but for overlap2 it was breaking things.  we
     // wanted this here so we wouldn't insert it twice.  But now we don't insert
@@ -969,7 +970,7 @@ Index::insertGlobal( ContainerEntry *g_entry )
 {
     pair<map<off_t,ContainerEntry>::iterator,bool> ret;
     bool overlap  = false;
-    ostringstream oss;
+    mss::mlog_oss oss(IDX_DAPI);
     mlog(IDX_DAPI, "Inserting offset %ld into index of %s (%d)",
          (long)g_entry->logical_offset, physical_path.c_str(),g_entry->id);
     ret = insertGlobalEntry( g_entry );
@@ -985,19 +986,19 @@ Index::insertGlobal( ContainerEntry *g_entry )
     prev = ret.first;
     prev--;
     if ( next != global_index.end() && g_entry->overlap( next->second ) ) {
-        ostringstream oss;
+        mss::mlog_oss oss(IDX_DCOMMON);
         oss << "overlap2 " << endl << *g_entry << endl <<next->second;
         mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
         overlap = true;
     }
     if (ret.first!=global_index.begin() && prev->second.overlap(*g_entry) ) {
-        ostringstream oss;
+        mss::mlog_oss oss(IDX_DCOMMON);
         oss << "overlap3 " << endl << *g_entry << endl <<prev->second;
         mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
         overlap = true;
     }
     if ( overlap ) {
-        ostringstream oss;
+        mss::mlog_oss oss(IDX_DCOMMON);
         oss << __FUNCTION__ << " of " << physical_path << " trying to insert "
             << "overlap at " << g_entry->logical_offset;
         mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
@@ -1131,7 +1132,7 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
                          string& path, bool *hole, pid_t *chunk_id,
                          off_t logical )
 {
-    ostringstream os;
+    mss::mlog_oss os(IDX_DAPI);
     os << __FUNCTION__ << ": " << this << " using index.";
     mlog(IDX_DAPI, "%s", os.str().c_str() );
     *hole = false;
@@ -1194,7 +1195,7 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
     // the end of the file
     // case 4: within a hole
     if ( logical < entry.logical_offset ) {
-        ostringstream oss;
+        mss::mlog_oss oss(IDX_DCOMMON);
         oss << "FOUND(4): " << logical << " is in a hole";
         mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
         off_t remaining_hole_size = entry.logical_offset - logical;

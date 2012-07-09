@@ -17,6 +17,7 @@ using namespace std;
 #include "plfs_private.h"
 #include "Util.h"
 #include "ThreadPool.h"
+#include "mlog_oss.h"
 
 #define BLKSIZE 512
 
@@ -1219,7 +1220,7 @@ Container::getattr( const string& path, struct stat *stbuf )
         off_t last_offset;
         size_t total_bytes;
         struct timespec time;
-        ostringstream oss;
+        mss::mlog_oss oss(CON_DCOMMON);
         string host = fetchMeta(*itr, &last_offset, &total_bytes, &time);
         if (openHosts.find(host) != openHosts.end()) {
             mlog(CON_DRARE, "Can't use metafile %s because %s has an "
@@ -1285,7 +1286,7 @@ Container::getattr( const string& path, struct stat *stbuf )
             stbuf->st_size   = max(stbuf->st_size, index.lastOffset());
         }
     }
-    ostringstream oss;
+    mss::mlog_oss oss(CON_DCOMMON);
     oss  << "Examined " << chunks << " droppings:"
          << path << " total size " << stbuf->st_size <<  ", usage "
          << stbuf->st_blocks << " at " << stbuf->st_blksize;
@@ -1868,7 +1869,7 @@ Container::nextdropping( const string& physical_path,
                          DIR **topdir, DIR **hostdir,
                          struct dirent **topent )
 {
-    ostringstream oss;
+    mss::mlog_oss oss(CON_DAPI);
     string resolved;
     int ret;
     oss << "looking for nextdropping in " << physical_path;
