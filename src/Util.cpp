@@ -28,6 +28,8 @@
 #include <map>
 #include <stdio.h>
 #include <stdarg.h>
+#include <libgen.h>
+
 using namespace std;
 
 #include "FileOp.h"
@@ -686,10 +688,44 @@ int Util::Chmod( const char *path, int flags )
     EXIT_UTIL;
 }
 
+/* Taken from: http://niallohiggins.com/2009/01/08/mkpath-mkdir-p-alike-in-c-for-unix/ */
 int Util::Mkdir( const char *path, mode_t mode )
 {
     ENTER_PATH;
-    ret = mkdir( path, mode );
+    char *q, *r = NULL, *npath = NULL, *up = NULL;    
+
+    ret = -1;
+    if (strcmp(path, ".") == 0 || strcmp(path, "/") == 0)
+        return (0);
+
+    if ((npath = strdup(path)) == NULL)
+        exit(1);
+     
+    if ((q = strdup(path)) == NULL)
+        exit(1);
+
+    if ((r = dirname(q)) == NULL)
+        goto out;
+        
+    if ((up = strdup(r)) == NULL)
+        exit(1);
+
+    if ((Mkdir(up, mode) == -1) && (errno != EEXIST))
+        goto out;
+
+    if ((mkdir(npath, mode) == -1) && (errno != EEXIST))
+        ret = -1;
+    else
+        ret = 0;
+
+out:
+    if (up != NULL)
+        free(up);
+
+    free(q);
+    free(npath);
+
+    return (ret);
     EXIT_UTIL;
 }
 

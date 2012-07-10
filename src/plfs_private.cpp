@@ -217,13 +217,13 @@ expandPath(string logical, ExpansionInfo *exp_info,
 
     switch(index_type) {
     case FLAT_INDEX:
-        exp_info->expanded = exp_info->backend + "/" + FLAT_INDEXDIR;
+        exp_info->expanded = exp_info->expanded + "/" + FLAT_INDEXDIR;
         break;
     case UPC_INDEX:
-        exp_info->expanded = exp_info->backend + "/" + UPC_INDEXDIR;
+        exp_info->expanded = exp_info->expanded + "/" + UPC_INDEXDIR;
         break;
     default:
-        exp_info->expanded = exp_info->backend + "/" + DEFAULT_INDEXDIR;
+        exp_info->expanded = exp_info->expanded + "/" + DEFAULT_INDEXDIR;
         break;
     }
 
