@@ -15,6 +15,8 @@
 
 #include <syslog.h>    /* for mlog init */
 
+int index_type = DEFAULT_INDEX; /* Set the default index type */
+
 static void parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
                               char *key, char *value);
 
@@ -212,6 +214,19 @@ expandPath(string logical, ExpansionInfo *exp_info,
     hash_val %= backends->size();   // don't index out of vector
     exp_info->backend  = (*backends)[hash_val];
     exp_info->expanded = exp_info->backend + "/" + remaining;
+
+    switch(index_type) {
+    case FLAT_INDEX:
+        exp_info->expanded = exp_info->backend + "/" + FLAT_INDEXDIR;
+        break;
+    case UPC_INDEX:
+        exp_info->expanded = exp_info->backend + "/" + UPC_INDEXDIR;
+        break;
+    default:
+        exp_info->expanded = exp_info->backend + "/" + DEFAULT_INDEXDIR;
+        break;
+    }
+
     mlog(INT_DCOMMON, "%s: %s -> %s (%d.%d)", __FUNCTION__,
          logical.c_str(), exp_info->expanded.c_str(),
          hash_method,hash_val);

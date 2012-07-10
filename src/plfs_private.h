@@ -1,6 +1,7 @@
 #ifndef __PLFS_PRIVATE__
 #define __PLFS_PRIVATE__
 
+#include "plfs.h"
 #include "plfs_internal.h"
 #include "mlogfacs.h"
 #include "OpenFile.h"
@@ -53,6 +54,10 @@ typedef struct {
     string expanded;
     string backend; // I tried to not put this in to save space . . .
 } ExpansionInfo;
+
+extern int index_type;
+#define PLFS_INDEX(I) \
+    index_type = I;
 
 #define PLFS_ENTER PLFS_ENTER2(PLFS_PATH_REQUIRED)
 

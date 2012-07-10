@@ -236,10 +236,11 @@ plfs_mkdir(const char *path, mode_t mode)
 
 int
 plfs_open(Plfs_fd **pfd, const char *path, int flags, pid_t pid, mode_t m,
-          Plfs_open_opt *open_opt)
+          int itype, Plfs_open_opt *open_opt)
 {
     assert( *pfd || path );
     int ret = 0;
+    PLFS_INDEX(itype);
     debug_enter(__FUNCTION__,(*pfd) ? (*pfd)->getPath(): path);
     if (*pfd) {
         ret = (*pfd)->open(path, flags, pid, m, open_opt);
