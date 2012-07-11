@@ -51,6 +51,7 @@ Flat_fd::open(const char *filename, int flags, pid_t pid,
         backend_pathname = filename;
         refs = 1;
     }
+
     return 0;
 }
 

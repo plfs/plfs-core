@@ -1328,7 +1328,7 @@ Container::makeTopLevel( const string& expanded_path,
     ostringstream oss;
     oss << expanded_path << "." << hostname << "." << pid;
     string tmpName( oss.str() );
-    if ( Util::Mkdir( tmpName.c_str(), dirMode(mode) ) < 0 ) {
+    if ( mkdir_dash_p( tmpName.c_str(), dirMode(mode) ) < 0 ) {
         if ( errno != EEXIST && errno != EISDIR ) {
             mlog(CON_DRARE, "Mkdir %s to %s failed: %s",
                  tmpName.c_str(), expanded_path.c_str(), strerror(errno) );

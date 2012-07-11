@@ -55,10 +55,6 @@ typedef struct {
     string backend; // I tried to not put this in to save space . . .
 } ExpansionInfo;
 
-extern int index_type;
-#define PLFS_INDEX(I) \
-    index_type = I;
-
 #define PLFS_ENTER PLFS_ENTER2(PLFS_PATH_REQUIRED)
 
 #define PLFS_ENTER2(X) \
@@ -106,6 +102,8 @@ typedef struct {
     int mlog_msgbuf_size;  /* number of bytes in mlog message buffer */
     int mlog_syslogfac;    /* syslog facility to use, if syslog enabled */
     char *mlog_setmasks;   /* initial non-default log level settings */
+    int index_type;        /* The index type, i.e., the normal container 
+                              index format or the UPC index */
 } PlfsConf;
 
 PlfsConf *parse_conf(FILE *fp, string file, PlfsConf *pconf);
@@ -126,7 +124,8 @@ int find_all_expansions(const char *logical, vector<string> &containers);
 string expand_macros(const char *target);
 
 string expandPath(string logical, ExpansionInfo *exp_info,
-                  expansionMethod hash_method, int which_backend, int depth);
+                  expansionMethod hash_method, int which_backend, 
+                  int depth);
 int mkdir_dash_p(const string& path, bool parent_only);
 int recover_directory(const char *logical, bool parent_only);
 

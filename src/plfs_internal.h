@@ -10,7 +10,7 @@
 #define DROPPINGPREFIX       "dropping."
 #define DATAPREFIX           DROPPINGPREFIX"data."
 #define INDEXPREFIX          DROPPINGPREFIX"index."
-#define DEFAULT_INDEXDIR     "container_index" //Index directory names
+#define DEFAULT_INDEXDIR     "default_index" //Index directory names
 #define UPC_INDEXDIR         "upc_index"
 #define FLAT_INDEXDIR        "flat_index"
 #define TMPPREFIX            "tmp."

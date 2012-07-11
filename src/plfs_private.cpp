@@ -211,19 +211,17 @@ expandPath(string logical, ExpansionInfo *exp_info,
         assert(0);
         break;
     }
+ 
     hash_val %= backends->size();   // don't index out of vector
     exp_info->backend  = (*backends)[hash_val];
     exp_info->expanded = exp_info->backend + "/" + remaining;
 
-    switch(index_type) {
-    case FLAT_INDEX:
-        exp_info->expanded = exp_info->expanded + "/" + FLAT_INDEXDIR;
-        break;
+    switch(pconf->index_type) {
     case UPC_INDEX:
-        exp_info->expanded = exp_info->expanded + "/" + UPC_INDEXDIR;
+        exp_info->expanded = exp_info->expanded + "/" + UPC_INDEXDIR + "/";
         break;
     default:
-        exp_info->expanded = exp_info->expanded + "/" + DEFAULT_INDEXDIR;
+        exp_info->expanded = exp_info->expanded + "/" + DEFAULT_INDEXDIR + "/";
         break;
     }
 
@@ -267,7 +265,7 @@ plfs_check_dir(string type, string dir,int previous_ret, bool make_dir)
                  << " not found (ENOENT)" << endl;
             return -ENOENT;
         } else {
-            int retVal = Util::Mkdir(directory, DEFAULT_MODE);
+            int retVal = mkdir_dash_p(directory, DEFAULT_MODE);
             if (retVal != 0) {
                 cout << "Attempt to create direcotry " << dir
                      << " failed." << endl;
@@ -803,6 +801,7 @@ set_default_confs(PlfsConf *pconf)
     pconf->mlog_syslogfac = LOG_USER;
     pconf->mlog_setmasks = NULL;
     pconf->tmp_mnt = NULL;
+    pconf->index_type = DEFAULT_INDEX;
 }
 
 
@@ -1063,6 +1062,11 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
              */
             pconf->err_msg = new string("Unable to malloc mlog_setmasks");
         }
+    } else if (strcmp(key,"index_type")==0) {
+        pconf->index_type = atoi(value);
+        if (pconf->index_type < 0 || pconf->index_type > UPC_INDEX) {
+            pconf->err_msg = new string("illegal negative value");
+        }     
     } else {
         ostringstream error_msg;
         error_msg << "Unknown key " << key;

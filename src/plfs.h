@@ -29,7 +29,7 @@ typedef void *Plfs_fd;
 
     /* Index types */
     typedef enum {
-        DEFAULT_INDEX, UPC_INDEX, FLAT_INDEX
+        DEFAULT_INDEX, UPC_INDEX
     }plfs_index;
 
     typedef struct {
@@ -153,7 +153,7 @@ typedef void *Plfs_fd;
        To re-open an existing file, you can pass back in the Plfs_fd
     */
     int plfs_open( Plfs_fd **, const char *path,
-                   int flags, pid_t pid, mode_t , int itype, 
+                   int flags, pid_t pid, mode_t,
                    Plfs_open_opt *open_opt);
 
     /* this is to move shadowed files into canonical backends */

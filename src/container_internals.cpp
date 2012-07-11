@@ -1316,6 +1316,7 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
     Index     *index   = NULL;
     bool new_writefile = false;
     bool new_index     = false;
+
     /*
     if ( pid == 0 && open_opt && open_opt->pinter == PLFS_MPIIO ) {
         // just one message per MPI open to make sure the version is right
@@ -1343,6 +1344,7 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
     if ( ret == 0 && *pfd) {
         plfs_reference_count(*pfd);
     }
+
     // this next chunk of code works similarly for writes and reads
     // for writes, create a writefile if needed, otherwise add a new writer
     // create the write index file after the write data file so that the
@@ -1364,6 +1366,7 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
             wf = new WriteFile(path, Util::hostname(), mode, indx_sz);
             new_writefile = true;
         }
+
         ret = addWriter(wf, pid, path.c_str(), mode,logical);
         mlog(INT_DCOMMON, "%s added writer: %d", __FUNCTION__, ret );
         if ( ret > 0 ) {

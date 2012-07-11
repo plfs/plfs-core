@@ -33,7 +33,6 @@ typedef struct {
     string path;
 } IndexerTask;
 
-
 typedef enum {
     TMP_SUBDIR, PERM_SUBDIR
 } subdir_type;
