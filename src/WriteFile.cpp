@@ -254,7 +254,11 @@ WriteFile::extend( off_t offset )
         return -ENOENT;
     }
     pid_t p = fds.begin()->first;
-    index->addWrite( offset, 0, p, createtime, createtime );
+    PlfsConf *pconf = get_plfs_conf();
+  
+    indexAddWrite( index, offset, 0, p, PLFS_BYTE, 
+		   createtime, createtime );
+
     addWrite( offset, 0 );   // maintain metadata
     return 0;
 }
@@ -295,7 +299,7 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
         if ( ret >= 0 ) {
             write_count++;
             Util::MutexLock(   &index_mux , __FUNCTION__);
-            index->addWrite( offset, ret, pid, begin, end );
+            indexAddWrite( index, offset, ret, pid, PLFS_NONE, begin, end );
             // TODO: why is 1024 a magic number?
             int flush_count = 1024;
             if (write_count%flush_count==0) {
@@ -328,7 +332,7 @@ int WriteFile::openIndex( pid_t pid ) {
         ret = -errno;
     } else {
         Util::MutexLock(&index_mux , __FUNCTION__);
-        index = new Index(container_path, fd);
+        index = getIndexPtr(container_path, fd);
         Util::MutexUnlock(&index_mux, __FUNCTION__);
         mlog(WF_DAPI, "In open Index path is %s",index_path.c_str());
         index->index_path=index_path;

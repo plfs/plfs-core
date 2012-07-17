@@ -321,6 +321,8 @@ indexer_thread( void *va )
     IndexerTask task;
     size_t ret = 0;
     bool tasks_remaining = true;
+    PlfsConf *pconf = get_plfs_conf();
+    int index_type = pconf->index_type;
     while(true) {
         // try to get a task
         Util::MutexLock(&(args->mux),__FUNCTION__);
@@ -335,13 +337,15 @@ indexer_thread( void *va )
             break;
         }
         // handle the task
-        Index subindex(task.path);
-        ret = subindex.readIndex(task.path);
-        if ( ret != 0 ) {
-            break;
+
+	Index subindex = getIndex(task.path);
+	ret = subindex.readIndex(task.path);
+   	if ( ret != 0 ) {
+   	    break;
         }
-        args->index->lock(__FUNCTION__);
-        args->index->merge(&subindex);
+
+	args->index->lock(__FUNCTION__);
+	args->index->merge(&subindex);
         args->index->unlock(__FUNCTION__);
         mlog(CON_DCOMMON, "THREAD MERGE %s into main index",
              task.path.c_str());
@@ -561,12 +565,16 @@ Index
 Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
                                int rank, int ranks_per_comm,string path)
 {
-    Index index(path);
+    Index index;
     IndexerTask task;
     deque<IndexerTask> tasks;
     size_t count=0;
     string exp_path;
     vector<string> path_pieces;
+    PlfsConf *pconf = get_plfs_conf();
+
+    index = getIndex(path);
+
     mlog(CON_DAPI, "In parAgg indices before for loop");
     mlog(CON_DAPI, "Rank |%d| indexListSize |%lu| ranksRerComm |%d|",rank,
          (unsigned long)index_list.size(),ranks_per_comm);
@@ -1279,7 +1287,7 @@ Container::getattr( const string& path, struct stat *stbuf )
             stbuf->st_atime = max(dropping_st.st_atime, stbuf->st_atime);
             stbuf->st_mtime = max(dropping_st.st_mtime, stbuf->st_mtime);
             mlog(CON_DCOMMON, "Getting stat info from index dropping");
-            Index index(path);
+            Index index = getIndex(path);
             index.readIndex(dropping);
             stbuf->st_blocks += bytesToBlocks( index.totalBytes() );
             stbuf->st_size   = max(stbuf->st_size, index.lastOffset());
@@ -1947,7 +1955,7 @@ Container::Truncate( const string& path, off_t offset )
     struct dirent *tent = NULL;
     while((ret = nextdropping(path,&indexfile,INDEXPREFIX,
                               &td,&hd,&tent))== 1) {
-        Index index( indexfile, -1 );
+        Index index = getIndex( indexfile, -1 );
         mlog(CON_DCOMMON, "%s new idx %p %s", __FUNCTION__,
              &index,indexfile.c_str());
         ret = index.readIndex( indexfile );
@@ -2030,3 +2038,4 @@ Container::truncateMeta(const string& path, off_t offset)
     }
     return ret;
 }
+

@@ -1260,3 +1260,84 @@ plfs_mutex_lock(pthread_mutex_t *mux, const char *func){
     return Util::MutexLock(mux,func);
 }
 
+Index getIndex(string path) 
+{
+
+  Index index;
+  PlfsConf *pconf = get_plfs_conf();
+  
+  if (pconf->index_type == DEFAULT_INDEX)
+    index = IndexDefault(path);
+  else if (pconf->index_type == UPC_INDEX)
+    index = IndexUpc(path);
+
+  return index;
+}
+
+Index getIndex(string path, int fd) 
+{
+
+  Index index;
+  PlfsConf *pconf = get_plfs_conf();
+  
+  if (pconf->index_type == DEFAULT_INDEX)
+    index = IndexDefault(path, fd);
+  else if (pconf->index_type == UPC_INDEX)
+    index = IndexUpc(path, fd);
+
+  return index;
+}
+
+Index *getIndexPtr(string path, int fd) 
+{
+
+  Index *index;
+  PlfsConf *pconf = get_plfs_conf();
+  
+  if (pconf->index_type == DEFAULT_INDEX)
+    index = new IndexDefault(path, fd);
+  else if (pconf->index_type == UPC_INDEX)
+    index = new IndexUpc(path, fd);
+
+  return index;
+}
+
+Index *getIndexPtr(string path) 
+{
+
+  Index *index;
+  PlfsConf *pconf = get_plfs_conf();
+  
+  if (pconf->index_type == DEFAULT_INDEX)
+    index = new IndexDefault(path);
+  else if (pconf->index_type == UPC_INDEX)
+    index = new IndexUpc(path);
+
+  return index;
+}
+void indexAddWrite(Index *index, off_t offset, size_t bytes, 
+		   pid_t p, int d, double b, double e ) {
+  PlfsConf *pconf = get_plfs_conf();
+
+  if (pconf->index_type == DEFAULT_INDEX) 
+    {
+      ((IndexDefault *)index)->addWrite( offset, bytes, p, 
+					 b, e );
+    }
+  else if (pconf->index_type == UPC_INDEX) 
+    {
+      ((IndexUpc *)index)->addWrite( offset, bytes, p, d,
+				     b, e );
+    }  
+
+  return;
+}
+
+// a helper routine for global_to_stream: copies to a pointer and advances it
+char *
+memcpy_helper(char *dst, void *src, size_t len)
+{
+    char *ret = (char *)memcpy((void *)dst,src,len);
+    ret += len;
+    return ret;
+}

@@ -70,9 +70,20 @@ size_t plfs_gethostdir_id(char *hostname)
 int
 plfs_dump_index_size()
 {
-    ContainerEntry e;
-    cout << "An index entry is size " << sizeof(e) << endl;
-    return (int)sizeof(e);
+    int ret;
+    PlfsConf *pconf = get_plfs_conf();
+
+    if (pconf->index_type == DEFAULT_INDEX) 
+    {
+      ret = sizeof(DefaultContainerEntry);
+    } else if (pconf->index_type == UPC_INDEX) 
+    {
+      ret = sizeof(UpcContainerEntry);
+    }  
+
+    cout << "An index entry is size " << ret << endl;
+    
+    return ret;
 }
 
 // returns 0 or -errno
@@ -80,16 +91,27 @@ int
 plfs_dump_index( FILE *fp, const char *logical, int compress )
 {
     PLFS_ENTER;
-    Index index(path);
-    ret = Container::populateIndex(path,&index,true);
+    Index *index = getIndexPtr(path);
+    PlfsConf *pconf = get_plfs_conf();
+
+    ret = Container::populateIndex(path, index, true);
     if ( ret == 0 ) {
         if (compress) {
-            index.compress();
+            index->compress();
         }
         ostringstream oss;
-        oss << index;
+	if (pconf->index_type == DEFAULT_INDEX) 
+	{
+	  oss << (IndexDefault *)index;
+	} else if (pconf->index_type == UPC_INDEX) 
+	{
+	  oss << (IndexUpc *)index;
+	}
+
         fprintf(fp,"%s",oss.str().c_str());
     }
+
+    delete(index);
     PLFS_EXIT(ret);
 }
 
@@ -106,7 +128,7 @@ container_flatten_index(Container_OpenFile *pfd, const char *logical)
     if ( pfd && pfd->getIndex() ) {
         index = pfd->getIndex();
     } else {
-        index = new Index( path );
+        index = getIndexPtr( path );
         newly_created = true;
         // before we populate, need to blow away any old one
         ret = Container::populateIndex(path,index,false);
@@ -897,7 +919,7 @@ container_read( Container_OpenFile *pfd, char *buf, size_t size, off_t offset )
     // so that new writes are re-indexed for new reads
     // basically O_RDWR is possible but it can reduce read BW
     if (index == NULL) {
-        index = new Index(pfd->getPath());
+        index = getIndexPtr(pfd->getPath());
         if ( index ) {
             new_index_created = true;
             ret = Container::populateIndex(pfd->getPath(),index,false);
@@ -954,7 +976,7 @@ plfs_hostdir_rddir(void **index_stream,char *targets,int rank,
     mlog(INT_DCOMMON, "Rank |%d| targets %s",rank,targets);
     Util::tokenize(targets,"|",directories);
     // Path is extremely important when converting to stream
-    Index global(top_level);
+    Index global = getIndex(top_level);
     unsigned count=0;
     while(count<directories.size()) { // why isn't this a for loop?
         path=directories[count];
@@ -963,7 +985,7 @@ plfs_hostdir_rddir(void **index_stream,char *targets,int rank,
             return ret;
         }
         index_droppings.erase(index_droppings.begin());
-        Index tmp(top_level);
+        Index tmp = getIndex(top_level);
         tmp=Container::parAggregateIndices(index_droppings,0,1,path);
         global.merge(&tmp);
         count++;
@@ -1007,7 +1029,7 @@ plfs_parindex_read(int rank,int ranks_per_comm,void *index_files,
     mlog(INT_DCOMMON, "Hostdir path pushed on the list %s",path.c_str());
     mlog(INT_DCOMMON, "Path: %s used for Index file in parindex read",
          top_level);
-    Index index(top_level);
+    Index index = getIndex(top_level);
     cvt_list.erase(cvt_list.begin());
     //Everything seems fine at this point
     mlog(INT_DCOMMON, "Rank |%d| List Size|%lu|",rank,
@@ -1060,7 +1082,7 @@ plfs_parindexread_merge(const char *path,char *index_streams,
 {
     int count;
     size_t size;
-    Index merger(path);
+    Index merger = getIndex(path);
     // Merge all of the indices that were passed in
     for(count=0; count<procs; count++) {
         char *index_stream;
@@ -1069,7 +1091,7 @@ plfs_parindexread_merge(const char *path,char *index_streams,
             mlog(INT_DCOMMON, "Incrementing the index by %d",index_inc);
             index_streams+=index_inc;
         }
-        Index *tmp = new Index(path);
+        Index *tmp = getIndexPtr(path);
         index_stream=index_streams;
         tmp->global_from_stream(index_stream);
         merger.merge(tmp);
@@ -1388,7 +1410,7 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
         }
         if ( index == NULL ) {
             // do we delete this on error?
-            index = new Index( path );
+            index = getIndexPtr( path );
             new_index = true;
             // Did someone pass in an already populated index stream?
             if (open_opt && open_opt->index_stream !=NULL) {
@@ -1406,7 +1428,7 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
             }
         }
         if ( ret == 0 ) {
-            index->incrementOpens(1);
+	  ((IndexDefault *)index)->incrementOpens(1);
         }
         // can't cache index if error or if in O_RDWR
         // be nice to be able to cache but trying to do so
@@ -2022,7 +2044,7 @@ container_query( Container_OpenFile *pfd, size_t *writers,
         *writers = wf->numWriters();
     }
     if ( ix && readers ) {
-        *readers = ix->incrementOpens(0);
+      *readers = ((IndexDefault *)ix)->incrementOpens(0);
     }
     if ( wf && bytes_written ) {
         off_t  last_offset;
@@ -2051,7 +2073,7 @@ plfs_reference_count( Container_OpenFile *pfd )
         ref_count += wf->numWriters();
     }
     if ( in ) {
-        ref_count += in->incrementOpens(0);
+        ref_count += ((IndexDefault *)in)->incrementOpens(0);
     }
     if ( ref_count != pfd->incrementOpens(0) ) {
         ostringstream oss;
@@ -2126,7 +2148,7 @@ container_close( Container_OpenFile *pfd, pid_t pid, uid_t uid, int open_flags,
     }
     if (isReader(open_flags) && index) {
         assert( index );
-        readers = index->incrementOpens(-1);
+        readers = ((IndexDefault *)index)->incrementOpens(-1);
         if ( readers == 0 ) {
             delete index;
             index = NULL;

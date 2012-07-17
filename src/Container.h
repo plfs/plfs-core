@@ -49,6 +49,8 @@ typedef struct {
 } ContainerPaths;
 
 #include "Index.h"
+#include "IndexDefault.h"
+#include "IndexUpc.h"
 
 class Container
 {

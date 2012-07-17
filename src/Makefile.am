@@ -59,6 +59,8 @@ headers = \
 Container.h \
 FileOp.h \
 Index.h \
+IndexDefault.h \
+IndexUpc.h \
 LogMessage.h \
 Metadata.h \
 mlog.h \
@@ -81,6 +83,8 @@ Util.cpp \
 Container.cpp \
 FileOp.cpp \
 Index.cpp \
+IndexDefault.cpp \
+IndexUpc.cpp \
 LogMessage.cpp \
 OpenFile.cpp \
 ThreadPool.cpp \
