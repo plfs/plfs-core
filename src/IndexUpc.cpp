@@ -249,6 +249,14 @@ IndexUpc::merge(IndexUpc *other)
     }
 }
 
+void
+IndexUpc::stopBuffering()
+{
+    this->buffering=false;
+    this->buffer_filled=true;
+    global_index.clear();
+}
+
 off_t
 IndexUpc::lastOffset()
 {

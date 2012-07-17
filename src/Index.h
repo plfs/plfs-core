@@ -47,7 +47,7 @@ typedef struct {
 class Index
 {
 public:
-    ~Index();
+    virtual ~Index();
     virtual int readIndex( string hostindex );
     virtual size_t memoryFootprintMBs();    // how much area the index is occupying  
     virtual int globalLookup( int *fd, off_t *chunk_off, size_t *length,

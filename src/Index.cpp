@@ -310,3 +310,21 @@ Index::setChunkFd( pid_t chunk_id, int fd )
     chunk_map[chunk_id].fd = fd;
     return 0;
 }
+
+int Index::readIndex( string hostindex ) { return 0; }
+size_t Index::memoryFootprintMBs() { return 0; }  
+int Index::globalLookup( int *fd, off_t *chunk_off, size_t *length,
+			 string& path, bool *hole, pid_t *chunk_id,
+			 off_t logical ) { return 0; }
+void Index::merge( Index *other) { return; }
+void Index::truncate( off_t offset ) { return; }
+int Index::rewriteIndex( int fd ) { return -1; }
+void Index::truncateHostIndex( off_t offset ) { return; }
+int Index::debug_from_stream(void *addr) { return 0; }
+int Index::global_to_file(int fd) { return 0; }
+int Index::global_from_stream(void *addr) { return 0; }
+int Index::global_to_stream(void **buffer,size_t *length) { return 0; }
+int Index::flush() { return 0; }
+void Index::stopBuffering() { return; }
+off_t Index::lastOffset( ) { return 0; }
+size_t Index::totalBytes( ) { return 0; }
