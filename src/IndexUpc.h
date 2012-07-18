@@ -97,7 +97,7 @@ public:
     void stopBuffering();
     size_t totalBytes( );
     off_t lastOffset( );
-    void merge( IndexUpc *other);
+    void merge( Index *other);
     int flush();
     int readIndex( string hostindex );
     int global_to_file(int fd);

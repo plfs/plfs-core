@@ -91,7 +91,7 @@ int
 plfs_dump_index( FILE *fp, const char *logical, int compress )
 {
     PLFS_ENTER;
-    Index *index = getIndexPtr(path);
+    Index *index = createIndex(path);
     PlfsConf *pconf = get_plfs_conf();
 
     ret = Container::populateIndex(path, index, true);
@@ -128,7 +128,7 @@ container_flatten_index(Container_OpenFile *pfd, const char *logical)
     if ( pfd && pfd->getIndex() ) {
         index = pfd->getIndex();
     } else {
-        index = getIndexPtr( path );
+        index = createIndex( path );
         newly_created = true;
         // before we populate, need to blow away any old one
         ret = Container::populateIndex(path,index,false);
@@ -919,7 +919,7 @@ container_read( Container_OpenFile *pfd, char *buf, size_t size, off_t offset )
     // so that new writes are re-indexed for new reads
     // basically O_RDWR is possible but it can reduce read BW
     if (index == NULL) {
-        index = getIndexPtr(pfd->getPath());
+        index = createIndex(pfd->getPath());
         if ( index ) {
             new_index_created = true;
             ret = Container::populateIndex(pfd->getPath(),index,false);
@@ -976,7 +976,7 @@ plfs_hostdir_rddir(void **index_stream,char *targets,int rank,
     mlog(INT_DCOMMON, "Rank |%d| targets %s",rank,targets);
     Util::tokenize(targets,"|",directories);
     // Path is extremely important when converting to stream
-    Index global = getIndex(top_level);
+    Index *global = createIndex(top_level);
     unsigned count=0;
     while(count<directories.size()) { // why isn't this a for loop?
         path=directories[count];
@@ -985,12 +985,15 @@ plfs_hostdir_rddir(void **index_stream,char *targets,int rank,
             return ret;
         }
         index_droppings.erase(index_droppings.begin());
-        Index tmp = getIndex(top_level);
+        Index *tmp;
         tmp=Container::parAggregateIndices(index_droppings,0,1,path);
-        global.merge(&tmp);
+        global->merge(tmp);
+	delete(tmp);
         count++;
     }
-    global.global_to_stream(index_stream,&stream_sz);
+
+    global->global_to_stream(index_stream,&stream_sz);
+    delete(global);
     return (int)stream_sz;
 }
 
@@ -1029,7 +1032,7 @@ plfs_parindex_read(int rank,int ranks_per_comm,void *index_files,
     mlog(INT_DCOMMON, "Hostdir path pushed on the list %s",path.c_str());
     mlog(INT_DCOMMON, "Path: %s used for Index file in parindex read",
          top_level);
-    Index index = getIndex(top_level);
+    Index *index;
     cvt_list.erase(cvt_list.begin());
     //Everything seems fine at this point
     mlog(INT_DCOMMON, "Rank |%d| List Size|%lu|",rank,
@@ -1038,9 +1041,10 @@ plfs_parindex_read(int rank,int ranks_per_comm,void *index_files,
     mlog(INT_DCOMMON, "Ranks |%d| About to convert global to stream",rank);
     // Don't forget to trick global to stream
     index_path=top_level;
-    index.setPath(index_path);
+    index->setPath(index_path);
     // Index should be populated now
-    index.global_to_stream(index_stream,&index_stream_sz);
+    index->global_to_stream(index_stream,&index_stream_sz);
+    delete(index);
     return (int)index_stream_sz;
 }
 
@@ -1082,7 +1086,7 @@ plfs_parindexread_merge(const char *path,char *index_streams,
 {
     int count;
     size_t size;
-    Index merger = getIndex(path);
+    Index *merger = createIndex(path);
     // Merge all of the indices that were passed in
     for(count=0; count<procs; count++) {
         char *index_stream;
@@ -1091,13 +1095,14 @@ plfs_parindexread_merge(const char *path,char *index_streams,
             mlog(INT_DCOMMON, "Incrementing the index by %d",index_inc);
             index_streams+=index_inc;
         }
-        Index *tmp = getIndexPtr(path);
+        Index *tmp = createIndex(path);
         index_stream=index_streams;
         tmp->global_from_stream(index_stream);
-        merger.merge(tmp);
+        merger->merge(tmp);
     }
     // Convert into a stream
-    merger.global_to_stream(index_stream,&size);
+    merger->global_to_stream(index_stream,&size);
+    delete(merger);
     mlog(INT_DCOMMON, "Inside parindexread merge stream size %lu",
          (unsigned long)size);
     return (int)size;
@@ -1410,7 +1415,7 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
         }
         if ( index == NULL ) {
             // do we delete this on error?
-            index = getIndexPtr( path );
+            index = createIndex( path );
             new_index = true;
             // Did someone pass in an already populated index stream?
             if (open_opt && open_opt->index_stream !=NULL) {

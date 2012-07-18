@@ -1260,35 +1260,7 @@ plfs_mutex_lock(pthread_mutex_t *mux, const char *func){
     return Util::MutexLock(mux,func);
 }
 
-Index getIndex(string path) 
-{
-
-  Index index;
-  PlfsConf *pconf = get_plfs_conf();
-  
-  if (pconf->index_type == DEFAULT_INDEX)
-    index = IndexDefault(path);
-  else if (pconf->index_type == UPC_INDEX)
-    index = IndexUpc(path);
-
-  return index;
-}
-
-Index getIndex(string path, int fd) 
-{
-
-  Index index;
-  PlfsConf *pconf = get_plfs_conf();
-  
-  if (pconf->index_type == DEFAULT_INDEX)
-    index = IndexDefault(path, fd);
-  else if (pconf->index_type == UPC_INDEX)
-    index = IndexUpc(path, fd);
-
-  return index;
-}
-
-Index *getIndexPtr(string path, int fd) 
+Index *createIndex(string path, int fd) 
 {
 
   Index *index;
@@ -1302,7 +1274,7 @@ Index *getIndexPtr(string path, int fd)
   return index;
 }
 
-Index *getIndexPtr(string path) 
+Index *createIndex(string path) 
 {
 
   Index *index;
@@ -1315,6 +1287,7 @@ Index *getIndexPtr(string path)
 
   return index;
 }
+
 void indexAddWrite(Index *index, off_t offset, size_t bytes, 
 		   pid_t p, int d, double b, double e ) {
   PlfsConf *pconf = get_plfs_conf();

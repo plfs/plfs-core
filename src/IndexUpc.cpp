@@ -226,21 +226,23 @@ IndexUpc::IndexUpc( string logical ) : Metadata::Metadata()
 // merge another index into this one
 // we're not looking for errors here probably we should....
 void
-IndexUpc::merge(IndexUpc *other)
+IndexUpc::merge(Index *other)
 {
     // the other has it's own chunk_map and the UpcContainerEntry have
     // an index into that chunk_map
     // copy over the other's chunk_map and remember how many chunks
     // we had originally
+
+    IndexUpc *index = (IndexUpc *) other;
     size_t chunk_map_shift = chunk_map.size();
     vector<ChunkFile>::iterator itr;
-    for(itr = other->chunk_map.begin(); itr != other->chunk_map.end(); itr++) {
+    for(itr = index->chunk_map.begin(); itr != index->chunk_map.end(); itr++) {
         chunk_map.push_back(*itr);
     }
-    // copy over the other's container entries but shift the index
+    // copy over the index's container entries but shift the index
     // so they index into the new larger chunk_map
     map<off_t,UpcContainerEntry>::const_iterator ce_itr;
-    map<off_t,UpcContainerEntry> *og = &(other->global_index);
+    map<off_t,UpcContainerEntry> *og = &(index->global_index);
     for( ce_itr = og->begin(); ce_itr != og->end(); ce_itr++ ) {
         UpcContainerEntry entry = ce_itr->second;
         // Don't need to shift in the case of flatten on close

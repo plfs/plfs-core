@@ -332,7 +332,7 @@ int WriteFile::openIndex( pid_t pid ) {
         ret = -errno;
     } else {
         Util::MutexLock(&index_mux , __FUNCTION__);
-        index = getIndexPtr(container_path, fd);
+        index = createIndex(container_path, fd);
         Util::MutexUnlock(&index_mux, __FUNCTION__);
         mlog(WF_DAPI, "In open Index path is %s",index_path.c_str());
         index->index_path=index_path;

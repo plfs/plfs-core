@@ -138,9 +138,9 @@ class Container
         static int makeCreator(const string& path);
         static int truncateMeta(const string& path, off_t offset);
         // Added for par read index
-        static Index parAggregateIndices(vector<IndexFileInfo>& index_list,
-                                         int rank, int ranks_per_comm,
-                                         string path);
+        static Index *parAggregateIndices(vector<IndexFileInfo>& index_list,
+					  int rank, int ranks_per_comm,
+					  string path);
         static int indexTaskManager(deque<IndexerTask> &tasks,
                                     Index *index,string path);
         static int indices_from_subdir(string,vector<IndexFileInfo>&);

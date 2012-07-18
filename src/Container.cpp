@@ -338,18 +338,20 @@ indexer_thread( void *va )
         }
         // handle the task
 
-	Index subindex = getIndex(task.path);
-	ret = subindex.readIndex(task.path);
+	Index *subindex = createIndex(task.path);
+	ret = subindex->readIndex(task.path);
    	if ( ret != 0 ) {
    	    break;
         }
 
 	args->index->lock(__FUNCTION__);
-	args->index->merge(&subindex);
+	args->index->merge(subindex);
         args->index->unlock(__FUNCTION__);
         mlog(CON_DCOMMON, "THREAD MERGE %s into main index",
              task.path.c_str());
+	delete(subindex);
     }
+    
     pthread_exit((void *)ret);
 }
 
@@ -472,6 +474,7 @@ Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index, string path)
             }
         }
     }
+
     return ret;
 }
 
@@ -561,11 +564,11 @@ Container::indices_from_subdir(string path, vector<IndexFileInfo> &indices)
     return 0;
 }
 
-Index
+Index *
 Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
                                int rank, int ranks_per_comm,string path)
 {
-    Index index;
+    Index *index;
     IndexerTask task;
     deque<IndexerTask> tasks;
     size_t count=0;
@@ -573,7 +576,7 @@ Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
     vector<string> path_pieces;
     PlfsConf *pconf = get_plfs_conf();
 
-    index = getIndex(path);
+    index = createIndex(path);
 
     mlog(CON_DAPI, "In parAgg indices before for loop");
     mlog(CON_DAPI, "Rank |%d| indexListSize |%lu| ranksRerComm |%d|",rank,
@@ -591,7 +594,7 @@ Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
         tasks.push_back(task);
     }
     mlog(CON_DCOMMON, "Par agg indices path %s",path.c_str());
-    indexTaskManager(tasks,&index,path);
+    indexTaskManager(tasks,index,path);
     return index;
 }
 
@@ -1287,10 +1290,11 @@ Container::getattr( const string& path, struct stat *stbuf )
             stbuf->st_atime = max(dropping_st.st_atime, stbuf->st_atime);
             stbuf->st_mtime = max(dropping_st.st_mtime, stbuf->st_mtime);
             mlog(CON_DCOMMON, "Getting stat info from index dropping");
-            Index index = getIndex(path);
-            index.readIndex(dropping);
-            stbuf->st_blocks += bytesToBlocks( index.totalBytes() );
-            stbuf->st_size   = max(stbuf->st_size, index.lastOffset());
+            Index *index = createIndex(path);
+            index->readIndex(dropping);
+            stbuf->st_blocks += bytesToBlocks( index->totalBytes() );
+            stbuf->st_size   = max(stbuf->st_size, index->lastOffset());
+	    delete(index);
         }
     }
     ostringstream oss;
@@ -1955,22 +1959,22 @@ Container::Truncate( const string& path, off_t offset )
     struct dirent *tent = NULL;
     while((ret = nextdropping(path,&indexfile,INDEXPREFIX,
                               &td,&hd,&tent))== 1) {
-        Index index = getIndex( indexfile, -1 );
+        Index *index = createIndex( indexfile, -1 );
         mlog(CON_DCOMMON, "%s new idx %p %s", __FUNCTION__,
-             &index,indexfile.c_str());
-        ret = index.readIndex( indexfile );
+             index,indexfile.c_str());
+        ret = index->readIndex( indexfile );
         if ( ret == 0 ) {
-            if ( index.lastOffset() > offset ) {
-                mlog(CON_DCOMMON, "%s %p at %ld",__FUNCTION__,&index,
+            if ( index->lastOffset() > offset ) {
+                mlog(CON_DCOMMON, "%s %p at %ld",__FUNCTION__,index,
                      (unsigned long)offset);
-                index.truncate( offset );
+                index->truncate( offset );
                 int fd = Util::Open(indexfile.c_str(), O_TRUNC | O_WRONLY);
                 if ( fd < 0 ) {
                     mlog(CON_CRIT, "Couldn't overwrite index file %s: %s",
                          indexfile.c_str(), strerror( fd ));
                     return -errno;
                 }
-                ret = index.rewriteIndex( fd );
+                ret = index->rewriteIndex( fd );
                 Util::Close( fd );
                 if ( ret != 0 ) {
                     break;
@@ -1981,6 +1985,8 @@ Container::Truncate( const string& path, off_t offset )
                  indexfile.c_str(), strerror( -ret ));
             break;
         }
+
+	delete(index);
     }
     if ( ret == 0 ) {
         ret = truncateMeta(path,offset);

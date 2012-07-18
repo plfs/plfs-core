@@ -155,10 +155,8 @@ gid_t plfs_getgid();
 int plfs_setfsuid(uid_t);
 int plfs_setfsgid(gid_t);
 
-Index getIndex(string path);
-Index getIndex(string path, int fd);
-Index *getIndexPtr(string path, int fd);
-Index *getIndexPtr(string path);
+Index *createIndex(string path, int fd);
+Index *createIndex(string path);
 
 void indexAddWrite(Index *indx, off_t offset, size_t bytes, 
 		   pid_t, int, double, double );
