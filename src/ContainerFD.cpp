@@ -31,6 +31,12 @@ Container_fd::read(char *buf, size_t size, off_t offset)
     return container_read(fd, buf, size, offset);
 }
 
+readInfo *
+Container_fd::read_mem(char *buf, size_t size, off_t offset)
+{
+    return container_read_mem(fd, buf, size, offset);
+}
+
 int
 Container_fd::rename(const char *path) {
     return container_rename_open_file(fd,path);
@@ -40,6 +46,17 @@ ssize_t
 Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid)
 {
     return container_write(fd, buf, size, offset, pid);
+}
+
+/* This performs some optimizations.  Useful if all participating
+   processes/threads are writing to the same contiguous array */
+ssize_t 
+Container_fd::write_mem(const char *buf, size_t size,
+                        off_t offset, off_t initial_offset, 
+                        pid_t pid, pid_t index_writer, 
+                        ssize_t total_size, int data_type) {
+    return container_write_mem(fd, buf, size, offset, initial_offset, 
+                               pid, index_writer, total_size, data_type);
 }
 
 int

@@ -14,34 +14,34 @@
 // index file for each host.
 class DefaultHostEntry
 {
-    public:
-        DefaultHostEntry();
-        DefaultHostEntry( off_t o, size_t s, pid_t p );
-        DefaultHostEntry( const DefaultHostEntry& copy );
-        bool overlap( const DefaultHostEntry& );
-        bool contains ( off_t ) const;
-        bool splittable ( off_t ) const;
-        bool abut   ( const DefaultHostEntry& );
-        off_t logical_tail( ) const;
-        bool follows(const DefaultHostEntry&);
-        bool preceeds(const DefaultHostEntry&);
+public:
+    DefaultHostEntry();
+    DefaultHostEntry( off_t o, size_t s, pid_t p );
+    DefaultHostEntry( const DefaultHostEntry& copy );
+    bool overlap( const DefaultHostEntry& );
+    bool contains ( off_t ) const;
+    bool splittable ( off_t ) const;
+    bool abut   ( const DefaultHostEntry& );
+    off_t logical_tail( ) const;
+    bool follows(const DefaultHostEntry&);
+    bool preceeds(const DefaultHostEntry&);
 
-    protected:
-        off_t  logical_offset;
-        off_t  physical_offset;  // I tried so hard to not put this in here
-        // to save some bytes in the index entries
-        // on disk.  But truncate breaks it all.
-        // we assume that each write makes one entry
-        // in the data file and one entry in the index
-        // file.  But when we remove entries and
-        // rewrite the index, then we break this
-        // assumption.  blech.
-        size_t length;
-        double begin_timestamp;
-        double end_timestamp;
-        pid_t  id;      // needs to be last so no padding
+protected:
+    off_t  logical_offset;
+    off_t  physical_offset;  // I tried so hard to not put this in here
+    // to save some bytes in the index entries
+    // on disk.  But truncate breaks it all.
+    // we assume that each write makes one entry
+    // in the data file and one entry in the index
+    // file.  But when we remove entries and
+    // rewrite the index, then we break this
+    // assumption.  blech.
+    size_t length;
+    double begin_timestamp;
+    double end_timestamp;
+    pid_t  id;      // needs to be last so no padding
 
-        friend class IndexDefault;
+    friend class IndexDefault;
 };
 
 
@@ -53,22 +53,22 @@ class DefaultHostEntry
 // requested logical offset within one of the physical host index files
 class DefaultContainerEntry : DefaultHostEntry
 {
-    public:
-        bool mergable( const DefaultContainerEntry& );
-        bool abut( const DefaultContainerEntry& );
-        bool follows( const DefaultContainerEntry& );
-        bool preceeds( const DefaultContainerEntry& );
-        DefaultContainerEntry split(off_t); //split in half, this is back, return front
+public:
+    bool mergable( const DefaultContainerEntry& );
+    bool abut( const DefaultContainerEntry& );
+    bool follows( const DefaultContainerEntry& );
+    bool preceeds( const DefaultContainerEntry& );
+    DefaultContainerEntry split(off_t); //split in half, this is back, return front
 
-    protected:
-        pid_t original_chunk;   // we just need to track this so we can
-        // rewrite the index appropriately for
-        // things like truncate to the middle or
-        // for the as-yet-unwritten index flattening
+protected:
+    pid_t original_chunk;   // we just need to track this so we can
+    // rewrite the index appropriately for
+    // things like truncate to the middle or
+    // for the as-yet-unwritten index flattening
 
-        friend ostream& operator <<(ostream&,const DefaultContainerEntry&);
+    friend ostream& operator <<(ostream&,const DefaultContainerEntry&);
 
-        friend class IndexDefault;
+    friend class IndexDefault;
 };
 
 class IndexDefault : public Index, public Metadata
@@ -79,16 +79,16 @@ public:
     void addWrite( off_t offset, size_t bytes, pid_t, double, double );
     int insertGlobal( DefaultContainerEntry * );
     int chunkFound( int *, off_t *, size_t *, off_t,
-		    string&, pid_t *, DefaultContainerEntry * );
+                    string&, pid_t *, DefaultContainerEntry * );
     int handleOverlap( DefaultContainerEntry& g_entry,
-		       pair< map<off_t,DefaultContainerEntry>::iterator,
-		       bool > &insert_ret );
+                       pair< map<off_t,DefaultContainerEntry>::iterator,
+                       bool > &insert_ret );
     map<off_t,DefaultContainerEntry>::iterator insertGlobalEntryHint(
         DefaultContainerEntry *g_entry ,map<off_t,DefaultContainerEntry>::iterator hint);
     pair<map<off_t,DefaultContainerEntry>::iterator,bool> insertGlobalEntry(
         DefaultContainerEntry *g_entry);
     size_t splitEntry(DefaultContainerEntry *,set<off_t> &,
-                              multimap<off_t,DefaultContainerEntry> &);
+                      multimap<off_t,DefaultContainerEntry> &);
     void findSplits(DefaultContainerEntry&,set<off_t> &);
     friend ostream& operator <<(ostream&,const IndexDefault&);
 
@@ -104,8 +104,8 @@ public:
     int global_to_stream(void **buffer,size_t *length);
     int debug_from_stream(void *addr);
     int globalLookup( int *fd, off_t *chunk_off, size_t *length,
-		      string& path, bool *hole, pid_t *chunk_id,
-		      off_t logical );
+                      string& path, bool *hole, pid_t *chunk_id,
+                      off_t logical );
     size_t memoryFootprintMBs();
     void truncate( off_t offset );
     int rewriteIndex( int fd );
@@ -113,7 +113,7 @@ public:
 private:   
     void init( string );
 
- // where we buffer the host index (i.e. write)
+    // where we buffer the host index (i.e. write)
     vector< DefaultHostEntry > hostIndex;
 
     // this is a global index made by aggregating multiple locals

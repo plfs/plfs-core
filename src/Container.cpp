@@ -119,7 +119,7 @@ Container::transferCanonical(const string& from, const string& to,
                 ret = uop.op(old_path.c_str(),DT_LNK);
             }
         }
-        break;
+            break;
         case DT_DIR:
             // two types of dir.  meta dir and host dir
             if (istype(itr->first,METADIR)) {
@@ -166,10 +166,10 @@ Container::hashValue( const char *str )
     mlog(CON_DINTAPI, "%s: %s -> %lu",__FUNCTION__,str,(unsigned long)sum);
     return sum;
     /*
-    #include <openssl/md5.h>
-    unsigned char *ret = NULL;
-    unsigned char value[MD5_DIGEST_LENGTH/sizeof(unsigned char)];
-    ret = MD5( str, strlen(str), &value );
+      #include <openssl/md5.h>
+      unsigned char *ret = NULL;
+      unsigned char value[MD5_DIGEST_LENGTH/sizeof(unsigned char)];
+      ret = MD5( str, strlen(str), &value );
     */
 }
 
@@ -250,28 +250,28 @@ Container::isContainer( const string& physical_path, mode_t *mode )
     // a symlink that points to the logical file and then that would
     // recurse on the stack as it tried to resolve.
     /*
-    string accessfile = getAccessFilePath(physical_path);
-    struct stat buf;
-    int ret = Util::Stat( accessfile.c_str(), &buf );
-    mlog(CON_DCOMMON, "%s checked %s: %d",__FUNCTION__,accessfile.c_str(),ret);
-    return(ret==0 ? true:false);
-    // I think if we really wanted to reduce this to one stat and have the
-    // symlinks work, we could have the symlink point to the back-end instead
-    // of to the frontend and then we should be able to just check the access
-    // file which would make symlinks look like containers but then we'd have
-    // to correctly identify symlinks in getattr, this also means that we'd
-    // have to make the backwards mapping in f_readlink to get from a
-    // physical back-end pointer to a front-end one
-    if ( Util::isDirectory(physical_path) ) {
-        mlog(CON_DCOMMON,"%s %s is a directory", __FUNCTION__, physical_path);
-        struct stat buf;
-        string accessfile = getAccessFilePath(physical_path);
-        int ret = Util::Lstat( accessfile.c_str(), &buf );
-        return ( ret == 0 ? true : false );
-    } else {
-        // either a file or a symlink
-        return false;
-    }
+      string accessfile = getAccessFilePath(physical_path);
+      struct stat buf;
+      int ret = Util::Stat( accessfile.c_str(), &buf );
+      mlog(CON_DCOMMON, "%s checked %s: %d",__FUNCTION__,accessfile.c_str(),ret);
+      return(ret==0 ? true:false);
+      // I think if we really wanted to reduce this to one stat and have the
+      // symlinks work, we could have the symlink point to the back-end instead
+      // of to the frontend and then we should be able to just check the access
+      // file which would make symlinks look like containers but then we'd have
+      // to correctly identify symlinks in getattr, this also means that we'd
+      // have to make the backwards mapping in f_readlink to get from a
+      // physical back-end pointer to a front-end one
+      if ( Util::isDirectory(physical_path) ) {
+      mlog(CON_DCOMMON,"%s %s is a directory", __FUNCTION__, physical_path);
+      struct stat buf;
+      string accessfile = getAccessFilePath(physical_path);
+      int ret = Util::Lstat( accessfile.c_str(), &buf );
+      return ( ret == 0 ? true : false );
+      } else {
+      // either a file or a symlink
+      return false;
+      }
     */
 }
 
@@ -338,18 +338,18 @@ indexer_thread( void *va )
         }
         // handle the task
 
-	Index *subindex = createIndex(task.path);
-	ret = subindex->readIndex(task.path);
-   	if ( ret != 0 ) {
-   	    break;
+        Index *subindex = createIndex(task.path);
+        ret = subindex->readIndex(task.path);
+        if ( ret != 0 ) {
+            break;
         }
 
-	args->index->lock(__FUNCTION__);
-	args->index->merge(subindex);
+        args->index->lock(__FUNCTION__);
+        args->index->merge(subindex);
         args->index->unlock(__FUNCTION__);
         mlog(CON_DCOMMON, "THREAD MERGE %s into main index",
              task.path.c_str());
-	delete(subindex);
+        delete(subindex);
     }
     
     pthread_exit((void *)ret);
@@ -556,7 +556,7 @@ Container::indices_from_subdir(string path, vector<IndexFileInfo> &indices)
             }
         }
         index_dropping.id=atoi(
-                              tokens[5+left_over].c_str());    // WTF is 5?!?!?!
+            tokens[5+left_over].c_str());    // WTF is 5?!?!?!
         mlog(CON_DCOMMON, "Pushing path %s into index list from %s",
              index_dropping.hostname.c_str(), itr->c_str());
         indices.push_back(index_dropping);
@@ -681,7 +681,7 @@ Container::createMetalink(
     }
     string parent = physical_hostdir.substr(0,
                                             physical_hostdir.find(HOSTDIRPREFIX)
-                                           );
+        );
     //create shadow container and subdir directory
     mlog(CON_DCOMMON, "Making absent parent %s", parent.c_str());
     ret=makeSubdir(parent, DROPPING_MODE);
@@ -1041,18 +1041,18 @@ Container::addMeta( off_t last_offset, size_t total_bytes,
         }
         ostringstream oss_global;
         oss_global
-                << std::setprecision(2) << std::fixed
-                << *(pconf->global_summary_dir) << "/"
-                << "SZ:" << last_offset << "."
-                << "BL:" << total_bytes  << "."
-                << "OT:" << createtime << "."
-                << "CT:" << Util::getTime() << "."
-                << "BW:" << bw << "."
-                << "IN:" << interface << "."
-                << "NP:" << max_writers << "."
-                << "HO:" << host << "."
-                << "UI:" << uid << "."
-                << "PA:" << path_without_slashes;
+            << std::setprecision(2) << std::fixed
+            << *(pconf->global_summary_dir) << "/"
+            << "SZ:" << last_offset << "."
+            << "BL:" << total_bytes  << "."
+            << "OT:" << createtime << "."
+            << "CT:" << Util::getTime() << "."
+            << "BW:" << bw << "."
+            << "IN:" << interface << "."
+            << "NP:" << max_writers << "."
+            << "HO:" << host << "."
+            << "UI:" << uid << "."
+            << "PA:" << path_without_slashes;
         metafile = oss_global.str().substr(0,PATH_MAX);
         mlog(CON_DCOMMON, "Creating metafile %s", metafile.c_str() );
         Util::Creat( metafile.c_str(), DROPPING_MODE);
@@ -1215,7 +1215,7 @@ Container::getattr( const string& path, struct stat *stbuf )
     // doesn't exist yet.
     if (ret!=0 && ret!=-ENOENT) {    
         mlog(CON_DRARE, "readdir of %s returned %d (%s)", 
-            getMetaDirPath(path).c_str(), ret, strerror(-ret));
+             getMetaDirPath(path).c_str(), ret, strerror(-ret));
         return ret;
     } 
     ret = 0;
@@ -1294,7 +1294,7 @@ Container::getattr( const string& path, struct stat *stbuf )
             index->readIndex(dropping);
             stbuf->st_blocks += bytesToBlocks( index->totalBytes() );
             stbuf->st_size   = max(stbuf->st_size, index->lastOffset());
-	    delete(index);
+            delete(index);
         }
     }
     ostringstream oss;
@@ -1322,13 +1322,13 @@ Container::makeTopLevel( const string& expanded_path,
                          unsigned mnt_pt_checksum, bool lazy_subdir )
 {
     /*
-        // ok, instead of mkdir tmp ; chmod tmp ; rename tmp top
-        // we tried just mkdir top ; chmod top to remove the rename
-        // but the damn chmod would sometimes take 5 seconds on 5 hosts
-        // also, this is safe within an MPI group but if some
-        // external proc does an ls or something, it might catch
-        // it between the mkdir and the chmod, so the mkdir/chmod/rename
-        // is best
+    // ok, instead of mkdir tmp ; chmod tmp ; rename tmp top
+    // we tried just mkdir top ; chmod top to remove the rename
+    // but the damn chmod would sometimes take 5 seconds on 5 hosts
+    // also, this is safe within an MPI group but if some
+    // external proc does an ls or something, it might catch
+    // it between the mkdir and the chmod, so the mkdir/chmod/rename
+    // is best
     */
     // ok, let's try making the temp dir in /tmp
     // change all slashes to .'s so we have a unique filename
@@ -1382,18 +1382,18 @@ Container::makeTopLevel( const string& expanded_path,
                 // there's a normal file where we want to make our container
                 saveerrno = Util::Unlink( expanded_path.c_str() );
                 mlog(CON_DRARE, "Unlink of %s: %d (%s)", expanded_path.c_str(), saveerrno, 
-                    saveerrno ? strerror(saveerrno): "SUCCESS"); 
+                     saveerrno ? strerror(saveerrno): "SUCCESS"); 
                 // should be success or ENOENT if someone else already unlinked
                 if ( saveerrno != 0 && saveerrno != ENOENT ) {
                     mlog(CON_DRARE, "%s failure %d (%s)\n", __FUNCTION__,
-                        saveerrno, strerror(saveerrno));
+                         saveerrno, strerror(saveerrno));
                     return -saveerrno;
                 }
                 continue;
             }
             // if we get here, we lost the race
             mlog(CON_DCOMMON, "We lost the race to create toplevel %s,"
-                            " cleaning up\n", expanded_path.c_str());
+                 " cleaning up\n", expanded_path.c_str());
             if ( Util::Unlink( tmpAccess.c_str() ) < 0 ) {
                 mlog(CON_DRARE, "unlink of temporary %s failed : %s",
                      tmpAccess.c_str(), strerror(errno) );
@@ -1410,7 +1410,7 @@ Container::makeTopLevel( const string& expanded_path,
             // then that probably means the same thing
             //if ( ! isContainer( expanded_path ) )
             if ( saveerrno != EEXIST && saveerrno != ENOTEMPTY
-                    && saveerrno != EISDIR ) {
+                 && saveerrno != EISDIR ) {
                 mlog(CON_DRARE, "rename %s to %s failed: %s",
                      tmpName.c_str(), expanded_path.c_str(), strerror
                      (saveerrno) );
@@ -1607,7 +1607,7 @@ Container::makeHostDir(const ContainerPaths& paths,mode_t mode,
                 } else if ( !metalink_found ) {
                     // we couldn't make a subdir here.  Is it a metalink?
                     int my_ret = Container::resolveMetalink(oss.str(),
-                            possible_metalink);
+                                                            possible_metalink);
                     if (my_ret == 0) {
                         metalink_found = true;
                     }
@@ -1618,7 +1618,7 @@ Container::makeHostDir(const ContainerPaths& paths,mode_t mode,
                      "entry is found : %d", paths.canonical.c_str(), ret);
                 if (metalink_found) {
                     mlog(CON_DRARE, "Not able to create a canonical hostdir."
-                        " Will use metalink %s\n", possible_metalink.c_str());
+                         " Will use metalink %s\n", possible_metalink.c_str());
                     ret = 0;
                     physical_hostdir = possible_metalink;
                     // try to make the subdir and it's parent
@@ -1629,8 +1629,8 @@ Container::makeHostDir(const ContainerPaths& paths,mode_t mode,
                     ret = makeSubdir(physical_hostdir.c_str(),mode); 
                 } else {
                     mlog(CON_DRARE, "BIG PROBLEM: %s on %s failed (%s)",
-                            __FUNCTION__, paths.canonical.c_str(),
-                            strerror(errno));
+                         __FUNCTION__, paths.canonical.c_str(),
+                         strerror(errno));
                 }
             }
         }
@@ -1687,8 +1687,8 @@ Container::getCreatorFilePath( const string& path )
 {
     return getAccessFilePath(path);
     /*
-    string creatorfile( path + "/" + CREATORFILE );
-    return creatorfile;
+      string creatorfile( path + "/" + CREATORFILE );
+      return creatorfile;
     */
 }
 
@@ -1834,7 +1834,7 @@ Container::create( const string& expanded_path, const string& hostname,
                            pid, mnt_pt_cksum, lazy_subdir);
         if ( res != 0 ) {
             if ( errno != EEXIST && errno != ENOENT && errno != EISDIR
-                    && errno != ENOTEMPTY ) {
+                 && errno != ENOTEMPTY ) {
                 // if it's some other errno, than it's a real error so return it
                 res = -errno;
                 break;
@@ -1986,7 +1986,7 @@ Container::Truncate( const string& path, off_t offset )
             break;
         }
 
-	delete(index);
+        delete(index);
     }
     if ( ret == 0 ) {
         ret = truncateMeta(path,offset);
@@ -2033,7 +2033,7 @@ Container::truncateMeta(const string& path, off_t offset)
             ret = Util::Rename(full_path.c_str(), oss.str().c_str());
             //if a sibling raced us we may see ENOENT
             if (ret != 0 and errno == ENOENT){
-               ret = 0;
+                ret = 0;
             }
             if ( ret != 0 ) {
                 mlog(CON_DRARE, "%s wtf, Rename: %s",__FUNCTION__,

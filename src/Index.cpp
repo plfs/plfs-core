@@ -107,11 +107,11 @@ IndexFileInfo::streamToList(void *addr)
         addr=(void *)&hname_ptr[hn_sz];
         list.push_back(index_dropping);
         /*if(count==0 || count ==1){
-            printf("stream to list size:%d \n",size);
-            printf("TS :%f |",index_dropping.getTimeStamp());
-            printf(" ID: %d |\n",index_dropping.getId());
-            printf("HOSTNAME: %s\n",index_dropping.getHostname().c_str());
-        }
+          printf("stream to list size:%d \n",size);
+          printf("TS :%f |",index_dropping.getTimeStamp());
+          printf(" ID: %d |\n",index_dropping.getId());
+          printf("HOSTNAME: %s\n",index_dropping.getHostname().c_str());
+          }
         */
     }
     return list;
@@ -136,9 +136,9 @@ Index::~Index()
     pthread_mutex_destroy( &fd_mux );
     // I think these just go away, no need to clear them
     /*
-    hostIndex.clear();
-    global_index.clear();
-    chunk_map.clear();
+      hostIndex.clear();
+      global_index.clear();
+      chunk_map.clear();
     */
 }
 
@@ -194,31 +194,31 @@ Index::compress()
 {
     return;
     /*
-        this whole function is deprecated now that
-        we successfully compress at the time that we
-        build the index for both writes and reads.
-        It was just a bandaid for after the fact compression
-        which is now no longer neeeded.
-        Furthermore, it is buggy since it merges entries which
-        abut backwards whereas it should only merge those which
-        abut forwards (i.e. yes when b follows a but no conversely)
+      this whole function is deprecated now that
+      we successfully compress at the time that we
+      build the index for both writes and reads.
+      It was just a bandaid for after the fact compression
+      which is now no longer neeeded.
+      Furthermore, it is buggy since it merges entries which
+      abut backwards whereas it should only merge those which
+      abut forwards (i.e. yes when b follows a but no conversely)
     */
     /*
-    if ( global_index.size() <= 1 ) return;
-    map<off_t,DefaultContainerEntry> old_global = global_index;
-    map<off_t,DefaultContainerEntry>::const_iterator itr = old_global.begin();
-    global_index.clear();
-    DefaultContainerEntry pEntry = itr->second;
-    while( ++itr != old_global.end() ) {
-        if ( pEntry.mergable( itr->second ) ) {
-            pEntry.length += itr->second.length;
-        } else {
-            insertGlobal( &pEntry );
-            pEntry = itr->second;
-        }
-    }
-    // need to put in the last one(s)
-    insertGlobal( &pEntry );
+      if ( global_index.size() <= 1 ) return;
+      map<off_t,DefaultContainerEntry> old_global = global_index;
+      map<off_t,DefaultContainerEntry>::const_iterator itr = old_global.begin();
+      global_index.clear();
+      DefaultContainerEntry pEntry = itr->second;
+      while( ++itr != old_global.end() ) {
+      if ( pEntry.mergable( itr->second ) ) {
+      pEntry.length += itr->second.length;
+      } else {
+      insertGlobal( &pEntry );
+      pEntry = itr->second;
+      }
+      }
+      // need to put in the last one(s)
+      insertGlobal( &pEntry );
     */
 }
 
@@ -314,8 +314,8 @@ Index::setChunkFd( pid_t chunk_id, int fd )
 int Index::readIndex( string hostindex ) { return 0; }
 size_t Index::memoryFootprintMBs() { return 0; }  
 int Index::globalLookup( int *fd, off_t *chunk_off, size_t *length,
-			 string& path, bool *hole, pid_t *chunk_id,
-			 off_t logical ) { return 0; }
+                         string& path, bool *hole, pid_t *chunk_id,
+                         off_t logical ) { return 0; }
 void Index::merge( Index *other) { return; }
 void Index::truncate( off_t offset ) { return; }
 int Index::rewriteIndex( int fd ) { return -1; }

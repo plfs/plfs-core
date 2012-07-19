@@ -11,12 +11,14 @@
 #include <sys/statvfs.h>
 #endif
 
+#define MAX_DATATYPES 50
+
 #ifdef __cplusplus
 extern "C"
 {
     class Plfs_fd;
 #else
-typedef void *Plfs_fd;
+    typedef void *Plfs_fd;
 #endif
 
     typedef enum {
@@ -47,39 +49,51 @@ typedef void *Plfs_fd;
         size_t num_procs;
     } Plfs_close_opt;
 
+    typedef struct {
+        int type;
+        off_t off;
+        size_t size; //Bytes in the file that contains this type of data
+    } dataType;
+    
+    typedef struct {
+        size_t bytes_read;
+        dataType data_types[MAX_DATATYPES];
+        int num_types;
+    } readInfo;
+
     /*
-       All PLFS function declarations in this file are in alphabetical order.
-       Please retain this as edits are made.
+      All PLFS function declarations in this file are in alphabetical order.
+      Please retain this as edits are made.
 
-       All PLFS functions are either approximations of POSIX file IO calls or
-       utility functions.
+      All PLFS functions are either approximations of POSIX file IO calls or
+      utility functions.
 
-       Most PLFS functions return 0 or -errno, except write and read which
-       return the number of bytes or -errno
+      Most PLFS functions return 0 or -errno, except write and read which
+      return the number of bytes or -errno
 
-       Many of the utility functions are shared by the ADIO and the FUSE layers
-       of PLFS.  Typical applications should try to use those layers.  However,
-       it is also possible for an application to be ported to use the PLFS API
-       directly.  In this case, at a minimum, the application can call
-       plfs_open(), plfs_write(), plfs_read, plfs_close().
+      Many of the utility functions are shared by the ADIO and the FUSE layers
+      of PLFS.  Typical applications should try to use those layers.  However,
+      it is also possible for an application to be ported to use the PLFS API
+      directly.  In this case, at a minimum, the application can call
+      plfs_open(), plfs_write(), plfs_read, plfs_close().
 
-       This code does allow for multiple threads to share a single Plfs_fd ptr
-       To add more threads to a Plfs_fd ptr, just call plfs_open multiple times.
-       The first time call it with a NULL ptr, then subsequent times call it
-       with the original ptr.  plfs_open and plfs_close are not thread safe;
-       when multiple treads share a Plfs_fd, the caller must ensure
-       synchronization. The other calls are thread safe.  The pid passed to the
-       plfs_open and the plfs_create must be unique on each node.
+      This code does allow for multiple threads to share a single Plfs_fd ptr
+      To add more threads to a Plfs_fd ptr, just call plfs_open multiple times.
+      The first time call it with a NULL ptr, then subsequent times call it
+      with the original ptr.  plfs_open and plfs_close are not thread safe;
+      when multiple treads share a Plfs_fd, the caller must ensure
+      synchronization. The other calls are thread safe.  The pid passed to the
+      plfs_open and the plfs_create must be unique on each node.
     */
 
     /* is_plfs_file
-        returns int.  Also if mode_t * is not NULL, leaves it 0 if the path
-        doesn't exist, or if it does exist, it fills it in with S_IFDIR etc
-        This allows multiple possible return values: yes, it is a plfs file,
-        no: it is a directory
-        no: it is a normal flat file
-        no: it is a symbolic link
-        etc.
+       returns int.  Also if mode_t * is not NULL, leaves it 0 if the path
+       doesn't exist, or if it does exist, it fills it in with S_IFDIR etc
+       This allows multiple possible return values: yes, it is a plfs file,
+       no: it is a directory
+       no: it is a normal flat file
+       no: it is a symbolic link
+       etc.
     */
     int is_plfs_file( const char *path, mode_t * );
 
@@ -111,9 +125,9 @@ typedef void *Plfs_fd;
     int plfs_flatten_index( Plfs_fd *, const char *path );
 
     /* Plfs_fd can be NULL
-        int size_only is whether the only attribute of interest is
-        filesize.  This is sort of like stat-lite or lazy stat
-     */
+       int size_only is whether the only attribute of interest is
+       filesize.  This is sort of like stat-lite or lazy stat
+    */
     int plfs_getattr(Plfs_fd *, const char *path, struct stat *st,
                      int size_only);
 
@@ -140,8 +154,8 @@ typedef void *Plfs_fd;
                 void *dirs_ptr, void *metalinks_ptr);
 
     /*
-       query the mode that was used to create the file
-       this should only be called on a plfs file
+      query the mode that was used to create the file
+      this should only be called on a plfs file
     */
     int plfs_mode( const char *path, mode_t *mode );
 
@@ -166,6 +180,7 @@ typedef void *Plfs_fd;
                     size_t *bytes_written, int *lazy_stat);
 
     ssize_t plfs_read( Plfs_fd *, char *buf, size_t size, off_t offset );
+    readInfo *plfs_read_mem( Plfs_fd *, char *buf, size_t size, off_t offset );
 
     /* plfs_readdir
      * the void * needs to be a pointer to a vector<string> but void * is
@@ -176,9 +191,9 @@ typedef void *Plfs_fd;
     int plfs_readlink( const char *path, char *buf, size_t bufsize );
 
     /*
-       recover a lost plfs file (which can happen if plfsrc is ever improperly
-       modified
-       d_type can be DT_DIR, DT_REG, DT_UNKNOWN
+      recover a lost plfs file (which can happen if plfsrc is ever improperly
+      modified
+      d_type can be DT_DIR, DT_REG, DT_UNKNOWN
     */
     int plfs_recover(const char *path);
 
@@ -188,9 +203,9 @@ typedef void *Plfs_fd;
 
     void plfs_serious_error(const char *msg,pid_t pid );
     /*
-       a funtion to get stats back from plfs operations
-       the void * needs to be a pointer to an STL string but void * is used here
-       so it compiles with C code
+      a funtion to get stats back from plfs operations
+      the void * needs to be a pointer to an STL string but void * is used here
+      so it compiles with C code
     */
     void plfs_stats( void * );
 
@@ -214,7 +229,10 @@ typedef void *Plfs_fd;
     int plfs_file_version(const char *, const char **);
 
     ssize_t plfs_write( Plfs_fd *, const char *, size_t, off_t, pid_t );
-
+    ssize_t plfs_write_mem(Plfs_fd *fd, const char *buf, size_t size,
+                           off_t offset, off_t initial_offset,  pid_t pid, 
+                           pid_t index_writer, ssize_t total_size, 
+                           int data_type);
     double plfs_wtime();
 
     // something needed for MPI-IO to know to avoid optimizations unless

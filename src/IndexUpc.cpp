@@ -82,16 +82,16 @@ bool
 UpcHostEntry::preceeds( const UpcHostEntry& other )
 {
     return    logical_offset  + length == (unsigned int)other.logical_offset
-              &&  physical_offset + length == (unsigned int)other.physical_offset
-              &&  id == other.id;
+        &&  physical_offset + length == (unsigned int)other.physical_offset
+        &&  id == other.id;
 }
 
 bool
 UpcHostEntry::follows( const UpcHostEntry& other )
 {
     return other.logical_offset + other.length == (unsigned int)logical_offset
-           && other.physical_offset + other.length == (unsigned int)physical_offset
-           && other.id == id;
+        && other.physical_offset + other.length == (unsigned int)physical_offset
+        && other.id == id;
 }
 
 bool
@@ -151,6 +151,21 @@ bool
 UpcContainerEntry::mergable( const UpcContainerEntry& other )
 {
     return ( id == other.id && abut(other) );
+}
+
+off_t UpcContainerEntry::get_logical_off()
+{
+    return logical_offset;
+}
+
+int UpcContainerEntry::get_data_type()
+{
+    return data_type;
+}
+
+size_t UpcContainerEntry::get_length() 
+{
+    return length;
 }
 
 ostream& operator <<(ostream& os,const UpcContainerEntry& entry)
@@ -307,7 +322,7 @@ int IndexUpc::readIndex( string hostindex )
     populated = true;
     ostringstream os;
     os << __FUNCTION__ << ": " << this << " reading index on " <<
-       physical_path;
+        physical_path;
     mlog(IDX_DAPI, "%s", os.str().c_str() );
     maddr = mapIndex( hostindex, &fd, &length );
     if( maddr == (void *)-1 ) {
@@ -501,18 +516,18 @@ int IndexUpc::global_to_stream(void **buffer,size_t *length)
     ostringstream chunks;
     for(unsigned i = 0; i < chunk_map.size(); i++ ) {
         /*
-           // we used to optimize a bit by stripping the part of the path
-           // up to the hostdir.  But now this is problematic due to backends
-           // if backends have different lengths then this strip isn't correct
-           // the physical path is to canonical but some of the chunks might be
-           // shadows.  If the length of the canonical_backend isn't the same
-           // as the length of the shadow, then this code won't work.
-           // additionally, we saw that sometimes we had extra slashes '///' in
-           // the paths.  That also breaks this.
-           // so just put full path in.  Makes it a bit larger though ....
+        // we used to optimize a bit by stripping the part of the path
+        // up to the hostdir.  But now this is problematic due to backends
+        // if backends have different lengths then this strip isn't correct
+        // the physical path is to canonical but some of the chunks might be
+        // shadows.  If the length of the canonical_backend isn't the same
+        // as the length of the shadow, then this code won't work.
+        // additionally, we saw that sometimes we had extra slashes '///' in
+        // the paths.  That also breaks this.
+        // so just put full path in.  Makes it a bit larger though ....
         string chunk_path = chunk_map[i].path.substr(physical_path.length());
         mlog(IDX_DCOMMON, "%s: constructed %s from %s", __FUNCTION__,
-                chunk_path.c_str(), chunk_map[i].path.c_str());
+        chunk_path.c_str(), chunk_map[i].path.c_str());
         chunks << chunk_path << endl;
         */
         chunks << chunk_map[i].path << endl;
@@ -556,8 +571,8 @@ int IndexUpc::global_to_stream(void **buffer,size_t *length)
 }
 
 size_t IndexUpc::splitEntry( UpcContainerEntry *entry,
-                          set<off_t> &splits,
-                          multimap<off_t,UpcContainerEntry> &entries)
+                             set<off_t> &splits,
+                             multimap<off_t,UpcContainerEntry> &entries)
 {
     set<off_t>::iterator itr;
     size_t num_splits = 0;
@@ -565,9 +580,9 @@ size_t IndexUpc::splitEntry( UpcContainerEntry *entry,
         // break it up as needed, and insert every broken off piece
         if ( entry->splittable(*itr) ) {
             /*
-            ostringstream oss;
-            oss << "Need to split " << endl << *entry << " at " << *itr;
-            mlog(IDX_DCOMMON,"%s",oss.str().c_str());
+              ostringstream oss;
+              oss << "Need to split " << endl << *entry << " at " << *itr;
+              mlog(IDX_DCOMMON,"%s",oss.str().c_str());
             */
             UpcContainerEntry trimmed = entry->split(*itr);
             entries.insert(make_pair(trimmed.logical_offset,trimmed));
@@ -613,8 +628,8 @@ void IndexUpc::findSplits(UpcContainerEntry& e,set<off_t> &s)
 // on collision (i.e. insert failure) only retain entry with higher timestamp
 // F) finally copy all of winners back into global_index
 int IndexUpc::handleOverlap(UpcContainerEntry& incoming,
-                         pair<map<off_t,UpcContainerEntry>::iterator, bool>
-                         &insert_ret )
+                            pair<map<off_t,UpcContainerEntry>::iterator, bool>
+                            &insert_ret )
 {
     // all the stuff we use
     map<off_t,UpcContainerEntry>::iterator first, last, cur; // place holders
@@ -648,8 +663,8 @@ int IndexUpc::handleOverlap(UpcContainerEntry& incoming,
         }
     }
     for(;
-            (last!=global_index.end()) && (last->second.overlap(incoming));
-            last++) {
+        (last!=global_index.end()) && (last->second.overlap(incoming));
+        last++) {
         findSplits(last->second,splits);
     }
     findSplits(incoming,splits);  // get split points from incoming as well
@@ -689,7 +704,7 @@ int IndexUpc::handleOverlap(UpcContainerEntry& incoming,
             // check timestamps, if one already inserted
             // is older, remove it and insert this one
             if ( ret.first->second.end_timestamp
-                    < chunks_itr->second.end_timestamp ) {
+                 < chunks_itr->second.end_timestamp ) {
                 winners.erase(ret.first);
                 winners.insert(make_pair(chunks_itr->first,chunks_itr->second));
             }
@@ -710,8 +725,8 @@ int IndexUpc::handleOverlap(UpcContainerEntry& incoming,
 
 
 map<off_t,UpcContainerEntry>::iterator
-IndexUpc::insertGlobalEntryHint(
-    UpcContainerEntry *g_entry ,map<off_t,UpcContainerEntry>::iterator hint)
+    IndexUpc::insertGlobalEntryHint(
+        UpcContainerEntry *g_entry ,map<off_t,UpcContainerEntry>::iterator hint)
 {
     return global_index.insert(hint,
                                pair<off_t,UpcContainerEntry>(
@@ -720,14 +735,14 @@ IndexUpc::insertGlobalEntryHint(
 }
 
 pair<map<off_t,UpcContainerEntry>::iterator,bool>
-IndexUpc::insertGlobalEntry( UpcContainerEntry *g_entry)
+    IndexUpc::insertGlobalEntry( UpcContainerEntry *g_entry)
 {
     last_offset = max( (off_t)(g_entry->logical_offset+g_entry->length),
                        last_offset );
     total_bytes += g_entry->length;
     return global_index.insert(
-               pair<off_t,UpcContainerEntry>( g_entry->logical_offset,
-                                           *g_entry ) );
+        pair<off_t,UpcContainerEntry>( g_entry->logical_offset,
+                                       *g_entry ) );
 }
 
 int
@@ -786,11 +801,11 @@ IndexUpc::insertGlobal( UpcContainerEntry *g_entry )
         // also, not even sure this would be possible.  Even if it is logically
         // contiguous with the one after, it wouldn't be physically so.
         if ( next != global_index.end() && g_entry->abut(next->second) ) {
-            oss << "Merging index for " << *g_entry << " and " << next->second
-                 << endl;
-            mlog(IDX_DCOMMON, "%s", oss.str().c_str());
-            g_entry->length += next->second.length;
-            global_index.erase( next );
+        oss << "Merging index for " << *g_entry << " and " << next->second
+        << endl;
+        mlog(IDX_DCOMMON, "%s", oss.str().c_str());
+        g_entry->length += next->second.length;
+        global_index.erase( next );
         }
         */
     }
@@ -803,8 +818,8 @@ IndexUpc::insertGlobal( UpcContainerEntry *g_entry )
 // this does not open the fd to the chunk however
 int
 IndexUpc::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
-                   off_t shift, string& path, pid_t *chunk_id,
-                   UpcContainerEntry *entry )
+                      off_t shift, string& path, pid_t *chunk_id,
+                      UpcContainerEntry *entry )
 {
     ChunkFile *cf_ptr = &(chunk_map[entry->id]); // typing shortcut
     *chunk_off  = entry->physical_offset + shift;
@@ -839,8 +854,8 @@ IndexUpc::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
 // chunk_len for the size of the hole beyond the logical offset
 // returns 0 or -errno
 int IndexUpc::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
-                         string& path, bool *hole, pid_t *chunk_id,
-                         off_t logical )
+                            string& path, bool *hole, pid_t *chunk_id,
+                            off_t logical )
 {
     ostringstream os;
     os << __FUNCTION__ << ": " << this << " using index.";
@@ -938,7 +953,7 @@ IndexUpc::memoryFootprintMBs()
 
 void
 IndexUpc::addWrite( off_t offset, size_t length, pid_t pid, int data_type,
-                 double begin_timestamp, double end_timestamp )
+                    double begin_timestamp, double end_timestamp )
 {
     Metadata::addWrite( offset, length );
     // check whether incoming abuts with last and we want to compress
@@ -1043,7 +1058,7 @@ IndexUpc::truncate( off_t offset )
     // internally truncated
     if ( ! first ) {
         if ((off_t)(prev->second.logical_offset + prev->second.length)
-                > offset) {
+            > offset) {
             // say entry is 5.5 that means that ten
             // is a valid offset, so truncate to 7
             // would mean the new length would be 3
@@ -1111,7 +1126,7 @@ IndexUpc::rewriteIndex( int fd )
             make_pair(itr->second.begin_timestamp,itr->second));
     }
     for( itrd = global_index_timesort.begin(); itrd !=
-            global_index_timesort.end(); itrd++ ) {
+             global_index_timesort.end(); itrd++ ) {
         double begin_timestamp = 0, end_timestamp = 0;
         begin_timestamp = itrd->second.begin_timestamp;
         end_timestamp   = itrd->second.end_timestamp;
@@ -1119,10 +1134,41 @@ IndexUpc::rewriteIndex( int fd )
                   itrd->second.original_chunk, itrd->second.data_type, 
                   begin_timestamp, end_timestamp );
         /*
-        ostringstream os;
-        os << __FUNCTION__ << " added : " << itr->second;
-        mlog(IDX_DCOMMON, "%s", os.str().c_str() );
+          ostringstream os;
+          os << __FUNCTION__ << " added : " << itr->second;
+          mlog(IDX_DCOMMON, "%s", os.str().c_str() );
         */
     }
     return flush();
+}
+
+void IndexUpc::populateReadInfo(readInfo *rinfo, off_t offset, size_t size) 
+{
+    int rinfo_idx = 0;
+    off_t off;
+    int dtype;
+    UpcContainerEntry container;
+
+    map<long, UpcContainerEntry>::iterator it; 
+    for (it = global_index.begin(); 
+         it != global_index.end() && 
+             rinfo_idx < MAX_DATATYPES; it++) {
+        off = (*it).first;
+        container = (*it).second;
+        if (off < offset) {
+            continue;
+        }
+	  
+        if (off > offset + size) {
+            break;
+        }
+
+        rinfo->data_types[rinfo_idx].off = container.get_logical_off();
+        rinfo->data_types[rinfo_idx].type = container.get_data_type();	
+        rinfo->data_types[rinfo_idx].size = container.get_length();	
+        rinfo_idx++;
+        rinfo->num_types = rinfo_idx;
+    }
+
+    return;
 }

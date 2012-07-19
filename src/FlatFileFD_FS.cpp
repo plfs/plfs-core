@@ -16,7 +16,7 @@ FlatFileSystem flatfs;
 #define FLAT_ENTER                              \
     int ret = 0;                                \
     char *physical_path = NULL;                 \
-    plfs_expand_path(logical, &physical_path);  \
+    plfs_expand_path(logical, &physical_path);	\
     string path(physical_path);                 \
     free(physical_path);
 
@@ -24,8 +24,8 @@ FlatFileSystem flatfs;
 
 #define EXPAND_TARGET                           \
     string old_canonical = path;                \
-    plfs_expand_path(to, &physical_path);       \
-    string new_canonical(physical_path);        \
+    plfs_expand_path(to, &physical_path);		\
+    string new_canonical(physical_path);		\
     free(physical_path);
 
 Flat_fd::~Flat_fd()
@@ -76,9 +76,31 @@ Flat_fd::read(char *buf, size_t size, off_t offset)
     FLAT_EXIT(ret);
 }
 
+/* Not supported for a flat file.  Just does the regular read */
+readInfo *
+Flat_fd::read_mem(char *buf, size_t size, off_t offset)
+{
+    int ret = Util::Pread(backend_fd, buf, size, offset);
+    readInfo *rinfo = (readInfo *) malloc(sizeof(readInfo));
+    memset(rinfo, 0, sizeof(readInfo));
+    rinfo->bytes_read = ret;
+
+    return rinfo;
+}
+
 ssize_t
 Flat_fd::write(const char *buf, size_t size, off_t offset, pid_t pid)
 {
+    int ret = Util::Pwrite(backend_fd, buf, size, offset);
+    FLAT_EXIT(ret);
+}
+
+/* Not supported for a flat file.  Just does the regular write */
+ssize_t 
+Flat_fd::write_mem(const char *buf, size_t size,
+                   off_t offset, off_t initial_offset,  pid_t pid, 
+                   pid_t index_writer,  ssize_t total_size, 
+                   int data_type) {
     int ret = Util::Pwrite(backend_fd, buf, size, offset);
     FLAT_EXIT(ret);
 }

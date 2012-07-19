@@ -168,35 +168,35 @@ struct OpenFd *WriteFile::getFd( pid_t pid ) {
     struct OpenFd *ofd = NULL;
     if ( (itr = fds.find( pid )) != fds.end() ) {
         /*
-            ostringstream oss;
-            oss << __FILE__ << ":" << __FUNCTION__ << " found fd "
-                << itr->second->fd << " with writers "
-                << itr->second->writers
-                << " from pid " << pid;
-            mlog(WF_DCOMMON, "%s", oss.str().c_str() );
+          ostringstream oss;
+          oss << __FILE__ << ":" << __FUNCTION__ << " found fd "
+          << itr->second->fd << " with writers "
+          << itr->second->writers
+          << " from pid " << pid;
+          mlog(WF_DCOMMON, "%s", oss.str().c_str() );
         */
         ofd = &(itr->second);
     } else {
         // here's the code that used to do it so a child could share
         // a parent fd but for some reason I commented it out
         /*
-           // I think this code is a mistake.  We were doing it once
-           // when a child was writing to a file that the parent opened
-           // but shouldn't it be OK to just give the child a new datafile?
+        // I think this code is a mistake.  We were doing it once
+        // when a child was writing to a file that the parent opened
+        // but shouldn't it be OK to just give the child a new datafile?
         if ( fds.size() > 0 ) {
-            ostringstream oss;
-            // ideally instead of just taking a random pid, we'd rather
-            // try to find the parent pid and look for it
-            // we need this code because we've seen in FUSE that an open
-            // is done by a parent but then a write comes through as the child
-            mlog(WF_DRARE, "%s WARNING pid %d is not mapped. "
-                    "Borrowing fd %d from pid %d",
-                    __FILE__, (int)pid, (int)fds.begin()->second->fd,
-                    (int)fds.begin()->first );
-            ofd = fds.begin()->second;
+        ostringstream oss;
+        // ideally instead of just taking a random pid, we'd rather
+        // try to find the parent pid and look for it
+        // we need this code because we've seen in FUSE that an open
+        // is done by a parent but then a write comes through as the child
+        mlog(WF_DRARE, "%s WARNING pid %d is not mapped. "
+        "Borrowing fd %d from pid %d",
+        __FILE__, (int)pid, (int)fds.begin()->second->fd,
+        (int)fds.begin()->first );
+        ofd = fds.begin()->second;
         } else {
-            mlog(WF_DCOMMON, "%s no fd to give to %d", __FILE__, (int)pid);
-            ofd = NULL;
+        mlog(WF_DCOMMON, "%s no fd to give to %d", __FILE__, (int)pid);
+        ofd = NULL;
         }
         */
         mlog(WF_DCOMMON, "%s no fd to give to %d", __FILE__, (int)pid);
@@ -257,7 +257,7 @@ WriteFile::extend( off_t offset )
     PlfsConf *pconf = get_plfs_conf();
   
     indexAddWrite( index, offset, 0, p, PLFS_BYTE, 
-		   createtime, createtime );
+                   createtime, createtime );
 
     addWrite( offset, 0 );   // maintain metadata
     return 0;
@@ -314,6 +314,70 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
             if (ret >= 0) {
                 addWrite(offset, size);    // track our own metadata
             }
+            Util::MutexUnlock( &index_mux, __FUNCTION__ );
+        }
+    }
+    // return bytes written or error
+    return ( ret >= 0 ? written : -errno );
+}
+
+// we are currently doing synchronous index writing.
+// this is where to change it to buffer if you'd like
+// We were thinking about keeping the buffer around the
+// entire duration of the write, but that means our appended index will
+// have a lot duplicate information. buffer the index and flush on the close
+//
+// returns bytes written or -errno
+ssize_t
+WriteFile::write_mem(const char *buf, size_t size, off_t offset, 
+                     off_t initial_offset, pid_t pid, pid_t index_writer, 
+                     ssize_t total_size, int data_type)
+{
+    int ret = 0;
+    ssize_t written;
+    OpenFd *ofd = getFd( pid );
+    if ( ofd == NULL ) {
+        // we used to return -ENOENT here but we can get here legitimately
+        // when a parent opens a file and a child writes to it.
+        // so when we get here, we need to add a child datafile
+        ret = addWriter( pid, true );
+        if ( ret > 0 ) {
+            // however, this screws up the reference count
+            // it looks like a new writer but it's multiple writers
+            // sharing an fd ...
+            ofd = getFd( pid );
+        }
+    }
+    if ( ofd && ret >= 0 ) {
+        int fd = ofd->fd;
+        // write the data file
+        double begin, end;
+        begin = Util::getTime();
+        ret = written = ( size ? Util::Write( fd, buf, size ) : 0 );
+        end = Util::getTime();
+
+        if (ret < 0) {
+            mlog(WF_ERR, "Error while writing to file.  Pid: %d\n", pid);
+        }
+        
+        if ( pid == index_writer ) {
+            write_count++;
+            Util::MutexLock( &index_mux , __FUNCTION__);
+            indexAddWrite( index, initial_offset, total_size, pid, data_type, 
+                           begin, end );
+            // TODO: why is 1024 a magic number?
+            int flush_count = 1024;
+            if (total_size%flush_count==0) {
+                ret = index->flush();
+                // Check if the index has grown too large stop buffering
+                if(index->memoryFootprintMBs() > index_buffer_mbs) {
+                    index->stopBuffering();
+                    mlog(WF_DCOMMON, "The index grew too large, "
+                         "no longer buffering");
+                }
+            }
+
+            addWrite(initial_offset, total_size);    // track our own metadata
             Util::MutexUnlock( &index_mux, __FUNCTION__ );
         }
     }

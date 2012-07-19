@@ -14,26 +14,26 @@ using namespace std;
 #include "Metadata.h"
 
 typedef enum {
-  PLFS_NONE,
-  PLFS_BYTE,
-  PLFS_INT,
-  PLFS_LONG_INT,
-  PLFS_FLOAT,
-  PLFS_DOUBLE,
-  PLFS_LONG_FLOAT,
-  PLFS_LONG_DOUBLE,
+    PLFS_NONE,
+    PLFS_BYTE,
+    PLFS_INT,
+    PLFS_LONG_INT,
+    PLFS_FLOAT,
+    PLFS_DOUBLE,
+    PLFS_LONG_FLOAT,
+    PLFS_LONG_DOUBLE,
 }data_types;
 
 class IndexFileInfo
 {
-    public:
-        IndexFileInfo();
-        void *listToStream(vector<IndexFileInfo> &list,int *bytes);
-        vector<IndexFileInfo> streamToList(void *addr);
-        //bool operator<(IndexFileInfo d1);
-        double timestamp;
-        string hostname;
-        pid_t  id;
+public:
+    IndexFileInfo();
+    void *listToStream(vector<IndexFileInfo> &list,int *bytes);
+    vector<IndexFileInfo> streamToList(void *addr);
+    //bool operator<(IndexFileInfo d1);
+    double timestamp;
+    string hostname;
+    pid_t  id;
 };
 
 // this is a way to associate a integer with a local file
@@ -90,7 +90,7 @@ public:
 
 protected:
     int cleanupReadIndex(int, void *, off_t, int, const char *,
-			 const char *);
+                         const char *);
     void *mapIndex( string, int *, off_t * );
 
     // this is a way to associate a integer with a local file
