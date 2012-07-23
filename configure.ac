@@ -179,7 +179,7 @@ AC_FUNC_CHOWN
 AC_FUNC_STRTOD
 AC_CHECK_MEMBERS([struct stat.st_blksize])
 
-AC_SEARCH_LIBS([gzseek], [z])
+AC_CHECK_LIB([z], [gzseek])
 AC_CHECK_LIB([m], [ceilf])
 
 AC_PLFS_DEUBG_FLAG_CHECK
