@@ -6,8 +6,7 @@
 #include "plfs_private.h"
 #include "plfs.h"
 
-// TODO: remove this dependency on container internals
-#include "container_internals.h"
+#include "FileOp.h"
 
 using namespace std;
 
@@ -34,6 +33,34 @@ Flat_fd::~Flat_fd()
         plfs_debug("File %s is not closed!\n", backend_pathname.c_str());
         Util::Close(backend_fd);
     }
+}
+
+// this function is shared by chmod/utime/chown maybe others
+// it's here for directories which may span multiple backends
+// returns 0 or -errno
+int plfs_flatfile_operation(const char *logical, FileOp& op){
+    FLAT_ENTER;
+    vector<string> dirs;
+    mode_t mode = 0;
+    ret = is_plfs_file(logical, &mode);
+    //perform operation on ALL directories
+    if (S_ISDIR(mode)){
+
+        ret = find_all_expansions(logical, dirs);
+        vector<string>::reverse_iterator ritr;
+        for(ritr = dirs.rbegin(); ritr != dirs.rend() && ret == 0; ++ritr) {
+            ret = op.op(ritr->c_str(),DT_DIR);
+        }
+    }
+    //we hit a regular flat file
+    else if(S_ISREG(mode)){
+        ret = op.op(path.c_str(), DT_REG);
+    }
+    //symlink
+    else{
+        ret = op.op(path.c_str(), DT_LNK);
+    }
+    FLAT_EXIT(ret);
 }
 
 int
@@ -176,7 +203,8 @@ int
 FlatFileSystem::chown( const char *logical, uid_t u, gid_t g )
 {
     FLAT_ENTER;
-    ret = Util::Lchown(path.c_str(),u,g);
+    ChownOp op(u,g);
+    ret = plfs_flatfile_operation(logical,op);
     FLAT_EXIT(ret);
 }
 
@@ -184,7 +212,8 @@ int
 FlatFileSystem::chmod( const char *logical, mode_t mode )
 {
     FLAT_ENTER;
-    ret = Util::Chmod(path.c_str(),mode);
+    ChmodOp op(mode);
+    ret = plfs_flatfile_operation(logical,op);
     FLAT_EXIT(ret);
 }
 
@@ -204,7 +233,8 @@ int
 FlatFileSystem::access( const char *logical, int mask )
 {
     FLAT_ENTER;
-    ret = Util::Access(path.c_str(),mask);
+    AccessOp op(mask);
+    ret = plfs_flatfile_operation(logical,op);
     FLAT_EXIT(ret);
 }
 
@@ -274,7 +304,8 @@ int
 FlatFileSystem::utime( const char *logical, struct utimbuf *ut )
 {
     FLAT_ENTER;
-    ret = Util::Utime(path.c_str(),ut);
+    UtimeOp op(ut);
+    ret = plfs_flatfile_operation(logical,op);
     FLAT_EXIT(ret);
 }
 
@@ -298,20 +329,27 @@ int
 FlatFileSystem::unlink( const char *logical )
 {
     FLAT_ENTER;
-    ret = Util::Unlink(path.c_str());
+    UnlinkOp op;
+    ret = plfs_flatfile_operation(logical,op);
     FLAT_EXIT(ret);
 }
 
 int
 FlatFileSystem::mkdir(const char *logical, mode_t mode)
 {
-    return container_mkdir(logical, mode);
+    FLAT_ENTER;
+    CreateOp op(mode);
+    ret = plfs_iterate_backends(logical,op);
+    FLAT_EXIT(ret);
 }
 
 int
 FlatFileSystem::readdir(const char *logical, void *buf)
 {
-    return container_readdir(logical, buf);
+    FLAT_ENTER;
+    ReaddirOp op(NULL,(set<string> *)buf,false,false);
+    ret = plfs_iterate_backends(logical,op);
+    FLAT_EXIT(ret);
 }
 
 int
@@ -328,7 +366,19 @@ FlatFileSystem::readlink(const char *logical, char *buf, size_t bufsize)
 int
 FlatFileSystem::rmdir(const char *logical)
 {
-    return container_rmdir(logical);
+    FLAT_ENTER;
+    mode_t mode;
+    ret = FlatFileSystem::getmode(logical, &mode);
+    UnlinkOp op;
+    ret = plfs_iterate_backends(logical,op);
+    if (ret==-ENOTEMPTY) {
+        mlog(PLFS_DRARE, "Started removing a non-empty directory %s. "
+             "Will restore.", logical);
+        CreateOp op(mode);
+        op.ignoreErrno(EEXIST);
+        plfs_iterate_backends(logical,op); // don't overwrite ret
+    }
+    FLAT_EXIT(ret);
 }
 
 int
