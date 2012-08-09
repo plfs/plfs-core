@@ -30,8 +30,7 @@ int container_query( Container_OpenFile *, size_t *writers,
 
 ssize_t container_read( Container_OpenFile *, char *buf, size_t size,
                         off_t offset );
-readInfo *container_read_mem( Container_OpenFile *, char *buf, size_t size,
-                              off_t offset );
+
 int container_readdir( const char *path, void * );
 
 int container_readlink( const char *path, char *buf, size_t bufsize );
@@ -59,9 +58,6 @@ int container_utime( const char *path, struct utimbuf *ut );
 
 ssize_t container_write( Container_OpenFile *, const char *, size_t, off_t,
                          pid_t );
-ssize_t container_write_mem(Container_OpenFile *pfd, const char *buf, 
-                            size_t size, off_t offset, off_t initial_offset, 
-                            pid_t pid, pid_t index_writer, ssize_t total_size, 
-                            int data_type);
+
 int container_flatten_index(Container_OpenFile *fd, const char *logical);
 #endif

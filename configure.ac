@@ -58,7 +58,7 @@ AC_INIT([PLFS],
 AC_PREREQ(2.60)
 
 AC_COPYRIGHT([
-[Copyright 2009-2011 Los Alamos National Security, LLC. All Rights Reserved.]
+[Copyright 2009-2012 Los Alamos National Security, LLC. All Rights Reserved.]
 ])
 
 AC_PATH_PROG([PKGCONFIG], [pkg-config])
@@ -85,7 +85,7 @@ AM_CONFIG_HEADER([config.h])
 
 AH_TOP([
 /*
-Copyright (c) 2009-2011, Los Alamos National Security, LLC All rights reserved.
+Copyright (c) 2009-2012, Los Alamos National Security, LLC All rights reserved.
 
 This software was produced under U.S. Government contract DE-AC52-06NA25396 for
 Los Alamos National Laboratory (LANL), which is operated by Los Alamos National
@@ -179,8 +179,9 @@ AC_FUNC_CHOWN
 AC_FUNC_STRTOD
 AC_CHECK_MEMBERS([struct stat.st_blksize])
 
-AC_SEARCH_LIBS([gzseek], [z])
+AC_CHECK_LIB([z], [gzseek])
 AC_CHECK_LIB([m], [ceilf])
+AC_CHECK_LIB([stdc++], [main])
 
 AC_PLFS_DEUBG_FLAG_CHECK
 AC_PLFS_MLOG_FLAG_CHECK

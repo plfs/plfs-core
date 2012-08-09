@@ -1,7 +1,6 @@
 #ifndef __PLFS_PRIVATE__
 #define __PLFS_PRIVATE__
 
-#include "plfs.h"
 #include "plfs_internal.h"
 #include "mlogfacs.h"
 #include "OpenFile.h"
@@ -102,8 +101,6 @@ typedef struct {
     int mlog_msgbuf_size;  /* number of bytes in mlog message buffer */
     int mlog_syslogfac;    /* syslog facility to use, if syslog enabled */
     char *mlog_setmasks;   /* initial non-default log level settings */
-    int index_type;        /* The index type, i.e., the normal container 
-                              index format or the UPC index */
 } PlfsConf;
 
 PlfsConf *parse_conf(FILE *fp, string file, PlfsConf *pconf);
@@ -124,8 +121,7 @@ int find_all_expansions(const char *logical, vector<string> &containers);
 string expand_macros(const char *target);
 
 string expandPath(string logical, ExpansionInfo *exp_info,
-                  expansionMethod hash_method, int which_backend, 
-                  int depth);
+                  expansionMethod hash_method, int which_backend, int depth);
 int mkdir_dash_p(const string& path, bool parent_only);
 int recover_directory(const char *logical, bool parent_only);
 
@@ -154,13 +150,5 @@ uid_t plfs_getuid();
 gid_t plfs_getgid();
 int plfs_setfsuid(uid_t);
 int plfs_setfsgid(gid_t);
-
-Index *createIndex(string path, int fd);
-Index *createIndex(string path);
-
-void indexAddWrite(Index *indx, off_t offset, size_t bytes, 
-		   pid_t, int, double, double );
-char *
-memcpy_helper(char *dst, void *src, size_t len);
 
 #endif

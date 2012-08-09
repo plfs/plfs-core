@@ -65,19 +65,23 @@ debug symbols available for valgrind so it can report line numbers.
 
 9) Release Process
    1) Make sure that the local svn instance has an updated ChangeLog
-   2) The local svn instance needs to be already checked in, be it trunk or a
+   2) Make sure that the local svn instance has an updated plfs.spec file.
+      That is, make sure the files listed in the spec file match what will
+      be created via 'make install'.
+   3) The local svn instance needs to be already checked in, be it trunk or a
       release branch.
-   2) Copy the local svn instance to the versions directory. Here's an example
+   4) Copy the local svn instance to the versions directory. Here's an example
       using trunk:
       svn co https://plfs.svn.sourceforge.net/svnroot/plfs plfs 
       cd plfs
       svn copy trunk versions/<release>
-   3) Update info specific to the release
+   5) Update info specific to the release
       cd versions/<release>
       Update the VERSION file to contain <release>
+      Update the plfs.spec file to contain <release> on the "Version:" line
       svn commit
-   4) Generate a tarball
+   6) Generate a tarball
       ./autogen.sh
       ./configure
       make dist # Creates plfs-<version>.tar.gz
-   5) Upload the tarball to sourceforge.net
+   7) Upload the tarball to sourceforge.net

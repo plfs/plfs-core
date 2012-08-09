@@ -59,8 +59,6 @@ headers = \
 Container.h \
 FileOp.h \
 Index.h \
-IndexDefault.h \
-IndexUpc.h \
 LogMessage.h \
 Metadata.h \
 mlog.h \
@@ -75,6 +73,7 @@ LogicalFS.h \
 LogicalFD.h \
 FlatFileFS.h \
 FlatFileFD.h \
+mlog_oss.h \
 $(include_HEADERS) \
 $(dist_pkginclude_HEADERS)
 
@@ -83,8 +82,6 @@ Util.cpp \
 Container.cpp \
 FileOp.cpp \
 Index.cpp \
-IndexDefault.cpp \
-IndexUpc.cpp \
 LogMessage.cpp \
 OpenFile.cpp \
 ThreadPool.cpp \
@@ -95,7 +92,8 @@ ContainerFD.cpp \
 FlatFileFD_FS.cpp \
 plfs_private.cpp \
 container_internals.cpp \
-plfs.cpp
+plfs.cpp \
+mlog_oss.cpp
 
 libplfs_la_SOURCES = \
 $(headers) \

@@ -15,8 +15,6 @@
 
 #include <syslog.h>    /* for mlog init */
 
-int index_type = DEFAULT_INDEX; /* Set the default index type */
-
 static void parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
                               char *key, char *value);
 
@@ -211,20 +209,9 @@ expandPath(string logical, ExpansionInfo *exp_info,
         assert(0);
         break;
     }
- 
     hash_val %= backends->size();   // don't index out of vector
     exp_info->backend  = (*backends)[hash_val];
     exp_info->expanded = exp_info->backend + "/" + remaining;
-
-    switch(pconf->index_type) {
-    case UPC_INDEX:
-        exp_info->expanded = exp_info->expanded + "/" + UPC_INDEXDIR + "/";
-        break;
-    default:
-        exp_info->expanded = exp_info->expanded + "/" + DEFAULT_INDEXDIR + "/";
-        break;
-    }
-
     mlog(INT_DCOMMON, "%s: %s -> %s (%d.%d)", __FUNCTION__,
          logical.c_str(), exp_info->expanded.c_str(),
          hash_method,hash_val);
@@ -265,7 +252,7 @@ plfs_check_dir(string type, string dir,int previous_ret, bool make_dir)
                  << " not found (ENOENT)" << endl;
             return -ENOENT;
         } else {
-            int retVal = mkdir_dash_p(directory, DEFAULT_MODE);
+            int retVal = Util::Mkdir(directory, DEFAULT_MODE);
             if (retVal != 0) {
                 cout << "Attempt to create direcotry " << dir
                      << " failed." << endl;
@@ -801,7 +788,6 @@ set_default_confs(PlfsConf *pconf)
     pconf->mlog_syslogfac = LOG_USER;
     pconf->mlog_setmasks = NULL;
     pconf->tmp_mnt = NULL;
-    pconf->index_type = DEFAULT_INDEX;
 }
 
 
@@ -1062,11 +1048,6 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
              */
             pconf->err_msg = new string("Unable to malloc mlog_setmasks");
         }
-    } else if (strcmp(key,"index_type")==0) {
-        pconf->index_type = atoi(value);
-        if (pconf->index_type < 0 || pconf->index_type > UPC_INDEX) {
-            pconf->err_msg = new string("illegal negative value");
-        }     
     } else {
         ostringstream error_msg;
         error_msg << "Unknown key " << key;
@@ -1193,7 +1174,6 @@ get_plfs_conf()
         fclose(fp);
         if(tmppconf) {
             if(tmppconf->err_msg) {
-                pthread_mutex_unlock(&confmutex);
                 return tmppconf;
             } else {
                 pconf = tmppconf;
@@ -1260,57 +1240,3 @@ plfs_mutex_lock(pthread_mutex_t *mux, const char *func){
     return Util::MutexLock(mux,func);
 }
 
-Index *createIndex(string path, int fd) 
-{
-
-  Index *index;
-  PlfsConf *pconf = get_plfs_conf();
-  
-  if (pconf->index_type == DEFAULT_INDEX)
-    index = new IndexDefault(path, fd);
-  else if (pconf->index_type == UPC_INDEX)
-    index = new IndexUpc(path, fd);
-
-  return index;
-}
-
-Index *createIndex(string path) 
-{
-
-  Index *index;
-  PlfsConf *pconf = get_plfs_conf();
-  
-  if (pconf->index_type == DEFAULT_INDEX)
-    index = new IndexDefault(path);
-  else if (pconf->index_type == UPC_INDEX)
-    index = new IndexUpc(path);
-
-  return index;
-}
-
-void indexAddWrite(Index *index, off_t offset, size_t bytes, 
-		   pid_t p, int d, double b, double e ) {
-  PlfsConf *pconf = get_plfs_conf();
-
-  if (pconf->index_type == DEFAULT_INDEX) 
-    {
-      ((IndexDefault *)index)->addWrite( offset, bytes, p, 
-					 b, e );
-    }
-  else if (pconf->index_type == UPC_INDEX) 
-    {
-      ((IndexUpc *)index)->addWrite( offset, bytes, p, d,
-				     b, e );
-    }  
-
-  return;
-}
-
-// a helper routine for global_to_stream: copies to a pointer and advances it
-char *
-memcpy_helper(char *dst, void *src, size_t len)
-{
-    char *ret = (char *)memcpy((void *)dst,src,len);
-    ret += len;
-    return ret;
-}

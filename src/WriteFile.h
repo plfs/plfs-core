@@ -26,67 +26,65 @@ OpenFd {
 
 class WriteFile : public Metadata
 {
-public:
-    WriteFile( string, string, mode_t, size_t index_buffer_mbs );
-    ~WriteFile();
+    public:
+        WriteFile( string, string, mode_t, size_t index_buffer_mbs );
+        ~WriteFile();
 
-    int openIndex( pid_t );
-    int closeIndex();
+        int openIndex( pid_t );
+        int closeIndex();
 
-    int addWriter( pid_t, bool child );
-    int removeWriter( pid_t );
-    size_t numWriters();
-    size_t maxWriters() {
-        return max_writers;
-    }
+        int addWriter( pid_t, bool child );
+        int removeWriter( pid_t );
+        size_t numWriters();
+        size_t maxWriters() {
+            return max_writers;
+        }
 
-    int truncate( off_t offset );
-    int extend( off_t offset );
+        int truncate( off_t offset );
+        int extend( off_t offset );
 
-    ssize_t write( const char *, size_t, off_t, pid_t );
-    ssize_t write_mem(const char *buf, size_t size, off_t offset, 
-                      off_t initial_offset, pid_t pid, pid_t index_writer, 
-                      ssize_t total_size, int data_type);
-    int sync( );
-    int sync( pid_t pid );
+        ssize_t write( const char *, size_t, off_t, pid_t );
 
-    void setContainerPath( string path );
-    void setSubdirPath (string path);
+        int sync( );
+        int sync( pid_t pid );
 
-    int restoreFds(bool droppings_were_truncd);
-    Index *getIndex() {
-        return index;
-    }
+        void setContainerPath( string path );
+        void setSubdirPath (string path);
 
-    double createTime() {
-        return createtime;
-    }
+        int restoreFds(bool droppings_were_truncd);
+        Index *getIndex() {
+            return index;
+        }
 
-private:
-    int openIndexFile( string path, string host, pid_t, mode_t
-                       , string *index_path);
-    int openDataFile(string path, string host, pid_t, mode_t );
-    int openFile( string, mode_t mode );
-    int Close( );
-    int closeFd( int fd );
-    struct OpenFd *getFd( pid_t pid );
+        double createTime() {
+            return createtime;
+        }
 
-    string container_path;
-    string subdir_path;
-    string hostname;
-    map< pid_t, OpenFd  > fds;
-    map< int, string > paths;      // need to remember fd paths to restore
-    pthread_mutex_t    index_mux;  // to use the shared index
-    pthread_mutex_t    data_mux;   // to access our map of fds
-    bool has_been_renamed; // use this to guard against a truncate following
-    // a rename
-    size_t index_buffer_mbs;
-    Index *index;
-    mode_t mode;
-    double createtime;
-    size_t max_writers;
-    // Keeps track of writes for flush of index
-    int write_count;
+    private:
+        int openIndexFile( string path, string host, pid_t, mode_t
+                           , string *index_path);
+        int openDataFile(string path, string host, pid_t, mode_t );
+        int openFile( string, mode_t mode );
+        int Close( );
+        int closeFd( int fd );
+        struct OpenFd *getFd( pid_t pid );
+
+        string container_path;
+        string subdir_path;
+        string hostname;
+        map< pid_t, OpenFd  > fds;
+        map< int, string > paths;      // need to remember fd paths to restore
+        pthread_mutex_t    index_mux;  // to use the shared index
+        pthread_mutex_t    data_mux;   // to access our map of fds
+        bool has_been_renamed; // use this to guard against a truncate following
+        // a rename
+        size_t index_buffer_mbs;
+        Index *index;
+        mode_t mode;
+        double createtime;
+        size_t max_writers;
+        // Keeps track of writes for flush of index
+        int write_count;
 };
 
 #endif

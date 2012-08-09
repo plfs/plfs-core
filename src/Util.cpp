@@ -35,6 +35,7 @@ using namespace std;
 #include "LogMessage.h"
 #include "mlogfacs.h"
 #include "Container.h"
+#include "mlog_oss.h"
 
 #ifdef HAVE_SYS_FSUID_H
 #include <sys/fsuid.h>
@@ -62,7 +63,7 @@ off_t total_ops = 0;
 #else
 #define DEBUG_ENTER /* mlog(UT_DAPI, "Enter %s", __FUNCTION__ );*/
 #define DEBUG_EXIT  LogMessage lm1;                             \
-                        ostringstream oss;                          \
+                        mss::mlog_oss oss(UT_DAPI);             \
                         oss << "Util::" << setw(13) << __FUNCTION__; \
                         if (path) oss << " on " << path << " ";     \
                         oss << setw(7) << " ret=" << setprecision(0) << ret    \
@@ -355,7 +356,7 @@ int Util::Truncate( const char *path, off_t length )
 int Util::MutexLock(  pthread_mutex_t *mux , const char *where )
 {
     ENTER_MUX;
-    ostringstream os, os2;
+    mss::mlog_oss os(UT_DAPI), os2(UT_DAPI);
     os << "Locking mutex " << mux << " from " << where;
     mlog(UT_DAPI, "%s", os.str().c_str() );
     pthread_mutex_lock( mux );
@@ -367,7 +368,7 @@ int Util::MutexLock(  pthread_mutex_t *mux , const char *where )
 int Util::MutexUnlock( pthread_mutex_t *mux, const char *where )
 {
     ENTER_MUX;
-    ostringstream os;
+    mss::mlog_oss os(UT_DAPI);
     os << "Unlocking mutex " << mux << " from " << where;
     mlog(UT_DAPI, "%s", os.str().c_str() );
     pthread_mutex_unlock( mux );

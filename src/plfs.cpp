@@ -16,7 +16,7 @@ void
 debug_exit(const char *func, string msg, int ret)
 {
     mlog(PLFS_DAPI, "EXIT %s: %s -> %d (%s)\n", 
-         func, msg.c_str(),ret,ret>=0?"SUCCESS":strerror(-ret));
+        func, msg.c_str(),ret,ret>=0?"SUCCESS":strerror(-ret));
 }
 
 LogicalFileSystem *
@@ -285,18 +285,6 @@ plfs_read(Plfs_fd *fd, char *buf, size_t size, off_t offset)
     return ret;
 }
 
-readInfo *
-plfs_read_mem(Plfs_fd *fd, char *buf, size_t size, off_t offset)
-{
-    ostringstream oss;
-    oss << fd->getPath() << " -> " <<offset << ", " << size;
-    debug_enter(__FUNCTION__,oss.str());
-    memset(buf, (int)'z', size);
-    readInfo *rinfo = fd->read_mem(buf, size, offset);
-    debug_exit(__FUNCTION__,oss.str(), (rinfo) ? rinfo->bytes_read : -1);
-    return rinfo;
-}
-
 int
 plfs_readdir(const char *path, void *buf)
 {
@@ -401,14 +389,14 @@ plfs_sync(Plfs_fd *fd) {
 
 
 /*
-  int
-  plfs_sync(Plfs_fd *fd, pid_t pid)
-  {
-  debug_enter(__FUNCTION__,fd->getPath());
-  int ret = fd->sync(pid);
-  debug_exit(__FUNCTION__,fd->getPath(),ret);
-  return ret;
-  }
+int
+plfs_sync(Plfs_fd *fd, pid_t pid)
+{
+    debug_enter(__FUNCTION__,fd->getPath());
+    int ret = fd->sync(pid);
+    debug_exit(__FUNCTION__,fd->getPath(),ret);
+    return ret;
+}
 */
 
 int
@@ -472,25 +460,6 @@ plfs_write(Plfs_fd *fd, const char *buf, size_t size,
     if (size > 0){
         wret = fd->write(buf, size, offset, pid);
     }
-    debug_exit(__FUNCTION__,oss.str(),(int)wret);
-    return wret;
-}
-
-ssize_t
-plfs_write_mem(Plfs_fd *fd, const char *buf, size_t size,
-               off_t offset, off_t initial_offset,  pid_t pid, 
-               pid_t index_writer, ssize_t total_size, int data_type)
-{
-    ostringstream oss;
-    oss << fd->getPath() << " -> " <<offset << ", " << size;
-    debug_enter(__FUNCTION__,oss.str());
-    ssize_t wret = 0;
-    if (size > 0){
-        wret = fd->write_mem(buf, size, offset, 
-                             initial_offset, pid, index_writer,
-                             total_size, data_type);
-    }
-
     debug_exit(__FUNCTION__,oss.str(),(int)wret);
     return wret;
 }

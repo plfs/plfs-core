@@ -30,7 +30,8 @@
 
 #################
 # num_hostdirs:
-# this should be square root of total number of compute nodes
+# this should be set to a number near the square root of the total number of
+# PE's on the system
 #################
 # 
 # Official rule:
@@ -83,23 +84,6 @@
 # a performance hint; it can be set to any value without affecting correctness.
 
 #threadpool_size 1
-
-#################
-# index_type:
-# this should be either 0 or 1 
-#################
-# 
-# Default = 0
-#
-# The default index for plfs containers writes an entry for each write.
-# To support additional knowledge of the data structure being written,
-# plfs supports multiple index types.  For now, there are only two index
-# types: the default and a specialized index for the PUPC-IO library 
-# (https://github.com/hugegreenbug/pupc-io). To use the default index type,
-# specify 0 as the index type (the default).  To use the PUPC-IO index,
-# specify 1 as the index type.
-# 
-#index_type 0
 
 # this must match where FUSE is mounted and the logical paths passed to ADIO
 #mount_point /tmp/plfs
