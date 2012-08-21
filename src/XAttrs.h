@@ -2,8 +2,6 @@
 #define __XAttrs_H__
 
 #include "COPYRIGHT.h"
-using namespace std;
-
 #include "Util.h"
 
 #define MAX_KEY_LEN 256

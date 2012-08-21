@@ -3,6 +3,12 @@
 #include "upc_map.h"
 #include "mlogfacs.h"
 #include "plfs_private.h"
+#include "XAttrs.h"
+
+string keys[2] = { "object_size",
+                   "object_type"
+};     
+
 /**
  * Writes the key/values given in obj_desc using XAttrs 
  *
@@ -51,6 +57,8 @@ int write_obj_desc(upc_obj_desc **obj_desc, XAttrs *xattrs) {
         }
     }
 
+    sout.str(string());
+    sout.clear();
     if ((*obj_desc)->object_size > 0) {
         sout << (*obj_desc)->object_type;
         ret = xattrs->setXAttr(keys[1], sout.str());
@@ -85,7 +93,7 @@ size_t objoff_to_bytes(upc_obj_desc *obj_desc, size_t obj_off) {
  *                   values stored by XAttrs or not NULL if
  *                   you want to set the values
  */
-int upc_plfs_open( Plfs_fd **pfd, const char *path,
+int plfs_upc_open( Plfs_fd **pfd, const char *path,
                    int flags, pid_t pid, mode_t mode, 
                    Plfs_open_opt *open_opt, 
                    upc_obj_desc **obj_desc) {
@@ -127,7 +135,7 @@ int upc_plfs_open( Plfs_fd **pfd, const char *path,
  * @param  obj_desc        Contains a description of the data layout
  *
  */
-ssize_t upc_plfs_read( Plfs_fd *pfd, char *buf, size_t num_objects, 
+ssize_t plfs_upc_read( Plfs_fd *pfd, char *buf, size_t num_objects, 
                        off_t object_offset, upc_obj_desc *obj_desc) {
     ssize_t ret = 0;
     size_t size;
@@ -146,7 +154,7 @@ ssize_t upc_plfs_read( Plfs_fd *pfd, char *buf, size_t num_objects,
     return ret;
 }
 
-ssize_t upc_plfs_write( Plfs_fd *pfd, const char *buf, size_t num_objects, 
+ssize_t plfs_upc_write( Plfs_fd *pfd, const char *buf, size_t num_objects, 
                         off_t object_offset, pid_t pid, upc_obj_desc *obj_desc) {
     ssize_t ret = 0;
     size_t size;
@@ -165,3 +173,13 @@ ssize_t upc_plfs_write( Plfs_fd *pfd, const char *buf, size_t num_objects,
     return ret;
 }
 
+int plfs_upc_close(Plfs_fd *fd,pid_t pid,uid_t uid,int open_flags,
+                   Plfs_close_opt *close_opt, upc_obj_desc *obj_desc) {
+    int ret;
+
+    if (obj_desc)
+        free(obj_desc);
+
+    ret = plfs_close(fd, pid, uid, open_flags, close_opt);
+    return ret;
+}

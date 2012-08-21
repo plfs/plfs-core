@@ -34,7 +34,7 @@ XAttrs::XAttrs( string path )
 
     this->path = string(path + "/xattrs");
     if ((stat(this->path.c_str(), &st)) < 0) {
-        ret = Util::Mkdir(path.c_str(), 0755);
+        ret = Util::Mkdir(this->path.c_str(), 0755);
     }
 
     if (ret == 0) {
@@ -115,9 +115,9 @@ bool XAttrs::setXAttr(string key, string value)
         return false;
     }
 
-    if (MAX_VALUE_LEN >= MAX_VALUE_LEN) {
-        mlog(IDX_DRARE, "key: %s is exceeds the maximum key length", __FUNCTION__,
-             key.c_str());
+    if (value.length() >= MAX_VALUE_LEN) {
+        mlog(IDX_DRARE, "value: %s is exceeds the maximum value length", __FUNCTION__,
+             value.c_str());
         return false;
     }
 
