@@ -12,6 +12,8 @@
 #include <vector>
 using namespace std;
 
+class IOStore;
+
 // this is a pure virtual class
 // it's just a way basically that we can pass complicated function pointers
 // to traversal code
@@ -22,13 +24,13 @@ class
 {
     public:
         // first arg to op is path, second is type of path
-        int op(const char *, unsigned char type); // ret 0 or -errno
+        int op(const char *, unsigned char type, IOStore *s); //ret 0 or -errno
         virtual const char *name() = 0;
         virtual bool onlyAccessFile() {
             return false;
         }
         void ignoreErrno(int Errno); // can register errno's to be ignored
-        virtual int do_op(const char *, unsigned char type) = 0;
+        virtual int do_op(const char *, unsigned char type, IOStore *s) = 0;
         virtual ~FileOp() {}
     protected:
         int retValue(int ret);
@@ -41,7 +43,7 @@ class
 {
     public:
         AccessOp(int);
-        int do_op(const char *, unsigned char);
+        int do_op(const char *, unsigned char, IOStore *);
         bool onlyAccessFile() {
             return true;
         }
@@ -57,7 +59,7 @@ class
 {
     public:
         ChownOp(uid_t, gid_t);
-        int do_op(const char *, unsigned char);
+        int do_op(const char *, unsigned char, IOStore *);
         const char *name() {
             return "ChownOp";
         }
@@ -71,7 +73,7 @@ class
 {
     public:
         UtimeOp(struct utimbuf *);
-        int do_op(const char *, unsigned char);
+        int do_op(const char *, unsigned char, IOStore *);
         const char *name() {
             return "UtimeOp";
         }
@@ -91,7 +93,7 @@ class
 {
     public:
         TruncateOp(bool open_file);
-        int do_op(const char *, unsigned char);
+        int do_op(const char *, unsigned char, IOStore *);
         const char *name() {
             return "TruncateOp";
         }
@@ -106,7 +108,7 @@ class
 RmdirOp : public FileOp {
     public:
         RmdirOp() {};
-        int do_op(const char *, unsigned char);
+        int do_op(const char *, unsigned char, IOStore *);
         const char *name() { return "RmdirOp"; }
 };
 */
@@ -125,7 +127,7 @@ class
 {
     public:
         ReaddirOp(map<string,unsigned char>*,set<string>*, bool, bool);
-        int do_op(const char *, unsigned char);
+        int do_op(const char *, unsigned char, IOStore *);
         const char *name() {
             return "ReaddirOp";
         }
@@ -143,7 +145,7 @@ class
 {
     public:
         CreateOp(mode_t);
-        int do_op(const char *, unsigned char);
+        int do_op(const char *, unsigned char, IOStore *);
         const char *name() {
             return "CreateOp";
         }
@@ -156,7 +158,7 @@ class
 {
     public:
         ChmodOp(mode_t);
-        int do_op(const char *, unsigned char);
+        int do_op(const char *, unsigned char, IOStore *);
         const char *name() {
             return "ChmodOp";
         }
@@ -169,7 +171,7 @@ class
 {
     public:
         UnlinkOp() { }
-        int do_op(const char *, unsigned char);
+        int do_op(const char *, unsigned char, IOStore *);
         const char *name() {
             return "UnlinkOp";
         }

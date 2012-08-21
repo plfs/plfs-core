@@ -15,7 +15,8 @@ FlatFileSystem flatfs;
 #define FLAT_ENTER                              \
     int ret = 0;                                \
     char *physical_path = NULL;                 \
-    plfs_expand_path(logical, &physical_path);  \
+    struct plfs_backend *flatback;              \
+    plfs_expand_path(logical, &physical_path,NULL,(void**)&flatback);   \
     string path(physical_path);                 \
     free(physical_path);
 
@@ -23,7 +24,7 @@ FlatFileSystem flatfs;
 
 #define EXPAND_TARGET                           \
     string old_canonical = path;                \
-    plfs_expand_path(to, &physical_path);       \
+    plfs_expand_path(to, &physical_path,NULL,NULL); \
     string new_canonical(physical_path);        \
     free(physical_path);
 
@@ -168,7 +169,7 @@ FlatFileSystem::open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,
     if (*pfd == NULL) {
         *pfd = new Flat_fd();
         newly_created = 1;
-        (*pfd)->setPath(logical);
+        (*pfd)->setPath(logical,flatback);
     }
     ret = (*pfd)->open(path.c_str(), flags, pid, mode, open_opt);
     if (ret < 0) {
@@ -263,7 +264,7 @@ FlatFileSystem::rename( const char *logical, const char *to )
                  "ret: %d. errno: %d.\n", ret, errno);
         }
     } else if (S_ISDIR(stbuf.st_mode)) {
-        vector<string> srcs, dsts;
+        vector<plfs_pathback> srcs, dsts;
         if ((ret = find_all_expansions(logical,srcs)) != 0) {
             goto out;
         }
@@ -273,8 +274,9 @@ FlatFileSystem::rename( const char *logical, const char *to )
         assert(srcs.size()==dsts.size());
         // now go through and rename all of them (ignore ENOENT)
         for(size_t i = 0; i < srcs.size(); i++) {
-            int err = Util::retValue(Util::Rename(srcs[i].c_str(),
-                                                  dsts[i].c_str()));
+            //XXXCDC:iostore via what?
+            int err = Util::retValue(Util::Rename(srcs[i].bpath.c_str(),
+                                                  dsts[i].bpath.c_str()));
             if (err == -ENOENT) {
                 err = 0;    // might not be distributed on all
             }
@@ -282,7 +284,7 @@ FlatFileSystem::rename( const char *logical, const char *to )
                 ret = err;    // keep trying but save the error
             }
             mlog(INT_DCOMMON, "rename %s to %s: %d",
-                 srcs[i].c_str(), dsts[i].c_str(), err);
+                 srcs[i].bpath.c_str(), dsts[i].bpath.c_str(), err);
         }
     } else {
         // special files such as character/block device file, socket file, fifo

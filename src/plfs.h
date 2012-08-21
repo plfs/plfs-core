@@ -222,17 +222,21 @@ typedef void *Plfs_fd;
     plfs_filetype plfs_get_filetype(const char *path);
 
     // parindex read functions
+    int plfs_num_host_dirs(int *cnt, char *targ, void *vio, char *bm);
     int plfs_partition_hostdir(void *entries, int rank,
                                int group_size,char **buffer);
-    int plfs_hostdir_zero_rddir(void **entries,const char *path,int rank);
+    int plfs_hostdir_zero_rddir(void **entries,const char *path,int rank,
+                                void *pmount, void *pback);
     int plfs_hostdir_rddir(void **index_stream,char *targets,
-                           int rank,char *top_level);
+                           int rank,char *top_level, void *pmount,
+                           void *pback);
     int plfs_parindex_read(int rank, int ranks_per_comm,void *index_files,
                            void **index_stream,char *top_level);
     int plfs_parindexread_merge(const char *path,char *index_streams,
                                 int *index_sizes, int procs,
                                 void **index_stream);
-    int plfs_expand_path(const char *logical,char **physical);
+    int plfs_expand_path(const char *logical,char **physical,
+                         void **pmountp, void **pbackp);
 
 #ifdef __cplusplus
 }

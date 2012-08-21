@@ -8,10 +8,10 @@
 #include "plfs.h"
 
 int
-FileOp::op(const char *path, unsigned char type)
+FileOp::op(const char *path, unsigned char type, IOStore *store)
 {
     // the parent function is just a wrapper to insert a debug message
-    int ret = retValue(do_op(path,type));
+    int ret = retValue(do_op(path,type, store));
     mlog(FOP_DAPI, "FileOp:%s on %s: %d",name(),path,ret);
     return ret;
 }
@@ -96,7 +96,7 @@ int Access( const string& path, int mask )
 }
 
 int
-AccessOp::do_op(const char *path, unsigned char isfile)
+AccessOp::do_op(const char *path, unsigned char isfile, IOStore *store)
 {
     if (isfile==DT_CONTAINER || isfile==DT_DIR || isfile==DT_LNK) {
         return Util::Access(path,mask);
@@ -114,7 +114,7 @@ ChownOp::ChownOp(uid_t u, gid_t g)
 }
 
 int
-ChownOp::do_op(const char *path, unsigned char /* isfile */ )
+ChownOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store )
 {
     return Util::Chown(path,u,g);
 }
@@ -132,7 +132,7 @@ TruncateOp::TruncateOp(bool open_file)
 // on an open file, another sibling may have recently created a dropping so
 // don't delete
 int
-TruncateOp::do_op(const char *path, unsigned char isfile)
+TruncateOp::do_op(const char *path, unsigned char isfile, IOStore *store)
 {
     if (isfile != DT_REG) {
         return 0;    // nothing to do for directories
@@ -164,7 +164,7 @@ TruncateOp::ignore(string path)
 }
 
 int
-UnlinkOp::do_op(const char *path, unsigned char isfile)
+UnlinkOp::do_op(const char *path, unsigned char isfile, IOStore *store)
 {
     if (isfile==DT_REG || isfile==DT_LNK) {
         return Util::Unlink(path);
@@ -234,7 +234,7 @@ determine_type(const char *path, char *d_name)
 }
 
 int
-ReaddirOp::do_op(const char *path, unsigned char /* isfile */ )
+ReaddirOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
 {
     int ret;
     DIR *dir;
@@ -295,7 +295,7 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */ )
 //}
 
 int
-CreateOp::do_op(const char *path, unsigned char isfile )
+CreateOp::do_op(const char *path, unsigned char isfile, IOStore *store)
 {
     int ret = -ENOSYS; // just in case we somehow don't change
     switch(isfile) {
@@ -321,7 +321,7 @@ ChmodOp::ChmodOp(mode_t m)
 }
 
 int
-ChmodOp::do_op(const char *path, unsigned char isfile)
+ChmodOp::do_op(const char *path, unsigned char isfile, IOStore *store)
 {
     mode_t this_mode;
     switch(isfile) {
@@ -344,7 +344,7 @@ UtimeOp::UtimeOp(struct utimbuf *ut)
 }
 
 int
-UtimeOp::do_op(const char *path, unsigned char /* isfile */ )
+UtimeOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
 {
     return Util::Utime(path,ut);
 }

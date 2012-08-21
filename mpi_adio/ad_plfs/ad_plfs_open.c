@@ -185,12 +185,12 @@ char *adplfs_bitmap_to_dirname(Bitmap *bitmap,int group_index,
                         char *target,int mult,int np);
 // Called when num procs >= num_host_dirs
 void adplfs_split_and_merge(ADIO_File fd,int rank,int extra_rank,
-                     int ranks_per_comm,int np,char *filename,
-                     void **global_index);
+                            int ranks_per_comm,int np,char *filename,
+                            void *pmount, void *pback, void **global_index);
 // Called when num hostdirs > num procs
 void adplfs_read_and_merge(ADIO_File fd,int rank,
-                    int np,int hostdir_per_rank,char *filename,
-                    void **global_index);
+                           int np,int hostdir_per_rank,char *filename,
+                           void *pmount, void *pback, void **global_index);
 // Added to handle the case where one rank must read more than one hostdir
 char *adplfs_count_to_hostdir(Bitmap *bitmap,int stop_point,int *count,
                        int *hostdir_found,char *filename,char *target,
@@ -454,6 +454,7 @@ int adplfs_par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
 {
     // Each rank and the number of processes playing
     int np,extra_rank,ret;
+    void *pmount, *pback;
     MPI_Comm_size(fd->comm, &np);
     // Rank 0 reads the top level directory and sets the
     // next two variables
@@ -462,15 +463,16 @@ int adplfs_par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     int ranks_per_comm=0;
     // Only used is ranks per comm equals zero
     int hostdir_per_rank=0;
-    char *filename;
-    plfs_expand_path(fd->filename,&filename);
+    char *filename;  /* bpath to container */
+    plfs_expand_path(fd->filename,&filename,&pmount,&pback);
     // Rank 0 only code
     int bitmap_bcast_sz = (BIT_ARRAY_LENGTH/8)/sizeof(MPI_CHAR);
     memset(bitmap,0,bitmap_bcast_sz);
     if(!rank) {
         // Find out how many hostdirs we currently have
         // and save info in a bitmap
-        adplfs_num_host_dirs(&num_host_dir,filename);
+        // XXX: why is bitmap global?
+        (void)plfs_num_host_dirs(&num_host_dir, filename, pback, bitmap);
         plfs_debug("Num of hostdirs calculated is |%d|\n",num_host_dir);
     }
     // Bcast usage brought down by the MPI_Comm_split
@@ -505,12 +507,12 @@ int adplfs_par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     // to check return values. Functions will abort if an error is encountered
     if(ranks_per_comm) {
         adplfs_split_and_merge(fd,rank,extra_rank,
-                        ranks_per_comm,np,filename,
-                        global_index);
+                               ranks_per_comm,np,filename, pmount, pback,
+                               global_index);
     }
     if(!ranks_per_comm) {
-        adplfs_read_and_merge(fd,rank,np,hostdir_per_rank,
-                       filename,global_index);
+        adplfs_read_and_merge(fd,rank,np,hostdir_per_rank, filename,
+                              pmount, pback, global_index);
     }
     if(filename!=NULL) {
         free(filename);
@@ -520,8 +522,8 @@ int adplfs_par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
 
 // This is the case where a rank has to read more than one hostdir
 void adplfs_read_and_merge(ADIO_File fd,int rank,
-                    int np,int hostdir_per_rank,char *filename,
-                    void **global_index)
+                           int np,int hostdir_per_rank,char *filename,
+                           void *pmount, void *pback, void **global_index)
 {
     char *targets;
     int index_sz,ret,count,*index_sizes,*index_disp,index_total_size=0;
@@ -529,15 +531,28 @@ void adplfs_read_and_merge(ADIO_File fd,int rank,
     void *index_stream,*index_streams;
     // Get the bitmap
     adplfs_bcast_bitmap(fd->comm,rank);
-    // Figure out which hostdirs I have to read
+
+    /*
+     * expands bpath to canonical container to current hostdir set.
+     * there will be multiple hostdirs in "targets" string, sep'd by "|"...
+     * some of them may be metalinks.  the rank value is used to select
+     * which hostdirs are returned in targets.
+     */
     targets=adplfs_bitmap_to_dirname(bitmap,rank,filename,
                               hostdir_per_rank,np);
-    // Read the hostdirs and return an index stream
-    index_sz=plfs_hostdir_rddir(&index_stream,targets,rank,filename);
+
+    /*
+     * each rank reads the set of hostdirs assigned to it here.
+     * this results in a merged index stream (index_stream of index_sz
+     * bytes).
+     */
+    index_sz=plfs_hostdir_rddir(&index_stream,targets,
+                                rank,filename,pmount,pback);
     // Make sure it was malloced
     check_stream(index_sz,rank);
     // Targets no longer needed
     free(targets);
+
     // Used to hold the sizes of indexes from all procs
     // needed for ALLGATHERV
     index_sizes=malloc(sizeof(int)*np);
@@ -558,7 +573,13 @@ void adplfs_read_and_merge(ADIO_File fd,int rank,
     // ALLGATHERV grabs all of the indexes from all the procs
     MPIALLGATHERV(index_stream,index_sz,MPI_CHAR,index_streams,index_sizes,
                   index_disp,MPI_CHAR,fd->comm);
-    // Merge all of the stream that we were passed to get a global index
+
+    /*
+     * now each rank has collected the index info from the other ranks
+     * in memory (index_streams).   all that is left to do is construct
+     * a global index by merging all the ranks data into a single index
+     * using plfs_parindexread_merge().
+     */
     global_index_sz=plfs_parindexread_merge(filename,index_streams,
                                             index_sizes,np,global_index);
     check_stream(global_index_sz,rank);
@@ -577,8 +598,8 @@ void adplfs_bcast_bitmap(MPI_Comm comm, int rank)
 
 // If ranks > hostdirs we can split up our comm
 void adplfs_split_and_merge(ADIO_File fd,int rank,int extra_rank,
-                     int ranks_per_comm,int np,char *filename,
-                     void **global_index)
+                            int ranks_per_comm,int np,char *filename,
+                            void *pmount, void *pback, void **global_index)
 {
     int new_rank,color,group_index,hc_sz,ret,buf_sz=0;
     int *index_sizes,*index_disp,count,index_total_size=0;
@@ -608,12 +629,16 @@ void adplfs_split_and_merge(ADIO_File fd,int rank,int extra_rank,
         adplfs_bcast_bitmap(hostdir_zeros_comm,rank);
         BITMAP_PRINT;
         // Convert my group index into the dir I should read
+        // could be a Metalink
         subdir= adplfs_bitmap_to_dirname(bitmap,group_index,filename,0,np);
+
         // Hostdir zero reads the hostdir and converts into a list
-        buf_sz=plfs_hostdir_zero_rddir((void **)&index_files,subdir,rank);
+        buf_sz=plfs_hostdir_zero_rddir((void **)&index_files,subdir,rank,
+                                       pmount, pback);
         check_stream(buf_sz,rank);
         free(subdir);
     }
+
     // Send the size of the hostdir file list
     MPIBCAST(&buf_sz,1,MPI_INT,0,hostdir_comm);
     // Get space for the hostdir file list
@@ -623,7 +648,13 @@ void adplfs_split_and_merge(ADIO_File fd,int rank,int extra_rank,
     }
     // Get the hostdir file list
     MPIBCAST(index_files,buf_sz,MPI_CHAR,0,hostdir_comm);
-    // Take the hostdir file list and convert to an index stream
+
+    /*
+     * Take the hostdir file list and convert to an index stream.
+     * this is where we read the index files (done in parallel by
+     * hostdir and rank).  the first entry of index_files contains
+     * the physical path to the hostdir to read...
+     */
     buf_sz=plfs_parindex_read(new_rank,hc_sz,index_files,&index_stream,
                               filename);
     check_stream(buf_sz,rank);
@@ -655,7 +686,10 @@ void adplfs_split_and_merge(ADIO_File fd,int rank,int extra_rank,
     int hostdir_index_sz;
     // Hostdir leader
     if(!new_rank) {
-        // Merge the indexes that were gathered
+        /*
+         * the rank 0 for this hostdir merges the result of the
+         * reads into a single index for this hostdir.
+         */
         hostdir_index_sz=plfs_parindexread_merge(filename,index_streams,
                          index_sizes,hc_sz,&hostdir_index_stream);
         free(index_disp);
@@ -699,6 +733,13 @@ void adplfs_split_and_merge(ADIO_File fd,int rank,int extra_rank,
         free(index_disp);
         free(index_sizes);
     }
+
+    /*
+     * now each hostdir leader has a complete global index of the file.
+     * each hostdir leader can now send the global index to its group
+     * members so that everyone has it...
+     */
+
     // Get the size of the global index
     MPIBCAST(&global_index_sz,1,MPI_INT,0,hostdir_comm);
     // Malloc space if we are not hostdir leaders

@@ -27,7 +27,8 @@ OpenFd {
 class WriteFile : public Metadata
 {
     public:
-        WriteFile( string, string, mode_t, size_t index_buffer_mbs );
+        WriteFile(string, string, mode_t, size_t index_buffer_mbs,
+                  struct plfs_backend *);
         ~WriteFile();
 
         int openIndex( pid_t );
@@ -48,8 +49,8 @@ class WriteFile : public Metadata
         int sync( );
         int sync( pid_t pid );
 
-        void setContainerPath( string path );
-        void setSubdirPath (string path);
+        void setContainerPath(string path);
+        void setSubdirPath (string path, struct plfs_backend *wrback);
 
         int restoreFds(bool droppings_were_truncd);
         Index *getIndex() {
@@ -71,6 +72,7 @@ class WriteFile : public Metadata
 
         string container_path;
         string subdir_path;
+        struct plfs_backend *subdirback;
         string hostname;
         map< pid_t, OpenFd  > fds;
         map< int, string > paths;      // need to remember fd paths to restore

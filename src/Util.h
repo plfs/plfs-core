@@ -6,7 +6,6 @@
 #endif
 
 #include "COPYRIGHT.h"
-#include "IOStore.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
@@ -33,6 +32,7 @@
 #include <vector>
 
 using namespace std;
+class IOStore;
 
 #ifndef MAP_NOCACHE
 // this is a way to tell mmap not to waste buffer cache.  since we just
@@ -49,6 +49,8 @@ using namespace std;
 // macros for turning a DEFINE into a string
 #define STR_EXPAND(tok) #tok
 #define STR(tok) STR_EXPAND(tok)
+
+struct plfs_pathback;
 
 class Util
 {
@@ -104,9 +106,9 @@ class Util
                                             vector<string> &tokens);
         static void SeriousError(string,pid_t);
         static void OpenError(const char *, const char *,int,int,pid_t);
-        static bool exists( const char * );
+        static bool exists( const char *, struct plfs_backend * );
         static bool isDirectory( struct stat *buf );
-        static bool isDirectory( const char * );
+        static bool isDirectory( const char *, struct plfs_backend * );
         static double getTime();
         static ssize_t Writen( int, const void *, size_t );
         static string toString();
@@ -116,9 +118,10 @@ class Util
         static char *hostname();
         static int retValue( int res );
         static int traverseDirectoryTree(const char *physical,
-                                         vector<string> &files,
-                                         vector<string> &dirs,
-                                         vector<string>&links);
+                                         struct plfs_backend *back,
+                                         vector<plfs_pathback> &files,
+                                         vector<plfs_pathback> &dirs,
+                                         vector<plfs_pathback> &links);
 
         // Used to access underlying filesystems
         static IOStore* ioStore;

@@ -18,10 +18,12 @@ using namespace std;
 // anyway, this should all happen above WriteFile and be transparent to
 // WriteFile.  This comment is for educational purposes only.
 WriteFile::WriteFile(string path, string hostname,
-                     mode_t mode, size_t buffer_mbs ) : Metadata::Metadata()
+                     mode_t mode, size_t buffer_mbs,
+                     struct plfs_backend *backend) : Metadata::Metadata()
 {
     this->container_path    = path;
-    this->subdir_path       = path;
+    this->subdir_path       = path;     /* not really a subdir */
+    this->subdirback        = backend;
     this->hostname          = hostname;
     this->index             = NULL;
     this->mode              = mode;
@@ -40,9 +42,21 @@ void WriteFile::setContainerPath ( string p )
     this->has_been_renamed = true;
 }
 
-void WriteFile::setSubdirPath (string p)
+/**
+ * WriteFile::setSubdirPath: change the subdir path and backend
+ *
+ * XXXCDC: I think this might need some mutex protection, and we
+ * should only allow it if the current number of writers is zero,
+ * since all writers on one host currently must use the same
+ * hostdir/backend.
+ *
+ * @param p new subdir (either on shadow or canonical)
+ * @param wrback backend to use to access the subdir
+ */
+void WriteFile::setSubdirPath (string p, struct plfs_backend *wrback)
 {
     this->subdir_path     = p;
+    this->subdirback      = wrback;
 }
 
 WriteFile::~WriteFile()
@@ -66,6 +80,7 @@ int WriteFile::sync()
     Util::MutexLock( &data_mux, __FUNCTION__ );
     map<pid_t, OpenFd >::iterator pids_itr;
     for( pids_itr = fds.begin(); pids_itr != fds.end() && ret==0; pids_itr++ ) {
+        //XXXCDC: iostore use subdirback
         ret = Util::Fsync( pids_itr->second.fd );
     }
     Util::MutexUnlock( &data_mux, __FUNCTION__ );
@@ -76,6 +91,7 @@ int WriteFile::sync()
         index->flush();
     }
     if ( ret == 0 ) {
+        //XXXCDC: iostore use subdirback?
         ret = Util::Fsync( index->getFd() );
     }
     Util::MutexUnlock( &index_mux, __FUNCTION__ );
@@ -90,12 +106,14 @@ int WriteFile::sync( pid_t pid )
         // ugh, sometimes FUSE passes in weird pids, just ignore this
         //ret = -ENOENT;
     } else {
+        //XXXCDC:iostore use subdirback
         ret = Util::Fsync( ofd->fd );
         Util::MutexLock( &index_mux, __FUNCTION__ );
         if ( ret == 0 ) {
             index->flush();
         }
         if ( ret == 0 ) {
+            //XXXCDC:iostore use subdirback
             ret = Util::Fsync( index->getFd() );
         }
         Util::MutexUnlock( &index_mux, __FUNCTION__ );
@@ -116,6 +134,7 @@ int WriteFile::addWriter( pid_t pid, bool child )
     if ( ofd ) {
         ofd->writers++;
     } else {
+        //XXXCDC:iostore needs subdirback to open
         int fd = openDataFile( subdir_path, hostname, pid, DROPPING_MODE);
         if ( fd >= 0 ) {
             struct OpenFd ofd;
@@ -210,6 +229,7 @@ int WriteFile::closeFd( int fd )
     map<int,string>::iterator paths_itr;
     paths_itr = paths.find( fd );
     string path = ( paths_itr == paths.end() ? "ENOENT?" : paths_itr->second );
+    //XXXCDC:iostore use subdirback
     int ret = Util::Close( fd );
     mlog(WF_DAPI, "%s:%s closed fd %d for %s: %d %s",
          __FILE__, __FUNCTION__, fd, path.c_str(), ret,
@@ -289,6 +309,7 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
         // write the data file
         double begin, end;
         begin = Util::getTime();
+        //XXXCDC:iostore via subdirback
         ret = written = ( size ? Util::Write( fd, buf, size ) : 0 );
         end = Util::getTime();
         // then the index
@@ -322,13 +343,15 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
 int WriteFile::openIndex( pid_t pid ) {
     int ret = 0;
     string index_path;
+    //XXXCDC:iostore use subdirback
     int fd = openIndexFile(subdir_path, hostname, pid, DROPPING_MODE,
                            &index_path);
     if ( fd < 0 ) {
         ret = -errno;
     } else {
         Util::MutexLock(&index_mux , __FUNCTION__);
-        index = new Index(container_path, fd);
+        //XXXCDC:iostore need to pass the backend down into index?
+        index = new Index(container_path, subdirback, fd);
         Util::MutexUnlock(&index_mux, __FUNCTION__);
         mlog(WF_DAPI, "In open Index path is %s",index_path.c_str());
         index->index_path=index_path;
@@ -394,6 +417,7 @@ int WriteFile::openFile( string physicalpath, mode_t mode )
 {
     mode_t old_mode=umask(0);
     int flags = O_WRONLY | O_APPEND | O_CREAT;
+    //XXXCDC:iostore subdirback
     int fd = Util::Open( physicalpath.c_str(), flags, mode );
     mlog(WF_DAPI, "%s.%s open %s : %d %s",
          __FILE__, __FUNCTION__,

@@ -34,14 +34,15 @@ class Flat_fd : public Plfs_fd
         int incrementOpens(int amount) {
             return 1;
         }
-        void setPath( string p ) {
-            path = p;
+        void setPath( string p, struct plfs_backend *b ) {
+            this->path = p;
+            this->back = b;
         }
         const char *getPath() {
             return path.c_str();
         }
-        int rename(const char *path) {
-            setPath(path);
+        int rename(const char *path, struct plfs_backend *b) {
+            setPath(path,b);
             return 0;
         }
 
@@ -56,6 +57,7 @@ class Flat_fd : public Plfs_fd
         int refs;
         string path;
         string backend_pathname;
+        struct plfs_backend *back;
         int backend_fd;
 };
 
