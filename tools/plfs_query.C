@@ -142,6 +142,7 @@ main (int argc, char **argv) {
     vector<string> metalinks;
     //Use the plfs_locate fucntion to determine if this is a
     //plfs file.
+#error "FIX plfs_locate() CALL FOR NEW API, NO LONGER vector string"
     int ret = plfs_locate(target,
             (void*)&files,
             (void*)&dirs,

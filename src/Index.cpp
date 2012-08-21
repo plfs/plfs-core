@@ -290,10 +290,16 @@ ostream& operator <<(ostream& os,const Index& ndx )
     return os;
 }
 
+/*
+ * XXX: code is not consistant about what it puts in "physical", sometimes
+ * it is a top-level container directory, other times it is a specific
+ * index file inside a container hostdir.
+ */
 void
-Index::init( string physical )
+Index::init( string physical, struct plfs_backend *ibackend )
 {
     physical_path    = physical;
+    this->iback = ibackend;
     populated       = false;
     buffering       = false;
     buffer_filled   = false;
@@ -307,9 +313,10 @@ Index::init( string physical )
     pthread_mutex_init( &fd_mux, NULL );
 }
 
-Index::Index( string logical, int fd ) : Metadata::Metadata()
+Index::Index( string logical, struct plfs_backend *iback, int fd )
+    : Metadata::Metadata()
 {
-    init( logical );
+    init( logical, iback );
     this->fd = fd;
     mlog(IDX_DAPI, "%s: created index on %s, fd=%d", __FUNCTION__,
          physical_path.c_str(), fd);
@@ -338,9 +345,10 @@ Index::resetPhysicalOffsets()
     return 0;
 }
 
-Index::Index( string logical ) : Metadata::Metadata()
+Index::Index( string logical, struct plfs_backend *iback )
+    : Metadata::Metadata()
 {
-    init( logical );
+    init( logical, iback );
     mlog(IDX_DAPI, "%s: created index on %s, %lu chunks", __FUNCTION__,
          physical_path.c_str(), (unsigned long)chunk_map.size());
 }
@@ -534,7 +542,7 @@ Index::mapIndex( string hostindex, int *fd, off_t *length )
 
 // this builds a global in-memory index from a physical host index dropping
 // return 0 for sucess, -errno for failure
-int Index::readIndex( string hostindex )
+int Index::readIndex( string hostindex, struct plfs_backend *iback )
 {
     off_t length = (off_t)-1;
     int   fd = -1;
@@ -697,12 +705,13 @@ int Index::debug_from_stream(void *addr)
 
 // this writes a flattened in-memory global index to a physical file
 // returns 0 or -errno
-int Index::global_to_file(int fd)
+int Index::global_to_file(int fd, struct plfs_backend *canback)
 {
     void *buffer;
     size_t length;
     int ret = global_to_stream(&buffer,&length);
     if (ret==0) {
+        //XXXCDC:iostore via canback
         ret = Util::Writen(fd,buffer,length);
         ret = ( (size_t)ret == length ? 0 : -errno );
         free(buffer);
@@ -1369,6 +1378,7 @@ Index::truncateHostIndex( off_t offset )
 // created a partial global index, and truncated that global
 // index, so now we need to dump the modified global index into
 // a new local index
+// XXX: fd's backend is stored in Index::iback, use it to flush()
 int
 Index::rewriteIndex( int fd )
 {

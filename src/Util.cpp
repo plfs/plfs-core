@@ -30,6 +30,8 @@
 #include <stdarg.h>
 using namespace std;
 
+#include "plfs_private.h"
+#include "IOStore.h"
 #include "FileOp.h"
 #include "Util.h"
 #include "LogMessage.h"
@@ -250,34 +252,48 @@ void Util::addBytes( string function, size_t size )
 // just reads through a directory and returns all descendants
 // useful for gathering the contents of a container
 int
-Util::traverseDirectoryTree(const char *path, vector<string> &files,
-                            vector<string> &dirs, vector<string> &links)
+Util::traverseDirectoryTree(const char *path, struct plfs_backend *back,
+                            vector<plfs_pathback> &files,
+                            vector<plfs_pathback> &dirs,
+                            vector<plfs_pathback> &links)
 {
     ENTER_PATH;
     mlog(UT_DAPI, "%s on %s", __FUNCTION__, path);
+    struct plfs_pathback pb;
     map<string,unsigned char> entries;
     map<string,unsigned char>::iterator itr;
     ReaddirOp rop(&entries,NULL,true,true);
     string resolved;
-    ret = rop.op(path,DT_DIR);
+    ret = rop.op(path,DT_DIR, back->store);
     if (ret==-ENOENT) {
         return 0;    // no shadow or canonical on this backend: np.
     }
     if (ret!=0) {
         return ret;    // some other error is a problem
     }
-    dirs.push_back(path); // save the top dir
+    pb.bpath = path;
+    pb.back = back;
+    dirs.push_back(pb); // save the top dir
     for(itr = entries.begin(); itr != entries.end() && ret==0; itr++) {
         if (itr->second == DT_DIR) {
-            ret = traverseDirectoryTree(itr->first.c_str(),files,dirs,links);
+            ret = traverseDirectoryTree(itr->first.c_str(),back,
+                                        files,dirs,links);
         } else if (itr->second == DT_LNK) {
-            links.push_back(itr->first);
-            ret = Container::resolveMetalink(itr->first, resolved);
+            struct plfs_backend *metaback;
+            pb.bpath = itr->first;
+            pb.back = back;
+            links.push_back(pb);
+            //XXX: would be more efficient if we had mount point too
+            ret = Container::resolveMetalink(itr->first, back, NULL,
+                                             resolved, &metaback);
             if (ret == 0) {
-                ret = traverseDirectoryTree(resolved.c_str(),files,dirs,links);
+                ret = traverseDirectoryTree(resolved.c_str(), metaback,
+                                            files,dirs,links);
             }
         } else {
-            files.push_back(itr->first);
+            pb.bpath = itr->first;
+            pb.back = back;
+            files.push_back(pb);
         }
     }
     EXIT_UTIL;
@@ -637,11 +653,12 @@ int Util::Open( const char *path, int flags, mode_t mode )
     EXIT_UTIL;
 }
 
-bool Util::exists( const char *path )
+bool Util::exists( const char *path, struct plfs_backend *backend )
 {
     ENTER_PATH;
     bool exists = false;
     struct stat buf;
+    //XXXCDC:iostore via backend
     if (Util::Lstat(path, &buf) == 0) {
         exists = true;
     }
@@ -654,11 +671,12 @@ bool Util::isDirectory( struct stat *buf )
     return (S_ISDIR(buf->st_mode) && !S_ISLNK(buf->st_mode));
 }
 
-bool Util::isDirectory( const char *path )
+bool Util::isDirectory( const char *path, struct plfs_backend *back )
 {
     ENTER_PATH;
     bool exists = false;
     struct stat buf;
+    //XXXCDC:iostore use back
     if ( Util::Lstat( path, &buf ) == 0 ) {
         exists = isDirectory( &buf );
     }

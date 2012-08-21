@@ -32,8 +32,8 @@ Container_fd::read(char *buf, size_t size, off_t offset)
 }
 
 int
-Container_fd::rename(const char *path) {
-    return container_rename_open_file(fd,path);
+Container_fd::rename(const char *path, struct plfs_backend *b) {
+    return container_rename_open_file(fd,path,b);
 }
 
 ssize_t
@@ -87,9 +87,9 @@ Container_fd::incrementOpens(int amount)
 }
 
 void
-Container_fd::setPath(string p)
+Container_fd::setPath(string p, struct plfs_backend *b)
 {
-    fd->setPath(p);
+    fd->setPath(p,b);
 }
 
 int

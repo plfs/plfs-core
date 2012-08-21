@@ -27,7 +27,7 @@ class Plfs_fd
 
         // Functions leaked to FUSE and ADIO:
         virtual int incrementOpens(int amount) = 0;
-        virtual void setPath( string p ) = 0;
+        virtual void setPath( string p, struct plfs_backend *b ) = 0;
         virtual const char *getPath() = 0;
 
         // a function that all might not necessarily implement
@@ -35,7 +35,7 @@ class Plfs_fd
 
         // a function called to rename an open file
         // the caller must also call the FS rename separately
-        virtual int rename(const char *path) = 0;
+        virtual int rename(const char *path, struct plfs_backend *b) = 0;
 
 };
 

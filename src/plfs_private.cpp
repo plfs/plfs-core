@@ -32,12 +32,12 @@ void plfs_posix_init() {
 const string&
 get_backend(const ExpansionInfo& exp, size_t which)
 {
-    return exp.mnt_pt->backends[which]->path;
+    return exp.mnt_pt->backends[which]->bmpoint;
 }
 const string&
 get_backend(const ExpansionInfo& exp)
 {
-    return exp.backend->path;
+    return exp.backend->bmpoint;
 }
 
 /**
@@ -237,7 +237,7 @@ expandPath(string logical, ExpansionInfo *exp_info,
     }
     hash_val = (hash_val % backcnt);  /* don't index out of array */
     exp_info->backend  = backends[hash_val];
-    exp_info->expanded = exp_info->backend->path + "/" + remaining;
+    exp_info->expanded = exp_info->backend->bmpoint + "/" + remaining;
     mlog(INT_DCOMMON, "%s: %s -> %s (%d.%d)", __FUNCTION__,
          logical.c_str(), exp_info->expanded.c_str(),
          hash_method,hash_val);
@@ -252,16 +252,19 @@ expandPath(string logical, ExpansionInfo *exp_info,
 // also, the order returned is the same as the ordering of the backends.
 // returns 0 or -errno
 int
-find_all_expansions(const char *logical, vector<string> &containers)
+find_all_expansions(const char *logical, vector<plfs_pathback> &containers)
 {
     PLFS_ENTER;
     ExpansionInfo exp_info;
+    struct plfs_pathback pb;
     for(unsigned i = 0; i < expansion_info.mnt_pt->nback; i++) {
         path = expandPath(logical,&exp_info,EXPAND_TO_I,i,0);
         if(exp_info.Errno) {
             PLFS_EXIT(exp_info.Errno);
         }
-        containers.push_back(path);
+        pb.bpath = path;
+        pb.back = exp_info.backend;
+        containers.push_back(pb);
     }
     PLFS_EXIT(ret);
 }
@@ -269,8 +272,32 @@ find_all_expansions(const char *logical, vector<string> &containers)
 // helper routine for plfs_dump_config
 // changes ret to -ENOENT or leaves it alone
 int
-plfs_check_dir(string type, string dir,int previous_ret, bool make_dir)
+plfs_check_dir(string type, string dir, int previous_ret, bool make_dir)
 {
+    return(previous_ret);
+#if 0
+    /*
+     * XXXCDC: this is problematic because it is used to check
+     * directories that are not part of a plfs backend so we can't
+     * just route through an iostore.  just disable it for now.
+     *
+     * uses:
+     *
+     *   - the backend bmpoint.  this could be done if the backend is
+     *     attached through the backend's iostore
+     *
+     *   - global summary dir.  doesn't reside in a backend, this us
+     *     basically using a bunch of zero length files in a directory
+     *     as a log file.   is it used?
+     *
+     *   - mount points (logical).   this would be in the local FS.
+     *     I think only needed for FUSE (native libplfs or MPI doesn't
+     *     need them).   I don't think FUSE will start without a mount
+     *     point?
+     *
+     *   - statfs.  FUSE only.   even if it is, doesn't make sense for
+     *     it to be a local dir (could be HDFS, for example).
+     */
     const char *directory = dir.c_str();
     if(!Util::isDirectory(directory)) {
         if (!make_dir) {
@@ -289,6 +316,7 @@ plfs_check_dir(string type, string dir,int previous_ret, bool make_dir)
     } else {
         return previous_ret;
     }
+#endif
 }
 
 int
@@ -298,9 +326,10 @@ print_backends(struct plfs_backend **backends, int nb, const char *which,
     int lcv;
     for (lcv = 0 ; lcv < nb ; lcv++) {
         cout << "\t" << which << " Backend: "
-             << backends[lcv]->fullname << endl;
+             << backends[lcv]->prefix 
+             << backends[lcv]->bmpoint << endl;
         if(check_dirs) {
-            ret = plfs_check_dir("backend", backends[lcv]->path,
+            ret = plfs_check_dir("backend", backends[lcv]->bmpoint,
                                  ret,make_dir);
         }
     }
@@ -386,14 +415,14 @@ int
 plfs_iterate_backends(const char *logical, FileOp& op)
 {
     int ret = 0;
-    vector<string> exps;
-    vector<string>::iterator itr;
+    vector<plfs_pathback> exps;
+    vector<plfs_pathback>::iterator itr;
     if ( (ret = find_all_expansions(logical,exps)) != 0 ) {
         PLFS_EXIT(ret);
     }
     for(itr = exps.begin(); itr != exps.end() && ret == 0; itr++ ) {
-        ret = op.op(itr->c_str(),DT_DIR);
-        mlog(INT_DCOMMON, "%s on %s: %d",op.name(),itr->c_str(),ret);
+        ret = op.op(itr->bpath.c_str(),DT_DIR,itr->back->store);
+        mlog(INT_DCOMMON, "%s on %s: %d",op.name(),itr->bpath.c_str(),ret);
     }
     PLFS_EXIT(ret);
 }
@@ -449,14 +478,14 @@ int
 recover_directory(const char *logical, bool parent_only)
 {
     PLFS_ENTER;
-    vector<string> exps;
+    vector<plfs_pathback> exps;
     if ( (ret = find_all_expansions(logical,exps)) != 0 ) {
         PLFS_EXIT(ret);
     }
-    for(vector<string>::iterator itr = exps.begin();
+    for(vector<plfs_pathback>::iterator itr = exps.begin();
             itr != exps.end();
             itr++ ) {
-        ret = mkdir_dash_p(*itr,parent_only);
+        ret = mkdir_dash_p(itr->bpath,parent_only,itr->back->store);
     }
     return ret;
 }
@@ -719,7 +748,9 @@ setup_mlog(PlfsConf *pconf)
 }
 
 /**
- * plfs_attach_factory: attach to the given backend by creating its iostore
+ * plfs_attach_factory: attach to the given backend by creating its iostore.
+ * the entire spec from plfsrc comes in via prefix[], we must break it up
+ * into path and prefix as part of the attach.
  *
  * @param pmnt mount point (mainly for log/err msgs)
  * @param bend the backend to attach
@@ -727,19 +758,22 @@ setup_mlog(PlfsConf *pconf)
  */
 static int plfs_attach_factory(PlfsMount *pmnt, struct plfs_backend *bend) {
 
-    if (bend->fullname[0] == '/' ||
-        strncmp(bend->fullname, "posix:", sizeof("posix:")-1) == 0) {
+    if (bend->prefix[0] == '/' ||
+        strncmp(bend->prefix, "posix:", sizeof("posix:")-1) == 0) {
         /* XXXCDC: TMP POSIX INIT HERE */
-        if (bend->fullname[0] == '/') {
-            bend->path = bend->fullname;
+        if (bend->prefix[0] == '/') {
+            bend->bmpoint = bend->prefix;  /* copy */
+            bend->prefix[0] = 0;   /* prefix is null string here */
         } else {
-            bend->path = bend->fullname + sizeof("posix:")-1;
+            bend->bmpoint = bend->prefix + sizeof("posix:")-1; /* copy */
+            /* XXX: save space by dropping the posix: ? */
+            bend->prefix[0] = 0;
         }
         bend->store = new PosixIOStore;
         goto done;
         /* XXXCDC: END TMP */
     }
-    if (strncmp(bend->fullname, "hdfs:", sizeof("hdfs:")-1) == 0) {
+    if (strncmp(bend->prefix, "hdfs:", sizeof("hdfs:")-1) == 0) {
         /* do HDFS */
     }
 
@@ -806,8 +840,11 @@ string *insert_backends(PlfsConf *pconf, char *spec, int n,
             return(error);
         }
 
-        bas[idx].fullname = sp;
-        /* we will fill .path and .store at attach time */
+        /*
+         * store the entire thing in prefix for now.   when we attach
+         * we will break it up into prefix/path and allocate the store.
+         */
+        bas[idx].prefix = sp;
     }
     
     return(NULL);
@@ -1459,5 +1496,114 @@ plfs_mutex_unlock(pthread_mutex_t *mux, const char *func){
 int
 plfs_mutex_lock(pthread_mutex_t *mux, const char *func){
     return Util::MutexLock(mux,func);
+}
+
+/**
+ * plfs_phys_backlookup_mnt: find the backend for a mount
+ *
+ * @param prefix the prefix string
+ * @param prelen the prefix length (will be zero for POSIX)
+ * @param bpath bpath we are looking up
+ * @param pmnt the mount to search
+ * @param backout where the result is placed
+ * @param bpathout put a copy of bpath here (see above)
+ * @return 0 on success, -errno on failure
+ */
+static int
+plfs_phys_backlookup_mnt(char *prefix, int prelen, char *bpath,
+                         PlfsMount *pmnt, struct plfs_backend **backout,
+                         string *bpathout) {
+    int lcv, l;
+    struct plfs_backend *bp;
+
+    for (lcv = 0 ; lcv < pmnt->nback ; lcv++) {
+        bp = pmnt->backends[lcv];
+        l = strlen(bp->prefix);
+        if (prelen != l || strncmp(prefix, bp->prefix, l) != 0)
+            continue;
+        if (bpathout == NULL) {
+            if (strcmp(bpath, bp->bmpoint.c_str()) != 0)
+                continue;  /* needed exact match */
+        } else {
+            if (strncmp(bpath, bp->bmpoint.c_str(),
+                        bp->bmpoint.size()) != 0 ||
+                bpath[bp->bmpoint.size()] != '/')
+                continue;
+
+            /* success, return the bpath too */
+            *bpathout = bpath;  /* string class will malloc space */
+        }
+
+        /* found it! */
+        *backout = bp;
+        return(0);
+    }
+
+    return(Util::retValue(ENOENT));
+}
+
+/**
+ * plfs_phys_backlookup: lookup a physical path's backend info.  the
+ * behavior of the search varies depending on bpathout.  if bpathout
+ * is NULL, then we expect phys to be a backspec from a metalink and
+ * we look for an exact match on bmpoint.  if bpathout is !NULL, then
+ * we expect the phys to contain a full physical path with a prefix,
+ * bmpoint, and bnode (so we need a front end match on bmpoint).
+ * bpathout will be NULL for Metalinks, non-NULL for Index chunk_map.
+ *
+ * @param phys the physical path string (from index, metalink, etc...)
+ * @param pmnt the logical mount to look in (if null: global search)
+ * @param backout where we place the result
+ * @param bpathout also put bpath here if !NULL
+ * @return 0 on success, -errno on failure
+ */
+int
+plfs_phys_backlookup(char *phys, PlfsMount *pmnt,
+                     struct plfs_backend **backout, string *bpathout) {
+    char *prefix;
+    int prelen, rv;
+    char *bpath;
+    PlfsConf *pconf;
+    map<string,PlfsMount *>::iterator itr;
+
+    prefix = phys;
+
+    /* parse, w/special common shorthand cases */
+    if (prefix[0] == '/' || strcmp(prefix, "posix:") == 0) {
+        prelen = 0;
+        if (*prefix == 'p')
+            prefix = prefix + (sizeof("posix:") - 1);
+    } else {
+        bpath = strstr(prefix, "://");
+        if (bpath)
+            bpath = strchr(bpath, '/');
+        if (bpath == NULL) {
+            mlog(CON_INFO, "plfs_phys_backlookup: bad phys %s", phys);
+            return(Util::retValue(EINVAL));
+        }
+        prelen = bpath - prefix;
+    }
+
+    /* narrow the search if we can... */
+    if (pmnt) {
+        rv = plfs_phys_backlookup_mnt(prefix, prelen, bpath, pmnt,
+                                      backout, bpathout);
+        return(rv);
+    }
+
+    /* no mount provided, do a global search */
+    pconf = get_plfs_conf();
+    if (!pconf) {
+        mlog(CON_CRIT, "plfs_phys_backlookup: no config found");
+            return(Util::retValue(EINVAL));
+    }
+    for (itr = pconf->mnt_pts.begin() ; itr != pconf->mnt_pts.end() ; itr++) {
+        rv = plfs_phys_backlookup_mnt(prefix, prelen, bpath,
+                                      itr->second, backout, bpathout);
+        if (rv == 0)
+            break;
+    }
+
+    return(rv);
 }
 

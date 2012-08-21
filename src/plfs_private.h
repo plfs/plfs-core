@@ -37,8 +37,8 @@ expansionMethod {
  * point may have one or more backends, as per the plfsrc config.
  */
 struct plfs_backend {
-    char *fullname;  /*!< from plfsrc, e.g. /mnt/panfs, hdfs://h:port/plfs */
-    string path;     /*!< just the path part */
+    char *prefix;    /*!< hdfs://..., or can be empty for posix */
+    string bmpoint;  /*!< the backend plfs mount point */
     /*
      * note: store must be protected by a mutex since we allow apps
      * defer attaching to a mount until its first reference.
@@ -47,10 +47,18 @@ struct plfs_backend {
 };
 
 /**
+ * plfs_pathback: bpath + backend (needed to access iostore)
+ */
+struct plfs_pathback {
+    string bpath;               /*!< bmpoint+bnode */
+    struct plfs_backend *back;  /*!< backend for the bpath */
+};
+
+/**
  * PlfsMount: describes a PLFS mount point.   the mount point is backed
  * by one or more backend filesystems.
  */
-typedef struct {
+typedef struct PlfsMount {
     string mnt_pt;  // the logical mount point
     string *statfs; // where to resolve statfs calls
     string *syncer_ip; // where to send commands within plfs_protect
@@ -146,14 +154,14 @@ PlfsConf *get_plfs_conf( );
 
 PlfsMount *find_mount_point(PlfsConf *pconf, const string& path, bool& found);
 PlfsMount *find_mount_point_using_tokens(PlfsConf *, vector <string> &, bool&);
-int find_all_expansions(const char *logical, vector<string> &containers);
+int find_all_expansions(const char *logical,vector<plfs_pathback> &containers);
 
 // a helper function that expands %t, %p, %h in mlog file name
 string expand_macros(const char *target);
 
 string expandPath(string logical, ExpansionInfo *exp_info,
                   expansionMethod hash_method, int which_backend, int depth);
-int mkdir_dash_p(const string& path, bool parent_only);
+int mkdir_dash_p(const string& path, bool parent_only, IOStore *);
 int recover_directory(const char *logical, bool parent_only);
 
 int plfs_iterate_backends(const char *logical, FileOp& op);
@@ -184,4 +192,6 @@ gid_t plfs_getgid();
 int plfs_setfsuid(uid_t);
 int plfs_setfsgid(gid_t);
 
+int plfs_phys_backlookup(const char *phys, PlfsMount *pmnt,
+                         struct plfs_backend **backout, string *bpathout);
 #endif

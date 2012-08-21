@@ -11,6 +11,8 @@ using namespace std;
 #include "Util.h"
 #include "Metadata.h"
 
+class PlfsMount;
+
 // the LocalEntry (HostEntry) and the ContainerEntry should maybe be derived
 // from one another. there are two types of index files
 // on a write, every host has a host index
@@ -100,11 +102,11 @@ typedef struct {
 class Index : public Metadata
 {
     public:
-        Index( string );
-        Index( string path, int fd );
+        Index( string, struct plfs_backend * );
+        Index( string path, struct plfs_backend *, int fd );
         ~Index();
 
-        int readIndex( string hostindex );
+        int readIndex( string hostindex, struct plfs_backend *iback );
 
         void setPath( string );
 
@@ -148,7 +150,7 @@ class Index : public Metadata
 
         void compress();
         int debug_from_stream(void *addr);
-        int global_to_file(int fd);
+        int global_to_file(int fd, struct plfs_backend *canback);
         int global_from_stream(void *addr);
         int global_to_stream(void **buffer,size_t *length);
         friend ostream& operator <<(ostream&,const Index&);
@@ -159,7 +161,7 @@ class Index : public Metadata
         bool isBuffering();
 
     private:
-        void init( string );
+        void init( string, struct plfs_backend * );
         int chunkFound( int *, off_t *, size_t *, off_t,
                         string&, pid_t *, ContainerEntry * );
         int cleanupReadIndex(int, void *, off_t, int, const char *,
@@ -192,6 +194,7 @@ class Index : public Metadata
         bool   populated;
         pid_t  mypid;
         string physical_path;
+        struct plfs_backend *iback;
         int    chunk_id;
         off_t  last_offset;
         size_t total_bytes;
