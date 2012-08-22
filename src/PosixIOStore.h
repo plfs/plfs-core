@@ -149,4 +149,6 @@ public:
     }
 };
 
+class PosixIOStore PosixIO;
+
 #endif

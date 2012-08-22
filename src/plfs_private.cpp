@@ -299,12 +299,14 @@ plfs_check_dir(string type, string dir, int previous_ret, bool make_dir)
      *     it to be a local dir (could be HDFS, for example).
      */
     const char *directory = dir.c_str();
+    //XXXCDC:iostore ???
     if(!Util::isDirectory(directory)) {
         if (!make_dir) {
             cout << "Error: Required " << type << " directory " << dir
                  << " not found (ENOENT)" << endl;
             return -ENOENT;
         } else {
+            //XXXCDC:iostore ???
             int retVal = Util::Mkdir(directory, CONTAINER_MODE);
             if (retVal != 0) {
                 cout << "Attempt to create direcotry " << dir
@@ -449,7 +451,7 @@ plfs_stats( void *vptr )
 // returns 0 or -errno
 // if it sees EEXIST, it silently ignores it and returns 0
 int
-mkdir_dash_p(const string& path, bool parent_only)
+mkdir_dash_p(const string& path, bool parent_only, IOStore *store)
 {
     string recover_path;
     vector<string> canonical_tokens;
@@ -462,6 +464,7 @@ mkdir_dash_p(const string& path, bool parent_only)
     for(size_t i=0 ; i < last; i++) {
         recover_path += "/";
         recover_path += canonical_tokens[i];
+        //XXXCDC:iostore via store
         int ret = Util::Mkdir(recover_path.c_str(),CONTAINER_MODE);
         if ( ret != 0 && errno != EEXIST ) { // some other error
             return -errno;
@@ -497,6 +500,7 @@ remove_all(vector<string> &unlinks)
     vector<string>::iterator itr;
     int ret;
     for(itr = unlinks.begin(); itr != unlinks.end(); itr++) {
+        //XXXCDC:iostore via NEEDED???
         ret = Util::retValue(Util::Unlink((*itr).c_str()));
         if(ret!=0) {
             break;
@@ -1510,7 +1514,7 @@ plfs_mutex_lock(pthread_mutex_t *mux, const char *func){
  * @return 0 on success, -errno on failure
  */
 static int
-plfs_phys_backlookup_mnt(char *prefix, int prelen, char *bpath,
+plfs_phys_backlookup_mnt(const char *prefix, int prelen, const char *bpath,
                          PlfsMount *pmnt, struct plfs_backend **backout,
                          string *bpathout) {
     int lcv, l;
@@ -1558,11 +1562,11 @@ plfs_phys_backlookup_mnt(char *prefix, int prelen, char *bpath,
  * @return 0 on success, -errno on failure
  */
 int
-plfs_phys_backlookup(char *phys, PlfsMount *pmnt,
+plfs_phys_backlookup(const char *phys, PlfsMount *pmnt,
                      struct plfs_backend **backout, string *bpathout) {
-    char *prefix;
+    const char *prefix;
     int prelen, rv;
-    char *bpath;
+    const char *bpath;
     PlfsConf *pconf;
     map<string,PlfsMount *>::iterator itr;
 

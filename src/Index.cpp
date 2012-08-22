@@ -373,6 +373,7 @@ Index::~Index()
         if ( chunk_map[i].fd > 0 ) {
             mlog(IDX_DCOMMON, "Closing fd %d for %s",
                  (int)chunk_map[i].fd, chunk_map[i].path.c_str() );
+            //XXXCDC:iostore via iback?
             Util::Close( chunk_map[i].fd );
         }
     }
@@ -503,6 +504,7 @@ Index::flush()
     // valgrind complains about writing uninitialized bytes here....
     // but it's fine as far as I can tell.
     void *start = &(hostIndex.front());
+    //XXXCDC:iostore via iback
     int ret     = Util::Writen( fd, start, len );
     if ( (size_t)ret != (size_t)len ) {
         mlog(IDX_DRARE, "%s failed write to fd %d: %s",
@@ -519,6 +521,7 @@ void *
 Index::mapIndex( string hostindex, int *fd, off_t *length )
 {
     void *addr;
+    //XXXCDC:iostore via iback??? NEEDED VERIFY
     *fd = Util::Open( hostindex.c_str(), O_RDONLY );
     if ( *fd < 0 ) {
         mlog(IDX_DRARE, "%s WTF open: %s", __FUNCTION__, strerror(errno));
@@ -527,6 +530,7 @@ Index::mapIndex( string hostindex, int *fd, off_t *length )
     // lseek doesn't always see latest data if panfs hasn't flushed
     // could be a zero length chunk although not clear why that gets
     // created.
+    //XXXCDC:iostore via <above>
     Util::Lseek( *fd, 0, SEEK_END, length );
     if ( *length == 0 ) {
         mlog(IDX_DRARE, "%s is a zero length index file", hostindex.c_str());
@@ -536,6 +540,7 @@ Index::mapIndex( string hostindex, int *fd, off_t *length )
         mlog(IDX_DRARE, "%s WTF lseek: %s", __FUNCTION__, strerror(errno));
         return (void *)-1;
     }
+    //XXXCDC:iostore via <above>
     Util::Mmap(*length,*fd,&addr);
     return addr;
 }
@@ -553,6 +558,7 @@ int Index::readIndex( string hostindex, struct plfs_backend *iback )
     os << __FUNCTION__ << ": " << this << " reading index on " <<
        physical_path;
     mlog(IDX_DAPI, "%s", os.str().c_str() );
+    //XXXCDC:iostore NEEDED -- should we pass iback down?
     maddr = mapIndex( hostindex, &fd, &length );
     if( maddr == (void *)-1 ) {
         return cleanupReadIndex( fd, maddr, length, 0, "mapIndex",
@@ -1053,6 +1059,7 @@ Index::cleanupReadIndex( int fd, void *maddr, off_t length, int ret,
              last_func, indexfile, strerror( errno ) );
     }
     if ( maddr != NULL && maddr != (void *)-1 ) {
+        //XXXCDC:iostore via NEEDED?
         ret2 = Util::Munmap( maddr, length );
         if ( ret2 < 0 ) {
             mlog(IDX_DRARE,
@@ -1065,6 +1072,7 @@ Index::cleanupReadIndex( int fd, void *maddr, off_t length, int ret,
         mlog(IDX_DRARE, "mmap failed on %s: %s",indexfile,strerror(errno));
     }
     if ( fd > 0 ) {
+        //XXXCDC:iostore via NEEDED?
         ret3 = Util::Close( fd );
         if ( ret3 < 0 ) {
             mlog(IDX_DRARE,
