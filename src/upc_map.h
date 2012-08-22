@@ -8,6 +8,30 @@
 extern "C" {
 #endif
 
+/* UPC Types */
+enum upc_type {
+    UPC_BYTE,
+    UPC_CHAR,
+    UPC_SHORT,
+    UPC_INT,
+    UPC_LONG,
+    UPC_FLOAT,
+    UPC_DOUBLE,
+    UPC_LONG_DOUBLE,
+    UPC_UNSIGNED_CHAR,
+    UPC_SIGNED_CHAR,
+    UPC_UNSIGNED_SHORT,
+    UPC_UNSIGNED_LONG,
+    UPC_UNSIGNED,
+    UPC_LONG_INT,
+    UPC_SHORT_INT,
+    UPC_LONG_LONG_INT,
+    UPC_LONG_LONG,
+    UPC_UNSIGNED_LONG_LONG
+};
+
+
+/* Stores the object description */
 typedef struct {
     uint32_t object_size;
     uint32_t object_type;
@@ -34,6 +58,8 @@ ssize_t plfs_upc_write( Plfs_fd *pfd, const char *buf, size_t num_objects,
 
 int plfs_upc_close(Plfs_fd *,pid_t,uid_t,int open_flags,
                      Plfs_close_opt *close_opt, upc_obj_desc *obj_desc);
+
+int upc_type_size(int type);
 
 #ifdef __cplusplus
 }

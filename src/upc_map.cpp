@@ -33,6 +33,9 @@ int populate_obj_desc(upc_obj_desc **obj_desc, XAttrs *xattrs) {
         delete(xattr);
     }
 
+    mlog(PLFS_DBG, "Populated object description with object_size: %d and object_type: %d", 
+         (*obj_desc)->object_size, (*obj_desc)->object_type, __FUNCTION__);
+
     return ret;
 }
 
@@ -181,5 +184,38 @@ int plfs_upc_close(Plfs_fd *fd,pid_t pid,uid_t uid,int open_flags,
         free(obj_desc);
 
     ret = plfs_close(fd, pid, uid, open_flags, close_opt);
+    return ret;
+}
+
+int upc_type_size(int type) {
+    int ret = sizeof(char);
+
+    if (type == UPC_BYTE || type == UPC_CHAR || 
+        type == UPC_SIGNED_CHAR) {
+        ret = sizeof(char);
+    } else if (type == UPC_SHORT || type == UPC_SHORT_INT) {
+        ret = sizeof(short int);
+    } else if (type == UPC_INT || type == UPC_UNSIGNED) {
+        ret = sizeof(int);
+    } else if (type == UPC_LONG || type == UPC_LONG_INT) {
+        ret = sizeof(long);
+    } else if (type == UPC_FLOAT) {
+        ret = sizeof(float);
+    } else if (type == UPC_DOUBLE) {
+        ret = sizeof(double);
+    } else if (type == UPC_LONG_DOUBLE) {
+        ret = sizeof(long double);
+    } else if (type == UPC_UNSIGNED_CHAR) {
+        ret = sizeof(unsigned char);
+    } else if (type == UPC_UNSIGNED_SHORT) {
+        ret = sizeof(unsigned short);
+    } else if (type == UPC_UNSIGNED_LONG) {
+        ret = sizeof(unsigned long);
+    } else if (type == UPC_LONG_LONG_INT || type == UPC_LONG_LONG) {
+        ret = sizeof(long long);
+    } else if (UPC_UNSIGNED_LONG_LONG) {
+        ret = sizeof(unsigned long long);
+    }
+
     return ret;
 }
