@@ -36,7 +36,7 @@ class Flat_fd : public Plfs_fd
         }
         void setPath( string p, struct plfs_backend *b ) {
             this->path = p;
-            this->back = b;
+            if (b) this->back = b;
         }
         const char *getPath() {
             return path.c_str();

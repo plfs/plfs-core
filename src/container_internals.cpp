@@ -426,6 +426,7 @@ container_access( const char *logical, int mask )
     // possible they are using container_access to check non-plfs file....
     PLFS_ENTER2(PLFS_PATH_NOTREQUIRED);
     if (expansion_info.expand_error) {
+        //XXXCDC:iostore via ????
         ret = retValue(Util::Access(logical,mask));
     } else {
         // oh look.  someone here is using PLFS for its intended purpose to
@@ -440,6 +441,7 @@ container_access( const char *logical, int mask )
 int container_statvfs( const char *logical, struct statvfs *stbuf )
 {
     PLFS_ENTER;
+    //XXXCDC:iostore via PLFS_ENTER
     ret = retValue( Util::Statvfs(path.c_str(),stbuf) );
     PLFS_EXIT(ret);
 }
@@ -513,6 +515,7 @@ container_rename( const char *logical, const char *to )
     assert(srcs.size()==dsts.size());
     // now go through and rename all of them (ignore ENOENT)
     for(size_t i = 0; i < srcs.size(); i++) {
+        //XXXCDC:iostore ????
         //XXXCDC: assumes they are both on same backend, check it
         int err = retValue(Util::Rename(srcs[i].bpath.c_str(),
                                         dsts[i].bpath.c_str()));
@@ -769,6 +772,7 @@ perform_read_task( ReadTask *task, Index *index )
                 // appropriately when it fails due to metalinks
                 // this is currently working with metalinks.  We resolve
                 // them before we get here
+                //XXXCDC:iostore NEEDED
                 task->fd = Util::Open(task->path.c_str(), O_RDONLY);
                 if ( task->fd < 0 ) {
                     mlog(INT_ERR, "WTF? Open of %s: %s",
@@ -788,6 +792,7 @@ perform_read_task( ReadTask *task, Index *index )
                 }
                 index->unlock(__FUNCTION__);
                 if ( ! won_race ) {
+                    //XXXCDC:iostore NEEDED
                     Util::Close(task->fd);
                     task->fd = existing; // already stashed by someone else
                 }
@@ -796,6 +801,7 @@ perform_read_task( ReadTask *task, Index *index )
                      won_race ? "did" : "did not");
             }
         }
+        //XXXCDC:iostore NEEDED
         ret = Util::Pread( task->fd, task->buf, task->length,
                            task->chunk_offset );
     }
@@ -998,12 +1004,15 @@ plfs_num_host_dirs(int *hostdir_count,char *target, void *vback, char *bm)
     int isfile = 0;
     *hostdir_count = 0;
     // Open the directory and check value
+    //XXXCDC:iostore via store
     if (Util::Opendir(target, &dirp) != 0) {
         mlog(PLFS_DRARE, "Num hostdir opendir error on %s",target);
         *hostdir_count = -errno;
         return *hostdir_count;
     }
     // Start reading the directory
+    //XXXCDC:iostore readdir->readdir_r fix
+    //XXXCDC:iostore via store
     while (Util::Readdir(dirp, &dirent) == 0) {
         // Look for entries that beging with hostdir
         if(strncmp(HOSTDIRPREFIX,dirent->d_name,strlen(HOSTDIRPREFIX))==0) {
@@ -1029,6 +1038,7 @@ plfs_num_host_dirs(int *hostdir_count,char *target, void *vback, char *bm)
         }
     }
     // Close the dir error out if we have a problem
+    //XXXCDC:iostore via store
     if (Util::Closedir(dirp) == -1 ) {
         mlog(PLFS_DRARE, "Num hostdir closedir error on %s",target);
         *hostdir_count = -errno;
@@ -1414,6 +1424,7 @@ plfs_trim(const char *logical, pid_t pid)
         PLFS_EXIT(ret);
     }
     // rename the replica at the right location
+    //XXXCDC:iostore via ????NEEDED
     ret = Util::Rename(replica.c_str(),paths.canonical_hostdir.c_str());
     if (ret != 0 && errno==ENOENT) {
         ret = 0;
@@ -1480,6 +1491,7 @@ plfs_protect(const char *logical, pid_t pid)
     string src = paths.shadow_hostdir;
     string dst = Container::getHostDirPath(paths.canonical,Util::hostname(),
                                            TMP_SUBDIR);
+    //XXXCDC:iostore via PLFS_ENTER?
     ret = retValue(Util::Mkdir(dst.c_str(),DEFAULT_MODE));
     if (ret == -EEXIST || ret == -EISDIR ) {
         ret = 0;
@@ -1689,6 +1701,7 @@ container_symlink(const char *logical, const char *to)
     if (exp_info.expand_error) {
         PLFS_EXIT(-ENOENT);
     }
+    //XXXCDC:iostore via enter?
     ret = retValue(Util::Symlink(logical,topath.c_str()));
     mlog(PLFS_DAPI, "%s: %s to %s: %d", __FUNCTION__,
          path.c_str(), topath.c_str(),ret);
@@ -1772,6 +1785,7 @@ container_readlink(const char *logical, char *buf, size_t bufsize)
 {
     PLFS_ENTER;
     memset((void *)buf, 0, bufsize);
+    //XXXCDC:iostore via PLFS_ENTER
     ret = Util::Readlink(path.c_str(),buf,bufsize);
     if ( ret < 0 ) {
         ret = -errno;
@@ -1928,6 +1942,7 @@ container_getattr(Container_OpenFile *of, const char *logical,
         } else {
             mlog(PLFS_DCOMMON, "%s on non plfs file %s", __FUNCTION__,
                  path.c_str());
+            //XXXCDC:iostore from PLFS_ENTER?
             ret = retValue( Util::Lstat( path.c_str(), stbuf ) );
         }
     } else {    // operating on a plfs file here

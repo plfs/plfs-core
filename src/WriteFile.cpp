@@ -80,7 +80,7 @@ int WriteFile::sync()
     Util::MutexLock( &data_mux, __FUNCTION__ );
     map<pid_t, OpenFd >::iterator pids_itr;
     for( pids_itr = fds.begin(); pids_itr != fds.end() && ret==0; pids_itr++ ) {
-        //XXXCDC: iostore use subdirback
+        //XXXCDC:iostore via subdirback
         ret = Util::Fsync( pids_itr->second.fd );
     }
     Util::MutexUnlock( &data_mux, __FUNCTION__ );
@@ -91,7 +91,7 @@ int WriteFile::sync()
         index->flush();
     }
     if ( ret == 0 ) {
-        //XXXCDC: iostore use subdirback?
+        //XXXCDC:iostore via subdirback?
         ret = Util::Fsync( index->getFd() );
     }
     Util::MutexUnlock( &index_mux, __FUNCTION__ );
@@ -106,14 +106,14 @@ int WriteFile::sync( pid_t pid )
         // ugh, sometimes FUSE passes in weird pids, just ignore this
         //ret = -ENOENT;
     } else {
-        //XXXCDC:iostore use subdirback
+        //XXXCDC:iostore via subdirback
         ret = Util::Fsync( ofd->fd );
         Util::MutexLock( &index_mux, __FUNCTION__ );
         if ( ret == 0 ) {
             index->flush();
         }
         if ( ret == 0 ) {
-            //XXXCDC:iostore use subdirback
+            //XXXCDC:iostore via subdirback
             ret = Util::Fsync( index->getFd() );
         }
         Util::MutexUnlock( &index_mux, __FUNCTION__ );
@@ -134,7 +134,7 @@ int WriteFile::addWriter( pid_t pid, bool child )
     if ( ofd ) {
         ofd->writers++;
     } else {
-        //XXXCDC:iostore needs subdirback to open
+        //XXXCDC:iostore via subdirback (pulls from object)
         int fd = openDataFile( subdir_path, hostname, pid, DROPPING_MODE);
         if ( fd >= 0 ) {
             struct OpenFd ofd;
@@ -229,7 +229,7 @@ int WriteFile::closeFd( int fd )
     map<int,string>::iterator paths_itr;
     paths_itr = paths.find( fd );
     string path = ( paths_itr == paths.end() ? "ENOENT?" : paths_itr->second );
-    //XXXCDC:iostore use subdirback
+    //XXXCDC:iostore via subdirback
     int ret = Util::Close( fd );
     mlog(WF_DAPI, "%s:%s closed fd %d for %s: %d %s",
          __FILE__, __FUNCTION__, fd, path.c_str(), ret,
@@ -343,7 +343,7 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
 int WriteFile::openIndex( pid_t pid ) {
     int ret = 0;
     string index_path;
-    //XXXCDC:iostore use subdirback
+    //XXXCDC:iostore via subdirback (pulls from object?)
     int fd = openIndexFile(subdir_path, hostname, pid, DROPPING_MODE,
                            &index_path);
     if ( fd < 0 ) {
@@ -417,7 +417,7 @@ int WriteFile::openFile( string physicalpath, mode_t mode )
 {
     mode_t old_mode=umask(0);
     int flags = O_WRONLY | O_APPEND | O_CREAT;
-    //XXXCDC:iostore subdirback
+    //XXXCDC:iostore subdirback  (so not needed via arg?)
     int fd = Util::Open( physicalpath.c_str(), flags, mode );
     mlog(WF_DAPI, "%s.%s open %s : %d %s",
          __FILE__, __FUNCTION__,

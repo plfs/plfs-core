@@ -318,7 +318,7 @@ Container::Utime( const string& path, const struct utimbuf *ut )
 {
     string accessfile = getAccessFilePath(path);
     mlog(CON_DAPI, "%s on %s", __FUNCTION__,path.c_str());
-    //XXXCDC: this is going to need an iostore
+    //XXXCDC:iostore NEEDED
     return Util::retValue(Util::Utime(accessfile.c_str(),ut));
 }
 
@@ -1222,6 +1222,7 @@ Container::addMeta( off_t last_offset, size_t total_bytes,
         << host;
     metafile = oss.str();
     mlog(CON_DCOMMON, "Creating metafile %s", metafile.c_str() );
+    //XXXCDC:iostore NEEDED
     ret = ignoreNoEnt(Util::Creat( metafile.c_str(), DROPPING_MODE ));
     // now let's maybe make a global summary dropping
     PlfsConf *pconf = get_plfs_conf();
@@ -1249,6 +1250,7 @@ Container::addMeta( off_t last_offset, size_t total_bytes,
                 << "PA:" << path_without_slashes;
         metafile = oss_global.str().substr(0,PATH_MAX);
         mlog(CON_DCOMMON, "Creating metafile %s", metafile.c_str() );
+        //XXXCDC:iostore NEEDED
         Util::Creat( metafile.c_str(), DROPPING_MODE);
     }
     return ret;
@@ -1358,6 +1360,7 @@ int
 Container::removeOpenrecord(const string& path,const string& host,pid_t pid)
 {
     string openrecord = getOpenrecord( path, host, pid );
+    //XXXCDC:iostore NEEDED
     return Util::Unlink( openrecord.c_str() );
 }
 
@@ -1367,6 +1370,7 @@ mode_t
 Container::getmode( const string& path )
 {
     struct stat stbuf;
+    //XXXCDC:iostore NEEDED
     if ( Util::Lstat( path.c_str(), &stbuf ) < 0 ) {
         mlog(CON_WARN, "Failed to getmode for %s", path.c_str() );
         return DEFAULT_MODE;

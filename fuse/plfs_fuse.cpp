@@ -1288,7 +1288,8 @@ int Plfs::f_rename( const char *path, const char *to )
                     // Extract the uid and flags from the string
                     removeOpenFile(current.path, pid, pfd);
                     addOpenFile(pathHash, pid, pfd);
-                    pfd->rename(toPath.c_str());
+                    /* XXX: backend should remain same, right? */
+                    pfd->rename(toPath.c_str(), NULL);
                     //pfd->setPath( toPath );
                     mlog(FUSE_DCOMMON, "Rename open file %s -> %s "
                          "(hope this works)",
