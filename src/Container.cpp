@@ -10,6 +10,7 @@
 #include <libgen.h>
 using namespace std;
 
+#include "IOStore.h"
 #include "FileOp.h"
 #include "Container.h"
 #include "OpenFile.h"
@@ -1919,8 +1920,7 @@ Container::makeMeta( const string& path, mode_t type, mode_t mode,
 {
     int ret;
     if ( type == S_IFDIR ) {
-        //XXXCDC:iostore via b
-        ret = Util::Mkdir( path.c_str(), mode );
+        ret = b->store->Mkdir(path.c_str(), mode);
     } else if ( type == S_IFREG ) {
         //XXXCDC:iostore via b
         ret = Util::Creat( path.c_str(), mode );

@@ -70,7 +70,6 @@ class Util
         static int Link(const char *,const char *);
         static int Lseek( int fildes, off_t offset, int whence, off_t *result );
         static int Lstat( const char *, struct stat * );
-        static int Mkdir( const char *, mode_t );
         static int Mknod( const char *path, mode_t mode, dev_t dev );
         static int Mmap( size_t, int, void ** );
         static int Munmap( void *, size_t );

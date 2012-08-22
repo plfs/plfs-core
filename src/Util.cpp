@@ -706,13 +706,6 @@ int Util::Chmod( const char *path, int flags )
     EXIT_UTIL;
 }
 
-int Util::Mkdir( const char *path, mode_t mode )
-{
-    ENTER_PATH;
-    ret = ioStore->Mkdir( path, mode );
-    EXIT_UTIL;
-}
-
 int Util::Filesize(const char *path)
 {
     ENTER_PATH;

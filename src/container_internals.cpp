@@ -1,6 +1,7 @@
 
 #include "plfs.h"
 #include "plfs_private.h"
+#include "IOStore.h"
 #include "Index.h"
 #include "WriteFile.h"
 #include "Container.h"
@@ -1499,8 +1500,8 @@ plfs_protect(const char *logical, pid_t pid)
     string src = paths.shadow_hostdir;
     string dst = Container::getHostDirPath(paths.canonical,Util::hostname(),
                                            TMP_SUBDIR);
-    //XXXCDC:iostore via PLFS_ENTER?
-    ret = retValue(Util::Mkdir(dst.c_str(),CONTAINER_MODE));
+    ret = retValue(paths.canonicalback->store->Mkdir(dst.c_str(),
+                                                     CONTAINER_MODE));
     if (ret == -EEXIST || ret == -EISDIR ) {
         ret = 0;
     }

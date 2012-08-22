@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <string.h>
 
+#include "IOStore.h"
 #include "FileOp.h"
 #include "Util.h"
 #include "Container.h"
