@@ -22,7 +22,7 @@ static void parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
 
 
 void plfs_posix_init() {
-    Util::ioStore = new PosixIOStore;
+    Util::ioStore = &PosixIO;
 }
 
 // the expansion info doesn't include a string for the backend
@@ -464,8 +464,7 @@ mkdir_dash_p(const string& path, bool parent_only, IOStore *store)
     for(size_t i=0 ; i < last; i++) {
         recover_path += "/";
         recover_path += canonical_tokens[i];
-        //XXXCDC:iostore via store
-        int ret = Util::Mkdir(recover_path.c_str(),DEFAULT_MODE);
+        int ret = store->Mkdir(recover_path.c_str(), DEFAULT_MODE);
         if ( ret != 0 && errno != EEXIST ) { // some other error
             return -errno;
         }
@@ -773,7 +772,7 @@ static int plfs_attach_factory(PlfsMount *pmnt, struct plfs_backend *bend) {
             /* XXX: save space by dropping the posix: ? */
             bend->prefix[0] = 0;
         }
-        bend->store = new PosixIOStore;
+        bend->store = &PosixIO;
         goto done;
         /* XXXCDC: END TMP */
     }

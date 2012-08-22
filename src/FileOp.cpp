@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <string.h>
 
+#include "IOStore.h"
 #include "FileOp.h"
 #include "Util.h"
 #include "Container.h"
@@ -311,8 +312,7 @@ CreateOp::do_op(const char *path, unsigned char isfile, IOStore *store)
 {
     if (isfile==DT_DIR) {
         mode_t mode = Container::dirMode(m);
-        //XXXCDC:iostore via store
-        return Util::Mkdir(path,mode);
+        return(store->Mkdir(path,mode));
     } else if (isfile==DT_REG) {
         //XXXCDC:iostore via store
         return Util::Creat(path,m);

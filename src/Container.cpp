@@ -10,6 +10,7 @@
 #include <libgen.h>
 using namespace std;
 
+#include "IOStore.h"
 #include "FileOp.h"
 #include "Container.h"
 #include "OpenFile.h"
@@ -1560,8 +1561,7 @@ Container::makeTopLevel( const string& expanded_path,
     ostringstream oss;
     oss << expanded_path << "." << hostname << "." << pid;
     string tmpName( oss.str() );
-    //XXXCDC:iostore via canback
-    if ( Util::Mkdir( tmpName.c_str(), dirMode(mode) ) < 0 ) {
+    if ( canback->store->Mkdir(tmpName.c_str(), dirMode(mode)) < 0) {
         if ( errno != EEXIST && errno != EISDIR ) {
             mlog(CON_DRARE, "Mkdir %s to %s failed: %s",
                  tmpName.c_str(), expanded_path.c_str(), strerror(errno) );
@@ -1902,8 +1902,7 @@ Container::makeSubdir( const string& path, mode_t mode, struct plfs_backend *b )
     int ret;
     //mode = mode | S_IXUSR | S_IXGRP | S_IXOTH;
     mode = DROPPING_MODE;
-    //XXXCDC:iostore route via b
-    ret = Util::Mkdir( path.c_str(), mode );
+    ret = b->store->Mkdir(path.c_str(), mode);
     if (errno == EEXIST && Util::isDirectory(path.c_str(),b)){
         ret = 0;
     }
@@ -1917,8 +1916,7 @@ Container::makeMeta( const string& path, mode_t type, mode_t mode,
 {
     int ret;
     if ( type == S_IFDIR ) {
-        //XXXCDC:iostore via b
-        ret = Util::Mkdir( path.c_str(), mode );
+        ret = b->store->Mkdir(path.c_str(), mode);
     } else if ( type == S_IFREG ) {
         //XXXCDC:iostore via b
         ret = Util::Creat( path.c_str(), mode );
