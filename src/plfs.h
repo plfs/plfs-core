@@ -115,6 +115,12 @@ typedef void *Plfs_fd;
     char *plfs_gethostname();
     size_t plfs_gethostdir_id(char *);
 
+    /* Get the extended attribute */
+    int plfs_getxattr(Plfs_fd *fd, char *value, const char *key, size_t len); 
+
+    /* Set the exteded attribute */ 
+    int plfs_setxattr(Plfs_fd *fd, const char *value, const char *key);
+
     /* Index stream related functions */
     int plfs_index_stream(Plfs_fd **pfd, char **buffer);
 
@@ -134,13 +140,13 @@ typedef void *Plfs_fd;
     plfs_locate(const char *logical, void *files_ptr,
                 void *dirs_ptr, void *metalinks_ptr);
 
+    int plfs_mkdir( const char *path, mode_t );
+
     /*
        query the mode that was used to create the file
        this should only be called on a plfs file
     */
     int plfs_mode( const char *path, mode_t *mode );
-
-    int plfs_mkdir( const char *path, mode_t );
 
     /* plfs_open
        To open a file for the first time, set your Plfs_fd to NULL

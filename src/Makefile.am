@@ -47,13 +47,14 @@ lib_LTLIBRARIES = \
 libplfs.la
 
 include_HEADERS = \
-plfs.h
+plfs.h \
+upc_map.h
 
 dist_pkginclude_HEADERS = \
 COPYRIGHT.h \
 mlogfacs.h \
 plfs_internal.h \
-Util.h
+Util.h 
 
 headers = \
 Container.h \
@@ -74,6 +75,7 @@ LogicalFD.h \
 FlatFileFS.h \
 FlatFileFD.h \
 mlog_oss.h \
+XAttrs.h  \
 $(include_HEADERS) \
 $(dist_pkginclude_HEADERS)
 
@@ -93,7 +95,9 @@ FlatFileFD_FS.cpp \
 plfs_private.cpp \
 container_internals.cpp \
 plfs.cpp \
-mlog_oss.cpp
+mlog_oss.cpp \
+XAttrs.cpp \
+upc_map.cpp
 
 libplfs_la_SOURCES = \
 $(headers) \
