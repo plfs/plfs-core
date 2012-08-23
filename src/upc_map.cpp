@@ -15,28 +15,42 @@ string keys[2] = { "object_size",
  * @param  obj_desc   The key/values to write
  * @return int        Returns 0 
  */
-int populate_obj_desc(upc_obj_desc **obj_desc, XAttrs *xattrs) {
+int populate_obj_desc(upc_obj_desc **obj_desc, Plfs_fd *pfd) {
     int ret = 0;
+    int err = 0;
     int i;
-    XAttr *xattr;
+    char value[MAX_VALUE_LEN];
 
     *obj_desc = (upc_obj_desc *) malloc(sizeof(upc_obj_desc));
-    xattr = xattrs->getXAttr(keys[0]);
-    if (xattr) {
-        (*obj_desc)->object_size = atoi(xattr->getValue().c_str());
-        delete(xattr);
+    memset(*obj_desc, 0, sizeof(upc_obj_desc));
+
+    //Get the value for key[0]
+    memset(value, 0, MAX_VALUE_LEN);
+    ret = plfs_getxattr(pfd, value, keys[0].c_str(), MAX_VALUE_LEN);
+    if (!ret) {
+        (*obj_desc)->object_size = atoi(value);
+    } else {
+        mlog(PLFS_DBG, "Could not retrieve value for key: %s", 
+             keys[0].c_str(), __FUNCTION__);
+        err = 1;
     }
-    
-    xattr = xattrs->getXAttr(keys[1]);
-    if (xattr) {
-        (*obj_desc)->object_type = atoi(xattr->getValue().c_str());
-        delete(xattr);
+
+    //Get the value for key[1]    
+    memset(value, 0, MAX_VALUE_LEN);
+    ret = plfs_getxattr(pfd, value, keys[1].c_str(), MAX_VALUE_LEN);
+    if (!ret) {
+        (*obj_desc)->object_type = atoi(value);
+    } else {
+        mlog(PLFS_DBG, "Could not retrieve value for key: %s", 
+             keys[1].c_str(), __FUNCTION__);
+        err = 1;
     }
+  
 
     mlog(PLFS_DBG, "Populated object description with object_size: %d and object_type: %d", 
          (*obj_desc)->object_size, (*obj_desc)->object_type, __FUNCTION__);
 
-    return ret;
+    return err;
 }
 
 /**
@@ -45,15 +59,15 @@ int populate_obj_desc(upc_obj_desc **obj_desc, XAttrs *xattrs) {
  * @param  obj_desc   Values retreived are placed here
  * @return int        Returns 0 on success, 1 on error
  */
-int write_obj_desc(upc_obj_desc **obj_desc, XAttrs *xattrs) {
-    bool ret;
+int write_obj_desc(upc_obj_desc **obj_desc, Plfs_fd *pfd) {
+    int ret;
     int err = 0;
     stringstream sout;
 
     if ((*obj_desc)->object_size > 0) {
         sout << (*obj_desc)->object_size;
-        ret = xattrs->setXAttr(keys[0], sout.str());
-        if (!ret) {
+        ret = plfs_setxattr(pfd, sout.str().c_str(), keys[0].c_str());
+        if (ret) {
             mlog(PLFS_DBG, "In %s: Error writing upc object size\n", 
                  __FUNCTION__);
             err = 1;
@@ -64,8 +78,8 @@ int write_obj_desc(upc_obj_desc **obj_desc, XAttrs *xattrs) {
     sout.clear();
     if ((*obj_desc)->object_size > 0) {
         sout << (*obj_desc)->object_type;
-        ret = xattrs->setXAttr(keys[1], sout.str());
-        if (!ret) {
+        ret = plfs_setxattr(pfd, sout.str().c_str(), keys[1].c_str());
+        if (ret) {
             mlog(PLFS_DBG, "In %s: Error writing upc object type\n", 
                  __FUNCTION__);
             err = 1;
@@ -101,33 +115,29 @@ int plfs_upc_open( Plfs_fd **pfd, const char *path,
                    Plfs_open_opt *open_opt, 
                    upc_obj_desc **obj_desc) {
     int ret;
-    ExpansionInfo expansion_info;
-    string physical_path;
-    XAttrs *xattrs;
-
-    physical_path = expandPath(path,&expansion_info,EXPAND_CANONICAL,-1,0); 
-    mlog(INT_DAPI, "EXPAND in %s: %s->%s",__FUNCTION__, path, physical_path.c_str());
-    xattrs = new XAttrs(physical_path);
+    
     mlog(PLFS_DBG, "ENTER %s: %s\n", __FUNCTION__,path);
-    ret = 0;
-    if (!*obj_desc) {
-        ret = populate_obj_desc(obj_desc, xattrs);
+    ret = plfs_open(pfd, path, flags, pid, mode, open_opt);
+    if (ret || !*pfd) {
+        return -1;
+    }
+
+    if (!*obj_desc && (flags & O_RDONLY || flags & O_RDWR) && pid == 0) {
+        ret = populate_obj_desc(obj_desc, *pfd);
         if (ret) {
               mlog(PLFS_DBG, "In %s: Error populating upc object description%s\n", 
                    __FUNCTION__,path);
         }
-    } else {
-        ret = write_obj_desc(obj_desc, xattrs);
+    } else if (*obj_desc && (flags & O_WRONLY || flags & O_RDWR) && pid == 0) {
+        ret = write_obj_desc(obj_desc, *pfd);
         if (ret) {
             mlog(PLFS_DBG, "In %s: Error writing upc object description%s\n", 
                    __FUNCTION__,path);
         }
     }
     
-    delete(xattrs);
-    ret = plfs_open(pfd, path, flags, pid, mode, open_opt);
     mlog(PLFS_DBG, "EXIT %s: %s\n", __FUNCTION__,path);
-    return ret;
+    return 0;
 }
 
 /**
