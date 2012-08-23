@@ -477,54 +477,16 @@ plfs_flatten_index(Plfs_fd *fd, const char *logical)
 
 /* Get the extended attribute */
 int plfs_getxattr(Plfs_fd *fd, char *value, const char *key, size_t len) {
-    XAttrs *xattrs;
-    XAttr *xattr;
-    int ret = 0;
-    ExpansionInfo expansion_info;
-    string physical_path;
-
     debug_enter(__FUNCTION__,fd->getPath());
-    physical_path = expandPath(fd->getPath(),&expansion_info,EXPAND_CANONICAL,-1,0); 
-    mlog(INT_DAPI, "EXPAND in %s: %s->%s",__FUNCTION__, fd->getPath(), physical_path.c_str());
-    xattrs = new XAttrs(physical_path);
-    xattr = xattrs->getXAttr(string(key));
-    if (xattr == NULL) {
-        ret = 1;
-        return ret;
-    }
-
-    memcpy(value, xattr->getValue().c_str(), len);
-    delete(xattr);
-    delete(xattrs);
+    int ret = fd->getxattr(value, key, len);
     debug_exit(__FUNCTION__,fd->getPath(),ret);
-
     return ret;
 }
 
 /* Set the exteded attribute */ 
 int plfs_setxattr(Plfs_fd *fd, const char *value, const char *key) {
-    stringstream sout;
-    XAttrs *xattrs;
-    bool xret;
-    ExpansionInfo expansion_info;
-    string physical_path;
-    int ret = 0;
-
     debug_enter(__FUNCTION__,fd->getPath());
-    mlog(PLFS_DBG, "Setting xattr - key: %s, value: %s\n", 
-         key, value, __FUNCTION__);
-    physical_path = expandPath(fd->getPath(),&expansion_info,EXPAND_CANONICAL,-1,0); 
-    mlog(INT_DAPI, "EXPAND in %s: %s->%s",__FUNCTION__, fd->getPath(), physical_path.c_str());
-    xattrs = new XAttrs(physical_path);
-    xret = xattrs->setXAttr(string(key), string(value));
-    if (!xret) {
-        mlog(PLFS_DBG, "In %s: Error writing upc object size\n", 
-             __FUNCTION__);
-        ret = 1;
-    }
-
-    delete(xattrs);
+    int ret = fd->setxattr(value, key);
     debug_exit(__FUNCTION__,fd->getPath(),ret);
-
     return ret;
 }

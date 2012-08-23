@@ -5,6 +5,7 @@
 #include "Util.h"
 #include "mlog.h"
 #include "mlogfacs.h"
+#include "plfs_internal.h"
 
 XAttr::XAttr(string key, string value)
 {
@@ -32,7 +33,7 @@ XAttrs::XAttrs( string path )
     struct stat st;
     int ret = 0;
 
-    this->path = string(path + "/xattrs");
+    this->path = string(path + "/" + XATTRSDIR);
     if ((stat(this->path.c_str(), &st)) < 0) {
         ret = Util::Mkdir(this->path.c_str(), 0755);
     }
