@@ -395,8 +395,7 @@ Container::flattenIndex( const string& path, struct plfs_backend *canback,
     //index->compress();
     int ret = index->global_to_file(index_fd,canback);
     mlog(CON_DCOMMON, "index->global_to_file returned %d",ret);
-    //XXXCDC:iostore via canback
-    Util::Close(index_fd);
+    (void) canback->store->Close(index_fd);
     if ( ret == 0 ) { // dump was successful so do the atomic rename
         //XXXCDC:iostore via canback
         ret = Util::Rename(unique_temporary.c_str(),globalIndex.c_str());
@@ -452,8 +451,7 @@ Container::populateIndex(const string& path, struct plfs_backend *canback,
                      (long)len, strerror(errno));
             }
         }
-        //XXXCDC:iostore canback
-        Util::Close(idx_fd);
+        canback->store->Close(idx_fd);
     } else {    // oh well, do it the hard way
         mlog(CON_DCOMMON, "Building global flattened index for %s",
              path.c_str());
@@ -2284,8 +2282,7 @@ Container::Truncate( const string& path, off_t offset,
                 }
                 /* note: index obj already contains indexback */
                 ret = index.rewriteIndex(fd);
-                //XXXCDC:iostore via indexback
-                Util::Close( fd );
+                indexback->store->Close(fd);
                 if ( ret != 0 ) {
                     break;
                 }

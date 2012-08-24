@@ -391,20 +391,6 @@ int Util::MutexUnlock( pthread_mutex_t *mux, const char *where )
     EXIT_UTIL;
 }
 
-ssize_t Util::Pread( int fd, void *buf, size_t size, off_t off )
-{
-    ENTER_IO;
-    ret = ioStore->Pread( fd, buf, size, off );
-    EXIT_IO;
-}
-
-ssize_t Util::Pwrite( int fd, const void *buf, size_t size, off_t off )
-{
-    ENTER_IO;
-    ret = ioStore->Pwrite( fd, buf, size, off );
-    EXIT_IO;
-}
-
 int Util::Rmdir( const char *path )
 {
     ENTER_PATH;
@@ -463,7 +449,7 @@ int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
     fd_to = toios->Open(to, O_WRONLY | O_CREAT, sbuf.st_mode);
     umask(stored_mode);
     if (fd_to<0) {
-        Close(fd_from);
+        pathios->Close(fd_from);
         goto out;
     }
     if (!sbuf.st_size) {
@@ -476,12 +462,12 @@ int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
         goto done;
     }
     copy_len = 0;
-    while ((read_len = Read(fd_from, buf, buf_size)) != 0) {
+    while ((read_len = pathios->Read(fd_from, buf, buf_size)) != 0) {
         if ((read_len==-1)&&(errno!=EINTR)) {
             break;
         } else if (read_len>0) {
             ptr = buf;
-            while ((write_len = Write(fd_to, ptr, read_len)) != 0) {
+            while ((write_len = toios->Write(fd_to, ptr, read_len)) != 0) {
                 if ((write_len==-1)&&(errno!=EINTR)) {
                     goto done;
                 } else if (write_len==read_len) {
@@ -502,8 +488,8 @@ int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
         mlog(UT_DCOMMON, "Util::CopyFile, copy from %s to %s, ret: %d, %s",
              path, to, ret, strerror(errno));
 done:
-    Close(fd_from);
-    Close(fd_to);
+    pathios->Close(fd_from);
+    toios->Close(fd_to);
     if (ret) {
         Unlink(to);    // revert our change, delete the file created.
     }
@@ -532,27 +518,6 @@ int Util::Symlink( const char *path, const char *to )
 {
     ENTER_PATH;
     ret = ioStore->Symlink( path, to );
-    EXIT_UTIL;
-}
-
-ssize_t Util::Read( int fd, void *buf, size_t size)
-{
-    ENTER_IO;
-    ret = ioStore->Read( fd, buf, size );
-    EXIT_IO;
-}
-
-ssize_t Util::Write( int fd, const void *buf, size_t size)
-{
-    ENTER_IO;
-    ret = ioStore->Write( fd, buf, size );
-    EXIT_IO;
-}
-
-int Util::Close( int fd )
-{
-    ENTER_UTIL;
-    ret = ioStore->Close( fd );
     EXIT_UTIL;
 }
 
@@ -724,7 +689,7 @@ double Util::getTime( )
 }
 
 // returns n or returns -1
-ssize_t Util::Writen( int fd, const void *vptr, size_t n )
+ssize_t Util::Writen( int fd, const void *vptr, size_t n, IOStore *store )
 {
     ENTER_UTIL;
     size_t      nleft;
@@ -734,7 +699,7 @@ ssize_t Util::Writen( int fd, const void *vptr, size_t n )
     nleft = n;
     ret   = n;
     while (nleft > 0) {
-        if ( (nwritten = Util::Write(fd, ptr, nleft)) <= 0) {
+        if ( (nwritten = store->Write(fd, ptr, nleft)) <= 0) {
             if (errno == EINTR) {
                 nwritten = 0;    /* and call write() again */
             } else {

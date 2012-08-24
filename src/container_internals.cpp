@@ -795,8 +795,7 @@ perform_read_task( ReadTask *task, Index *index )
                 }
                 index->unlock(__FUNCTION__);
                 if ( ! won_race ) {
-                    //XXXCDC:iostore NEEDED
-                    Util::Close(task->fd);
+                    task->backend->store->Close(task->fd);
                     task->fd = existing; // already stashed by someone else
                 }
                 mlog(INT_DCOMMON, "Opened fd %d for %s and %s stash it",
@@ -804,9 +803,9 @@ perform_read_task( ReadTask *task, Index *index )
                      won_race ? "did" : "did not");
             }
         }
-        //XXXCDC:iostore NEEDED
-        ret = Util::Pread( task->fd, task->buf, task->length,
-                           task->chunk_offset );
+        /* here's where we actually read container data! */
+        ret = task->backend->store->Pread( task->fd, task->buf, task->length,
+                                           task->chunk_offset );
     }
     ostringstream oss;
     oss << "\t READ TASK: offset " << task->chunk_offset << " len "
