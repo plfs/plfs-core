@@ -46,6 +46,7 @@ typedef struct {
     char *buf;
     pid_t chunk_id; // in order to stash fd's back into the index
     string path;
+    struct plfs_backend *backend;
     bool hole;
 } ReadTask;
 
@@ -704,6 +705,7 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
                                   &(task.chunk_offset),
                                   &(task.length),
                                   task.path,
+                                  &task.backend,
                                   &(task.hole),
                                   &(task.chunk_id),
                                   offset+bytes_traversed);
@@ -773,8 +775,8 @@ perform_read_task( ReadTask *task, Index *index )
                 // appropriately when it fails due to metalinks
                 // this is currently working with metalinks.  We resolve
                 // them before we get here
-                //XXXCDC:iostore NEEDED
-                task->fd = Util::Open(task->path.c_str(), O_RDONLY);
+                task->fd = task->backend->store->Open(task->path.c_str(),
+                                                      O_RDONLY);
                 if ( task->fd < 0 ) {
                     mlog(INT_ERR, "WTF? Open of %s: %s",
                          task->path.c_str(), strerror(errno) );

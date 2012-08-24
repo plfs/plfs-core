@@ -75,8 +75,6 @@ class Util
         static int Munmap( void *, size_t );
         static int MutexLock( pthread_mutex_t *mux, const char *whence );
         static int MutexUnlock( pthread_mutex_t *mux, const char *whence );
-        static int Open( const char *, int );
-        static int Open( const char *, int, mode_t );
         static int Opendir( const char *dirname, DIR ** );
         static ssize_t Pread( int, void *, size_t, off_t );
         static ssize_t Pwrite(int, const void *buf, size_t count, off_t offset);
@@ -84,7 +82,8 @@ class Util
         static int Readdir(DIR *, dirent **);
         static ssize_t Readlink(const char *, char *buf, size_t bufsize);
         static int Rename( const char *, const char * );
-        static int CopyFile( const char *, const char * );
+        static int CopyFile( const char *, IOStore *, const char *,
+                             IOStore *);
         static int Rmdir( const char * );
         static int Setfsgid( gid_t );
         static int Setfsuid( uid_t );

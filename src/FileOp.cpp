@@ -87,8 +87,7 @@ int Access( const string& path, IOStore *store, int mask )
         }
         assert(mode_set);
         mlog(FOP_DCOMMON, "The file exists attempting open");
-        //XXXCDC:iostore via store
-        ret = Util::Open(cstr,open_mode);
+        ret = store->Open(cstr,open_mode);
         mlog(FOP_DCOMMON, "Open returns %d",ret);
         if(ret >= 0 ) {
             //XXXCDC:iostore via store

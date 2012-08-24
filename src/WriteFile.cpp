@@ -1,6 +1,7 @@
 #include "plfs.h"
 #include "plfs_private.h"
 #include "COPYRIGHT.h"
+#include "IOStore.h"
 #include "WriteFile.h"
 #include "Container.h"
 
@@ -91,8 +92,12 @@ int WriteFile::sync()
         index->flush();
     }
     if ( ret == 0 ) {
-        //XXXCDC:iostore via subdirback?
-        ret = Util::Fsync( index->getFd() );
+        int syncfd;
+        struct plfs_backend *ib;
+        syncfd = index->getFd(&ib);
+        //XXXCDC:iostore maybe index->flush() should have a sync param?
+        //XXXCDC:iostore via ib
+        ret = Util::Fsync( syncfd );
     }
     Util::MutexUnlock( &index_mux, __FUNCTION__ );
     return ret;
@@ -113,8 +118,12 @@ int WriteFile::sync( pid_t pid )
             index->flush();
         }
         if ( ret == 0 ) {
-            //XXXCDC:iostore via subdirback
-            ret = Util::Fsync( index->getFd() );
+            int syncfd;
+            struct plfs_backend *ib;
+            syncfd = index->getFd(&ib);
+            //XXXCDC:iostore maybe index->flush() should have a sync param?
+            //XXXCDC:iostore via ib
+           ret = Util::Fsync( syncfd );
         }
         Util::MutexUnlock( &index_mux, __FUNCTION__ );
         if ( ret != 0 ) {
@@ -364,10 +373,15 @@ int WriteFile::openIndex( pid_t pid ) {
 
 int WriteFile::closeIndex( )
 {
+    int closefd;
+    struct plfs_backend *ib;
     int ret = 0;
     Util::MutexLock(   &index_mux , __FUNCTION__);
     ret = index->flush();
-    ret = closeFd( index->getFd() );
+    closefd = index->getFd(&ib);
+    /* XXX: a bit odd that we close the index instead of the index itself */
+    //XXXCDC:iostore via ib
+    ret = closeFd( closefd );
     delete( index );
     index = NULL;
     Util::MutexUnlock( &index_mux, __FUNCTION__ );
@@ -417,8 +431,7 @@ int WriteFile::openFile( string physicalpath, mode_t mode )
 {
     mode_t old_mode=umask(0);
     int flags = O_WRONLY | O_APPEND | O_CREAT;
-    //XXXCDC:iostore subdirback  (so not needed via arg?)
-    int fd = Util::Open( physicalpath.c_str(), flags, mode );
+    int fd = this->subdirback->store->Open(physicalpath.c_str(), flags, mode);
     mlog(WF_DAPI, "%s.%s open %s : %d %s",
          __FILE__, __FUNCTION__,
          physicalpath.c_str(),
@@ -452,16 +465,21 @@ int WriteFile::restoreFds( bool droppings_were_truncd )
     mlog(WF_DAPI, "Entering %s",__FUNCTION__);
     // first reset the index fd
     if ( index ) {
+        int restfd;
+        struct plfs_backend *ib;
         Util::MutexLock( &index_mux, __FUNCTION__ );
         index->flush();
-        paths_itr = paths.find( index->getFd() );
+        restfd = index->getFd(&ib);
+        paths_itr = paths.find( restfd );
         if ( paths_itr == paths.end() ) {
             return -ENOENT;
         }
         string indexpath = paths_itr->second;
-        if ( closeFd( index->getFd() ) != 0 ) {
+        //XXXCDC:iostore via ib
+        if ( closeFd( restfd ) != 0 ) {
             return -errno;
         }
+        //XXXCDC:iostore via ib
         if ( (ret = openFile( indexpath, mode )) < 0 ) {
             return -errno;
         }
@@ -479,9 +497,11 @@ int WriteFile::restoreFds( bool droppings_were_truncd )
             return -ENOENT;
         }
         string datapath = paths_itr->second;
+        //XXXCDC:iostore data always on this->subdirback?
         if ( closeFd( pids_itr->second.fd ) != 0 ) {
             return -errno;
         }
+        //XXXCDC:iostore data always on this->subdirback?
         pids_itr->second.fd = openFile( datapath, mode );
         if ( pids_itr->second.fd < 0 ) {
             return -errno;

@@ -2,6 +2,7 @@
 #include <assert.h>
 #include "FlatFileFD.h"
 #include "FlatFileFS.h"
+#include "IOStore.h"
 #include "Util.h"
 #include "plfs_private.h"
 #include "plfs.h"
@@ -24,8 +25,9 @@ FlatFileSystem flatfs;
 #define FLAT_EXIT(X) if (X<0) X = -errno; return (X);
 
 #define EXPAND_TARGET                           \
+    struct plfs_backend *targetback;            \
     string old_canonical = path;                \
-    plfs_expand_path(to, &physical_path,NULL,NULL); \
+    plfs_expand_path(to, &physical_path,NULL,(void**)&targetback); \
     string new_canonical(physical_path);        \
     free(physical_path);
 
@@ -45,13 +47,14 @@ Flat_fd::open(const char *filename, int flags, pid_t pid,
     if (backend_fd != -1) {// This fd has already been opened.
         refs++;
     } else {
-        //XXXCDC:iostore NEEDED --- when is this called?
-        int fd = Util::Open(filename, flags, mode);
+        /* we assume that the caller has already set this->back */
+        int fd = this->back->store->Open(filename, flags, mode);
         if (fd < 0) {
             return -errno;
         }
         backend_fd = fd;
-        backend_pathname = filename;
+        /* XXXCDC: seem comment in FlatFileSystem::open */
+        backend_pathname = filename;  /* XXX: replaces logical */
         refs = 1;
     }
     return 0;
@@ -151,9 +154,17 @@ FlatFileSystem::open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,
     if (*pfd == NULL) {
         *pfd = new Flat_fd();
         newly_created = 1;
+        /*
+         * XXXCDC: this setPath call stores the _logical_ path and
+         * canonical backend in the pfd object.  i think we need the
+         * flatback stored in there for the open call below.  but the
+         * open call also overwrites the logical path in the pfd with
+         * the first arg to pfd->open() which is the physical path.
+         * does it make sense to store the logical path in the pfd?
+         */
         (*pfd)->setPath(logical,flatback);
     }
-    //XXXCDC:iostore how to route flatback backend into fd?
+    /* this uses the flatback stored in pfd to access the backend */
     ret = (*pfd)->open(path.c_str(), flags, pid, mode, open_opt);
     if (ret < 0) {
         if (newly_created) {
@@ -242,9 +253,8 @@ FlatFileSystem::rename( const char *logical, const char *to )
         // EXDEV is expected when the rename crosses different volumes.
         // We should do the copy+unlink in this case.
         if (ret == -EXDEV) {
-            //XXXCDC:iostore via flatback, targetback
-            ret = Util::CopyFile(old_canonical.c_str(),
-                                 new_canonical.c_str());
+            ret = Util::CopyFile(old_canonical.c_str(), flatback->store,
+                                 new_canonical.c_str(), targetback->store);
             if (ret == 0) {
                 //XXXCDC:iostore via flatback
                 ret = Util::Unlink(old_canonical.c_str());
