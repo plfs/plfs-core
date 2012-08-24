@@ -393,8 +393,8 @@ Container::flattenIndex( const string& path, struct plfs_backend *canback,
     int flags = O_WRONLY|O_CREAT|O_EXCL;
     mode_t mode = DROPPING_MODE;
     // open the unique temporary path
-    //XXXCDC:iostore via canback
-    int index_fd = Util::Open(unique_temporary.c_str(),flags,mode);
+    int index_fd = canback->store->Open(unique_temporary.c_str(),
+                                        flags, mode);
     if ( index_fd <= 0 ) {
         return -errno;
     }
@@ -436,8 +436,8 @@ Container::populateIndex(const string& path, struct plfs_backend *canback,
          __FUNCTION__,path.c_str(),(use_global?"will":"will not"));
     int idx_fd = -1;
     if ( use_global ) {
-        //XXXCDC:iostore use canback
-        idx_fd = Util::Open(getGlobalIndexPath(path).c_str(),O_RDONLY);
+        idx_fd = canback->store->Open(getGlobalIndexPath(path).c_str(),
+                                      O_RDONLY);
     }
     if ( idx_fd >= 0 ) {
         mlog(CON_DCOMMON,"Using cached global flattened index for %s",
@@ -2284,8 +2284,8 @@ Container::Truncate( const string& path, off_t offset,
                 mlog(CON_DCOMMON, "%s %p at %ld",__FUNCTION__,&index,
                      (unsigned long)offset);
                 index.truncate(offset);
-                //XXXCDC:iostore -- via indexback
-                int fd = Util::Open(indexfile.c_str(), O_TRUNC | O_WRONLY);
+                int fd = indexback->store->Open(indexfile.c_str(),
+                                                O_TRUNC|O_WRONLY);
                 if ( fd < 0 ) {
                     mlog(CON_CRIT, "Couldn't overwrite index file %s: %s",
                          indexfile.c_str(), strerror( fd ));

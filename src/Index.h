@@ -95,8 +95,9 @@ class ContainerEntry : HostEntry
 // so that the aggregated index can just have an int to point
 // to a local file instead of putting the full string in there
 typedef struct {
-    string path;
-    int fd;
+    string bpath;
+    struct plfs_backend *backend;
+    int fd;                  /* -1 if not currently open */
 } ChunkFile;
 
 class Index : public Metadata
@@ -123,9 +124,16 @@ class Index : public Metadata
         void lock( const char *function );
         void unlock(  const char *function );
 
-        int getFd() {
-            return fd;
+        /*
+         * XXX: getFd() only used by WriteFile to poke around with our
+         * internal index fd.  might be nice to find a way to avoid
+         * this?
+         */
+        int getFd(struct plfs_backend **fdbackp) {
+            *fdbackp = this->iobjback;
+            return this->fd;
         }
+        /* XXX: WriteFile can change the fd, but not the backend */
         void resetFd( int fd ) {
             this->fd = fd;
         }
@@ -139,7 +147,8 @@ class Index : public Metadata
         int setChunkFd( pid_t chunk_id, int fd );
 
         int globalLookup( int *fd, off_t *chunk_off, size_t *length,
-                          string& path, bool *hole, pid_t *chunk_id,
+                          string& path, struct plfs_backend **backp,
+                          bool *hole, pid_t *chunk_id,
                           off_t logical );
 
         int insertGlobal( ContainerEntry * );
@@ -163,10 +172,11 @@ class Index : public Metadata
     private:
         void init( string, struct plfs_backend * );
         int chunkFound( int *, off_t *, size_t *, off_t,
-                        string&, pid_t *, ContainerEntry * );
+                        string&, struct plfs_backend **,
+                        pid_t *, ContainerEntry * );
         int cleanupReadIndex(int, void *, off_t, int, const char *,
-                             const char *);
-        void *mapIndex( string, int *, off_t * );
+                             const char *, struct plfs_backend *);
+        void *mapIndex( string, int *, off_t *, struct plfs_backend * );
         int handleOverlap( ContainerEntry& g_entry,
                            pair< map<off_t,ContainerEntry>::iterator,
                            bool > &insert_ret );
@@ -193,12 +203,14 @@ class Index : public Metadata
 
         bool   populated;
         pid_t  mypid;
+
         string physical_path;
-        struct plfs_backend *iback;
+        int    fd;
+        struct plfs_backend *iobjback;
+
         int    chunk_id;
         off_t  last_offset;
         size_t total_bytes;
-        int    fd;
         bool buffering;    // are we buffering the index on write?
         bool buffer_filled; // were we buffering but ran out of space?
         pthread_mutex_t    fd_mux;   // to allow thread safety
@@ -209,4 +221,53 @@ class Index : public Metadata
 
 #define MAP_ITR map<off_t,ContainerEntry>::iterator
 
+/*
+ * notes: the Index object is shared by both the read and write paths.
+ *
+ * reads: for reading we need to generate a global map of all bits of
+ * data in the container.   there are 3 ways to get there:
+ * 
+ * 1: we traverse the container (including metalinks) reading all the
+ * individual index dropping files and merge them into one big global
+ * index (in memory).  this is done by allocating an Index and then
+ * calling Index::readIndex(bpath,backend) on each index dropping file
+ * in the container (readIndex does the merge using insertGlobal).
+ *
+ * 2: a previous PLFS user computed a global index and saved it to a
+ * file.  if we trust the global index, we simply open the file, mmap
+ * it into our address space, and call Index::global_from_stream() to
+ * load it in from the memory mapping.
+ *
+ * 3: we are running under MPI and the user has generated a global
+ * index for us and is passing it as a hint via plfs_open() API.  in
+ * this case we call Index::global_from_stream() on the memory buffer
+ * we get from the hint.
+ *
+ *
+ * writes: for writing there are two cases: normal writes and
+ * flattening an index into a global index file (for use in case 2,
+ * above).
+ *
+ * 1: in a normal writes we are pointed at a specific hostdir in the
+ * container where we store our index/data dropping files.  The Index
+ * object caches an open fd and backend to the index dropping file.
+ * As we get writes, we add the write metadata to the index via the
+ * Index::addWrite() API.  this index metadata is cached until it is
+ * flushed to disk using Index::flush().  Index::flush() uses the fd
+ * and backend cached in the Index object to flush the data.  The
+ * write index is chained off of a WriteFile object that owns it.
+ *
+ * 2: Container::flattenIndex(bpath,backend,index) flattens the index
+ * into a global file in the canonical container (specified in the
+ * args to flattendIndex).  It uses Index::global_to_file() to write
+ * the global index.   (called via plfs_flatten_index API)
+ *
+ *
+ * for chunks, we store the bpath and the backend in the in-memory
+ * Index data structure.  when we serialize it (global_to_file or
+ * global_to_stream) we need to add the prefix to the bpath for the
+ * byte stream.  when we parse a byte stream (global_from_stream) we
+ * need to parse the prefix out and look it up to convert it back to a
+ * plfs_backend pointer for the in-memory data structure.
+ */
 #endif

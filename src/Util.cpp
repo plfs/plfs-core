@@ -429,7 +429,8 @@ int Util::Rename( const char *path, const char *to )
 
 // Use most popular used read+write to copy file,
 // as mmap/sendfile/splice may fail on some system.
-int Util::CopyFile( const char *path, const char *to )
+int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
+                    IOStore *toios)
 {
     ENTER_PATH;
     int fd_from, fd_to, buf_size;
@@ -455,12 +456,12 @@ int Util::CopyFile( const char *path, const char *to )
         ret = Symlink(buf, to);
         goto out;
     }
-    fd_from = Open(path, O_RDONLY);
+    fd_from = pathios->Open(path, O_RDONLY);
     if (fd_from<0) {
         goto out;
     }
     stored_mode = umask(0);
-    fd_to = Open(to, O_WRONLY | O_CREAT, sbuf.st_mode);
+    fd_to = toios->Open(to, O_WRONLY | O_CREAT, sbuf.st_mode);
     umask(stored_mode);
     if (fd_to<0) {
         Close(fd_from);
@@ -637,20 +638,6 @@ int Util::Lseek( int fildes, off_t offset, int whence, off_t *result )
     ENTER_UTIL;
     *result = ioStore->Lseek( fildes, offset, whence );
     ret = (int)*result;
-    EXIT_UTIL;
-}
-
-int Util::Open( const char *path, int flags )
-{
-    ENTER_PATH;
-    ret = ioStore->Open( path, flags );
-    EXIT_UTIL;
-}
-
-int Util::Open( const char *path, int flags, mode_t mode )
-{
-    ENTER_PATH;
-    ret = ioStore->Open( path, flags, mode );
     EXIT_UTIL;
 }
 
