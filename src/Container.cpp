@@ -405,8 +405,8 @@ Container::flattenIndex( const string& path, struct plfs_backend *canback,
     mlog(CON_DCOMMON, "index->global_to_file returned %d",ret);
     (void) canback->store->Close(index_fd);
     if ( ret == 0 ) { // dump was successful so do the atomic rename
-        //XXXCDC:iostore via canback
-        ret = Util::Rename(unique_temporary.c_str(),globalIndex.c_str());
+        ret = canback->store->Rename(unique_temporary.c_str(),
+                                     globalIndex.c_str());
         if ( ret != 0 ) {
             ret = -errno;
         }
@@ -857,8 +857,7 @@ Container::createMetalink(struct plfs_backend *canback,
         oss << canonical_path_without_id << id;
 
         /* attempt to create the metalink */
-        //XXXCDC:iostore via canback->store 
-        ret = Util::Symlink(shadow.str().c_str(), oss.str().c_str());
+        ret = canback->store->Symlink(shadow.str().c_str(), oss.str().c_str());
 
         /* if successful, we can stop */
         if (ret == 0) {
@@ -1585,8 +1584,7 @@ Container::makeTopLevel( const string& expanded_path,
         mlog(CON_DRARE, "create access file in %s failed: %s",
              tmpName.c_str(), strerror(errno) );
         int saveerrno = errno;
-        //XXXCDC:iostore via canback
-        if ( Util::Rmdir( tmpName.c_str() ) != 0 ) {
+        if ( canback->store->Rmdir( tmpName.c_str() ) != 0 ) {
             mlog(CON_DRARE, "rmdir of %s failed : %s",
                  tmpName.c_str(), strerror(errno) );
         }
@@ -1601,8 +1599,8 @@ Container::makeTopLevel( const string& expanded_path,
     int attempts = 0;
     while (attempts < 2 ) {
         attempts++;
-        //XXXCDC:iostore via canback
-        if ( Util::Rename( tmpName.c_str(), expanded_path.c_str() ) < 0 ) {
+        if ( canback->store->Rename( tmpName.c_str(),
+                                     expanded_path.c_str() ) < 0 ) {
             int saveerrno = errno;
             mlog(CON_DRARE, "rename of %s -> %s failed: %s",
                  tmpName.c_str(), expanded_path.c_str(), strerror(errno) );
@@ -1626,8 +1624,7 @@ Container::makeTopLevel( const string& expanded_path,
                 mlog(CON_DRARE, "unlink of temporary %s failed : %s",
                      tmpAccess.c_str(), strerror(errno) );
             }
-            //XXXCDC:iostore via canback
-            if ( Util::Rmdir( tmpName.c_str() ) < 0 ) {
+            if ( canback->store->Rmdir( tmpName.c_str() ) < 0 ) {
                 mlog(CON_DRARE, "rmdir of temporary %s failed : %s",
                      tmpName.c_str(), strerror(errno) );
             }
@@ -2198,7 +2195,7 @@ Container::nextdropping(const string& canbpath, struct plfs_backend *canback,
         if (getnextent(*candir, canback, HOSTDIRPREFIX, &dirstore) == NULL) {
             /* no more subdirs ... */
             //XXXCDC:iostore via canback
-            Util::Closedir(*candir);
+            canback->store->Closedir(*candir);
             *candir = NULL;
             return(0);                  /* success, we are done! */
         }
@@ -2230,8 +2227,7 @@ Container::nextdropping(const string& canbpath, struct plfs_backend *canback,
     if (getnextent(*subdir, *dropback, dropping_filter, &dirstore) == NULL) {
         /* we hit EOF on the subdir, need to advance to next subdir */
 
-        //XXXCDC:iostore via *dropback
-        Util::Closedir(*subdir);
+        (*dropback)->store->Closedir(*subdir);
         *dropback = NULL;            /* just to be safe */
         *subdir = NULL;              /* signals we are ready for next one */
         goto ReTry;                  /* or could recurse(used to) */
@@ -2343,8 +2339,7 @@ Container::truncateMeta(const string& path, off_t offset,
             oss << meta_path << "/" << offset << "."
                 << offset    << "." << time.tv_sec
                 << "." << time.tv_nsec << "." << host;
-            //XXXCDC:iostore
-            ret = Util::Rename(full_path.c_str(), oss.str().c_str());
+            ret = back->store->Rename(full_path.c_str(), oss.str().c_str());
             //if a sibling raced us we may see ENOENT
             if (ret != 0 and errno == ENOENT){
                ret = 0;

@@ -285,8 +285,7 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
             names->insert(file);
         }
     }
-    //XXXCDC:iostore via store
-    Util::Closedir(dir);
+    store->Closedir(dir);
     if (ret==1) {
         ret = 0;    // read to end of directory
     }

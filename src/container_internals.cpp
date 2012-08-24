@@ -457,8 +457,8 @@ container_access( const char *logical, int mask )
 int container_statvfs( const char *logical, struct statvfs *stbuf )
 {
     PLFS_ENTER;
-    //XXXCDC:iostore via PLFS_ENTER
-    ret = retValue( Util::Statvfs(path.c_str(),stbuf) );
+    ret = retValue( expansion_info.backend->store->Statvfs(path.c_str(),
+                                                           stbuf) );
     PLFS_EXIT(ret);
 }
 
@@ -531,10 +531,11 @@ container_rename( const char *logical, const char *to )
     assert(srcs.size()==dsts.size());
     // now go through and rename all of them (ignore ENOENT)
     for(size_t i = 0; i < srcs.size(); i++) {
-        //XXXCDC:iostore ????
-        //XXXCDC: assumes they are both on same backend, check it
-        int err = retValue(Util::Rename(srcs[i].bpath.c_str(),
-                                        dsts[i].bpath.c_str()));
+        int err;
+        /* XXX: check backend usage here? */
+        err = expansion_info.backend->store->Rename(srcs[i].bpath.c_str(),
+                                                    dsts[i].bpath.c_str());
+        err = retValue(err);
         if (err == -ENOENT) {
             err = 0;    // a file might not be distributed on all
         }
@@ -1055,8 +1056,7 @@ plfs_num_host_dirs(int *hostdir_count,char *target, void *vback, char *bm)
         }
     }
     // Close the dir error out if we have a problem
-    //XXXCDC:iostore via store
-    if (Util::Closedir(dirp) == -1 ) {
+    if (store->Closedir(dirp) == -1 ) {
         mlog(PLFS_DRARE, "Num hostdir closedir error on %s",target);
         *hostdir_count = -errno;
         return *hostdir_count;
@@ -1441,8 +1441,8 @@ plfs_trim(const char *logical, pid_t pid)
         PLFS_EXIT(ret);
     }
     // rename the replica at the right location
-    //XXXCDC:iostore via ????NEEDED
-    ret = Util::Rename(replica.c_str(),paths.canonical_hostdir.c_str());
+    ret = paths.canonicalback->store->Rename(replica.c_str(),
+                                             paths.canonical_hostdir.c_str());
     if (ret != 0 && errno==ENOENT) {
         ret = 0;
     }
@@ -1718,8 +1718,7 @@ container_symlink(const char *logical, const char *to)
     if (exp_info.expand_error) {
         PLFS_EXIT(-ENOENT);
     }
-    //XXXCDC:iostore via enter?
-    ret = retValue(Util::Symlink(logical,topath.c_str()));
+    ret = retValue(exp_info.backend->store->Symlink(logical, topath.c_str()));
     mlog(PLFS_DAPI, "%s: %s to %s: %d", __FUNCTION__,
          path.c_str(), topath.c_str(),ret);
     PLFS_EXIT(ret);
@@ -1802,8 +1801,7 @@ container_readlink(const char *logical, char *buf, size_t bufsize)
 {
     PLFS_ENTER;
     memset((void *)buf, 0, bufsize);
-    //XXXCDC:iostore via PLFS_ENTER
-    ret = Util::Readlink(path.c_str(),buf,bufsize);
+    ret = expansion_info.backend->store->Readlink(path.c_str(),buf,bufsize);
     if ( ret < 0 ) {
         ret = -errno;
     }

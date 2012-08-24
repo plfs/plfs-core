@@ -56,30 +56,24 @@ class Util
 {
     public:
         // all the system calls
-        static int Closedir( DIR * );
-        static int Creat( const char *, mode_t );
         static int Filesize(const char *, IOStore *);
         static uid_t Getuid();
         static gid_t Getgid();
-        static int Link(const char *,const char *);
-        static int Lseek( int fildes, off_t offset, int whence, off_t *result );
-        static int Mknod( const char *path, mode_t mode, dev_t dev );
-        static int Mmap( size_t, int, void ** );
-        static int Munmap( void *, size_t );
         static int MutexLock( pthread_mutex_t *mux, const char *whence );
         static int MutexUnlock( pthread_mutex_t *mux, const char *whence );
-        static int Opendir( const char *dirname, DIR ** );
-        static int Readdir(DIR *, dirent **);
-        static ssize_t Readlink(const char *, char *buf, size_t bufsize);
-        static int Rename( const char *, const char * );
         static int CopyFile( const char *, IOStore *, const char *,
                              IOStore *);
-        static int Rmdir( const char * );
         static int Setfsgid( gid_t );
         static int Setfsuid( uid_t );
-        static int Statvfs( const char *, struct statvfs * );
         static char *Strdup(const char *s1);
-        static int Symlink( const char *, const char * );
+
+        static int Creat( const char *, mode_t );
+        static int Lseek( int fildes, off_t offset, int whence, off_t *result );
+        static int Mmap( size_t, int, void ** );
+        static int Munmap( void *, size_t );
+        static int Opendir( const char *dirname, DIR ** );
+        static int Readdir(DIR *, dirent **);
+
 
         // other misc stuff
         static vector<string> &tokenize(    const string& str,

@@ -333,13 +333,6 @@ void Util::addTime( string function, double elapsed, bool error )
     pthread_mutex_unlock( &time_mux );
 }
 
-int Util::Mknod( const char *path, mode_t mode, dev_t dev )
-{
-    ENTER_PATH;
-    ret = ioStore->Mknod( path, mode, dev );
-    EXIT_UTIL;
-}
-
 int Util::MutexLock(  pthread_mutex_t *mux , const char *where )
 {
     ENTER_MUX;
@@ -359,20 +352,6 @@ int Util::MutexUnlock( pthread_mutex_t *mux, const char *where )
     os << "Unlocking mutex " << mux << " from " << where;
     mlog(UT_DAPI, "%s", os.str().c_str() );
     pthread_mutex_unlock( mux );
-    EXIT_UTIL;
-}
-
-int Util::Rmdir( const char *path )
-{
-    ENTER_PATH;
-    ret = ioStore->Rmdir( path );
-    EXIT_UTIL;
-}
-
-int Util::Rename( const char *path, const char *to )
-{
-    ENTER_PATH;
-    ret = ioStore->Rename( path, to );
     EXIT_UTIL;
 }
 
@@ -397,12 +376,12 @@ int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
         if (!buf) {
             goto out;
         }
-        read_len = Readlink(path, buf, PATH_MAX);
+        read_len = pathios->Readlink(path, buf, PATH_MAX);
         if (read_len < 0) {
             goto out;
         }
         buf[read_len] = 0;
-        ret = Symlink(buf, to);
+        ret = toios->Symlink(buf, to);
         goto out;
     }
     fd_from = pathios->Open(path, O_RDONLY);
@@ -464,27 +443,6 @@ out:
     EXIT_UTIL;
 }
 
-ssize_t Util::Readlink(const char *link, char *buf, size_t bufsize)
-{
-    ENTER_IO;
-    ret = ioStore->Readlink(link,buf,bufsize);
-    EXIT_UTIL;
-}
-
-int Util::Link( const char *path, const char *to )
-{
-    ENTER_PATH;
-    ret = ioStore->Link( path, to );
-    EXIT_UTIL;
-}
-
-int Util::Symlink( const char *path, const char *to )
-{
-    ENTER_PATH;
-    ret = ioStore->Symlink( path, to );
-    EXIT_UTIL;
-}
-
 int Util::Creat( const char *path, mode_t mode )
 {
     ENTER_PATH;
@@ -494,13 +452,6 @@ int Util::Creat( const char *path, mode_t mode )
     } else {
         ret = -errno;
     }
-    EXIT_UTIL;
-}
-
-int Util::Statvfs( const char *path, struct statvfs *stbuf )
-{
-    ENTER_PATH;
-    ret = ioStore->Statvfs(path,stbuf);
     EXIT_UTIL;
 }
 
@@ -534,13 +485,6 @@ int Util::Opendir( const char *path, DIR **dp )
     ENTER_PATH;
     *dp = ioStore->Opendir( path );
     ret = ( *dp == NULL ? -errno : 0 );
-    EXIT_UTIL;
-}
-
-int Util::Closedir( DIR *dp )
-{
-    ENTER_UTIL;
-    ret = ioStore->Closedir( dp );
     EXIT_UTIL;
 }
 
