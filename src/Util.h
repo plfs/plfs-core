@@ -56,10 +56,6 @@ class Util
 {
     public:
         // all the system calls
-        static int Access( const char *, int );
-        static int Chown( const char *, uid_t, gid_t );
-        static int Lchown( const char *, uid_t, gid_t );
-        static int Chmod( const char *, int );
         static int Closedir( DIR * );
         static int Creat( const char *, mode_t );
         static int Filesize(const char *);
@@ -90,8 +86,6 @@ class Util
         static int Symlink( const char *, const char * );
         static int Truncate( const char *, off_t length );
         static int Ftruncate( int fd, off_t length );
-        static int Unlink( const char * );
-        static int Utime( const char *, const struct utimbuf * );
 
         // other misc stuff
         static vector<string> &tokenize(    const string& str,

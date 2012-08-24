@@ -492,22 +492,6 @@ recover_directory(const char *logical, bool parent_only)
     return ret;
 }
 
-// simple function that takes a set of paths and unlinks them all
-int
-remove_all(vector<string> &unlinks)
-{
-    vector<string>::iterator itr;
-    int ret;
-    for(itr = unlinks.begin(); itr != unlinks.end(); itr++) {
-        //XXXCDC:iostore via NEEDED???
-        ret = Util::retValue(Util::Unlink((*itr).c_str()));
-        if(ret!=0) {
-            break;
-        }
-    }
-    return ret;
-}
-
 // a (non-thread proof) way to ensure we only init once
 bool
 plfs_conditional_init() {

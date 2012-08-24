@@ -315,12 +315,12 @@ Container::ignoreNoEnt( int ret )
 
 // really just need to do the access file
 int
-Container::Utime( const string& path, const struct utimbuf *ut )
+Container::Utime( const string& path, struct plfs_backend *back,
+                  const struct utimbuf *ut )
 {
     string accessfile = getAccessFilePath(path);
     mlog(CON_DAPI, "%s on %s", __FUNCTION__,path.c_str());
-    //XXXCDC:iostore NEEDED
-    return Util::retValue(Util::Utime(accessfile.c_str(),ut));
+    return Util::retValue(back->store->Utime(accessfile.c_str(),ut));
 }
 
 // the shared arguments passed to all of the indexer threads
@@ -1356,11 +1356,11 @@ Container::addOpenrecord( const string& path, struct plfs_backend *canback,
 }
 
 int
-Container::removeOpenrecord(const string& path,const string& host,pid_t pid)
+Container::removeOpenrecord(const string& path,struct plfs_backend *canback,
+                            const string& host,pid_t pid)
 {
     string openrecord = getOpenrecord( path, host, pid );
-    //XXXCDC:iostore NEEDED
-    return Util::Unlink( openrecord.c_str() );
+    return canback->store->Unlink( openrecord.c_str() );
 }
 
 // can this work without an access file?
@@ -1604,8 +1604,7 @@ Container::makeTopLevel( const string& expanded_path,
                  tmpName.c_str(), expanded_path.c_str(), strerror(errno) );
             if ( saveerrno == ENOTDIR ) {
                 // there's a normal file where we want to make our container
-                //XXXCDC:iostore via canback
-                saveerrno = Util::Unlink( expanded_path.c_str() );
+                saveerrno = canback->store->Unlink( expanded_path.c_str() );
                 mlog(CON_DRARE, "Unlink of %s: %d (%s)", expanded_path.c_str(), saveerrno, 
                     saveerrno ? strerror(saveerrno): "SUCCESS"); 
                 // should be success or ENOENT if someone else already unlinked
@@ -1619,8 +1618,7 @@ Container::makeTopLevel( const string& expanded_path,
             // if we get here, we lost the race
             mlog(CON_DCOMMON, "We lost the race to create toplevel %s,"
                             " cleaning up\n", expanded_path.c_str());
-            //XXXCDC:iostore via canback
-            if ( Util::Unlink( tmpAccess.c_str() ) < 0 ) {
+            if ( canback->store->Unlink( tmpAccess.c_str() ) < 0 ) {
                 mlog(CON_DRARE, "unlink of temporary %s failed : %s",
                      tmpAccess.c_str(), strerror(errno) );
             }

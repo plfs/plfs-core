@@ -195,8 +195,7 @@ int
 FlatFileSystem::chown( const char *logical, uid_t u, gid_t g )
 {
     FLAT_ENTER;
-    //XXXCDC:iostore via flatback
-    ret = Util::Lchown(path.c_str(),u,g);
+    ret = flatback->store->Lchown(path.c_str(),u,g);
     FLAT_EXIT(ret);
 }
 
@@ -204,8 +203,7 @@ int
 FlatFileSystem::chmod( const char *logical, mode_t mode )
 {
     FLAT_ENTER;
-    //XXXCDC:iostore via flatback
-    ret = Util::Chmod(path.c_str(),mode);
+    ret = flatback->store->Chmod(path.c_str(),mode);
     FLAT_EXIT(ret);
 }
 
@@ -226,8 +224,7 @@ int
 FlatFileSystem::access( const char *logical, int mask )
 {
     FLAT_ENTER;
-    //XXXCDC:iostore via flatback
-    ret = Util::Access(path.c_str(),mask);
+    ret = flatback->store->Access(path.c_str(),mask);
     FLAT_EXIT(ret);
 }
 
@@ -252,8 +249,7 @@ FlatFileSystem::rename( const char *logical, const char *to )
             ret = Util::CopyFile(old_canonical.c_str(), flatback->store,
                                  new_canonical.c_str(), targetback->store);
             if (ret == 0) {
-                //XXXCDC:iostore via flatback
-                ret = Util::Unlink(old_canonical.c_str());
+                ret = flatback->store->Unlink(old_canonical.c_str());
             }
             mlog(FUSE_DCOMMON, "Cross-device rename, do CopyFile+Unlink, "
                  "ret: %d. errno: %d.\n", ret, errno);
@@ -301,8 +297,7 @@ int
 FlatFileSystem::utime( const char *logical, struct utimbuf *ut )
 {
     FLAT_ENTER;
-    //XXXCDC:iostore via flatback
-    ret = Util::Utime(path.c_str(),ut);
+    ret = flatback->store->Utime(path.c_str(),ut);
     FLAT_EXIT(ret);
 }
 
@@ -328,8 +323,7 @@ int
 FlatFileSystem::unlink( const char *logical )
 {
     FLAT_ENTER;
-    //XXXCDC:iostore via flatback
-    ret = Util::Unlink(path.c_str());
+    ret = flatback->store->Unlink(path.c_str());
     FLAT_EXIT(ret);
 }
 

@@ -78,7 +78,8 @@ class Container
                                  struct timespec * );
         static int addOpenrecord( const string&, struct plfs_backend *,
                                   const string&, pid_t );
-        static int removeOpenrecord( const string&, const string&, pid_t );
+        static int removeOpenrecord( const string&, struct plfs_backend *,
+                                     const string&, pid_t );
 
         static size_t getHostDirId( const string& );
         static string getHostDirPath( const string&,
@@ -115,7 +116,8 @@ class Container
                             struct stat *);
 
         static mode_t getmode( const string& );
-        static int Utime( const string& path, const struct utimbuf *buf );
+        static int Utime( const string& path, struct plfs_backend *,
+                          const struct utimbuf *buf );
         static int Truncate( const string&, off_t, struct plfs_backend * );
         //static int Access( const string &path, int mask );
 

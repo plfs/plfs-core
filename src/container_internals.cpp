@@ -428,8 +428,14 @@ container_access( const char *logical, int mask )
     // possible they are using container_access to check non-plfs file....
     PLFS_ENTER2(PLFS_PATH_NOTREQUIRED);
     if (expansion_info.expand_error) {
-        //XXXCDC:iostore via ????
-        ret = retValue(Util::Access(logical,mask));
+        /*
+         * XXXCDC: can this really happen?  and if it does how would you
+         * know what backend to use since the expand failed?  doesn't
+         * make sense to call access on a logical path....
+         */
+        mlog(MLOG_CRIT, "container_access on bad file %s", logical);
+        /*  ret = retValue(Util::Access(logical,mask)); */
+        ret = -EIO;
     } else {
         // oh look.  someone here is using PLFS for its intended purpose to
         // access an actual PLFS entry.  And look, it's so easy to handle!
@@ -2137,7 +2143,7 @@ container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
     mlog(PLFS_DCOMMON, "%s %s to %u: %d",__FUNCTION__,path.c_str(),
          (uint)offset,ret);
     if ( ret == 0 ) { // update the timestamp
-        ret = Container::Utime( path, NULL );
+        ret = Container::Utime( path, expansion_info.backend, NULL );
     }
     PLFS_EXIT(ret);
 }
@@ -2293,7 +2299,8 @@ container_close( Container_OpenFile *pfd, pid_t pid, uid_t uid, int open_flags,
                                    Util::hostname(),uid,wf->createTime(),
                                    close_opt?close_opt->pinter:-1,
                                    max_writers);
-                Container::removeOpenrecord( pfd->getPath(), Util::hostname(),
+                Container::removeOpenrecord( pfd->getPath(), pfd->getCanBack(),
+                                             Util::hostname(),
                                              pfd->getPid());
             }
             // the pfd remembers the first pid added which happens to be the
