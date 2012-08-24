@@ -68,8 +68,7 @@ int Access( const string& path, IOStore *store, int mask )
     mlog(FOP_DAPI, "%s Check existence of %s",
         __FUNCTION__, cstr);
 
-    //XXXCDC:iostore via store
-    ret = Util::Access( cstr, F_OK );
+    ret = store->Access( cstr, F_OK );
     if ( ret == 0 ) {
         // at this point, we know the file exists
         if(checkMask(mask,W_OK|R_OK)) {
@@ -101,7 +100,7 @@ int
 AccessOp::do_op(const char *path, unsigned char isfile, IOStore *store)
 {
     if (isfile==DT_CONTAINER || isfile==DT_DIR || isfile==DT_LNK) {
-        return Util::Access(path,mask);
+        return store->Access(path,mask);
     } else if (isfile==DT_REG) {
         return Access(path,store,mask);
     } else {
@@ -118,8 +117,7 @@ ChownOp::ChownOp(uid_t u, gid_t g)
 int
 ChownOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store )
 {
-    //XXXCDC:iostore via store
-    return Util::Chown(path,u,g);
+    return store->Chown(path,u,g);
 }
 
 TruncateOp::TruncateOp(bool open_file)
@@ -157,8 +155,7 @@ TruncateOp::do_op(const char *path, unsigned char isfile, IOStore *store)
         //XXXCDC:iostore via store
         return Util::Truncate(path,0);
     } else {
-        //XXXCDC:iostore via store
-        return Util::Unlink(path);
+        return store->Unlink(path);
     }
 }
 
@@ -172,11 +169,9 @@ int
 UnlinkOp::do_op(const char *path, unsigned char isfile, IOStore *store)
 {
     if (isfile==DT_REG || isfile==DT_LNK) {
-        //XXXCDC:iostore via store
-        return Util::Unlink(path);
+        return store->Unlink(path);
     } else if (isfile==DT_DIR||isfile==DT_CONTAINER) {
-        //XXXCDC:iostore via store
-        return Util::Rmdir(path);
+        return store->Rmdir(path);
     } else {
         return -ENOSYS;
     }
@@ -356,6 +351,5 @@ UtimeOp::UtimeOp(struct utimbuf *ut)
 int
 UtimeOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
 {
-    //XXXCDC:iostore via store
-    return Util::Utime(path,ut);
+    return store->Utime(path,ut);
 }

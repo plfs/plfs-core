@@ -333,28 +333,6 @@ void Util::addTime( string function, double elapsed, bool error )
     pthread_mutex_unlock( &time_mux );
 }
 
-int Util::Utime( const char *path, const struct utimbuf *buf )
-{
-    ENTER_PATH;
-    ret = ioStore->Utime( path, buf );
-    EXIT_UTIL;
-}
-
-int Util::Unlink( const char *path )
-{
-    ENTER_PATH;
-    ret = ioStore->Unlink( path );
-    EXIT_UTIL;
-}
-
-
-int Util::Access( const char *path, int mode )
-{
-    ENTER_PATH;
-    ret = ioStore->Access( path, mode );
-    EXIT_UTIL;
-}
-
 int Util::Mknod( const char *path, mode_t mode, dev_t dev )
 {
     ENTER_PATH;
@@ -492,7 +470,7 @@ done:
     pathios->Close(fd_from);
     toios->Close(fd_to);
     if (ret) {
-        Unlink(to);    // revert our change, delete the file created.
+        toios->Unlink(to);    // revert our change, delete the file created.
     }
 out:
     if (buf) {
@@ -634,27 +612,6 @@ bool Util::isDirectory( const char *path, struct plfs_backend *back )
         exists = isDirectory( &buf );
     }
     ret = exists;
-    EXIT_UTIL;
-}
-
-int Util::Chown( const char *path, uid_t uid, gid_t gid )
-{
-    ENTER_PATH;
-    ret = ioStore->Chown( path, uid, gid );
-    EXIT_UTIL;
-}
-
-int Util::Lchown( const char *path, uid_t uid, gid_t gid )
-{
-    ENTER_PATH;
-    ret = ioStore->Lchown( path, uid, gid );
-    EXIT_UTIL;
-}
-
-int Util::Chmod( const char *path, int flags )
-{
-    ENTER_PATH;
-    ret = ioStore->Chmod( path, flags );
     EXIT_UTIL;
 }
 

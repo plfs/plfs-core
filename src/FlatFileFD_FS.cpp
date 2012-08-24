@@ -279,8 +279,7 @@ FlatFileSystem::rename( const char *logical, const char *to )
             ret = Util::CopyFile(old_canonical.c_str(), flatback->store,
                                  new_canonical.c_str(), targetback->store);
             if (ret == 0) {
-                //XXXCDC:iostore via flatback
-                ret = Util::Unlink(old_canonical.c_str());
+                ret = flatback->store->Unlink(old_canonical.c_str());
             }
             mlog(FUSE_DCOMMON, "Cross-device rename, do CopyFile+Unlink, "
                  "ret: %d. errno: %d.\n", ret, errno);
