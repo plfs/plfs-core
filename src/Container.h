@@ -130,7 +130,7 @@ class Container
         static int getattr( const string&, struct plfs_backend *,
                             struct stat *);
 
-        static mode_t getmode( const string& );
+        static mode_t getmode( const string&, struct plfs_backend * );
         static int Utime( const string& path, struct plfs_backend *,
                           const struct utimbuf *buf );
         static int Truncate( const string&, off_t, struct plfs_backend * );

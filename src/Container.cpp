@@ -92,7 +92,7 @@ Container::transferCanonical(const plfs_pathback *from,
             // except for global index.  We should really copy global
             // index over.  Someone do that later.  Now we just ophan it.
             // for the zero length ones, just create them new, delete old.
-            if (Util::Filesize(old_path.c_str())==0) {
+            if (Util::Filesize(old_path.c_str(),from->back->store)==0) {
                 ret = cop.op(new_path.c_str(),DT_REG,to->back->store);
                 if (ret==0) {
                     ret = uop.op(old_path.c_str(),DT_REG,from->back->store);
@@ -226,8 +226,8 @@ Container::isContainer( const struct plfs_pathback *physical_path,
     mlog(CON_DAPI, "%s checking %s", __FUNCTION__,
          physical_path->bpath.c_str());
     struct stat buf;
-    //XXXCDC:iostore via physical_path->back
-    int ret = Util::Lstat( physical_path->bpath.c_str(), &buf );
+    int ret = physical_path->back->store->Lstat(physical_path->bpath.c_str(),
+                                                &buf);
     if ( ret == 0 ) {
         if ( mode ) {
             *mode = buf.st_mode;
@@ -237,8 +237,8 @@ Container::isContainer( const struct plfs_pathback *physical_path,
             mlog(CON_DCOMMON, "%s %s is a directory", __FUNCTION__,
                  physical_path->bpath.c_str());
             string accessfile = getAccessFilePath(physical_path->bpath);
-            //XXXCDC:iostore via physical_path->back
-            ret = Util::Lstat( accessfile.c_str(), &buf );
+            ret = physical_path->back->store->Lstat(accessfile.c_str(),
+                                                    &buf);
             if ( ret == 0 && mode ) {
                 mlog(CON_DCOMMON, "%s %s is a container", __FUNCTION__,
                      physical_path->bpath.c_str());
@@ -869,7 +869,7 @@ Container::createMetalink(struct plfs_backend *canback,
         }
 
         /* remember the first normal directory we hit */
-        if (Util::isDirectory(oss.str().c_str(), canback)) {
+        if (Util::isDirectory(oss.str().c_str(), canback->store)) {
             if (dir_id == -1) {
                 dir_id = id;
             }
@@ -1372,11 +1372,10 @@ Container::removeOpenrecord(const string& path,struct plfs_backend *canback,
 // can this work without an access file?
 // just return the directory mode right but change it to be a normal file
 mode_t
-Container::getmode( const string& path )
+Container::getmode( const string& path, struct plfs_backend *back )
 {
     struct stat stbuf;
-    //XXXCDC:iostore NEEDED
-    if ( Util::Lstat( path.c_str(), &stbuf ) < 0 ) {
+    if ( back->store->Lstat( path.c_str(), &stbuf ) < 0 ) {
         mlog(CON_WARN, "Failed to getmode for %s", path.c_str() );
         return CONTAINER_MODE;
     } else {
@@ -1415,8 +1414,7 @@ Container::getattr( const string& path, struct plfs_backend *canback,
     int ret = 0;
     // get the permissions and stuff from the access file
     string accessfile = getAccessFilePath( path );
-    //XXXCDC:iostore via canback
-    if ( Util::Lstat( accessfile.c_str(), stbuf ) < 0 ) {
+    if ( canback->store->Lstat( accessfile.c_str(), stbuf ) < 0 ) {
         mlog(CON_DRARE, "%s lstat of %s failed: %s",
              __FUNCTION__, accessfile.c_str(), strerror( errno ) );
         return -errno;
@@ -1504,8 +1502,8 @@ Container::getattr( const string& path, struct plfs_backend *canback,
             // stat the dropping to get the timestamps
             // then read the index info
             struct stat dropping_st;
-            //XXXCDC:iostore via dropping.back->store
-            if (Util::Lstat(dropping.bpath.c_str(), &dropping_st) < 0 ) {
+            if (dropping.back->store->Lstat(dropping.bpath.c_str(),
+                                            &dropping_st) < 0 ) {
                 ret = -errno;
                 mlog(CON_DRARE, "lstat of %s failed: %s",
                      dropping.bpath.c_str(), strerror( errno ) );
@@ -1844,7 +1842,8 @@ Container::makeHostDir(const ContainerPaths& paths,mode_t mode,
                 oss.str(std::string());
                 oss << canonical_path_without_id << id;
                 ret = makeSubdir(oss.str().c_str(),mode,paths.canonicalback);
-                if (Util::isDirectory(oss.str().c_str(),paths.canonicalback)) {
+                if (Util::isDirectory(oss.str().c_str(),
+                                      paths.canonicalback->store)) {
                     // make subdir successfully or
                     // a sibling raced us and made one for us
                     ret = 0;
@@ -1903,7 +1902,7 @@ Container::makeSubdir( const string& path, mode_t mode, struct plfs_backend *b )
 {
     int ret;
     ret =  b->store->Mkdir(path.c_str(), Container::subdirMode(mode));
-    if (errno == EEXIST && Util::isDirectory(path.c_str(),b)){
+    if (errno == EEXIST && Util::isDirectory(path.c_str(),b->store)){
         ret = 0;
     }
 

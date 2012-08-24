@@ -340,14 +340,6 @@ int Util::Mknod( const char *path, mode_t mode, dev_t dev )
     EXIT_UTIL;
 }
 
-int Util::Truncate( const char *path, off_t length )
-{
-    ENTER_PATH;
-    ret = ioStore->Truncate( path, length );
-    EXIT_UTIL;
-}
-
-
 int Util::MutexLock(  pthread_mutex_t *mux , const char *where )
 {
     ENTER_MUX;
@@ -377,13 +369,6 @@ int Util::Rmdir( const char *path )
     EXIT_UTIL;
 }
 
-int Util::Lstat( const char *path, struct stat *st )
-{
-    ENTER_PATH;
-    ret = ioStore->Lstat( path, st );
-    EXIT_UTIL;
-}
-
 int Util::Rename( const char *path, const char *to )
 {
     ENTER_PATH;
@@ -402,7 +387,7 @@ int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
     char *buf = NULL, *ptr;
     struct stat sbuf;
     mode_t stored_mode;
-    ret = Lstat(path, &sbuf);
+    ret = pathios->Lstat(path, &sbuf);
     if (ret) {
         goto out;
     }
@@ -584,13 +569,12 @@ int Util::Lseek( int fildes, off_t offset, int whence, off_t *result )
     EXIT_UTIL;
 }
 
-bool Util::exists( const char *path, struct plfs_backend *backend )
+bool Util::exists( const char *path, IOStore *store )
 {
     ENTER_PATH;
     bool exists = false;
     struct stat buf;
-    //XXXCDC:iostore via backend
-    if (Util::Lstat(path, &buf) == 0) {
+    if (store->Lstat(path, &buf) == 0) {
         exists = true;
     }
     ret = exists;
@@ -602,34 +586,26 @@ bool Util::isDirectory( struct stat *buf )
     return (S_ISDIR(buf->st_mode) && !S_ISLNK(buf->st_mode));
 }
 
-bool Util::isDirectory( const char *path, struct plfs_backend *back )
+bool Util::isDirectory( const char *path, IOStore *store)
 {
     ENTER_PATH;
     bool exists = false;
     struct stat buf;
-    //XXXCDC:iostore use back
-    if ( Util::Lstat( path, &buf ) == 0 ) {
+    if ( store->Lstat( path, &buf ) == 0 ) {
         exists = isDirectory( &buf );
     }
     ret = exists;
     EXIT_UTIL;
 }
 
-int Util::Filesize(const char *path)
+int Util::Filesize(const char *path, IOStore *store)
 {
     ENTER_PATH;
     struct stat stbuf;
-    ret = Stat(path,&stbuf);
+    ret = store->Stat(path,&stbuf);
     if (ret==0) {
         ret = (int)stbuf.st_size;
     }
-    EXIT_UTIL;
-}
-
-int Util::Fsync( int fd)
-{
-    ENTER_UTIL;
-    ret = ioStore->Fsync( fd );
     EXIT_UTIL;
 }
 
@@ -822,25 +798,4 @@ char *Util::hostname()
     }
     init = true;
     return hname;
-}
-
-int Util::Stat(const char *path, struct stat *file_info)
-{
-    ENTER_PATH;
-    ret = ioStore->Stat( path , file_info );
-    EXIT_UTIL;
-}
-
-int Util::Fstat(int fd, struct stat *file_info)
-{
-    ENTER_UTIL;
-    ret = ioStore->Fstat(fd, file_info);
-    EXIT_UTIL;
-}
-
-int Util::Ftruncate(int fd, off_t offset)
-{
-    ENTER_UTIL;
-    ret = ioStore->Ftruncate(fd, offset);
-    EXIT_UTIL;
 }
