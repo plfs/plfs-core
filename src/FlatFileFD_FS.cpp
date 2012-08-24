@@ -34,8 +34,7 @@ Flat_fd::~Flat_fd()
 {
     if (refs > 0 || backend_fd >= 0) {
         plfs_debug("File %s is not closed!\n", backend_pathname.c_str());
-        //XXXCDC:iostore via this->back
-        Util::Close(backend_fd);
+        this->back->store->Close(backend_fd);
     }
 }
 
@@ -95,8 +94,7 @@ Flat_fd::close(pid_t pid, uid_t u, int flags, Plfs_close_opt *unused)
         return refs;    // Others are still using this fd.
     }
     if (backend_fd >= 0) {
-        //XXXCDC:iostore via this->back
-        Util::Close(backend_fd);
+        this->back->store->Close(backend_fd);
         backend_fd = -1;
     }
     return 0; // Safe to delete the fd.
@@ -105,16 +103,14 @@ Flat_fd::close(pid_t pid, uid_t u, int flags, Plfs_close_opt *unused)
 ssize_t
 Flat_fd::read(char *buf, size_t size, off_t offset)
 {
-    //XXXCDC:iostore via this->back
-    int ret = Util::Pread(backend_fd, buf, size, offset);
+    int ret = this->back->store->Pread(backend_fd, buf, size, offset);
     FLAT_EXIT(ret);
 }
 
 ssize_t
 Flat_fd::write(const char *buf, size_t size, off_t offset, pid_t pid)
 {
-    //XXXCDC:iostore via this->back
-    int ret = Util::Pwrite(backend_fd, buf, size, offset);
+    int ret = this->back->store->Pwrite(backend_fd, buf, size, offset);
     FLAT_EXIT(ret);
 }
 

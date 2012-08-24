@@ -143,7 +143,7 @@ int WriteFile::addWriter( pid_t pid, bool child )
     if ( ofd ) {
         ofd->writers++;
     } else {
-        //XXXCDC:iostore via subdirback (pulls from object)
+        /* note: this uses subdirback from object to open */
         int fd = openDataFile( subdir_path, hostname, pid, DROPPING_MODE);
         if ( fd >= 0 ) {
             struct OpenFd ofd;
@@ -233,13 +233,13 @@ struct OpenFd *WriteFile::getFd( pid_t pid ) {
     return ofd;
 }
 
+/* uses this->subdirback for close */
 int WriteFile::closeFd( int fd )
 {
     map<int,string>::iterator paths_itr;
     paths_itr = paths.find( fd );
     string path = ( paths_itr == paths.end() ? "ENOENT?" : paths_itr->second );
-    //XXXCDC:iostore via subdirback
-    int ret = Util::Close( fd );
+    int ret = this->subdirback->store->Close(fd);
     mlog(WF_DAPI, "%s:%s closed fd %d for %s: %d %s",
          __FILE__, __FUNCTION__, fd, path.c_str(), ret,
          ( ret != 0 ? strerror(errno) : "success" ) );
@@ -318,8 +318,8 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
         // write the data file
         double begin, end;
         begin = Util::getTime();
-        //XXXCDC:iostore via subdirback
-        ret = written = ( size ? Util::Write( fd, buf, size ) : 0 );
+        ret = written = ( size ? this->subdirback->store->Write( fd, buf,
+                                                                 size ) : 0 );
         end = Util::getTime();
         // then the index
         if ( ret >= 0 ) {
@@ -352,7 +352,7 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
 int WriteFile::openIndex( pid_t pid ) {
     int ret = 0;
     string index_path;
-    //XXXCDC:iostore via subdirback (pulls from object?)
+    /* note: this uses subdirback from obj to open */
     int fd = openIndexFile(subdir_path, hostname, pid, DROPPING_MODE,
                            &index_path);
     if ( fd < 0 ) {
@@ -414,6 +414,7 @@ int WriteFile::truncate( off_t offset )
     return 0;
 }
 
+/* uses this->subdirback to open */
 int WriteFile::openIndexFile(string path, string host, pid_t p, mode_t m,
                              string *index_path)
 {
@@ -421,6 +422,7 @@ int WriteFile::openIndexFile(string path, string host, pid_t p, mode_t m,
     return openFile(*index_path,m);
 }
 
+/* uses this->subdirback to open */
 int WriteFile::openDataFile(string path, string host, pid_t p, mode_t m)
 {
     return openFile(Container::getDataPath(path,host,p,createtime),m);
@@ -475,11 +477,11 @@ int WriteFile::restoreFds( bool droppings_were_truncd )
             return -ENOENT;
         }
         string indexpath = paths_itr->second;
-        //XXXCDC:iostore via ib
+        /* note: this uses subdirback from object */
         if ( closeFd( restfd ) != 0 ) {
             return -errno;
         }
-        //XXXCDC:iostore via ib
+        /* note: this uses subdirback from object */
         if ( (ret = openFile( indexpath, mode )) < 0 ) {
             return -errno;
         }
@@ -497,11 +499,11 @@ int WriteFile::restoreFds( bool droppings_were_truncd )
             return -ENOENT;
         }
         string datapath = paths_itr->second;
-        //XXXCDC:iostore data always on this->subdirback?
+        /* note: this uses subdirback from object */
         if ( closeFd( pids_itr->second.fd ) != 0 ) {
             return -errno;
         }
-        //XXXCDC:iostore data always on this->subdirback?
+        /* note: this uses subdirback from object */
         pids_itr->second.fd = openFile( datapath, mode );
         if ( pids_itr->second.fd < 0 ) {
             return -errno;

@@ -397,8 +397,7 @@ Index::~Index()
         if ( chunk_map[i].fd > 0 ) {
             mlog(IDX_DCOMMON, "Closing fd %d for %s",
                  (int)chunk_map[i].fd, chunk_map[i].bpath.c_str() );
-            //XXXCDC:iostore via chunk_map[i].backend->store->Close
-            Util::Close( chunk_map[i].fd );
+            chunk_map[i].backend->store->Close(chunk_map[i].fd);
         }
     }
     pthread_mutex_destroy( &fd_mux );
@@ -529,8 +528,7 @@ Index::flush()
     // but it's fine as far as I can tell.
     //XXXCDC: it is prob complaining about structure padding
     void *start = &(hostIndex.front());
-    //XXXCDC:iostore via iobjback
-    int ret     = Util::Writen( fd, start, len );
+    int ret     = Util::Writen( fd, start, len, this->iobjback->store );
     if ( (size_t)ret != (size_t)len ) {
         mlog(IDX_DRARE, "%s failed write to fd %d: %s",
              __FUNCTION__, fd, strerror(errno));
@@ -763,8 +761,7 @@ int Index::global_to_file(int fd, struct plfs_backend *canback)
     size_t length;
     int ret = global_to_stream(&buffer,&length);
     if (ret==0) {
-        //XXXCDC:iostore via canback
-        ret = Util::Writen(fd,buffer,length);
+        ret = Util::Writen(fd,buffer,length,canback->store);
         ret = ( (size_t)ret == length ? 0 : -errno );
         free(buffer);
     }
@@ -1118,8 +1115,7 @@ Index::cleanupReadIndex( int fd, void *maddr, off_t length, int ret,
         mlog(IDX_DRARE, "mmap failed on %s: %s",indexfile,strerror(errno));
     }
     if ( fd > 0 ) {
-        //XXXCDC:iostore via hback
-        ret3 = Util::Close( fd );
+        ret3 = hback->store->Close(fd);
         if ( ret3 < 0 ) {
             mlog(IDX_DRARE,
                  "WTF. readIndex failed during close of %s: %s",

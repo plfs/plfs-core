@@ -60,7 +60,6 @@ class Util
         static int Chown( const char *, uid_t, gid_t );
         static int Lchown( const char *, uid_t, gid_t );
         static int Chmod( const char *, int );
-        static int Close( int );
         static int Closedir( DIR * );
         static int Creat( const char *, mode_t );
         static int Filesize(const char *);
@@ -76,9 +75,6 @@ class Util
         static int MutexLock( pthread_mutex_t *mux, const char *whence );
         static int MutexUnlock( pthread_mutex_t *mux, const char *whence );
         static int Opendir( const char *dirname, DIR ** );
-        static ssize_t Pread( int, void *, size_t, off_t );
-        static ssize_t Pwrite(int, const void *buf, size_t count, off_t offset);
-        static ssize_t Read( int, void *, size_t );
         static int Readdir(DIR *, dirent **);
         static ssize_t Readlink(const char *, char *buf, size_t bufsize);
         static int Rename( const char *, const char * );
@@ -96,7 +92,6 @@ class Util
         static int Ftruncate( int fd, off_t length );
         static int Unlink( const char * );
         static int Utime( const char *, const struct utimbuf * );
-        static ssize_t Write( int, const void *, size_t );
 
         // other misc stuff
         static vector<string> &tokenize(    const string& str,
@@ -108,7 +103,7 @@ class Util
         static bool isDirectory( struct stat *buf );
         static bool isDirectory( const char *, struct plfs_backend * );
         static double getTime();
-        static ssize_t Writen( int, const void *, size_t );
+        static ssize_t Writen( int, const void *, size_t, IOStore * );
         static string toString();
         static string openFlagsToString( int );
         static string expandPath( string path, string hostname );

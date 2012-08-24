@@ -90,8 +90,7 @@ int Access( const string& path, IOStore *store, int mask )
         ret = store->Open(cstr,open_mode);
         mlog(FOP_DCOMMON, "Open returns %d",ret);
         if(ret >= 0 ) {
-            //XXXCDC:iostore via store
-            ret = Util::Close(ret);
+            store->Close(ret);
         }
     }
     delete cstr;
