@@ -58,13 +58,11 @@ class Util
         // all the system calls
         static int Closedir( DIR * );
         static int Creat( const char *, mode_t );
-        static int Filesize(const char *);
-        static int Fsync( int );
+        static int Filesize(const char *, IOStore *);
         static uid_t Getuid();
         static gid_t Getgid();
         static int Link(const char *,const char *);
         static int Lseek( int fildes, off_t offset, int whence, off_t *result );
-        static int Lstat( const char *, struct stat * );
         static int Mknod( const char *path, mode_t mode, dev_t dev );
         static int Mmap( size_t, int, void ** );
         static int Munmap( void *, size_t );
@@ -79,13 +77,9 @@ class Util
         static int Rmdir( const char * );
         static int Setfsgid( gid_t );
         static int Setfsuid( uid_t );
-        static int Stat( const char *path, struct stat *file_info);
-        static int Fstat( int fd, struct stat *file_info);
         static int Statvfs( const char *, struct statvfs * );
         static char *Strdup(const char *s1);
         static int Symlink( const char *, const char * );
-        static int Truncate( const char *, off_t length );
-        static int Ftruncate( int fd, off_t length );
 
         // other misc stuff
         static vector<string> &tokenize(    const string& str,
@@ -93,9 +87,9 @@ class Util
                                             vector<string> &tokens);
         static void SeriousError(string,pid_t);
         static void OpenError(const char *, const char *,int,int,pid_t);
-        static bool exists( const char *, struct plfs_backend * );
+        static bool exists( const char *, IOStore *);
         static bool isDirectory( struct stat *buf );
-        static bool isDirectory( const char *, struct plfs_backend * );
+        static bool isDirectory( const char *, IOStore *);
         static double getTime();
         static ssize_t Writen( int, const void *, size_t, IOStore * );
         static string toString();

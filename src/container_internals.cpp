@@ -576,7 +576,8 @@ int
 container_rmdir( const char *logical )
 {
     PLFS_ENTER;
-    mode_t mode = Container::getmode(path); // save in case we need to restore
+    // save mode in case we need to restore
+    mode_t mode = Container::getmode(path, expansion_info.backend);
     UnlinkOp op;
     ret = plfs_iterate_backends(logical,op);
     // check if we started deleting non-empty dirs, if so, restore
@@ -1950,8 +1951,8 @@ container_getattr(Container_OpenFile *of, const char *logical,
         } else {
             mlog(PLFS_DCOMMON, "%s on non plfs file %s", __FUNCTION__,
                  path.c_str());
-            //XXXCDC:iostore from PLFS_ENTER?
-            ret = retValue( Util::Lstat( path.c_str(), stbuf ) );
+            ret = retValue( expansion_info.backend->store->Lstat(path.c_str(),
+                                                                 stbuf ) );
         }
     } else {    // operating on a plfs file here
         // there's a lazy stat flag, sz_only, which means all the caller
@@ -2004,7 +2005,7 @@ int
 container_mode(const char *logical, mode_t *mode)
 {
     PLFS_ENTER;
-    *mode = Container::getmode(path);
+    *mode = Container::getmode(path, expansion_info.backend);
     PLFS_EXIT(ret);
 }
 
@@ -2041,8 +2042,8 @@ container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
         if ( mode == 0 ) {
             ret = -ENOENT;
         } else {
-            //XXXCDC:iostore from PLFS_ENTER
-            ret = retValue( Util::Truncate(path.c_str(),offset) );
+            ret = retValue(expansion_info.backend->store->Truncate(path.c_str(),
+                                                                   offset));
         }
         PLFS_EXIT(ret);
     }
@@ -2053,8 +2054,7 @@ container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
         // all the droppings are global so we can truncate them but
         // the access file has the correct permissions
         string access = Container::getAccessFilePath(path);
-        //XXCDC:iostore use backend from PLFS_ENTER for canonical
-        ret = Util::Truncate(access.c_str(),0);
+        ret = expansion_info.backend->store->Truncate(access.c_str(),0);
         mlog(PLFS_DCOMMON, "Tested truncate of %s: %d",access.c_str(),ret);
         if ( ret == 0 ) {
             // this is easy, just remove/trunc all droppings

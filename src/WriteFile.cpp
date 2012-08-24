@@ -81,8 +81,7 @@ int WriteFile::sync()
     Util::MutexLock( &data_mux, __FUNCTION__ );
     map<pid_t, OpenFd >::iterator pids_itr;
     for( pids_itr = fds.begin(); pids_itr != fds.end() && ret==0; pids_itr++ ) {
-        //XXXCDC:iostore via subdirback
-        ret = Util::Fsync( pids_itr->second.fd );
+        ret = this->subdirback->store->Fsync( pids_itr->second.fd );
     }
     Util::MutexUnlock( &data_mux, __FUNCTION__ );
 
@@ -96,8 +95,7 @@ int WriteFile::sync()
         struct plfs_backend *ib;
         syncfd = index->getFd(&ib);
         //XXXCDC:iostore maybe index->flush() should have a sync param?
-        //XXXCDC:iostore via ib
-        ret = Util::Fsync( syncfd );
+        ret = ib->store->Fsync( syncfd );
     }
     Util::MutexUnlock( &index_mux, __FUNCTION__ );
     return ret;
@@ -112,7 +110,7 @@ int WriteFile::sync( pid_t pid )
         //ret = -ENOENT;
     } else {
         //XXXCDC:iostore via subdirback
-        ret = Util::Fsync( ofd->fd );
+        ret = this->subdirback->store->Fsync( ofd->fd );
         Util::MutexLock( &index_mux, __FUNCTION__ );
         if ( ret == 0 ) {
             index->flush();
@@ -122,8 +120,7 @@ int WriteFile::sync( pid_t pid )
             struct plfs_backend *ib;
             syncfd = index->getFd(&ib);
             //XXXCDC:iostore maybe index->flush() should have a sync param?
-            //XXXCDC:iostore via ib
-           ret = Util::Fsync( syncfd );
+            ret = ib->store->Fsync( syncfd );
         }
         Util::MutexUnlock( &index_mux, __FUNCTION__ );
         if ( ret != 0 ) {

@@ -152,8 +152,7 @@ TruncateOp::do_op(const char *path, unsigned char isfile, IOStore *store)
     // we made it here, we don't ignore it
     // do we want to do an unlink or a truncate?
     if (open_file) {
-        //XXXCDC:iostore via store
-        return Util::Truncate(path,0);
+        return store->Truncate(path,0);
     } else {
         return store->Unlink(path);
     }

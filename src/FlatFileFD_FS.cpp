@@ -90,8 +90,7 @@ Flat_fd::write(const char *buf, size_t size, off_t offset, pid_t pid)
 int
 Flat_fd::sync()
 {
-    //XXXCDC:iostore via this->back
-    int ret = Util::Fsync(backend_fd);
+    int ret = this->back->store->Fsync(backend_fd);
     FLAT_EXIT(ret);
 }
 
@@ -106,16 +105,14 @@ Flat_fd::sync(pid_t pid)
 int
 Flat_fd::trunc(const char *path, off_t offset)
 {
-    //XXXCDC:iostore via this->back
-    int ret = Util::Ftruncate(backend_fd, offset);
+    int ret = this->back->store->Ftruncate(backend_fd, offset);
     FLAT_EXIT(ret);
 }
 
 int
 Flat_fd::getattr(const char *path, struct stat *stbuf, int sz_only)
 {
-    //XXXCDC:iostore via this->back
-    int ret = Util::Fstat(backend_fd, stbuf);
+    int ret = this->back->store->Fstat(backend_fd, stbuf);
     FLAT_EXIT(ret);
 }
 
@@ -212,8 +209,7 @@ FlatFileSystem::getmode( const char *logical, mode_t *mode)
 {
     struct stat stbuf;
     FLAT_ENTER;
-    //XXXCDC:iostore via flatback
-    ret = Util::Lstat(path.c_str(), &stbuf);
+    ret = flatback->store->Lstat(path.c_str(), &stbuf);
     if (ret == 0) {
         *mode = stbuf.st_mode;
     }
@@ -234,8 +230,7 @@ FlatFileSystem::rename( const char *logical, const char *to )
     FLAT_ENTER;
     EXPAND_TARGET;
     struct stat stbuf;
-    //XXXCDC:iostore via flatback
-    ret = Util::Lstat(old_canonical.c_str(), &stbuf);
+    ret = flatback->store->Lstat(old_canonical.c_str(), &stbuf);
     if (ret < 0) {
         goto out;
     }
@@ -305,8 +300,7 @@ int
 FlatFileSystem::getattr(const char *logical, struct stat *stbuf,int sz_only)
 {
     FLAT_ENTER;
-    //XXXCDC:iostore via flatback
-    ret = Util::Lstat(path.c_str(),stbuf);
+    ret = flatback->store->Lstat(path.c_str(),stbuf);
     FLAT_EXIT(ret);
 }
 
@@ -314,8 +308,7 @@ int
 FlatFileSystem::trunc(const char *logical, off_t offset, int open_file)
 {
     FLAT_ENTER;
-    //XXXCDC:iostore via flatback
-    ret = Util::Truncate(path.c_str(),offset);
+    ret = flatback->store->Truncate(path.c_str(),offset);
     FLAT_EXIT(ret);
 }
 
