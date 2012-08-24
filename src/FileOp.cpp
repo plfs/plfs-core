@@ -171,8 +171,7 @@ UnlinkOp::do_op(const char *path, unsigned char isfile, IOStore *store)
         //XXXCDC:iostore via store
         return store->Unlink(path);
     } else if (isfile==DT_DIR) {
-        //XXXCDC:iostore via store
-        return Util::Rmdir(path);
+        return store->Rmdir(path);
     } else {
         return -ENOSYS;
     }
@@ -287,8 +286,7 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
             names->insert(file);
         }
     }
-    //XXXCDC:iostore via store
-    Util::Closedir(dir);
+    store->Closedir(dir);
     if (ret==1) {
         ret = 0;    // read to end of directory
     }

@@ -235,9 +235,8 @@ FlatFileSystem::rename( const char *logical, const char *to )
         goto out;
     }
     if (S_ISREG(stbuf.st_mode) || S_ISLNK(stbuf.st_mode)) {
-        //XXXCDC:iostore via flatback, targetback
-        ret = Util::retValue(Util::Rename(old_canonical.c_str(),
-                                          new_canonical.c_str()));
+        ret = Util::retValue(flatback->store->Rename(old_canonical.c_str(),
+                                                     new_canonical.c_str()));
         // EXDEV is expected when the rename crosses different volumes.
         // We should do the copy+unlink in this case.
         if (ret == -EXDEV) {
@@ -261,8 +260,9 @@ FlatFileSystem::rename( const char *logical, const char *to )
         // now go through and rename all of them (ignore ENOENT)
         for(size_t i = 0; i < srcs.size(); i++) {
             //XXXCDC:iostore via flatback
-            int err = Util::retValue(Util::Rename(srcs[i].bpath.c_str(),
-                                                  dsts[i].bpath.c_str()));
+            int err;
+            err = Util::retValue(flatback->store->Rename(srcs[i].bpath.c_str(),
+                                                        dsts[i].bpath.c_str()));
             if (err == -ENOENT) {
                 err = 0;    // might not be distributed on all
             }
@@ -336,8 +336,7 @@ int
 FlatFileSystem::readlink(const char *logical, char *buf, size_t bufsize)
 {
     FLAT_ENTER;
-    //XXXCDC:iostore via flatback
-    ret = Util::Readlink(path.c_str(), buf, bufsize);
+    ret = flatback->store->Readlink(path.c_str(), buf, bufsize);
     if (ret > 0 && (size_t)ret < bufsize) {
         buf[ret] = 0;    // null term the buffer
     }
@@ -357,8 +356,8 @@ FlatFileSystem::symlink(const char *logical, const char *to)
     string path(logical);
     char *physical_path = NULL;
     EXPAND_TARGET;
-    //XXXCDC:iostore NEEDED do we need some sort of Metalink here?
-    ret = Util::Symlink(old_canonical.c_str(),new_canonical.c_str());
+    ret = targetback->store->Symlink(old_canonical.c_str(),
+                                     new_canonical.c_str());
     FLAT_EXIT(ret);
 }
 
@@ -366,7 +365,6 @@ int
 FlatFileSystem::statvfs(const char *logical, struct statvfs *stbuf)
 {
     FLAT_ENTER;
-    //XXXCDC:iostore via flatback
-    ret = Util::Statvfs(path.c_str(), stbuf);
+    ret = flatback->store->Statvfs(path.c_str(), stbuf);
     FLAT_EXIT(ret);
 }
