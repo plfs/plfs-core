@@ -305,8 +305,7 @@ CreateOp::do_op(const char *path, unsigned char isfile, IOStore *store)
         mode_t mode = Container::dirMode(m);
         return(store->Mkdir(path,mode));
     } else if (isfile==DT_REG) {
-        //XXXCDC:iostore via store
-        return Util::Creat(path,m);
+        return Util::MakeFile(path,m,store);
     } else {
         assert(0);
     }

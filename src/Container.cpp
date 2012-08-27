@@ -19,6 +19,8 @@ using namespace std;
 #include "Util.h"
 #include "ThreadPool.h"
 
+#include "PosixIOStore.h"  //XXXCDC: for global summary dir
+
 #define BLKSIZE 512
 
 blkcnt_t
@@ -1201,7 +1203,8 @@ Container::hostFromChunk( string chunkpath, const char *type )
 // stat info so that we can later satisfy stats using just readdir
 int
 Container::addMeta( off_t last_offset, size_t total_bytes,
-                    const string& path, const string& host, uid_t uid,
+                    const string& path, struct plfs_backend *canback,
+                    const string& host, uid_t uid,
                     double createtime, int interface, size_t max_writers)
 {
     string metafile;
@@ -1219,8 +1222,8 @@ Container::addMeta( off_t last_offset, size_t total_bytes,
         << host;
     metafile = oss.str();
     mlog(CON_DCOMMON, "Creating metafile %s", metafile.c_str() );
-    //XXXCDC:iostore NEEDED
-    ret = ignoreNoEnt(Util::Creat( metafile.c_str(), DROPPING_MODE ));
+    ret = ignoreNoEnt(Util::MakeFile(metafile.c_str(),DROPPING_MODE,
+                                     canback->store));
     // now let's maybe make a global summary dropping
     PlfsConf *pconf = get_plfs_conf();
     if (pconf->global_summary_dir) {
@@ -1247,8 +1250,15 @@ Container::addMeta( off_t last_offset, size_t total_bytes,
                 << "PA:" << path_without_slashes;
         metafile = oss_global.str().substr(0,PATH_MAX);
         mlog(CON_DCOMMON, "Creating metafile %s", metafile.c_str() );
-        //XXXCDC:iostore NEEDED
-        Util::Creat( metafile.c_str(), DROPPING_MODE);
+        /*
+         * XXXCDC: global_summary_dir.  this directory isn't
+         * associated with any one mount point... it is global.  so
+         * there is no one backend we can easily use.  for now, we
+         * insist that global dir is on Posix by hardwiring to the
+         * Posix IOStore.
+         */
+        extern class PosixIOStore PosixIO;
+        Util::MakeFile(metafile.c_str(), DROPPING_MODE, &PosixIO);
     }
     return ret;
 }
@@ -1339,12 +1349,11 @@ Container::addOpenrecord( const string& path, struct plfs_backend *canback,
                           const string& host, pid_t pid)
 {
     string openrecord = getOpenrecord( path, host, pid );
-    //XXXCDC:iostore via canback
-    int ret = Util::Creat( openrecord.c_str(), DEFAULT_MODE );
+    int ret = Util::MakeFile( openrecord.c_str(), DEFAULT_MODE,
+                              canback->store );
     if ( ret != 0 && ( errno == ENOENT || errno == ENOTDIR ) ) {
         makeSubdir( getOpenHostsDir(path), DEFAULT_MODE, canback );
-        //XXXCDC:iostore via canback
-        ret = Util::Creat( openrecord.c_str(), DEFAULT_MODE );
+        ret = Util::MakeFile(openrecord.c_str(), DEFAULT_MODE, canback->store);
     }
     if ( ret != 0 ) {
         mlog(CON_INFO, "Couldn't make openrecord %s: %s",
@@ -1736,8 +1745,7 @@ int
 Container::makeDroppingReal(const string& path, struct plfs_backend *b,
                             mode_t mode)
 {
-    //XXXCDC:iostore via b
-    return Util::Creat( path.c_str(), mode );
+    return Util::MakeFile(path.c_str(), mode, b->store);
 }
 int
 Container::makeDropping(const string& path, struct plfs_backend *b)
@@ -1909,8 +1917,7 @@ Container::makeMeta( const string& path, mode_t type, mode_t mode,
     if ( type == S_IFDIR ) {
         ret = b->store->Mkdir(path.c_str(), mode);
     } else if ( type == S_IFREG ) {
-        //XXXCDC:iostore via b
-        ret = Util::Creat( path.c_str(), mode );
+        ret = Util::MakeFile( path.c_str(), mode, b->store );
     } else {
         mlog(CON_CRIT, "WTF.  Unknown type passed to %s", __FUNCTION__);
         ret = -1;
