@@ -8,6 +8,7 @@
 #include "LogMessage.h"
 
 #include "PosixIOStore.h"
+class PosixIOStore PosixIO;   /* shared for posix access */
 
 // why is these included???!!!????
 #include "FlatFileFS.h"

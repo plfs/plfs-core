@@ -59,6 +59,7 @@ class Util
         static int Filesize(const char *, IOStore *);
         static uid_t Getuid();
         static gid_t Getgid();
+        static int MakeFile( const char *, mode_t, IOStore * );
         static int MutexLock( pthread_mutex_t *mux, const char *whence );
         static int MutexUnlock( pthread_mutex_t *mux, const char *whence );
         static int CopyFile( const char *, IOStore *, const char *,
@@ -67,7 +68,6 @@ class Util
         static int Setfsuid( uid_t );
         static char *Strdup(const char *s1);
 
-        static int Creat( const char *, mode_t );
         static int Lseek( int fildes, off_t offset, int whence, off_t *result );
         static int Mmap( size_t, int, void ** );
         static int Munmap( void *, size_t );

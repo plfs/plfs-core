@@ -442,12 +442,20 @@ out:
     EXIT_UTIL;
 }
 
-int Util::Creat( const char *path, mode_t mode )
+/**
+ * Util::MakeFile: create a zero length file (like creat, but closes file)
+ *
+ * @param path path to create the file on in backend
+ * @param mode mode for the create
+ * @param store the store to create the file on
+ * @return 0 or -error
+ */
+int Util::MakeFile( const char *path, mode_t mode, IOStore *store )
 {
     ENTER_PATH;
-    ret = ioStore->Creat( path, mode );
+    ret = store->Creat( path, mode );
     if ( ret > 0 ) {
-        ret = ioStore->Close( ret );
+        ret = store->Close( ret );
     } else {
         ret = -errno;
     }

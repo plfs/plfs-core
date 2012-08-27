@@ -72,8 +72,8 @@ class Container
                                     int pid, double);
         static string getIndexHostPath(const string& path,
                                        const string& host,int pid,double ts);
-        static int addMeta(off_t, size_t, const string&,const string&,uid_t,
-                           double,int,size_t);
+        static int addMeta(off_t, size_t, const string&, struct plfs_backend *,
+                           const string&,uid_t,double,int,size_t);
         static string fetchMeta( const string&, off_t *, size_t *,
                                  struct timespec * );
         static int addOpenrecord( const string&, struct plfs_backend *,
