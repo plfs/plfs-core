@@ -2302,6 +2302,7 @@ container_close( Container_OpenFile *pfd, pid_t pid, uid_t uid, int open_flags,
                     max_writers = close_opt->num_procs;
                 }
                 Container::addMeta(last_offset, total_bytes, pfd->getPath(),
+                                   pfd->getCanBack(),
                                    Util::hostname(),uid,wf->createTime(),
                                    close_opt?close_opt->pinter:-1,
                                    max_writers);
