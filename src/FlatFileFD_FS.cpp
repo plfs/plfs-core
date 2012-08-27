@@ -183,8 +183,7 @@ FlatFileSystem::create(const char *logical, mode_t mode, int flags, pid_t pid )
     //      have write permission, followed by a request to open for
     //      write. We must add write permission to this file here so that
     //      the following open could succeed.
-    //XXXCDC:iostore via flatback
-    ret = Util::Creat(path.c_str(), mode | S_IWUSR);
+    ret = Util::MakeFile(path.c_str(), mode | S_IWUSR, flatback->store);
     FLAT_EXIT(ret);
 }
 
