@@ -245,7 +245,7 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
     if (dir == NULL) {
         return(-errno);
     }
-    while (store->Readdir_r(dir, &entstore, &ent) == 0) {
+    while (store->Readdir_r(dir, &entstore, &ent) == 0 && ent != NULL) {
         if (skip_dots && (!strcmp(ent->d_name,".")||
                           !strcmp(ent->d_name,".."))) {
             continue;   // skip the dots
