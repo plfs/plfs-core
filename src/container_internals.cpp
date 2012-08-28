@@ -1028,7 +1028,7 @@ plfs_num_host_dirs(int *hostdir_count,char *target, void *vback, char *bm)
         return *hostdir_count;
     }
     // Start reading the directory
-    while (store->Readdir_r(dirp, &entstore, &dirent) == 0) {
+    while (store->Readdir_r(dirp, &entstore, &dirent) == 0 && dirent != NULL) {
         // Look for entries that beging with hostdir
         if(strncmp(HOSTDIRPREFIX,dirent->d_name,strlen(HOSTDIRPREFIX))==0) {
             char *substr;
