@@ -22,7 +22,15 @@ show_usage(char* app_name) {
 }
 
 void
-print_entries(const vector<string> &entries, const char *type) {
+print_pbentries(const vector<plfs_pathback> &entries, const char *type) {
+    vector<plfs_pathback>::const_iterator itr;
+    for(itr=entries.begin(); itr!=entries.end(); itr++) {
+        printf("%s%s%s\n", itr->back->prefix, itr->bpath.c_str(), type);
+    }
+}
+
+void
+print_sentries(const vector<string> &entries, const char *type) {
     vector<string>::const_iterator itr;
     for(itr=entries.begin(); itr!=entries.end(); itr++) {
         printf("%s%s\n",itr->c_str(),type);
@@ -30,6 +38,7 @@ print_entries(const vector<string> &entries, const char *type) {
 }
 
 //Print the PLFS file from a given backend dropping
+//XXXCDC:clearly this is only going to work for posix backends...
 int
 logical_from_physical(char * physical_target, std::string &file_location) {
     char * c_physical;
@@ -87,7 +96,7 @@ logical_from_physical(char * physical_target, std::string &file_location) {
                 {
                     PlfsMount * pmount = mount_itr->second;
                     for (lcv = 0 ; lcv < pmount->nback ; lcv++) {
-                        if (backend.compare(pmount->backends[lcv]->fullname) 
+                        if (backend.compare(pmount->backends[lcv]->bmpoint) 
                                                                      == 0) {
                             mountPoint = pmount->mnt_pt;
                         }
@@ -137,12 +146,11 @@ main (int argc, char **argv) {
         exit(1);
     }
 
-    vector<string> files;
-    vector<string> dirs;
+    vector<plfs_pathback> files;
+    vector<plfs_pathback> dirs;
     vector<string> metalinks;
     //Use the plfs_locate fucntion to determine if this is a
     //plfs file.
-#error "FIX plfs_locate() CALL FOR NEW API, NO LONGER vector string"
     int ret = plfs_locate(target,
             (void*)&files,
             (void*)&dirs,
@@ -159,9 +167,9 @@ main (int argc, char **argv) {
         }
     } else {
         printf("Physical file locations:\n");
-        print_entries(dirs,dir_suffix.c_str());
-        print_entries(metalinks,metalink_suffix.c_str());
-        print_entries(files,"");
+        print_pbentries(dirs,dir_suffix.c_str());
+        print_sentries(metalinks,metalink_suffix.c_str());
+        print_pbentries(files,"");
     }
 
     exit( ret );
