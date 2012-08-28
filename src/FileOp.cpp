@@ -240,14 +240,12 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
 {
     int ret;
     DIR *dir;
-    struct dirent *ent;
-    //XXXCDC:iostore via store
-    ret = Util::Opendir(path, &dir);
-    if (ret!=0) {
-        return ret;
+    struct dirent entstore, *ent;
+    dir = store->Opendir(path);
+    if (dir == NULL) {
+        return(-errno);
     }
-    //XXXCDC:iostore via store 
-    while((ret=Util::Readdir(dir,&ent))==0) {  /*XXXCDC:readdir_r */
+    while (store->Readdir_r(dir, &entstore, &ent) == 0) {
         if (skip_dots && (!strcmp(ent->d_name,".")||
                           !strcmp(ent->d_name,".."))) {
             continue;   // skip the dots
