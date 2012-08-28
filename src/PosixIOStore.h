@@ -104,8 +104,8 @@ public:
         return read(fd, buf, count);
     }
 
-    struct dirent *Readdir(DIR *dirp) {
-        return readdir(dirp);
+    int Readdir_r(DIR *dirp, struct dirent *dst, struct dirent **dret) {
+        return(readdir_r(dirp, dst, dret));
     }
 
     int Rename(const char *oldpath, const char *newpath) {

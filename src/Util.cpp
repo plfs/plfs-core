@@ -468,56 +468,16 @@ char *Util::Strdup(const char *s1)
     return strdup(s1);
 }
 
-
-// returns 0 if success, 1 if end of dir, -errno if error
-int Util::Readdir(DIR *dir, struct dirent **de)
-{
-    ENTER_UTIL;
-    errno = 0;
-    *de = NULL;
-    *de = ioStore->Readdir(dir);
-    if (*de) {
-        ret = 0;
-    } else if (errno == 0) {
-        ret = 1;
-    } else {
-        ret = -errno;
-    }
-    mlog(UT_DCOMMON, "readdir returned %p (ret %d, errno %d)", *de, ret, errno);
-    EXIT_UTIL;
-}
-
-// returns 0 or -errno
-int Util::Opendir( const char *path, DIR **dp )
-{
-    ENTER_PATH;
-    *dp = ioStore->Opendir( path );
-    ret = ( *dp == NULL ? -errno : 0 );
-    EXIT_UTIL;
-}
-
-int Util::Munmap(void *addr,size_t len)
-{
-    ENTER_UTIL;
-    ret = ioStore->Munmap(addr,len);
-    EXIT_UTIL;
-}
-
-int Util::Mmap( size_t len, int fildes, void **retaddr)
+/*
+ * Util::MapFile: maps files in memory, read-only
+ */
+int Util::MapFile( size_t len, int fildes, void **retaddr, IOStore *store)
 {
     ENTER_UTIL;
     int prot  = PROT_READ;
     int flags = MAP_PRIVATE|MAP_NOCACHE;
-    *retaddr = ioStore->Mmap( NULL, len, prot, flags, fildes, 0 );
+    *retaddr = store->Mmap( NULL, len, prot, flags, fildes, 0 );
     ret = ( *retaddr == (void *)NULL || *retaddr == (void *)-1 ? -1 : 0 );
-    EXIT_UTIL;
-}
-
-int Util::Lseek( int fildes, off_t offset, int whence, off_t *result )
-{
-    ENTER_UTIL;
-    *result = ioStore->Lseek( fildes, offset, whence );
-    ret = (int)*result;
     EXIT_UTIL;
 }
 

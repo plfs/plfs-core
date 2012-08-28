@@ -445,16 +445,15 @@ Container::populateIndex(const string& path, struct plfs_backend *canback,
              path.c_str());
         off_t len = -1;
         //XXXCDC: really just want filesize for mmap, don't care about seeking
-        //XXXCDC:iostore canback
-        ret = Util::Lseek(idx_fd,0,SEEK_END,&len);
-        if ( ret != -1 ) {
+        len = canback->store->Lseek(idx_fd, 0, SEEK_END);
+        if (len == -1) {
+            ret = -1;
+        } else {
             void *addr;
-            //XXXCDC:iostore canback
-            ret = Util::Mmap(len,idx_fd,&addr);
+            ret = Util::MapFile(len,idx_fd,&addr,canback->store);
             if ( ret != -1 ) {
                 ret = index->global_from_stream(addr);
-                //XXXCDC:iostore canback
-                Util::Munmap(addr,len);
+                canback->store->Munmap(addr,len);
             } else {
                 mlog(CON_ERR, "WTF: mmap %s of len %ld: %s",
                      getGlobalIndexPath(path).c_str(),
@@ -2130,24 +2129,18 @@ struct dirent *
 Container::getnextent(DIR *dir, struct plfs_backend *backend,
                       const char *prefix, struct dirent *ds) {
     int rv;
-    struct dirent *next;   /*XXXCDC: goes away with readdir_r */
+    struct dirent *next;
 
     if (dir == NULL)
         return(NULL);  /* to be safe, shouldn't happen */
 
     do {
-        //XXXCDC:iostore via backend
-        //XXXCDC:cvt to readdir_r, readdir not thread safe!
         next = NULL;   //to be safe
-        rv = Util::Readdir(dir, &next); 
+        rv = backend->store->Readdir_r(dir, ds, &next);
     } while (rv == 0 && next && prefix &&
              strncmp(next->d_name, prefix, strlen(prefix)) != 0);
 
-    if (next) {
-        *ds = *next;   /* struture copy */
-        return(ds);
-    }
-    return(NULL);
+    return(next);  /* same as ds */
 }
 
 // this function traverses a container and returns the next dropping
@@ -2189,8 +2182,7 @@ Container::nextdropping(const string& canbpath, struct plfs_backend *canback,
 
     /* if *candir is null, then this is the first call to nextdropping */
     if (*candir == NULL) {
-        //XXXCDC:iostore via canback
-        Util::Opendir(canbpath.c_str(), candir);
+        *candir = canback->store->Opendir(canbpath.c_str());
         if (*candir == NULL) {
             return(-errno);
         }
@@ -2221,7 +2213,7 @@ Container::nextdropping(const string& canbpath, struct plfs_backend *canback,
         }
             
         /* now open up the subdir */
-        Util::Opendir(hostdirpath->c_str(), subdir);
+        *subdir = (*dropback)->store->Opendir(hostdirpath->c_str());
         if (*subdir == NULL) {
             mlog(CON_DRARE, "opendir %s: %s", hostdirpath->c_str(),
                  strerror(errno));

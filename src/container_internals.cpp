@@ -1018,20 +1018,17 @@ plfs_num_host_dirs(int *hostdir_count,char *target, void *vback, char *bm)
     //XXXCDC: should use the iostore for IO
     IOStore *store = ((plfs_backend *)vback)->store;
     DIR *dirp;
-    struct dirent *dirent;
+    struct dirent entstore, *dirent;
     int isfile = 0;
     *hostdir_count = 0;
     // Open the directory and check value
-    //XXXCDC:iostore via store
-    if (Util::Opendir(target, &dirp) != 0) {
+    if ((dirp = store->Opendir(target)) == NULL) {
         mlog(PLFS_DRARE, "Num hostdir opendir error on %s",target);
         *hostdir_count = -errno;
         return *hostdir_count;
     }
     // Start reading the directory
-    //XXXCDC:iostore readdir->readdir_r fix
-    //XXXCDC:iostore via store
-    while (Util::Readdir(dirp, &dirent) == 0) {
+    while (store->Readdir_r(dirp, &entstore, &dirent) == 0) {
         // Look for entries that beging with hostdir
         if(strncmp(HOSTDIRPREFIX,dirent->d_name,strlen(HOSTDIRPREFIX))==0) {
             char *substr;

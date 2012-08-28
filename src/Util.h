@@ -60,6 +60,7 @@ class Util
         static uid_t Getuid();
         static gid_t Getgid();
         static int MakeFile( const char *, mode_t, IOStore * );
+        static int MapFile( size_t, int, void **, IOStore * );
         static int MutexLock( pthread_mutex_t *mux, const char *whence );
         static int MutexUnlock( pthread_mutex_t *mux, const char *whence );
         static int CopyFile( const char *, IOStore *, const char *,
@@ -67,13 +68,6 @@ class Util
         static int Setfsgid( gid_t );
         static int Setfsuid( uid_t );
         static char *Strdup(const char *s1);
-
-        static int Lseek( int fildes, off_t offset, int whence, off_t *result );
-        static int Mmap( size_t, int, void ** );
-        static int Munmap( void *, size_t );
-        static int Opendir( const char *dirname, DIR ** );
-        static int Readdir(DIR *, dirent **);
-
 
         // other misc stuff
         static vector<string> &tokenize(    const string& str,
