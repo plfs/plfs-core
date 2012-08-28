@@ -168,7 +168,6 @@ HASH_MAP<string, double> utimers;
 HASH_MAP<string, off_t>  kbytes;
 HASH_MAP<string, off_t>  counters;
 HASH_MAP<string, off_t>  errors;
-IOStore* Util::ioStore;
 
 string Util::toString( )
 {
