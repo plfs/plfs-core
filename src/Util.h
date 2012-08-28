@@ -92,9 +92,6 @@ class Util
                                          vector<plfs_pathback> &dirs,
                                          vector<plfs_pathback> &links);
 
-        // Used to access underlying filesystems
-        static IOStore* ioStore;
-
     private:
         static void addBytes( string, size_t );
         static string timeToString(      HASH_MAP<string,double>::iterator,
