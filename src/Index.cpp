@@ -555,8 +555,8 @@ Index::mapIndex( string hostindex, int *fd, off_t *length,
     // lseek doesn't always see latest data if panfs hasn't flushed
     // could be a zero length chunk although not clear why that gets
     // created.
-    //XXXCDC:iostore via hback
-    Util::Lseek( *fd, 0, SEEK_END, length );
+    //XXXCDC - just want file size, doesn't really need seek here
+    *length = hback->store->Lseek(*fd, 0, SEEK_END);
     if ( *length == 0 ) {
         mlog(IDX_DRARE, "%s is a zero length index file", hostindex.c_str());
         return NULL;
@@ -565,8 +565,7 @@ Index::mapIndex( string hostindex, int *fd, off_t *length,
         mlog(IDX_DRARE, "%s WTF lseek: %s", __FUNCTION__, strerror(errno));
         return (void *)-1;
     }
-    //XXXCDC:iostore via hback
-    Util::Mmap(*length,*fd,&addr);
+    Util::MapFile(*length,*fd,&addr,hback->store);
     return addr;
 }
 
@@ -1101,8 +1100,7 @@ Index::cleanupReadIndex( int fd, void *maddr, off_t length, int ret,
              last_func, indexfile, strerror( errno ) );
     }
     if ( maddr != NULL && maddr != (void *)-1 ) {
-        //XXXCDC:iostore via hback
-        ret2 = Util::Munmap( maddr, length );
+        ret2 = hback->store->Munmap(maddr, length);
         if ( ret2 < 0 ) {
             mlog(IDX_DRARE,
                  "WTF.  readIndex failed during munmap of %s (%lu): %s",

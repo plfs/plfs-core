@@ -1,6 +1,7 @@
 #include "plfs.h"
 #include "plfs_private.h"
 #include "LogMessage.h"
+#include "PosixIOStore.h"
 #include "COPYRIGHT.h"
 
 #include <errno.h>
@@ -1132,9 +1133,14 @@ int Plfs::f_statfs(const char *path, struct statvfs *stbuf)
     // hmmm, I guess we can call Util:: and bypass plfs_ but that's a bit
     // of a kludge since we try to make everything in FUSE go through plfs
     if(self->pmnt->statfs) {
+        /*
+         * XXXCDC: statfs.  currently it is POSIX only (via PosixIO).
+         * do we need to expand this?
+         */
+        extern class PosixIOStore PosixIO;
         mlog(FUSE_DCOMMON, "Forwarding statfs to specified path %s",
              self->pmnt->statfs->c_str());
-        ret = Util::Statvfs(self->pmnt->statfs->c_str(),stbuf);
+        ret = PosixIO.Statvfs(self->pmnt->statfs->c_str(),stbuf);
         ret = Util::retValue(ret);  // fix it up on error
     } else {
         ret = plfs_statvfs(strPath.c_str(), stbuf);
