@@ -22,10 +22,6 @@ static void parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
                               char *key, char *value);
 
 
-void plfs_posix_init() {
-    Util::ioStore = &PosixIO;
-}
-
 // the expansion info doesn't include a string for the backend
 // to save a bit of space (probably an unnecessary optimization but anyway)
 // it just includes an offset into the backend arrary
@@ -526,7 +522,6 @@ plfs_init()
         if (pconf) { // someone beat us in race.  they will initialize.
             ret = true;
         } else {    // we won race.  we need to initialize.
-            plfs_posix_init();
             LogMessage::init();
             pconf = get_plfs_conf();
             if ( !pconf ) {

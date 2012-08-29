@@ -33,7 +33,7 @@ public:
     virtual ssize_t Pread( int, void*, size_t, off_t)=0;
     virtual ssize_t Pwrite( int, const void*, size_t, off_t)=0;
     virtual ssize_t Read( int, void*, size_t)=0;
-    virtual struct dirent *Readdir(DIR *dirp)=0;
+    virtual int Readdir_r(DIR *, struct dirent *, struct dirent **)=0;
     virtual int Rename(const char *oldpath, const char* newpath)=0;
     virtual int Rmdir (const char*)=0;
     virtual int Stat( const char*, struct stat*)=0;
