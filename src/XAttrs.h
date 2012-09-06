@@ -10,14 +10,14 @@
 class XAttr
 {
     public:
-        XAttr(string key, string value);
-        string getValue();
+        XAttr(string key, const char* value);
+        const char* getValue();
         string getKey();
         ~XAttr();
 
     private:
         string key;
-        string value;
+        const char* value;
 };
 
 class XAttrs
@@ -26,8 +26,8 @@ class XAttrs
         XAttrs( string );
         ~XAttrs();
 
-        XAttr *getXAttr(string key);
-        bool setXAttr(string key, string value);
+        XAttr *getXAttr(string key, size_t len);
+        bool setXAttr(string key, const char* value, size_t len);
 
     private:
 	string path;
