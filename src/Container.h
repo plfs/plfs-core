@@ -20,8 +20,8 @@
 #include <deque>
 using namespace std;
 
-#define DEFAULT_MODE (S_IRUSR|S_IWUSR|S_IXUSR|S_IXGRP|S_IXOTH)
-#define DROPPING_MODE (S_IRWXU|S_IRWXG|S_IRWXO)
+#define DEFAULT_MODE (S_IRUSR|S_IWUSR|S_IXUSR)//|S_IXGRP|S_IXOTH)
+#define DROPPING_MODE //(S_IRWXU|S_IRWXG|S_IRWXO)
 
 enum
 parentStatus {

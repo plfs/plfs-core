@@ -1754,7 +1754,7 @@ Container::fileMode( mode_t mode )
 mode_t
 Container::dirMode( mode_t mode )
 {
-    mode = (mode) | S_IRUSR | S_IWUSR | S_IXUSR | S_IXGRP | S_IXOTH;
+    mode = (mode) S_IWUSR | S_IRUSR | S_IXUSR;//S_IRUSR | S_IWUSR | S_IXUSR | S_IXGRP | S_IXOTH;
     return mode;
 }
 
