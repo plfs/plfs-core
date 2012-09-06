@@ -1,19 +1,20 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdlib.h>
 #include "XAttrs.h"
 #include "Util.h"
 #include "mlog.h"
 #include "mlogfacs.h"
 #include "plfs_internal.h"
 
-XAttr::XAttr(string key, string value)
+XAttr::XAttr(string key, const char* value)
 {
     this->key = key;
     this->value = value;
 }
  
-string XAttr::getValue()
+const char* XAttr::getValue()
 {
     return value;
 }
@@ -53,7 +54,7 @@ XAttrs::XAttrs( string path )
  * @param key    The key to get return the XAttr for
  * @return XAttr The key,value pair
  */
-XAttr *XAttrs::getXAttr(string key) 
+XAttr *XAttrs::getXAttr(string key, size_t len) 
 {
     int ret, fd;
     char buf[MAX_VALUE_LEN];
@@ -71,7 +72,7 @@ XAttr *XAttrs::getXAttr(string key)
     } 
 
     memset(buf, 0, MAX_VALUE_LEN);
-    ret = Util::Read( fd, buf, MAX_VALUE_LEN);    
+    ret = Util::Read( fd, buf, len);    
     if (ret == MAX_VALUE_LEN) {
         buf[MAX_VALUE_LEN - 1] = '\0';
     }
@@ -83,8 +84,9 @@ XAttr *XAttrs::getXAttr(string key)
         return NULL;
     } 
 
-    string value (buf);
-    XAttr *xattr = new XAttr(key, value);
+    char* value = (char*) malloc (len);
+    memcpy(value, &buf, len);
+    XAttr *xattr = new XAttr(key, (const char*)value);
     ret = Util::Close(fd);
     if (ret >= 0) {
         mlog(IDX_DAPI, "Closed file: %s", __FUNCTION__,
@@ -105,7 +107,7 @@ XAttr *XAttrs::getXAttr(string key)
  * @param value    The value to set
  * @return boolean True on success, false otherwise
  */
-bool XAttrs::setXAttr(string key, string value) 
+bool XAttrs::setXAttr(string key, const char* value, size_t len) 
 {
     int ret, fd;
     string full_path;
@@ -116,9 +118,9 @@ bool XAttrs::setXAttr(string key, string value)
         return false;
     }
 
-    if (value.length() >= MAX_VALUE_LEN) {
+    if (len >= MAX_VALUE_LEN) {
         mlog(IDX_DRARE, "value: %s is exceeds the maximum value length", __FUNCTION__,
-             value.c_str());
+             value);
         return false;
     }
 
@@ -133,7 +135,7 @@ bool XAttrs::setXAttr(string key, string value)
         return false;
     } 
 
-    ret = Util::Write( fd, value.c_str(), value.length() + 1);    
+    ret = Util::Write( fd, value, len);    
     if (ret < 0) {
         mlog(IDX_DRARE, "Could not write value for key: %s", __FUNCTION__,
              key.c_str());
