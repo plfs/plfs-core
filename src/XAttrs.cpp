@@ -116,7 +116,7 @@ bool XAttrs::setXAttr(string key, const void* value, size_t len)
 
     if (len >= MAX_VALUE_LEN) {
         mlog(IDX_DRARE, "%s: value: %s is exceeds the maximum value length", __FUNCTION__,
-             value);
+             (char *)value);
         return false;
     }
 

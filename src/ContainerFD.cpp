@@ -134,8 +134,8 @@ Container_fd::setxattr(const void *value, const char *key, size_t len) {
     bool xret;
     int ret = 0;
 
-    mlog(PLFS_DBG, "Setting xattr - key: %s, value: %s\n", 
-         key, value, __FUNCTION__);
+    mlog(PLFS_DBG, "In %s: Setting xattr - key: %s, value: %s\n", 
+         __FUNCTION__, key, (char *)value);
     xattrs = new XAttrs(getPath());
     xret = xattrs->setXAttr(string(key), value, len);
     if (!xret) {
