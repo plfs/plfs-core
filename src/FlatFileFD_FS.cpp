@@ -33,9 +33,9 @@ FlatFileSystem flatfs;
 
 Flat_fd::~Flat_fd()
 {
-    if (refs > 0 || backend_fd >= 0) {
+    if (refs > 0 || backend_fh != NULL) {
         plfs_debug("File %s is not closed!\n", backend_pathname.c_str());
-        this->back->store->Close(backend_fd);
+        this->back->store->Close(backend_fh);
     }
 }
 
@@ -43,15 +43,16 @@ int
 Flat_fd::open(const char *filename, int flags, pid_t pid,
               mode_t mode, Plfs_open_opt *unused)
 {
-    if (backend_fd != -1) {// This fd has already been opened.
+    if (backend_fh != NULL) {// This fh has already been opened.
         refs++;
     } else {
         /* we assume that the caller has already set this->back */
-        int fd = this->back->store->Open(filename, flags, mode);
-        if (fd < 0) {
+        IOSHandle *ofh;
+        ofh = this->back->store->Open(filename, flags, mode);
+        if (ofh == NULL) {
             return -errno;
         }
-        backend_fd = fd;
+        this->backend_fh = ofh;
         /* XXXCDC: seem comment in FlatFileSystem::open */
         backend_pathname = filename;  /* XXX: replaces logical */
         refs = 1;
@@ -66,9 +67,9 @@ Flat_fd::close(pid_t pid, uid_t u, int flags, Plfs_close_opt *unused)
     if (refs > 0) {
         return refs;    // Others are still using this fd.
     }
-    if (backend_fd >= 0) {
-        this->back->store->Close(backend_fd);
-        backend_fd = -1;
+    if (backend_fh != NULL) {
+        this->back->store->Close(backend_fh);
+        backend_fh = NULL;
     }
     return 0; // Safe to delete the fd.
 }
@@ -76,21 +77,21 @@ Flat_fd::close(pid_t pid, uid_t u, int flags, Plfs_close_opt *unused)
 ssize_t
 Flat_fd::read(char *buf, size_t size, off_t offset)
 {
-    int ret = this->back->store->Pread(backend_fd, buf, size, offset);
+    int ret = this->backend_fh->Pread(buf, size, offset);
     FLAT_EXIT(ret);
 }
 
 ssize_t
 Flat_fd::write(const char *buf, size_t size, off_t offset, pid_t pid)
 {
-    int ret = this->back->store->Pwrite(backend_fd, buf, size, offset);
+    int ret = this->backend_fh->Pwrite(buf, size, offset);
     FLAT_EXIT(ret);
 }
 
 int
 Flat_fd::sync()
 {
-    int ret = this->back->store->Fsync(backend_fd);
+    int ret = this->backend_fh->Fsync();
     FLAT_EXIT(ret);
 }
 
@@ -103,16 +104,16 @@ Flat_fd::sync(pid_t pid)
 }
 
 int
-Flat_fd::trunc(const char *path, off_t offset)
+Flat_fd::trunc(const char *xpath, off_t offset)
 {
-    int ret = this->back->store->Ftruncate(backend_fd, offset);
+    int ret = this->backend_fh->Ftruncate(offset);
     FLAT_EXIT(ret);
 }
 
 int
-Flat_fd::getattr(const char *path, struct stat *stbuf, int sz_only)
+Flat_fd::getattr(const char *xpath, struct stat *stbuf, int sz_only)
 {
-    int ret = this->back->store->Fstat(backend_fd, stbuf);
+    int ret = this->backend_fh->Fstat(stbuf);
     FLAT_EXIT(ret);
 }
 
@@ -132,7 +133,7 @@ Flat_fd::query(size_t *writers, size_t *readers, size_t *bytes_written,
 
 bool Flat_fd::is_good()
 {
-    if (backend_fd > 0 && refs > 0) {
+    if (backend_fh != NULL && refs > 0) {
         return true;
     }
     return false;

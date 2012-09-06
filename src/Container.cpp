@@ -387,17 +387,17 @@ Container::flattenIndex( const string& path, struct plfs_backend *canback,
     int flags = O_WRONLY|O_CREAT|O_EXCL;
     mode_t mode = DROPPING_MODE;
     // open the unique temporary path
-    int index_fd = canback->store->Open(unique_temporary.c_str(),
+    IOSHandle *index_fh = canback->store->Open(unique_temporary.c_str(),
                                         flags, mode);
-    if ( index_fd <= 0 ) {
+    if ( index_fh == NULL ) {
         return -errno;
     }
     // compress then dump and then close the files
     // compress adds overhead and no benefit if the writes weren't through FUSE
     //index->compress();
-    int ret = index->global_to_file(index_fd,canback);
+    int ret = index->global_to_file(index_fh,canback);
     mlog(CON_DCOMMON, "index->global_to_file returned %d",ret);
-    (void) canback->store->Close(index_fd);
+    (void) canback->store->Close(index_fh);
     if ( ret == 0 ) { // dump was successful so do the atomic rename
         ret = canback->store->Rename(unique_temporary.c_str(),
                                      globalIndex.c_str());
@@ -427,32 +427,32 @@ Container::populateIndex(const string& path, struct plfs_backend *canback,
     // first try for the top-level global index
     mlog(CON_DAPI, "%s on %s %s attempt to use flattened index",
          __FUNCTION__,path.c_str(),(use_global?"will":"will not"));
-    int idx_fd = -1;
+    IOSHandle *idx_fh = NULL;
     if ( use_global ) {
-        idx_fd = canback->store->Open(getGlobalIndexPath(path).c_str(),
+        idx_fh = canback->store->Open(getGlobalIndexPath(path).c_str(),
                                       O_RDONLY);
     }
-    if ( idx_fd >= 0 ) {
+    if ( idx_fh != NULL) {
         mlog(CON_DCOMMON,"Using cached global flattened index for %s",
              path.c_str());
         off_t len = -1;
         //XXXCDC: really just want filesize for mmap, don't care about seeking
-        len = canback->store->Lseek(idx_fd, 0, SEEK_END);
+        len = idx_fh->Lseek(0, SEEK_END);
         if (len == -1) {
             ret = -1;
         } else {
             void *addr;
-            ret = Util::MapFile(len,idx_fd,&addr,canback->store);
+            ret = Util::MapFile(len,&addr,idx_fh);
             if ( ret != -1 ) {
                 ret = index->global_from_stream(addr);
-                canback->store->Munmap(addr,len);
+                idx_fh->Munmap(addr,len);
             } else {
                 mlog(CON_ERR, "WTF: mmap %s of len %ld: %s",
                      getGlobalIndexPath(path).c_str(),
                      (long)len, strerror(errno));
             }
         }
-        canback->store->Close(idx_fd);
+        canback->store->Close(idx_fh);
     } else {    // oh well, do it the hard way
         mlog(CON_DCOMMON, "Building global flattened index for %s",
              path.c_str());
@@ -774,7 +774,8 @@ Container::resolveMetalink(const string& metalink, struct plfs_backend *mback,
         mlog(CON_DAPI, "%s: resolved %s into %s",
              __FUNCTION__,metalink.c_str(), resolved.c_str());
     } else {
-        mlog(CON_DAPI, "%s: failed to resolve %s", metalink.c_str());
+        mlog(CON_DAPI, "%s: failed to resolve %s", __FUNCTION__,
+             metalink.c_str());
     }
     return ret;
 }
@@ -1483,11 +1484,11 @@ Container::getattr( const string& path, struct plfs_backend *canback,
         // but the new metalink stuff makes that hard.  So lets use our
         // helper functions which will make memory overheads....
         vector<plfs_pathback> indices;
-        vector<plfs_pathback>::iterator itr;
+        vector<plfs_pathback>::iterator pitr;
         ret = collectIndices(path,canback,indices,true);
         chunks = indices.size();
-        for(itr=indices.begin(); itr!=indices.end() && ret==0; itr++) {
-            plfs_pathback dropping = *itr;
+        for(pitr=indices.begin(); pitr!=indices.end() && ret==0; pitr++) {
+            plfs_pathback dropping = *pitr;
             string host = hostFromChunk(dropping.bpath,INDEXPREFIX);
             // need to read index data when host_is_open OR not cached
             bool host_is_open;
@@ -2115,17 +2116,17 @@ Container::create( const string& expanded_path, struct plfs_backend *canback,
  * @return NULL on error, otherwise ds
  */
 struct dirent *
-Container::getnextent(DIR *dir, struct plfs_backend *backend,
-                      const char *prefix, struct dirent *ds) {
+Container::getnextent(IOSDirHandle *dhand, const char *prefix,
+                      struct dirent *ds) {
     int rv;
     struct dirent *next;
 
-    if (dir == NULL)
+    if (dhand == NULL)
         return(NULL);  /* to be safe, shouldn't happen */
 
     do {
         next = NULL;   //to be safe
-        rv = backend->store->Readdir_r(dir, ds, &next);
+        rv = dhand->Readdir_r(ds, &next);
     } while (rv == 0 && next && prefix &&
              strncmp(next->d_name, prefix, strlen(prefix)) != 0);
 
@@ -2152,14 +2153,15 @@ Container::getnextent(DIR *dir, struct plfs_backend *backend,
  * @param droppingpath next dropping's path is returned here
  * @param dropback the backend droppingpath resides on is returned here
  * @param dropping_filter filter applied to filenames to narrow set returned
- * @param candir used to store canonical DIR, caller init's to NULL
- * @param subdir used to store subdir DIR ptr, caller init's to NULL
+ * @param candir used to store canonical dir handle, caller init's to NULL
+ * @param subdir used to store subdir dir handle ptr, caller init's to NULL
  * @param hostdirpath the bpath to current hostdir (after Metalink)
  */
 int
 Container::nextdropping(const string& canbpath, struct plfs_backend *canback,
                         string *droppingpath, struct plfs_backend **dropback,
-                        const char *dropping_filter, DIR **candir, DIR **subdir,
+                        const char *dropping_filter,
+                        IOSDirHandle **candir, IOSDirHandle **subdir,
                         string *hostdirpath)
 {
     struct dirent dirstore;
@@ -2181,9 +2183,8 @@ Container::nextdropping(const string& canbpath, struct plfs_backend *canback,
     /* candir is open.  now get an open subdir (if we don't have it) */
     if (*subdir == NULL) {
 
-        if (getnextent(*candir, canback, HOSTDIRPREFIX, &dirstore) == NULL) {
+        if (getnextent(*candir, HOSTDIRPREFIX, &dirstore) == NULL) {
             /* no more subdirs ... */
-            //XXXCDC:iostore via canback
             canback->store->Closedir(*candir);
             *candir = NULL;
             return(0);                  /* success, we are done! */
@@ -2213,7 +2214,7 @@ Container::nextdropping(const string& canbpath, struct plfs_backend *canback,
     }
 
     /* now all directories are open, try and read next entry */
-    if (getnextent(*subdir, *dropback, dropping_filter, &dirstore) == NULL) {
+    if (getnextent(*subdir, dropping_filter, &dirstore) == NULL) {
         /* we hit EOF on the subdir, need to advance to next subdir */
 
         (*dropback)->store->Closedir(*subdir);
@@ -2248,14 +2249,14 @@ Container::Truncate( const string& path, off_t offset,
          (unsigned long)offset);
     // this code here goes through each index dropping and rewrites it
     // preserving only entries that contain data prior to truncate offset
-    DIR *candir, *subdir;
+    IOSDirHandle *candir, *subdir;
     string hostdirpath;
     candir = subdir = NULL;
 
     while ((ret = nextdropping(path, canback, &indexfile, &indexback,
                                INDEXPREFIX, &candir, &subdir,
                                &hostdirpath)) == 1) {
-        Index index( indexfile, indexback, -1 );
+        Index index( indexfile, indexback, NULL );
         mlog(CON_DCOMMON, "%s new idx %p %s", __FUNCTION__,
              &index,indexfile.c_str());
         ret = index.readIndex(indexfile, indexback);
@@ -2264,16 +2265,16 @@ Container::Truncate( const string& path, off_t offset,
                 mlog(CON_DCOMMON, "%s %p at %ld",__FUNCTION__,&index,
                      (unsigned long)offset);
                 index.truncate(offset);
-                int fd = indexback->store->Open(indexfile.c_str(),
-                                                O_TRUNC|O_WRONLY);
-                if ( fd < 0 ) {
+                IOSHandle *fh = indexback->store->Open(indexfile.c_str(),
+                                                       O_TRUNC|O_WRONLY);
+                if ( fh == NULL ) {
                     mlog(CON_CRIT, "Couldn't overwrite index file %s: %s",
-                         indexfile.c_str(), strerror( fd ));
+                         indexfile.c_str(), strerror( errno ));
                     return -errno;
                 }
                 /* note: index obj already contains indexback */
-                ret = index.rewriteIndex(fd);
-                indexback->store->Close(fd);
+                ret = index.rewriteIndex(fh);
+                indexback->store->Close(fh);
                 if ( ret != 0 ) {
                     break;
                 }

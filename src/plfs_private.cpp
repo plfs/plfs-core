@@ -254,7 +254,7 @@ find_all_expansions(const char *logical, vector<plfs_pathback> &containers)
     PLFS_ENTER;
     ExpansionInfo exp_info;
     struct plfs_pathback pb;
-    for(unsigned i = 0; i < expansion_info.mnt_pt->nback; i++) {
+    for(int i = 0; i < expansion_info.mnt_pt->nback; i++) {
         path = expandPath(logical,&exp_info,EXPAND_TO_I,i,0);
         if(exp_info.Errno) {
             PLFS_EXIT(exp_info.Errno);

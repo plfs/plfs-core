@@ -33,6 +33,7 @@
 
 using namespace std;
 class IOStore;
+class IOSHandle;
 
 #ifndef MAP_NOCACHE
 // this is a way to tell mmap not to waste buffer cache.  since we just
@@ -60,7 +61,7 @@ class Util
         static uid_t Getuid();
         static gid_t Getgid();
         static int MakeFile( const char *, mode_t, IOStore * );
-        static int MapFile( size_t, int, void **, IOStore * );
+        static int MapFile( size_t, void **, IOSHandle * );
         static int MutexLock( pthread_mutex_t *mux, const char *whence );
         static int MutexUnlock( pthread_mutex_t *mux, const char *whence );
         static int CopyFile( const char *, IOStore *, const char *,
@@ -79,7 +80,7 @@ class Util
         static bool isDirectory( struct stat *buf );
         static bool isDirectory( const char *, IOStore *);
         static double getTime();
-        static ssize_t Writen( int, const void *, size_t, IOStore * );
+        static ssize_t Writen(const void *, size_t, IOSHandle *);
         static string toString();
         static string openFlagsToString( int );
         static string expandPath( string path, string hostname );

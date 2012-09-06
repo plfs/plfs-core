@@ -359,7 +359,8 @@ int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
                     IOStore *toios)
 {
     ENTER_PATH;
-    int fd_from, fd_to, buf_size;
+    IOSHandle *fh_from, *fh_to;
+    int buf_size;
     ssize_t read_len, write_len, copy_len;
     char *buf = NULL, *ptr;
     struct stat sbuf;
@@ -382,15 +383,15 @@ int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
         ret = toios->Symlink(buf, to);
         goto out;
     }
-    fd_from = pathios->Open(path, O_RDONLY);
-    if (fd_from<0) {
+    fh_from = pathios->Open(path, O_RDONLY);
+    if (fh_from == NULL) {
         goto out;
     }
     stored_mode = umask(0);
-    fd_to = toios->Open(to, O_WRONLY | O_CREAT, sbuf.st_mode);
+    fh_to = toios->Open(to, O_WRONLY | O_CREAT, sbuf.st_mode);
     umask(stored_mode);
-    if (fd_to<0) {
-        pathios->Close(fd_from);
+    if (fh_to == NULL) {
+        pathios->Close(fh_from);
         goto out;
     }
     if (!sbuf.st_size) {
@@ -403,12 +404,12 @@ int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
         goto done;
     }
     copy_len = 0;
-    while ((read_len = pathios->Read(fd_from, buf, buf_size)) != 0) {
+    while ((read_len = fh_from->Read(buf, buf_size)) != 0) {
         if ((read_len==-1)&&(errno!=EINTR)) {
             break;
         } else if (read_len>0) {
             ptr = buf;
-            while ((write_len = toios->Write(fd_to, ptr, read_len)) != 0) {
+            while ((write_len = fh_to->Write(ptr, read_len)) != 0) {
                 if ((write_len==-1)&&(errno!=EINTR)) {
                     goto done;
                 } else if (write_len==read_len) {
@@ -429,8 +430,8 @@ int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
         mlog(UT_DCOMMON, "Util::CopyFile, copy from %s to %s, ret: %d, %s",
              path, to, ret, strerror(errno));
 done:
-    pathios->Close(fd_from);
-    toios->Close(fd_to);
+    pathios->Close(fh_from);
+    toios->Close(fh_to);
     if (ret) {
         toios->Unlink(to);    // revert our change, delete the file created.
     }
@@ -452,9 +453,10 @@ out:
 int Util::MakeFile( const char *path, mode_t mode, IOStore *store )
 {
     ENTER_PATH;
-    ret = store->Creat( path, mode );
-    if ( ret > 0 ) {
-        ret = store->Close( ret );
+    IOSHandle *hand;
+    hand = store->Creat( path, mode );
+    if ( hand != NULL) {
+        ret = store->Close( hand );
     } else {
         ret = -errno;
     }
@@ -469,12 +471,12 @@ char *Util::Strdup(const char *s1)
 /*
  * Util::MapFile: maps files in memory, read-only
  */
-int Util::MapFile( size_t len, int fildes, void **retaddr, IOStore *store)
+int Util::MapFile(size_t len, void **retaddr, IOSHandle *hand)
 {
     ENTER_UTIL;
     int prot  = PROT_READ;
     int flags = MAP_PRIVATE|MAP_NOCACHE;
-    *retaddr = store->Mmap( NULL, len, prot, flags, fildes, 0 );
+    *retaddr = hand->Mmap( NULL, len, prot, flags, 0 );
     ret = ( *retaddr == (void *)NULL || *retaddr == (void *)-1 ? -1 : 0 );
     EXIT_UTIL;
 }
@@ -533,7 +535,7 @@ double Util::getTime( )
 }
 
 // returns n or returns -1
-ssize_t Util::Writen( int fd, const void *vptr, size_t n, IOStore *store )
+ssize_t Util::Writen(const void *vptr, size_t n, IOSHandle *hand)
 {
     ENTER_UTIL;
     size_t      nleft;
@@ -543,7 +545,7 @@ ssize_t Util::Writen( int fd, const void *vptr, size_t n, IOStore *store )
     nleft = n;
     ret   = n;
     while (nleft > 0) {
-        if ( (nwritten = store->Write(fd, ptr, nleft)) <= 0) {
+        if ( (nwritten = hand->Write(ptr, nleft)) <= 0) {
             if (errno == EINTR) {
                 nwritten = 0;    /* and call write() again */
             } else {
