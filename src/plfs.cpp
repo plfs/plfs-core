@@ -476,7 +476,7 @@ plfs_flatten_index(Plfs_fd *fd, const char *logical)
 }
 
 /* Get the extended attribute */
-int plfs_getxattr(Plfs_fd *fd, char *value, const char *key, size_t len) {
+int plfs_getxattr(Plfs_fd *fd, void *value, const char *key, size_t len) {
     debug_enter(__FUNCTION__,fd->getPath());
     int ret = fd->getxattr(value, key, len);
     debug_exit(__FUNCTION__,fd->getPath(),ret);
@@ -484,7 +484,7 @@ int plfs_getxattr(Plfs_fd *fd, char *value, const char *key, size_t len) {
 }
 
 /* Set the exteded attribute */ 
-int plfs_setxattr(Plfs_fd *fd, const char *value, const char *key, size_t len) {
+int plfs_setxattr(Plfs_fd *fd, const void *value, const char *key, size_t len) {
     debug_enter(__FUNCTION__,fd->getPath());
     int ret = fd->setxattr(value, key, len);
     debug_exit(__FUNCTION__,fd->getPath(),ret);

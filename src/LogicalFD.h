@@ -32,8 +32,8 @@ class Plfs_fd
 
         // functions that all might not necessarily implement
         virtual int compress_metadata(const char *path) = 0;
-	virtual int getxattr(char *value, const char *key, size_t len) = 0;
-	virtual int setxattr(const char *value, const char *key, size_t len) = 0;
+	virtual int getxattr(void *value, const char *key, size_t len) = 0;
+	virtual int setxattr(const void *value, const char *key, size_t len) = 0;
 
         // a function called to rename an open file
         // the caller must also call the FS rename separately

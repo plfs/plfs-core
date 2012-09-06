@@ -21,8 +21,8 @@ class Container_fd : public Plfs_fd
         int sync(pid_t pid);
         int trunc(const char *path, off_t offset);
         int getattr(const char *path, struct stat *stbuf, int sz_only);
-	int getxattr(char *value, const char *key, size_t len);
-	int setxattr(const char *value, const char *key, size_t len);
+	int getxattr(void *value, const char *key, size_t len);
+	int setxattr(const void *value, const char *key, size_t len);
         int query(size_t *, size_t *, size_t *, bool *reopen);
         bool is_good();
 

@@ -108,7 +108,7 @@ Container_fd::getPath()
 }
 
 int
-Container_fd:: getxattr(char *value, const char *key, size_t len) {
+Container_fd:: getxattr(void *value, const char *key, size_t len) {
     XAttrs *xattrs;
     XAttr *xattr;
     int ret = 0;
@@ -128,7 +128,7 @@ Container_fd:: getxattr(char *value, const char *key, size_t len) {
 }
 
 int
-Container_fd::setxattr(const char *value, const char *key, size_t len) {
+Container_fd::setxattr(const void *value, const char *key, size_t len) {
     stringstream sout;
     XAttrs *xattrs;
     bool xret;
