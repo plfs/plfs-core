@@ -49,7 +49,7 @@ class Flat_fd : public Plfs_fd
 	  return -ENOSYS;
 	}
 
-	int setxattr(const char *value, const char *key) {
+	int setxattr(const char *value, const char *key, size_t len) {
 	  return -ENOSYS;
 	}
     private:

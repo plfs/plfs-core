@@ -484,9 +484,9 @@ int plfs_getxattr(Plfs_fd *fd, char *value, const char *key, size_t len) {
 }
 
 /* Set the exteded attribute */ 
-int plfs_setxattr(Plfs_fd *fd, const char *value, const char *key) {
+int plfs_setxattr(Plfs_fd *fd, const char *value, const char *key, size_t len) {
     debug_enter(__FUNCTION__,fd->getPath());
-    int ret = fd->setxattr(value, key);
+    int ret = fd->setxattr(value, key, len);
     debug_exit(__FUNCTION__,fd->getPath(),ret);
     return ret;
 }
