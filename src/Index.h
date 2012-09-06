@@ -97,14 +97,14 @@ class ContainerEntry : HostEntry
 typedef struct {
     string bpath;
     struct plfs_backend *backend;
-    int fd;                  /* -1 if not currently open */
+    IOSHandle *fh;           /* NULL if not currently open */
 } ChunkFile;
 
 class Index : public Metadata
 {
     public:
         Index( string, struct plfs_backend * );
-        Index( string path, struct plfs_backend *, int fd );
+        Index( string path, struct plfs_backend *, IOSHandle *fh );
         ~Index();
 
         int readIndex( string hostindex, struct plfs_backend *iback );
@@ -125,28 +125,29 @@ class Index : public Metadata
         void unlock(  const char *function );
 
         /*
-         * XXX: getFd() only used by WriteFile to poke around with our
-         * internal index fd.  might be nice to find a way to avoid
+         * XXX: getFh() only used by WriteFile to poke around with our
+         * internal index fh.  might be nice to find a way to avoid
          * this?
          */
-        int getFd(struct plfs_backend **fdbackp) {
+        IOSHandle *getFh(struct plfs_backend **fdbackp) {
             *fdbackp = this->iobjback;
-            return this->fd;
+            return this->fh;
         }
+
         /* XXX: WriteFile can change the fd, but not the backend */
-        void resetFd( int fd ) {
-            this->fd = fd;
+        void resetFh( IOSHandle *newfh ) {
+            this->fh = newfh;
         }
 
         int resetPhysicalOffsets();
 
         size_t totalBytes( );
 
-        int getChunkFd( pid_t chunk_id );
+        IOSHandle *getChunkFh( pid_t chunk_id );
 
-        int setChunkFd( pid_t chunk_id, int fd );
+        int setChunkFh( pid_t chunk_id, IOSHandle *fh);
 
-        int globalLookup( int *fd, off_t *chunk_off, size_t *length,
+        int globalLookup( IOSHandle **fh, off_t *chunk_off, size_t *length,
                           string& path, struct plfs_backend **backp,
                           bool *hole, pid_t *chunk_id,
                           off_t logical );
@@ -154,12 +155,12 @@ class Index : public Metadata
         int insertGlobal( ContainerEntry * );
         void merge( Index *other);
         void truncate( off_t offset );
-        int rewriteIndex( int fd );
+        int rewriteIndex( IOSHandle *fh );
         void truncateHostIndex( off_t offset );
 
         void compress();
         int debug_from_stream(void *addr);
-        int global_to_file(int fd, struct plfs_backend *canback);
+        int global_to_file(IOSHandle *fh, struct plfs_backend *canback);
         int global_from_stream(void *addr);
         int global_to_stream(void **buffer,size_t *length);
         friend ostream& operator <<(ostream&,const Index&);
@@ -171,12 +172,12 @@ class Index : public Metadata
 
     private:
         void init( string, struct plfs_backend * );
-        int chunkFound( int *, off_t *, size_t *, off_t,
+        int chunkFound( IOSHandle **, off_t *, size_t *, off_t,
                         string&, struct plfs_backend **,
                         pid_t *, ContainerEntry * );
-        int cleanupReadIndex(int, void *, off_t, int, const char *,
+        int cleanupReadIndex(IOSHandle *, void *, off_t, int, const char *,
                              const char *, struct plfs_backend *);
-        void *mapIndex( string, int *, off_t *, struct plfs_backend * );
+        void *mapIndex( string, IOSHandle **, off_t *, struct plfs_backend * );
         int handleOverlap( ContainerEntry& g_entry,
                            pair< map<off_t,ContainerEntry>::iterator,
                            bool > &insert_ret );
@@ -205,7 +206,7 @@ class Index : public Metadata
         pid_t  mypid;
 
         string physical_path;
-        int    fd;
+        IOSHandle *fh;
         struct plfs_backend *iobjback;
 
         int    chunk_id;

@@ -33,9 +33,9 @@ FileOp::retValue(int ret)
     return ret;
 }
 
-AccessOp::AccessOp(int mask)
+AccessOp::AccessOp(int newmask)
 {
-    this->mask = mask;
+    this->mask = newmask;
 }
 
 // helper function for Access
@@ -59,6 +59,7 @@ int Access( const string& path, IOStore *store, int mask )
     // root can access everything.  so, we must also try the open
     mode_t open_mode;
     int ret;
+    IOSHandle *fh;
     errno = 0;
     bool mode_set=false;
 
@@ -86,10 +87,12 @@ int Access( const string& path, IOStore *store, int mask )
         }
         assert(mode_set);
         mlog(FOP_DCOMMON, "The file exists attempting open");
-        ret = store->Open(cstr,open_mode);
-        mlog(FOP_DCOMMON, "Open returns %d",ret);
-        if(ret >= 0 ) {
-            store->Close(ret);
+        fh = store->Open(cstr,open_mode);
+        mlog(FOP_DCOMMON, "Open returns %p",fh);
+        if (fh != NULL) {
+            store->Close(fh);
+        } else {
+            ret = -errno;
         }
     }
     delete cstr;
@@ -108,10 +111,10 @@ AccessOp::do_op(const char *path, unsigned char isfile, IOStore *store)
     }
 }
 
-ChownOp::ChownOp(uid_t u, gid_t g)
+ChownOp::ChownOp(uid_t newu, gid_t newg)
 {
-    this->u = u;
-    this->g = g;
+    this->u = newu;
+    this->g = newg;
 }
 
 int
@@ -120,9 +123,9 @@ ChownOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store )
     return store->Chown(path,u,g);
 }
 
-TruncateOp::TruncateOp(bool open_file)
+TruncateOp::TruncateOp(bool newopen_file)
 {
-    this->open_file = open_file;
+    this->open_file = newopen_file;
     // it's possible that we lost a race and some other proc already removed
     ignoreErrno(ENOENT);
 }
@@ -176,24 +179,25 @@ UnlinkOp::do_op(const char *path, unsigned char isfile, IOStore *store)
     }
 }
 
-CreateOp::CreateOp(mode_t m)
+CreateOp::CreateOp(mode_t newm)
 {
-    this->m = m;
+    this->m = newm;
 }
 
-ReaddirOp::ReaddirOp(map<string,unsigned char> *entries,
-                     set<string> *names, bool expand_path, bool skip_dots)
+ReaddirOp::ReaddirOp(map<string,unsigned char> *newentries,
+                     set<string> *newnames, bool expand_path,
+                     bool newskip_dots)
 {
-    this->entries = entries;
-    this->names   = names;
+    this->entries = newentries;
+    this->names   = newnames;
     this->expand  = expand_path;
-    this->skip_dots = skip_dots;
+    this->skip_dots = newskip_dots;
 }
 
 int
-ReaddirOp::filter(string filter)
+ReaddirOp::filter(string newfilter)
 {
-    filters.insert(filter);
+    filters.insert(newfilter);
     return filters.size();
 }
 
@@ -238,13 +242,13 @@ int
 ReaddirOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
 {
     int ret;
-    DIR *dir;
+    IOSDirHandle *dir;
     struct dirent entstore, *ent;
     dir = store->Opendir(path);
     if (dir == NULL) {
-        return(-errno);
+        return(-1);
     }
-    while (store->Readdir_r(dir, &entstore, &ent) == 0 && ent != NULL) {
+    while ((ret = dir->Readdir_r(&entstore, &ent)) == 0 && ent != NULL) {
         if (skip_dots && (!strcmp(ent->d_name,".")||
                           !strcmp(ent->d_name,".."))) {
             continue;   // skip the dots
@@ -284,8 +288,8 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
         }
     }
     store->Closedir(dir);
-    if (ret==1) {
-        ret = 0;    // read to end of directory
+    if (ret != 0) {
+        ret = -1;  /* causes FileOp::retVal to return -errno */
     }
     return ret;
 }
@@ -316,9 +320,9 @@ CreateOp::do_op(const char *path, unsigned char isfile, IOStore *store)
     return ret; 
 }
 
-ChmodOp::ChmodOp(mode_t m)
+ChmodOp::ChmodOp(mode_t newm)
 {
-    this->m = m;
+    this->m = newm;
 }
 
 int
@@ -339,9 +343,9 @@ ChmodOp::do_op(const char *path, unsigned char isfile, IOStore *store)
     return store->Chmod(path,this_mode);
 }
 
-UtimeOp::UtimeOp(struct utimbuf *ut)
+UtimeOp::UtimeOp(struct utimbuf *newut)
 {
-    this->ut = ut;
+    this->ut = newut;
 }
 
 int

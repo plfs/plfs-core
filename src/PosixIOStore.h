@@ -6,9 +6,107 @@
 #include <sys/mman.h>
 #include "IOStore.h"
 
+class IOSHandle;
+class IOSDirHandle;
+class IOStore;
+
 /* An implementation of the IOStore for standard filesystems */
 /* Since in POSIX all these calls are thin wrappers, the functions */
 /* are done here as inline. */
+class PosixIOSHandle: public IOSHandle {
+ public:
+
+    PosixIOSHandle(int newfd, string newbpath, IOStore *newstore) {
+        this->fd = newfd;
+        this->bpath = newbpath;
+        // this->store = store;  /* not necessary for POSIX */
+    };
+    
+    /*
+     * this is for IOStore::close so we can get the close return value
+     * before we delete the handle.
+     */
+    int PosixFD() {
+        return(this->fd);
+    };
+    
+    int Fstat(struct stat* buf) {
+        return fstat(this->fd, buf);
+    };
+
+    int Fsync() {
+        return fsync(this->fd);
+    };
+
+    int Ftruncate(off_t length) {
+        return ftruncate(this->fd, length);
+    };
+
+    off_t Lseek(off_t offset, int whence) {
+        return lseek(this->fd, offset, whence);
+    };
+
+    void *Mmap(void *addr, size_t len, int prot, int flags, off_t offset) {
+        return mmap(addr, len, prot, flags, this->fd, offset);
+    };
+
+    int Munmap(void *addr, size_t length)
+    {
+        return munmap(addr, length);
+    };
+
+    ssize_t Pread(void* buf, size_t count, off_t offset) {
+        return pread(this->fd, buf, count, offset);
+    };
+
+    ssize_t Pwrite(const void* buf, size_t count, off_t offset) {
+        return pwrite(this->fd, buf, count, offset);
+    };
+
+    ssize_t Read(void *buf, size_t count) {
+        return read(this->fd, buf, count);
+    };
+
+    ssize_t Write(const void* buf, size_t len) {
+        return write(this->fd, buf, len);
+    };
+    
+ private:
+    int fd;
+    string bpath;
+    // IOStore *store;          /* not necessary for POSIX */
+};
+
+
+class PosixIOSDirHandle: public IOSDirHandle {
+ public:
+
+    PosixIOSDirHandle(DIR *newdp, string newbpath, IOStore *newstore) {
+        this->dp = newdp;
+        this->bpath = newbpath;
+        // this->store = newstore;  /* not necessary for POSIX */
+    };
+    
+    /*
+     * this is for IOStore::closedir so we can get the closedir return
+     * value before we delete the handle.
+     */
+    DIR *PosixDIR() {
+        return(this->dp);
+    };
+    
+    int Readdir_r(struct dirent *dst, struct dirent **dret) {
+        return(readdir_r(this->dp, dst, dret));
+    };
+
+ private:
+    DIR *dp;
+    string bpath;
+    // IOStore *store;          /* not necessary for POSIX */
+};
+
+
+
 class PosixIOStore: public IOStore {
 public:
     int Access(const char *path, int amode) {
@@ -23,28 +121,31 @@ public:
         return chown(path, owner, group);
     }
 
-    int Close(int fd) {
-        return close(fd);
+    int Close(IOSHandle *hand) {
+        PosixIOSHandle *phand = (PosixIOSHandle *)hand;
+        int fd, ret;
+        fd = phand->PosixFD();
+        /*
+         * I wanted delete to do the close, but how do you collect the
+         * return value from close then?
+         */
+        ret = close(fd);
+        delete hand;
+        return(ret);
     }
 
-    int Closedir(DIR* dirp) {
-        return closedir(dirp);
-    }
-
-    int Creat(const char*path, mode_t mode) {
-        return creat(path, mode);
-    }
-
-    int Fstat(int fd, struct stat* buf) {
-        return fstat(fd, buf);
-    }
-
-    int Fsync(int fd) {
-        return fsync(fd);
-    }
-
-    int Ftruncate(int fd, off_t length) {
-        return ftruncate(fd, length);
+    int Closedir(IOSDirHandle *dhand) {
+        PosixIOSDirHandle *pdhand = (PosixIOSDirHandle *)dhand;
+        DIR *dirp;
+        int ret;
+        dirp = pdhand->PosixDIR();
+        /*
+         * I wanted delete to do the closedir, but how do you collect
+         * the return value from closedir then?
+         */
+        ret = closedir(dirp);
+        delete dhand;
+        return(ret);
     }
 
     int Lchown(const char *path, uid_t owner, gid_t group) {
@@ -53,10 +154,6 @@ public:
 
     int Link(const char* oldpath, const char* newpath) {
         return link(oldpath, newpath);
-    }
-
-    off_t Lseek(int fd, off_t offset, int whence) {
-        return lseek(fd, offset, whence);
     }
 
     int Lstat(const char* path, struct stat* buf) {
@@ -71,43 +168,32 @@ public:
         return mknod(path, mode, dev);
     }
 
-    void* Mmap(void *addr, size_t len, int prot, int flags, int fd, off_t offset) {
-        return mmap(addr, len, prot, flags, fd, offset);
+    class IOSHandle *Open(const char *bpath, int flags, mode_t mode) {
+        int fd;
+        PosixIOSHandle *hand;
+        fd = open(bpath, flags, mode);
+        if (fd < 0)
+            return(NULL);
+        hand = new PosixIOSHandle(fd, bpath, this);
+        if (hand == NULL)
+            close(fd);
+        return(hand);
     }
 
-    int Munmap(void *addr, size_t length)
-    {
-        return munmap(addr, length);
+    class IOSDirHandle *Opendir(const char *bpath) {
+        DIR *dp;
+        PosixIOSDirHandle *dhand;
+        dp = opendir(bpath);
+        if (!dp)
+            return(NULL);
+        dhand = new PosixIOSDirHandle(dp, bpath, this);
+        if (!dhand) {
+            closedir(dp);
+            return(NULL);
+        }
+        return(dhand);
     }
-
-    int Open(const char* path, int flags) {
-        return open(path, flags);
-    }
-
-    int Open(const char* path, int flags, mode_t mode) {
-        return open(path, flags, mode);
-    }
-
-    DIR* Opendir(const char *name) {
-        return opendir(name);
-    }
-
-    ssize_t Pread(int fd, void* buf, size_t count, off_t offset) {
-        return pread(fd, buf, count, offset);
-    }
-
-    ssize_t Pwrite(int fd, const void* buf, size_t count, off_t offset) {
-        return pwrite(fd, buf, count, offset);
-    }
-
-    ssize_t Read(int fd, void *buf, size_t count) {
-        return read(fd, buf, count);
-    }
-
-    int Readdir_r(DIR *dirp, struct dirent *dst, struct dirent **dret) {
-        return(readdir_r(dirp, dst, dret));
-    }
-
+    
     int Rename(const char *oldpath, const char *newpath) {
         return rename(oldpath, newpath);
     }
@@ -142,10 +228,6 @@ public:
 
     int Utime(const char* filename, const struct utimbuf *times) {
         return utime(filename, times);
-    }
-
-    ssize_t Write(int fd, const void* buf, size_t len) {
-        return write(fd, buf, len);
     }
 };
 

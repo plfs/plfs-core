@@ -168,7 +168,7 @@ class Container
         static blkcnt_t bytesToBlocks( size_t total_bytes );
         static int nextdropping( const string&, struct plfs_backend *,
                                  string *, struct plfs_backend **, const char *,
-                                 DIR **, DIR **, string * );
+                                 IOSDirHandle **, IOSDirHandle **, string * );
         static int makeSubdir(const string& path, mode_t mode,
                               struct plfs_backend *backend);
         static int makeDropping(const string& path, struct plfs_backend *b);
@@ -213,7 +213,7 @@ class Container
         static string hostdirFromChunk( string chunkpath, const char *type );
         static string timestampFromChunk(string hostindex, const char *type);
         static string containerFromChunk( string datapath );
-        static struct dirent *getnextent( DIR *dir, struct plfs_backend *b,
+        static struct dirent *getnextent( IOSDirHandle *dhand,
                                           const char *prefix,
                                           struct dirent *ds );
         static int makeMeta( const string& path, mode_t type, mode_t mode,

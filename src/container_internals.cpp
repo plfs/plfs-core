@@ -40,7 +40,7 @@ bool cache_index_on_rdwr = false;   // DO NOT change to true!!!!
 
 // a struct for making reads be multi-threaded
 typedef struct {
-    int fd;
+    IOSHandle *fh;
     size_t length;
     off_t chunk_offset;
     off_t logical_offset;
@@ -593,9 +593,9 @@ container_rmdir( const char *logical )
     if (ret==-ENOTEMPTY) {
         mlog(PLFS_DRARE, "Started removing a non-empty directory %s. "
              "Will restore.", logical);
-        CreateOp op(mode);
-        op.ignoreErrno(EEXIST);
-        plfs_iterate_backends(logical,op); // don't overwrite ret
+        CreateOp cop(mode);
+        cop.ignoreErrno(EEXIST);
+        plfs_iterate_backends(logical,cop); // don't overwrite ret
     }
     PLFS_EXIT(ret);
 }
@@ -717,7 +717,7 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
     ReadTask task;
     do {
         // find a read task
-        ret = index->globalLookup(&(task.fd),
+        ret = index->globalLookup(&(task.fh),
                                   &(task.chunk_offset),
                                   &(task.length),
                                   task.path,
@@ -738,14 +738,14 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
             mss::mlog_oss oss(INT_DCOMMON);
             oss << chunk << ".1) Found index entry offset "
                 << task.chunk_offset << " len "
-                << task.length << " fd " << task.fd << " path "
+                << task.length << " fh " << task.fh << " path "
                 << task.path << endl;
             // check to see if we can combine small sequential reads
             // when merging is off, that breaks things even more.... ?
             // there seems to be a merging bug now too
             if ( ! tasks->empty() > 0 ) {
                 ReadTask lasttask = tasks->back();
-                if ( lasttask.fd == task.fd &&
+                if ( lasttask.fh == task.fh &&
                         lasttask.hole == task.hole &&
                         lasttask.chunk_offset + (off_t)lasttask.length ==
                         task.chunk_offset &&
@@ -754,7 +754,7 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
                     // merge last into this and pop last
                     oss << chunk++ << ".1) Merge with last index entry offset "
                         << lasttask.chunk_offset << " len "
-                        << lasttask.length << " fd " << lasttask.fd
+                        << lasttask.length << " fh " << lasttask.fh
                         << endl;
                     task.chunk_offset = lasttask.chunk_offset;
                     task.length += lasttask.length;
@@ -779,21 +779,21 @@ perform_read_task( ReadTask *task, Index *index )
         memset((void *)task->buf, 0, task->length);
         ret = task->length;
     } else {
-        if ( task->fd < 0 ) {
+        if ( task->fh == NULL ) {
             // since the task was made, maybe someone else has stashed it
             index->lock(__FUNCTION__);
-            task->fd = index->getChunkFd(task->chunk_id);
+            task->fh = index->getChunkFh(task->chunk_id);
             index->unlock(__FUNCTION__);
-            if ( task->fd < 0 ) {   // not currently stashed, we have to open it
+            if ( task->fh == NULL) { // not currently stashed, we have to open
                 bool won_race = true;   // assume we will be first stash
                 // This is where the data chunk is opened.  We need to
                 // create a helper function that does this open and reacts
                 // appropriately when it fails due to metalinks
                 // this is currently working with metalinks.  We resolve
                 // them before we get here
-                task->fd = task->backend->store->Open(task->path.c_str(),
+                task->fh = task->backend->store->Open(task->path.c_str(),
                                                       O_RDONLY);
-                if ( task->fd < 0 ) {
+                if ( task->fh == NULL ) {
                     mlog(INT_ERR, "WTF? Open of %s: %s",
                          task->path.c_str(), strerror(errno) );
                     return -errno;
@@ -803,29 +803,29 @@ perform_read_task( ReadTask *task, Index *index )
                 // someone else might have stashed one already.  if so,
                 // close the one we just opened and use the stashed one
                 index->lock(__FUNCTION__);
-                int existing = index->getChunkFd(task->chunk_id);
-                if ( existing >= 0 ) {
+                IOSHandle *existing;
+                existing = index->getChunkFh(task->chunk_id);
+                if ( existing != NULL ) {
                     won_race = false;
                 } else {
-                    index->setChunkFd(task->chunk_id, task->fd);   // stash it
+                    index->setChunkFh(task->chunk_id, task->fh);   // stash it
                 }
                 index->unlock(__FUNCTION__);
                 if ( ! won_race ) {
-                    task->backend->store->Close(task->fd);
-                    task->fd = existing; // already stashed by someone else
+                    task->backend->store->Close(task->fh);
+                    task->fh = existing; // already stashed by someone else
                 }
-                mlog(INT_DCOMMON, "Opened fd %d for %s and %s stash it",
-                     task->fd, task->path.c_str(),
+                mlog(INT_DCOMMON, "Opened fh %p for %s and %s stash it",
+                     task->fh, task->path.c_str(),
                      won_race ? "did" : "did not");
             }
         }
         /* here's where we actually read container data! */
-        ret = task->backend->store->Pread( task->fd, task->buf, task->length,
-                                           task->chunk_offset );
+        ret = task->fh->Pread(task->buf, task->length, task->chunk_offset );
     }
     mss::mlog_oss oss(INT_DCOMMON);
     oss << "\t READ TASK: offset " << task->chunk_offset << " len "
-        << task->length << " fd " << task->fd << ": ret " << ret;
+        << task->length << " fh " << task->fh << ": ret " << ret;
     mlog(INT_DCOMMON, "%s", oss.str().c_str() );
     PLFS_EXIT(ret);
 }
@@ -1017,7 +1017,7 @@ plfs_num_host_dirs(int *hostdir_count,char *target, void *vback, char *bm)
     // Directory reading variables
     //XXXCDC: should use the iostore for IO
     IOStore *store = ((plfs_backend *)vback)->store;
-    DIR *dirp;
+    IOSDirHandle *dirp;
     struct dirent entstore, *dirent;
     int isfile = 0;
     *hostdir_count = 0;
@@ -1028,7 +1028,7 @@ plfs_num_host_dirs(int *hostdir_count,char *target, void *vback, char *bm)
         return *hostdir_count;
     }
     // Start reading the directory
-    while (store->Readdir_r(dirp, &entstore, &dirent) == 0 && dirent != NULL) {
+    while (dirp->Readdir_r(&entstore, &dirent) == 0 && dirent != NULL) {
         // Look for entries that beging with hostdir
         if(strncmp(HOSTDIRPREFIX,dirent->d_name,strlen(HOSTDIRPREFIX))==0) {
             char *substr;
@@ -1285,15 +1285,15 @@ plfs_parindexread_merge(const char *path,char *index_streams,
     Index merger(path, NULL);  /* temporary obj use for collection */
     // Merge all of the indices that were passed in
     for(count=0; count<procs; count++) {
-        char *index_stream;
+        char *istream;
         if(count>0) {
             int index_inc=index_sizes[count-1];
             mlog(INT_DCOMMON, "Incrementing the index by %d",index_inc);
             index_streams+=index_inc;
         }
         Index *tmp = new Index(path, NULL);
-        index_stream=index_streams;
-        tmp->global_from_stream(index_stream);
+        istream=index_streams;
+        tmp->global_from_stream(istream);
         merger.merge(tmp);
     }
     // Convert temporary merger Index object into a stream and return that

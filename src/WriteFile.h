@@ -19,8 +19,8 @@ using namespace std;
 // if we get multiple writers, we create an index mutex to protect it
 
 struct
-OpenFd {
-    int fd;
+OpenFh {
+    IOSHandle *fh;
     int writers;
 };
 
@@ -62,20 +62,21 @@ class WriteFile : public Metadata
         }
 
     private:
-        int openIndexFile( string path, string host, pid_t, mode_t
-                           , string *index_path);
-        int openDataFile(string path, string host, pid_t, mode_t );
-        int openFile( string, mode_t mode );
+        IOSHandle *openIndexFile( string path, string host, pid_t, mode_t,
+                                  string *index_path);
+        IOSHandle *openDataFile(string path, string host, pid_t, mode_t );
+        IOSHandle *openFile( string, mode_t mode );
         int Close( );
-        int closeFd( int fd );
-        struct OpenFd *getFd( pid_t pid );
+        int closeFh( IOSHandle *fh );
+        struct OpenFh *getFh( pid_t pid );
 
         string container_path;
         string subdir_path;
         struct plfs_backend *subdirback;
         string hostname;
-        map< pid_t, OpenFd  > fds;
-        map< int, string > paths;      // need to remember fd paths to restore
+        map< pid_t, OpenFh  > fhs;
+        // need to remember fd paths to restore
+        map< IOSHandle *, string > paths;
         pthread_mutex_t    index_mux;  // to use the shared index
         pthread_mutex_t    data_mux;   // to access our map of fds
         bool has_been_renamed; // use this to guard against a truncate following
