@@ -63,10 +63,10 @@ XAttr *XAttrs::getXAttr(string key, size_t len)
     full_path = path + "/" + key;
     fd = Util::Open( full_path.c_str(), O_RDONLY);
     if (fd >= 0) {
-        mlog(IDX_DAPI, "Opened key path: %s for key: %s", __FUNCTION__,
+        mlog(IDX_DAPI, "%s: Opened key path: %s for key: %s", __FUNCTION__,
              full_path.c_str(), key.c_str());  
     } else {
-        mlog(IDX_DRARE, "Could not open path: %s for key: %s", __FUNCTION__,
+        mlog(IDX_DRARE, "%s: Could not open path: %s for key: %s", __FUNCTION__,
              full_path.c_str(), key.c_str());
         return NULL;
     } 
@@ -74,7 +74,7 @@ XAttr *XAttrs::getXAttr(string key, size_t len)
     memset(buf, 0, MAX_VALUE_LEN);
     ret = Util::Read(fd, buf, len);    
     if (ret < 0) {
-        mlog(IDX_DRARE, "Could not read value for key: %s", __FUNCTION__,
+        mlog(IDX_DRARE, "%s: Could not read value for key: %s", __FUNCTION__,
              key.c_str());
         Util::Close(fd);
         return NULL;
@@ -85,10 +85,10 @@ XAttr *XAttrs::getXAttr(string key, size_t len)
     XAttr *xattr = new XAttr(key, (const void*)value);
     ret = Util::Close(fd);
     if (ret >= 0) {
-        mlog(IDX_DAPI, "Closed file: %s", __FUNCTION__,
+        mlog(IDX_DAPI, "%s: Closed file: %s", __FUNCTION__,
              full_path.c_str());  
     } else {
-        mlog(IDX_DRARE, "Could not open path for key: %s", __FUNCTION__,
+        mlog(IDX_DRARE, "%s: Could not open path for key: %s", __FUNCTION__,
              key.c_str());
         return NULL;
     } 
@@ -109,13 +109,13 @@ bool XAttrs::setXAttr(string key, const void* value, size_t len)
     string full_path;
 
     if (key.length() > MAX_KEY_LEN) {
-        mlog(IDX_DRARE, "key: %s is exceeds the maximum key length", __FUNCTION__,
+        mlog(IDX_DRARE, "%s: key: %s is exceeds the maximum key length", __FUNCTION__,
              key.c_str());
         return false;
     }
 
     if (len >= MAX_VALUE_LEN) {
-        mlog(IDX_DRARE, "value: %s is exceeds the maximum value length", __FUNCTION__,
+        mlog(IDX_DRARE, "%s: value: %s is exceeds the maximum value length", __FUNCTION__,
              value);
         return false;
     }
@@ -123,17 +123,17 @@ bool XAttrs::setXAttr(string key, const void* value, size_t len)
     full_path = path + "/" + key;
     fd = Util::Open( full_path.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0644);
     if (fd >= 0) {
-        mlog(IDX_DAPI, "Opened key path: %s for key: %s", __FUNCTION__,
+        mlog(IDX_DAPI, "%s: Opened key path: %s for key: %s", __FUNCTION__,
              full_path.c_str(), key.c_str());  
     } else {
-        mlog(IDX_DRARE, "Could not open path: %s for key: %s", __FUNCTION__,
+        mlog(IDX_DRARE, "%s: Could not open path: %s for key: %s", __FUNCTION__,
              full_path.c_str(), key.c_str());
         return false;
     } 
 
     ret = Util::Write( fd, value, len);    
     if (ret < 0) {
-        mlog(IDX_DRARE, "Could not write value for key: %s", __FUNCTION__,
+        mlog(IDX_DRARE, "%s: Could not write value for key: %s", __FUNCTION__,
              key.c_str());
         Util::Close(fd);
         return false;
@@ -141,10 +141,10 @@ bool XAttrs::setXAttr(string key, const void* value, size_t len)
 
     ret = Util::Close(fd);
     if (ret >= 0) {
-        mlog(IDX_DAPI, "Closed file: %s", __FUNCTION__,
+        mlog(IDX_DAPI, "%s: Closed file: %s", __FUNCTION__,
              full_path.c_str());  
     } else {
-        mlog(IDX_DRARE, "Could not open path for key: %s", __FUNCTION__,
+        mlog(IDX_DRARE, "%s: Could not open path for key: %s", __FUNCTION__,
              key.c_str());
         return false;
     } 
