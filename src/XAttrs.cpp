@@ -8,13 +8,13 @@
 #include "mlogfacs.h"
 #include "plfs_internal.h"
 
-XAttr::XAttr(string key, const char* value)
+XAttr::XAttr(string key, const void* value)
 {
     this->key = key;
     this->value = value;
 }
  
-const char* XAttr::getValue()
+const void* XAttr::getValue()
 {
     return value;
 }
@@ -72,11 +72,7 @@ XAttr *XAttrs::getXAttr(string key, size_t len)
     } 
 
     memset(buf, 0, MAX_VALUE_LEN);
-    ret = Util::Read( fd, buf, len);    
-    if (ret == MAX_VALUE_LEN) {
-        buf[MAX_VALUE_LEN - 1] = '\0';
-    }
-
+    ret = Util::Read(fd, buf, len);    
     if (ret < 0) {
         mlog(IDX_DRARE, "%s: Could not read value for key: %s", __FUNCTION__,
              key.c_str());
@@ -86,7 +82,7 @@ XAttr *XAttrs::getXAttr(string key, size_t len)
 
     char* value = (char*) malloc (len);
     memcpy(value, &buf, len);
-    XAttr *xattr = new XAttr(key, (const char*)value);
+    XAttr *xattr = new XAttr(key, (const void*)value);
     ret = Util::Close(fd);
     if (ret >= 0) {
         mlog(IDX_DAPI, "%s: Closed file: %s", __FUNCTION__,
@@ -107,7 +103,7 @@ XAttr *XAttrs::getXAttr(string key, size_t len)
  * @param value    The value to set
  * @return boolean True on success, false otherwise
  */
-bool XAttrs::setXAttr(string key, const char* value, size_t len) 
+bool XAttrs::setXAttr(string key, const void* value, size_t len) 
 {
     int ret, fd;
     string full_path;
