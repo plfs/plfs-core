@@ -47,8 +47,7 @@ lib_LTLIBRARIES = \
 libplfs.la
 
 include_HEADERS = \
-plfs.h \
-upc_map.h
+plfs.h 
 
 dist_pkginclude_HEADERS = \
 COPYRIGHT.h \
@@ -96,8 +95,7 @@ plfs_private.cpp \
 container_internals.cpp \
 plfs.cpp \
 mlog_oss.cpp \
-XAttrs.cpp \
-upc_map.cpp
+XAttrs.cpp 
 
 libplfs_la_SOURCES = \
 $(headers) \

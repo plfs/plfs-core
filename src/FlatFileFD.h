@@ -45,11 +45,11 @@ class Flat_fd : public Plfs_fd
             return 0;
         }
 
-	int getxattr(char *value, const char *key, size_t len) {
+	int getxattr(void *value, const char *key, size_t len) {
 	  return -ENOSYS;
 	}
 
-	int setxattr(const char *value, const char *key, size_t len) {
+	int setxattr(const void *value, const char *key, size_t len) {
 	  return -ENOSYS;
 	}
     private:
