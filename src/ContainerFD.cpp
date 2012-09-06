@@ -114,13 +114,13 @@ Container_fd:: getxattr(char *value, const char *key, size_t len) {
     int ret = 0;
 
     xattrs = new XAttrs(getPath());
-    xattr = xattrs->getXAttr(string(key));
+    xattr = xattrs->getXAttr(string(key), len);
     if (xattr == NULL) {
         ret = 1;
         return ret;
     }
 
-    memcpy(value, xattr->getValue().c_str(), len);
+    memcpy(value, xattr->getValue(), len);
     delete(xattr);
     delete(xattrs);
 
@@ -128,7 +128,7 @@ Container_fd:: getxattr(char *value, const char *key, size_t len) {
 }
 
 int
-Container_fd::setxattr(const char *value, const char *key) {
+Container_fd::setxattr(const char *value, const char *key, size_t len) {
     stringstream sout;
     XAttrs *xattrs;
     bool xret;
@@ -137,7 +137,7 @@ Container_fd::setxattr(const char *value, const char *key) {
     mlog(PLFS_DBG, "Setting xattr - key: %s, value: %s\n", 
          key, value, __FUNCTION__);
     xattrs = new XAttrs(getPath());
-    xret = xattrs->setXAttr(string(key), string(value));
+    xret = xattrs->setXAttr(string(key), value, len);
     if (!xret) {
         mlog(PLFS_DBG, "In %s: Error writing upc object size\n", 
              __FUNCTION__);
