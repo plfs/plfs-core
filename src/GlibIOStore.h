@@ -43,6 +43,8 @@ class GlibIOSHandle: public IOSHandle {
                 close(fd);
                 return -errno;
             } else {
+                // successful here so set 64MB buff.  should come from plfsrc.
+                setvbuf(fp,NULL,_IONBF,64*1048576);
                 return 0;
             }
         } else {
