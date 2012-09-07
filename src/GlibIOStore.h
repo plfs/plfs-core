@@ -1,60 +1,77 @@
-#ifndef _POSIX_IOSTORE_H_
-#define _POSIX_IOSTORE_H_
+#ifndef _GLIB_IOSTORE_H_
+#define _GLIB_IOSTORE_H_
 
+#include <assert.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <sys/mman.h>
-#include "IOStore.h"
 
-class IOSHandle;
-class IOSDirHandle;
-class IOStore;
+#include "IOStore.h"
+#include "PosixIOStore.h"
 
 /* An implementation of the IOStore for standard filesystems */
 /* Since in POSIX all these calls are thin wrappers, the functions */
 /* are done here as inline. */
-class PosixIOSHandle: public IOSHandle {
+class GlibIOSHandle: public IOSHandle {
  private:
     int Close() {
         int rv;
-        rv = close(this->fd);
+        rv = fclose(this->fp);
         return(rv);
     }
     
  public:
 
-    PosixIOSHandle(int newfd, string newbpath, IOStore *newstore) {
-        this->fd = newfd;
-        this->bpath = newbpath;
-        // this->store = store;  /* not necessary for POSIX */
-    };
-    
-    /*
-     * this is for IOStore::close so we can get the close return value
-     * before we delete the handle.
-     */
-    int PosixFD() {
-        return(this->fd);
-    };
+    GlibIOSHandle(string path) {
+        this->path = path;
+    }
+
+    int Open(int flags, mode_t mode) {
+        int fd = open(path.c_str(),flags,mode);
+        if (fd > 0) {
+            string restrict_mode;
+            if (flags & O_RDONLY) {
+                restrict_mode = "r";
+            } else if (flags & O_WRONLY) {
+                restrict_mode = "w";
+            } else {
+                assert (flags & O_RDWR);
+                restrict_mode = "r+";
+            }
+            this->fp = fdopen(fd,restrict_mode.c_str());
+            if (this->fp == NULL) {
+                close(fd);
+                return -errno;
+            } else {
+                return 0;
+            }
+        } else {
+            return -errno;
+        }
+    }
     
     int Fstat(struct stat* buf) {
-        return fstat(this->fd, buf);
+        int fd = fileno(fp);
+        return fstat(fd, buf);
     };
 
     int Fsync() {
-        return fsync(this->fd);
+        return fflush(fp);
     };
 
     int Ftruncate(off_t length) {
-        return ftruncate(this->fd, length);
+        int fd = fileno(fp);
+        return ftruncate(fd, length);
     };
 
     off_t Lseek(off_t offset, int whence) {
-        return lseek(this->fd, offset, whence);
+        int ret = fseek(fp,offset,whence);
+        return ret == 0 ? offset : -1;
     };
 
     void *Mmap(void *addr, size_t len, int prot, int flags, off_t offset) {
-        return mmap(addr, len, prot, flags, this->fd, offset);
+        int fd = fileno(fp);
+        return mmap(addr, len, prot, flags, fd, offset);
     };
 
     int Munmap(void *addr, size_t length)
@@ -63,159 +80,46 @@ class PosixIOSHandle: public IOSHandle {
     };
 
     ssize_t Pread(void* buf, size_t count, off_t offset) {
-        return pread(this->fd, buf, count, offset);
+        int ret = fseek(fp,offset, SEEK_SET);
+        if (ret != 0) return -1;
+        return fread(buf,1,count,fp);
     };
 
     ssize_t Pwrite(const void* buf, size_t count, off_t offset) {
-        return pwrite(this->fd, buf, count, offset);
+        int ret = fseek(fp,offset, SEEK_SET);
+        if (ret != 0) return -1;
+        return fwrite(buf,1,count,fp);
     };
 
     ssize_t Read(void *buf, size_t count) {
-        return read(this->fd, buf, count);
+        return fread(buf, 1, count,fp);
     };
 
     ssize_t Write(const void* buf, size_t len) {
-        return write(this->fd, buf, len);
+        return fwrite(buf,1,len,fp);
     };
     
  private:
-    int fd;
-    string bpath;
-    // IOStore *store;          /* not necessary for POSIX */
+    FILE *fp;
+    string path;
 };
 
 
-class PosixIOSDirHandle: public IOSDirHandle {
- private:
-    int Closedir() {
-        int rv;
-        rv = closedir(this->dp);
-        return(rv);
-    }
-    
- public:
-
-    PosixIOSDirHandle(DIR *newdp, string newbpath, IOStore *newstore) {
-        this->dp = newdp;
-        this->bpath = newbpath;
-        // this->store = newstore;  /* not necessary for POSIX */
-    };
-    
-    /*
-     * this is for IOStore::closedir so we can get the closedir return
-     * value before we delete the handle.
-     */
-    DIR *PosixDIR() {
-        return(this->dp);
-    };
-    
-    int Readdir_r(struct dirent *dst, struct dirent **dret) {
-        return(readdir_r(this->dp, dst, dret));
-    };
-
- private:
-    DIR *dp;
-    string bpath;
-    // IOStore *store;          /* not necessary for POSIX */
-};
-
-
-
-class PosixIOStore: public IOStore {
+class GlibIOStore: public PosixIOStore {
 public:
-    int Access(const char *path, int amode) {
-        return access(path, amode);
-    }
     
-    int Chmod(const char* path, mode_t mode) {
-        return chmod(path, mode);
-    }
-
-    int Chown(const char *path, uid_t owner, gid_t group) {
-        return chown(path, owner, group);
-    }
-
-    int Lchown(const char *path, uid_t owner, gid_t group) {
-        return lchown(path, owner, group);
-    }
-
-    int Link(const char* oldpath, const char* newpath) {
-        return link(oldpath, newpath);
-    }
-
-    int Lstat(const char* path, struct stat* buf) {
-        return lstat(path, buf);
-    }
-
-    int Mkdir(const char* path, mode_t mode) {
-        return mkdir(path, mode);
-    }
-
-    int Mknod(const char* path, mode_t mode, dev_t dev) {
-        return mknod(path, mode, dev);
-    }
-
+    /* Chuck, this needs to return an error */
     class IOSHandle *Open(const char *bpath, int flags, mode_t mode) {
-        int fd;
-        PosixIOSHandle *hand;
-        fd = open(bpath, flags, mode);
-        if (fd < 0)
-            return(NULL);
-        hand = new PosixIOSHandle(fd, bpath, this);
-        if (hand == NULL)
-            close(fd);
-        return(hand);
-    }
-
-    class IOSDirHandle *Opendir(const char *bpath) {
-        DIR *dp;
-        PosixIOSDirHandle *dhand;
-        dp = opendir(bpath);
-        if (!dp)
-            return(NULL);
-        dhand = new PosixIOSDirHandle(dp, bpath, this);
-        if (!dhand) {
-            closedir(dp);
-            return(NULL);
+        GlibIOSHandle *hand = new GlibIOSHandle(bpath);
+        int ret = hand->Open(flags,mode);
+        if (ret == 0) {
+            return hand;
+        } else {
+            delete hand;
+            return NULL;
         }
-        return(dhand);
-    }
-    
-    int Rename(const char *oldpath, const char *newpath) {
-        return rename(oldpath, newpath);
     }
 
-    int Rmdir(const char* path) {
-        return rmdir(path);
-    }
-
-    int Stat(const char* path, struct stat* buf) {
-        return stat(path, buf);
-    }
-
-    int Statvfs( const char *path, struct statvfs* stbuf ) {
-        return statvfs(path, stbuf);
-    }
-
-    int Symlink(const char* oldpath, const char* newpath) {
-        return symlink(oldpath, newpath);
-    }
-
-    ssize_t Readlink(const char*link, char *buf, size_t bufsize) {
-        return readlink(link, buf, bufsize);
-    }
-
-    int Truncate(const char* path, off_t length) {
-        return truncate(path, length);
-    }
-
-    int Unlink(const char* path) {
-        return unlink(path);
-    }
-
-    int Utime(const char* filename, const struct utimbuf *times) {
-        return utime(filename, times);
-    }
 };
 
 

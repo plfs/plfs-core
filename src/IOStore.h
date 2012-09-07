@@ -27,6 +27,7 @@ class IOStore {
     virtual int Lstat(const char *bpath, struct stat *sb)=0;
     virtual int Mkdir(const char *bpath, mode_t mode)=0;
     virtual int Mknod(const char *bpath, mode_t mode, dev_t dev)=0;
+    /* Chuck, this open takes args that are very POSIX specific */
     virtual class IOSHandle *Open(const char *bpath, int flags, mode_t mode)=0;
     virtual IOSDirHandle *Opendir(const char *bpath)=0;
     virtual int Rename(const char *frombpath, const char *tobpath)=0;
@@ -58,6 +59,7 @@ class IOSHandle {
  private:
     virtual int Close(void)=0;
     friend int IOStore::Close(IOSHandle *handle);
+    virtual int Open(int flags, mode_t mode); 
     
  public:
     virtual int Fstat(struct stat *sb)=0;

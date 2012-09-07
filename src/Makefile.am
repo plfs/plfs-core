@@ -75,6 +75,7 @@ FlatFileFS.h \
 FlatFileFD.h \
 IOStore.h \
 PosixIOStore.h \
+GlibIOStore.h \
 $(include_HEADERS) \
 $(dist_pkginclude_HEADERS)
 
