@@ -56,6 +56,19 @@ typedef struct {
     pthread_mutex_t mux;    // to lock the queue
 } ReaderArgs;
 
+// a struct for making file operations be multi-threaded
+typedef struct {
+    unsigned char file_type;
+    string path;
+} FileOperationTask;
+
+// a struct to contain the args to pass to the file operator threads
+typedef struct {
+    FileOp *op;
+    list<FileOperationTask> *tasks;
+    pthread_mutex_t mux;
+} FileOperationArgs;
+
 ssize_t plfs_reference_count( Container_OpenFile * );
 
 char *plfs_gethostname()
@@ -322,6 +335,41 @@ plfs_collect_from_containers(const char *logical, vector<string> &files,
     PLFS_EXIT(ret);
 }
 
+// a function so that plfs_file_operation can be multi-threaded
+// pop the queue, do some work, until none remains
+void *
+file_operation_thread( void *va )
+{
+    FileOperationArgs *args = (FileOperationArgs *)va;
+    FileOperationTask task;
+    FileOp *op = args->op;
+    int ret;
+    bool tasks_remaining = true;
+    while( true ) {
+        Util::MutexLock(&(args->mux),__FUNCTION__);
+        if ( ! args->tasks->empty() ) {
+            task = args->tasks->front();
+            args->tasks->pop_front();
+        } else {
+            tasks_remaining = false;
+        }
+        Util::MutexUnlock(&(args->mux),__FUNCTION__);
+        if ( ! tasks_remaining ) {
+            break;
+        }
+        ret = op->do_op(task.path.c_str(),task.file_type);
+        if ( ret < 0 ) {
+            mlog(PLFS_DRARE, "%s doing %s on %s failed: %s",
+                 __FUNCTION__,
+                 op->name(),
+                 task.path.c_str(),
+                 strerror(-ret));
+            break;
+        }
+    }
+    pthread_exit((void *) ret);
+}
+
 // this function is shared by chmod/utime/chown maybe others
 // anything that needs to operate on possibly a lot of items
 // either on a bunch of dirs across the backends
@@ -360,18 +408,55 @@ plfs_file_operation(const char *logical, FileOp& op)
         // ENOENT, a symlink, somehow a flat file in here
         files.push_back(path);  // we might want to reset ret to 0 here
     }
-    // now apply the operation to each operand so long as ret==0.  dirs must be
-    // done in reverse order and files must be done first.  This is necessary
-    // for when op is unlink since children must be unlinked first.  for the
-    // other ops, order doesn't matter.
+    // let's create some thread pools to do all this work
+    // we only currently use thread pools for files and links
+    // the difficulty with the dirs is that the children dirs must
+    // be operated on before the parent dirs so we'd need separate pools
+    // for each depth and we're not doing that right now
+    // also the dirs must go after the files and the links
+    list <FileOperationTask> tasks;
+    FileOperationTask task; // temporary, copied into tasks on push_back
+    PlfsConf *pconf = get_plfs_conf();
+    // now go through the lists and make thread tasks
+    // this might be improved by not making a list originally but putting
+    // them straight into tasks
     vector<string>::reverse_iterator ritr;
     for(ritr = files.rbegin(); ritr != files.rend() && ret == 0; ++ritr) {
         mlog(INT_DCOMMON, "%s on %s",__FUNCTION__,ritr->c_str());
-        ret = op.op(ritr->c_str(),DT_REG);
+        if (pconf->threadpool_size > 1) {   // maybe user said no threads
+            task.path = *ritr;
+            task.file_type = DT_REG;
+            tasks.push_back(task);
+        } else {
+            ret = op.op(ritr->c_str(),DT_REG); // old non-threaded
+        }
     }
     for(ritr = links.rbegin(); ritr != links.rend() && ret == 0; ++ritr) {
-        op.op(ritr->c_str(),DT_LNK);
+        if (pconf->threadpool_size > 1) {   // maybe user said no threads
+            task.path = *ritr;
+            task.file_type = DT_LNK;
+            tasks.push_back(task);
+        } else {
+            op.op(ritr->c_str(),DT_LNK); // old non-threaded
+        }
     }
+    // if we're threaded, launch the threadpool now
+    if ( tasks.size() && pconf->threadpool_size > 1 ) {
+        size_t num_threads = min(pconf->threadpool_size,tasks.size());
+        FileOperationArgs args;
+        args.op = &op;
+        args.tasks = &tasks;
+        pthread_mutex_init( &(args.mux), NULL );
+        mlog(INT_DCOMMON, "%s %lu THREADS on %s doing %s",
+             __FUNCTION__,
+             (unsigned long)num_threads,
+             logical,
+             op.name());
+        ThreadPool threadpool(num_threads,file_operation_thread, (void *)&args);
+        ret = threadpool.threadError();   // returns errno
+    }
+    // dirs must be done in reverse order bec the list mixes dirs of different
+    // depths and we must operate on children before their parents.
     for(ritr = dirs.rbegin(); ritr != dirs.rend() && ret == 0; ++ritr) {
         ret = op.op(ritr->c_str(),is_container?DT_CONTAINER:DT_DIR);
     }
