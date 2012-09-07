@@ -14,6 +14,13 @@ class IOStore;
 /* Since in POSIX all these calls are thin wrappers, the functions */
 /* are done here as inline. */
 class PosixIOSHandle: public IOSHandle {
+ private:
+    int Close() {
+        int rv;
+        rv = close(this->fd);
+        return(rv);
+    }
+    
  public:
 
     PosixIOSHandle(int newfd, string newbpath, IOStore *newstore) {
@@ -79,6 +86,13 @@ class PosixIOSHandle: public IOSHandle {
 
 
 class PosixIOSDirHandle: public IOSDirHandle {
+ private:
+    int Closedir() {
+        int rv;
+        rv = closedir(this->dp);
+        return(rv);
+    }
+    
  public:
 
     PosixIOSDirHandle(DIR *newdp, string newbpath, IOStore *newstore) {
@@ -119,33 +133,6 @@ public:
 
     int Chown(const char *path, uid_t owner, gid_t group) {
         return chown(path, owner, group);
-    }
-
-    int Close(IOSHandle *hand) {
-        PosixIOSHandle *phand = (PosixIOSHandle *)hand;
-        int fd, ret;
-        fd = phand->PosixFD();
-        /*
-         * I wanted delete to do the close, but how do you collect the
-         * return value from close then?
-         */
-        ret = close(fd);
-        delete hand;
-        return(ret);
-    }
-
-    int Closedir(IOSDirHandle *dhand) {
-        PosixIOSDirHandle *pdhand = (PosixIOSDirHandle *)dhand;
-        DIR *dirp;
-        int ret;
-        dirp = pdhand->PosixDIR();
-        /*
-         * I wanted delete to do the closedir, but how do you collect
-         * the return value from closedir then?
-         */
-        ret = closedir(dirp);
-        delete dhand;
-        return(ret);
     }
 
     int Lchown(const char *path, uid_t owner, gid_t group) {
