@@ -358,11 +358,10 @@ plfs_dump_config(int check_dirs, int make_dir)
          << "Num Mountpoints: " << pconf->mnt_pts.size() << endl
          << "Lazy Stat: " << (int)pconf->lazy_stat << endl;
     if (pconf->global_summary_dir) {
-        cout << "Global summary dir: " << *(pconf->global_summary_dir) << endl;
+        cout << "Global summary dir: " << pconf->global_summary_dir << endl;
         if(check_dirs) {
             ret = plfs_check_dir("global_summary_dir",
-                                 pconf->global_summary_dir->c_str(),ret,
-                                 make_dir);
+                                 pconf->global_summary_dir,ret,make_dir);
         }
     }
     if (pconf->test_metalink) {
@@ -735,7 +734,7 @@ setup_mlog(PlfsConf *pconf)
  * the entire spec from plfsrc comes in via prefix[], we must break it up
  * into path and prefix as part of the attach.
  *
- * @param pmnt mount point (mainly for log/err msgs)
+ * @param pmnt mount point for log/err msgs, if any (can be NULL)
  * @param bend the backend to attach
  * @return 0 on success, -1 on error
  */
@@ -780,12 +779,31 @@ int plfs_attach(PlfsMount *pmnt) {
     if (pmnt->attached)       /* lost race, ok since someone else attached */
         goto done;
 
+    { /* begin: special case code for global_summary_dir */
+        PlfsConf *pconf = get_plfs_conf();
+        if (pconf->global_summary_dir != NULL &&
+            pconf->global_sum_io.store == NULL) {
+            if (plfs_attach_factory(pmnt, &pconf->global_sum_io) != 0) {
+                mlog(INT_WARN, "global_summary_dir %s: failed to attach!",
+                     pconf->global_summary_dir);
+            } else if (!Util::isDirectory(pconf->global_sum_io.bmpoint.c_str(),
+                                          pconf->global_sum_io.store)) {
+                /* but keep it configured in, in case operator fixes it */
+                mlog(INT_WARN, "global_summary_dir %s is not a directory!",
+                     pconf->global_summary_dir);
+            }
+        }
+    } /* end: special case code for global_summary_dir */
+    
     /* be careful about partly attached mounts */
     for (lcv = 0 ; lcv < pmnt->nback && rv == 0 ; lcv++) {
         if (pmnt->backends[lcv]->store != NULL)
             continue;        /* this one already done, should be ok */
         rv = plfs_attach_factory(pmnt, pmnt->backends[lcv]);
     }
+
+    if (rv == 0)
+        pmnt->attached = 1;
 
  done:
     pthread_mutex_unlock(&attachmutex);
@@ -1010,6 +1028,8 @@ set_default_confs(PlfsConf *pconf)
     pconf->err_msg = NULL;
     pconf->buffer_mbs = 64;
     pconf->global_summary_dir = NULL;
+    pconf->global_sum_io.prefix = NULL;
+    pconf->global_sum_io.store = NULL;
     pconf->test_metalink = 0;
     /* default mlog settings */
     pconf->mlog_flags = MLOG_LOGPID;
@@ -1098,7 +1118,13 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
             pconf->err_msg = new string("illegal negative value");
         }
     } else if (strcmp(key,"global_summary_dir")==0) {
-        pconf->global_summary_dir = new string(value);
+        pconf->global_summary_dir = strdup(value);
+        /* second copy gets chopped up by attach code */
+        pconf->global_sum_io.prefix = strdup(value);
+        if (pconf->global_summary_dir == NULL ||
+            pconf->global_sum_io.prefix == NULL) {
+            pconf->err_msg = new string("unable to malloc global_summary_dir");
+        }
     } else if (strcmp(key,"test_metalink")==0) {
         pconf->test_metalink = atoi(value);
         if (pconf->test_metalink) {
