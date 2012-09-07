@@ -18,10 +18,20 @@
 #include <time.h>
 #include <map>
 #include <deque>
+
+
 using namespace std;
 
-#define DEFAULT_MODE (S_IRUSR|S_IWUSR|S_IXUSR)//|S_IXGRP|S_IXOTH)
-#define DROPPING_MODE //(S_IRWXU|S_IRWXG|S_IRWXO)
+// ok, for security reasons, we mess with the mode of containers and their
+// subdirs as well as the droppings within
+// a container needs to look like a directory
+// dropping mode gets the umask by default
+#define DROPPING_MODE  (S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH)//Container::dropping_mode()
+#define CONTAINER_AUGMENT_MODE  (S_IXUSR|S_IXGRP|S_IXOTH) 
+#define CONTAINER_MODE (DROPPING_MODE | CONTAINER_AUGMENT_MODE)
+
+// add a type to types in readdir() so we can diff btwn logical dir and containr
+#define DT_CONTAINER (unsigned char)-1
 
 enum
 parentStatus {
@@ -55,6 +65,7 @@ class Container
 {
     public:
         // static stuff
+        static mode_t dropping_mode();
         static int create( const string&, const string&,
                            mode_t mode, int flags, int *extra_attempts,pid_t,
                            unsigned, bool lazy_subdir );
@@ -92,6 +103,9 @@ class Container
         static mode_t fileMode( mode_t );
         static mode_t dirMode(  mode_t );
         static mode_t containerMode(  mode_t );
+        static mode_t subdirMode(  mode_t );
+
+
         static int makeHostDir(const string& path, const string& host,
                                mode_t mode, parentStatus);
         static int makeHostDir(const ContainerPaths& paths,mode_t mode,

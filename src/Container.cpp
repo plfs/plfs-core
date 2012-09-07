@@ -21,6 +21,13 @@ using namespace std;
 
 #define BLKSIZE 512
 
+mode_t
+Container::dropping_mode(){
+    mode_t mask = umask(0);
+    umask(mask);
+    return mask;
+}
+
 blkcnt_t
 Container::bytesToBlocks( size_t total_bytes )
 {
@@ -202,6 +209,7 @@ Container::hashValue( const char *str )
 bool
 Container::isContainer( const string& physical_path, mode_t *mode )
 {
+
     mlog(CON_DAPI, "%s checking %s", __FUNCTION__, physical_path.c_str());
     struct stat buf;
     int ret = Util::Lstat( physical_path.c_str(), &buf );
@@ -674,10 +682,10 @@ Container::createMetalink(
                                            );
     //create shadow container and subdir directory
     mlog(CON_DCOMMON, "Making absent parent %s", parent.c_str());
-    ret=makeSubdir(parent, DROPPING_MODE);
+    ret=makeSubdir(parent, CONTAINER_MODE);
     if (ret == 0 || ret == -EEXIST) {
         mlog(CON_DCOMMON, "Making hostdir %s", physical_hostdir.c_str());
-        ret = makeSubdir(physical_hostdir, DROPPING_MODE);
+        ret = makeSubdir(physical_hostdir, CONTAINER_MODE);
         if (ret == 0 || ret == -EEXIST) {
             ret = 0;
         }
@@ -1125,10 +1133,10 @@ int
 Container::addOpenrecord( const string& path, const string& host, pid_t pid)
 {
     string openrecord = getOpenrecord( path, host, pid );
-    int ret = Util::Creat( openrecord.c_str(), DEFAULT_MODE );
+    int ret = Util::Creat( openrecord.c_str(), DROPPING_MODE );
     if ( ret != 0 && ( errno == ENOENT || errno == ENOTDIR ) ) {
-        makeSubdir( getOpenHostsDir(path), DEFAULT_MODE );
-        ret = Util::Creat( openrecord.c_str(), DEFAULT_MODE );
+        makeSubdir( getOpenHostsDir(path), CONTAINER_MODE );
+        ret = Util::Creat( openrecord.c_str(), DROPPING_MODE );
     }
     if ( ret != 0 ) {
         mlog(CON_INFO, "Couldn't make openrecord %s: %s",
@@ -1152,7 +1160,7 @@ Container::getmode( const string& path )
     struct stat stbuf;
     if ( Util::Lstat( path.c_str(), &stbuf ) < 0 ) {
         mlog(CON_WARN, "Failed to getmode for %s", path.c_str() );
-        return DEFAULT_MODE;
+        return CONTAINER_MODE;
     } else {
         return fileMode(stbuf.st_mode);
     }
@@ -1329,7 +1337,7 @@ Container::makeTopLevel( const string& expanded_path,
     ostringstream oss;
     oss << expanded_path << "." << hostname << "." << pid;
     string tmpName( oss.str() );
-    if ( Util::Mkdir( tmpName.c_str(), dirMode(mode) ) < 0 ) {
+    if ( Util::Mkdir( tmpName.c_str(), containerMode(mode) ) < 0 ) {
         if ( errno != EEXIST && errno != EISDIR ) {
             mlog(CON_DRARE, "Mkdir %s to %s failed: %s",
                  tmpName.c_str(), expanded_path.c_str(), strerror(errno) );
@@ -1637,9 +1645,7 @@ int
 Container::makeSubdir( const string& path, mode_t mode )
 {
     int ret;
-    //mode = mode | S_IXUSR | S_IXGRP | S_IXOTH;
-    mode = DROPPING_MODE;
-    ret = Util::Mkdir( path.c_str(), mode );
+    ret = Util::Mkdir( path.c_str(), Container::subdirMode(mode) );
     if (errno == EEXIST && Util::isDirectory(path.c_str())){
         ret = 0;
     }
@@ -1754,14 +1760,19 @@ Container::fileMode( mode_t mode )
 mode_t
 Container::dirMode( mode_t mode )
 {
-    mode = (mode) S_IWUSR | S_IRUSR | S_IXUSR;//S_IRUSR | S_IWUSR | S_IXUSR | S_IXGRP | S_IXOTH;
+    //mode = (mode) S_IRUSR | S_IWUSR | S_IXUSR | S_IXGRP | S_IXOTH;
     return mode;
 }
 
 mode_t
 Container::containerMode( mode_t mode )
 {
-    return dirMode(mode);
+    return( mode | CONTAINER_AUGMENT_MODE );
+}
+
+mode_t
+Container::subdirMode(mode_t mode) {
+    return Container::containerMode(mode);
 }
 
 // this has a return value but the caller also consults errno so if we
