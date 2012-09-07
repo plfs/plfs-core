@@ -19,8 +19,6 @@ using namespace std;
 #include "Util.h"
 #include "ThreadPool.h"
 
-#include "PosixIOStore.h"  //XXXCDC: for global summary dir
-
 #define BLKSIZE 512
 
 blkcnt_t
@@ -1226,7 +1224,7 @@ Container::addMeta( off_t last_offset, size_t total_bytes,
                                      canback->store));
     // now let's maybe make a global summary dropping
     PlfsConf *pconf = get_plfs_conf();
-    if (pconf->global_summary_dir) {
+    if (pconf->global_sum_io.store != NULL) {
         string path_without_slashes = path;
         size_t pos = path_without_slashes.find("/");
         double bw = ((double)last_offset/(Util::getTime()-createtime))/1048576;
@@ -1237,7 +1235,7 @@ Container::addMeta( off_t last_offset, size_t total_bytes,
         ostringstream oss_global;
         oss_global
                 << std::setprecision(2) << std::fixed
-                << *(pconf->global_summary_dir) << "/"
+                << pconf->global_sum_io.bmpoint << "/"
                 << "SZ:" << last_offset << "."
                 << "BL:" << total_bytes  << "."
                 << "OT:" << createtime << "."
@@ -1250,15 +1248,9 @@ Container::addMeta( off_t last_offset, size_t total_bytes,
                 << "PA:" << path_without_slashes;
         metafile = oss_global.str().substr(0,PATH_MAX);
         mlog(CON_DCOMMON, "Creating metafile %s", metafile.c_str() );
-        /*
-         * XXXCDC: global_summary_dir.  this directory isn't
-         * associated with any one mount point... it is global.  so
-         * there is no one backend we can easily use.  for now, we
-         * insist that global dir is on Posix by hardwiring to the
-         * Posix IOStore.
-         */
-        extern class PosixIOStore PosixIO;
-        Util::MakeFile(metafile.c_str(), DROPPING_MODE, &PosixIO);
+        /* ignores makefile errors */
+        Util::MakeFile(metafile.c_str(), DROPPING_MODE,
+                       pconf->global_sum_io.store);
     }
     return ret;
 }

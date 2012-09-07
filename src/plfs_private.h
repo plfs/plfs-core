@@ -128,7 +128,10 @@ typedef struct {
     bool test_metalink; // for developers only
     bool lazy_stat;
     string *err_msg;
-    string *global_summary_dir;
+
+    char *global_summary_dir;
+    struct plfs_backend global_sum_io;
+    
     PlfsMount *tmp_mnt; // just used during parsing
 
     /* mlog related settings, read from plfsrc, allow for cmd line override */
