@@ -326,6 +326,10 @@ plfs_collect_from_containers(const char *logical, vector<string> &files,
 // anything that needs to operate on possibly a lot of items
 // either on a bunch of dirs across the backends
 // or on a bunch of entries within a container
+// Be careful.  This performs a stat.  Do not use
+// for performance critical operations.  If needed,
+// then you'll have to figure out how to cheaply pass
+// the mode_t in
 // returns 0 or -errno
 int
 plfs_file_operation(const char *logical, FileOp& op)
@@ -340,12 +344,14 @@ plfs_file_operation(const char *logical, FileOp& op)
     // else just operate on whatever it is (ENOENT, symlink)
     mode_t mode = 0;
     ret = is_plfs_file(logical,&mode);
+    bool is_container = false; // differentiate btwn logical dir and container
     if (S_ISREG(mode)) { // it's a PLFS file
         if (op.onlyAccessFile()) {
             files.push_back(Container::getAccessFilePath(path));
             ret = 0;    // ret was one from is_plfs_file
         } else {
             // everything
+            is_container=true;
             ret = plfs_collect_from_containers(logical,files,dirs,links);
         }
     } else if (S_ISDIR(mode)) { // need to iterate across dirs
@@ -367,7 +373,7 @@ plfs_file_operation(const char *logical, FileOp& op)
         op.op(ritr->c_str(),DT_LNK);
     }
     for(ritr = dirs.rbegin(); ritr != dirs.rend() && ret == 0; ++ritr) {
-        ret = op.op(ritr->c_str(),DT_DIR);
+        ret = op.op(ritr->c_str(),is_container?DT_CONTAINER:DT_DIR);
     }
     mlog(INT_DAPI, "%s: ret %d", __FUNCTION__,ret);
     PLFS_EXIT(ret);
@@ -1277,7 +1283,7 @@ plfs_protect(const char *logical, pid_t pid)
     string src = paths.shadow_hostdir;
     string dst = Container::getHostDirPath(paths.canonical,Util::hostname(),
                                            TMP_SUBDIR);
-    ret = retValue(Util::Mkdir(dst.c_str(),DEFAULT_MODE));
+    ret = retValue(Util::Mkdir(dst.c_str(),CONTAINER_MODE));
     if (ret == -EEXIST || ret == -EISDIR ) {
         ret = 0;
     }
@@ -1908,7 +1914,7 @@ container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
                         container = resolved.substr(0,last_slash);
                     }
                 } else {
-                    ret = Util::Mkdir(hdir.c_str(),DEFAULT_MODE);
+                    ret = Util::Mkdir(hdir.c_str(),CONTAINER_MODE);
                 }
                 mlog(INT_DCOMMON, "%s extending %s",__FUNCTION__,
                      container.c_str());
