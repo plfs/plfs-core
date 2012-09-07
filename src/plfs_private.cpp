@@ -252,7 +252,7 @@ plfs_check_dir(string type, string dir,int previous_ret, bool make_dir)
                  << " not found (ENOENT)" << endl;
             return -ENOENT;
         } else {
-            int retVal = Util::Mkdir(directory, DEFAULT_MODE);
+            int retVal = Util::Mkdir(directory, CONTAINER_MODE);
             if (retVal != 0) {
                 cout << "Attempt to create direcotry " << dir
                      << " failed." << endl;
@@ -404,7 +404,7 @@ mkdir_dash_p(const string& path, bool parent_only)
     for(size_t i=0 ; i < last; i++) {
         recover_path += "/";
         recover_path += canonical_tokens[i];
-        int ret = Util::Mkdir(recover_path.c_str(),DEFAULT_MODE);
+        int ret = Util::Mkdir(recover_path.c_str(),CONTAINER_MODE);
         if ( ret != 0 && errno != EEXIST ) { // some other error
             return -errno;
         }

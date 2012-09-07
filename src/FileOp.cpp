@@ -297,15 +297,22 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */ )
 int
 CreateOp::do_op(const char *path, unsigned char isfile )
 {
-    if (isfile==DT_DIR) {
-        mode_t mode = Container::dirMode(m);
-        return Util::Mkdir(path,mode);
-    } else if (isfile==DT_REG) {
-        return Util::Creat(path,m);
-    } else {
-        assert(0);
+    int ret = -ENOSYS; // just in case we somehow don't change
+    switch(isfile) {
+        case DT_DIR:
+            ret = Util::Mkdir(path,Container::dirMode(m));
+            break;
+        case DT_CONTAINER:
+            ret = Util::Mkdir(path,Container::containerMode(m));
+            break;
+        case DT_REG:
+            ret = Util::Creat(path,m);
+            break;
+        default:
+            assert(0);
+            break;
     }
-    return -ENOSYS;
+    return ret; 
 }
 
 ChmodOp::ChmodOp(mode_t m)
@@ -316,7 +323,18 @@ ChmodOp::ChmodOp(mode_t m)
 int
 ChmodOp::do_op(const char *path, unsigned char isfile)
 {
-    mode_t this_mode = (isfile==DT_DIR?Container::dirMode(m):m);
+    mode_t this_mode;
+    switch(isfile) {
+        case DT_CONTAINER:
+            this_mode = Container::containerMode(m);
+            break;
+        case DT_DIR:
+            this_mode = Container::dirMode(m);
+            break;
+        default:
+            this_mode = m;
+            break;
+    } 
     return Util::Chmod(path,this_mode);
 }
 
