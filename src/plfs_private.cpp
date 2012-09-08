@@ -891,6 +891,8 @@ static int countchar(int c, char *str) {
 string *
 insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt, char *file)
 {
+    /* CHUCK: What is bpa?  Not intuitive, I have no idea :) */
+    /* Also, troff, and lcv */
     string *error;
     int backspeccnt, canspeccnt, shadowspeccnt;     /* counts */
     int backsoff, cansoff, shadsoff;                /* in backstore */

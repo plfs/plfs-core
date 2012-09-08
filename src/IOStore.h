@@ -59,7 +59,6 @@ class IOSHandle {
  private:
     virtual int Close(void)=0;
     friend int IOStore::Close(IOSHandle *handle);
-    virtual int Open(int flags, mode_t mode); 
     
  public:
     virtual int Fstat(struct stat *sb)=0;
