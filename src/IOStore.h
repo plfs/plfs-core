@@ -28,8 +28,8 @@ class IOStore {
     virtual int Mkdir(const char *bpath, mode_t mode)=0;
     virtual int Mknod(const char *bpath, mode_t mode, dev_t dev)=0;
     /* Chuck, this open takes args that are very POSIX specific */
-    virtual class IOSHandle *Open(const char *bpath, int flags, mode_t mode)=0;
-    virtual IOSDirHandle *Opendir(const char *bpath)=0;
+    virtual IOSHandle *Open(const char *bpath, int flags, mode_t, int &ret)=0;
+    virtual IOSDirHandle *Opendir(const char *bpath, int &ret)=0;
     virtual int Rename(const char *frombpath, const char *tobpath)=0;
     virtual int Rmdir(const char *bpath)=0;
     virtual int Stat(const char *bpath, struct stat *sb)=0;
@@ -42,11 +42,11 @@ class IOStore {
     virtual ~IOStore() { }
 
     /* two simple compat APIs that can be inlined by the compiler */
-    class IOSHandle *Creat(const char *bpath, mode_t mode) {
-        return(Open(bpath, O_CREAT|O_TRUNC|O_WRONLY, mode));
+    class IOSHandle *Creat(const char *bpath, mode_t mode, int &ret) {
+        return(Open(bpath, O_CREAT|O_TRUNC|O_WRONLY, mode, ret));
     };
-    class IOSHandle *Open(const char *bpath, int flags) {
-        return(Open(bpath, flags, 0777));
+    class IOSHandle *Open(const char *bpath, int flags, int &ret) {
+        return(Open(bpath, flags, 0777, ret));
     };
 };
 

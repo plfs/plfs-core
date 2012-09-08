@@ -48,9 +48,10 @@ Flat_fd::open(const char *filename, int flags, pid_t pid,
     } else {
         /* we assume that the caller has already set this->back */
         IOSHandle *ofh;
-        ofh = this->back->store->Open(filename, flags, mode);
+        int ret;
+        ofh = this->back->store->Open(filename, flags, mode,ret);
         if (ofh == NULL) {
-            return -errno;
+            return ret;
         }
         this->backend_fh = ofh;
         /* XXXCDC: seem comment in FlatFileSystem::open */

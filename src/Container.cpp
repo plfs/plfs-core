@@ -387,15 +387,16 @@ Container::flattenIndex( const string& path, struct plfs_backend *canback,
     int flags = O_WRONLY|O_CREAT|O_EXCL;
     mode_t mode = DROPPING_MODE;
     // open the unique temporary path
+    int ret;
     IOSHandle *index_fh = canback->store->Open(unique_temporary.c_str(),
-                                        flags, mode);
+                                        flags, mode, ret);
     if ( index_fh == NULL ) {
-        return -errno;
+        return ret; 
     }
     // compress then dump and then close the files
     // compress adds overhead and no benefit if the writes weren't through FUSE
     //index->compress();
-    int ret = index->global_to_file(index_fh,canback);
+    ret = index->global_to_file(index_fh,canback);
     mlog(CON_DCOMMON, "index->global_to_file returned %d",ret);
     (void) canback->store->Close(index_fh);
     if ( ret == 0 ) { // dump was successful so do the atomic rename
@@ -430,7 +431,7 @@ Container::populateIndex(const string& path, struct plfs_backend *canback,
     IOSHandle *idx_fh = NULL;
     if ( use_global ) {
         idx_fh = canback->store->Open(getGlobalIndexPath(path).c_str(),
-                                      O_RDONLY);
+                                      O_RDONLY, ret);
     }
     if ( idx_fh != NULL) {
         mlog(CON_DCOMMON,"Using cached global flattened index for %s",
@@ -2173,9 +2174,10 @@ Container::nextdropping(const string& canbpath, struct plfs_backend *canback,
 
     /* if *candir is null, then this is the first call to nextdropping */
     if (*candir == NULL) {
-        *candir = canback->store->Opendir(canbpath.c_str());
+        int rv;
+        *candir = canback->store->Opendir(canbpath.c_str(), rv);
         if (*candir == NULL) {
-            return(-errno);
+            return rv;
         }
     }
 
@@ -2203,11 +2205,11 @@ Container::nextdropping(const string& canbpath, struct plfs_backend *canback,
         }
             
         /* now open up the subdir */
-        *subdir = (*dropback)->store->Opendir(hostdirpath->c_str());
+        *subdir = (*dropback)->store->Opendir(hostdirpath->c_str(),ret);
         if (*subdir == NULL) {
             mlog(CON_DRARE, "opendir %s: %s", hostdirpath->c_str(),
                  strerror(errno));
-            return(-errno);
+            return ret;
         }
         mlog(CON_DCOMMON, "%s opened dir %s", __FUNCTION__,
              hostdirpath->c_str());
@@ -2266,11 +2268,11 @@ Container::Truncate( const string& path, off_t offset,
                      (unsigned long)offset);
                 index.truncate(offset);
                 IOSHandle *fh = indexback->store->Open(indexfile.c_str(),
-                                                       O_TRUNC|O_WRONLY);
+                                                       O_TRUNC|O_WRONLY, ret);
                 if ( fh == NULL ) {
                     mlog(CON_CRIT, "Couldn't overwrite index file %s: %s",
                          indexfile.c_str(), strerror( errno ));
-                    return -errno;
+                    return ret;
                 }
                 /* note: index obj already contains indexback */
                 ret = index.rewriteIndex(fh);

@@ -9,9 +9,8 @@
 #include "IOStore.h"
 #include "PosixIOStore.h"
 
-/* An implementation of the IOStore for standard filesystems */
-/* Since in POSIX all these calls are thin wrappers, the functions */
-/* are done here as inline. */
+/* An implementation of the IOStore for FILE * IO */
+/* It inherits from PosixIOStore for everything except the file handle stuff */
 class GlibIOSHandle: public IOSHandle {
  public:
 
@@ -39,18 +38,7 @@ class GlibIOSHandle: public IOSHandle {
 
 class GlibIOStore: public PosixIOStore {
 public:
-    
-    /* Chuck, this needs to return an error */
-    class IOSHandle *Open(const char *bpath, int flags, mode_t mode) {
-        GlibIOSHandle *hand = new GlibIOSHandle(bpath);
-        int ret = hand->Open(flags,mode);
-        if (ret == 0) {
-            return hand;
-        } else {
-            delete hand;
-            return NULL;
-        }
-    }
+    IOSHandle *Open(const char *bpath, int flags, mode_t mode, int &ret);
 
 };
 

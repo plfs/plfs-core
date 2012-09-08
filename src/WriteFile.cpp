@@ -430,11 +430,12 @@ IOSHandle *WriteFile::openFile(string physicalpath, mode_t xmode )
     mode_t old_mode=umask(0);
     int flags = O_WRONLY | O_APPEND | O_CREAT;
     IOSHandle *fh;
-    fh = this->subdirback->store->Open(physicalpath.c_str(), flags, xmode);
+    int ret;
+    fh = this->subdirback->store->Open(physicalpath.c_str(), flags, xmode,ret);
     mlog(WF_DAPI, "%s.%s open %s : %p %s",
          __FILE__, __FUNCTION__,
          physicalpath.c_str(),
-         fh, ( fh == NULL ? strerror(errno) : "" ) );
+         fh, ( fh == NULL ? strerror(-ret) : "SUCCESS" ) );
     if ( fh != NULL ) {
         paths[fh] = physicalpath;    // remember so restore works
     }
