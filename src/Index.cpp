@@ -548,9 +548,10 @@ Index::mapIndex( string hostindex, IOSHandle **xfh, off_t *length,
                  struct plfs_backend *hback)
 {
     void *addr;
-    *xfh = hback->store->Open(hostindex.c_str(), O_RDONLY);
+    int ret;
+    *xfh = hback->store->Open(hostindex.c_str(), O_RDONLY,ret);
     if ( *xfh == NULL ) {
-        mlog(IDX_DRARE, "%s WTF open: %s", __FUNCTION__, strerror(errno));
+        mlog(IDX_DRARE, "%s WTF open: %s", __FUNCTION__, strerror(-ret));
         return (void *)-1;
     }
     // lseek doesn't always see latest data if panfs hasn't flushed

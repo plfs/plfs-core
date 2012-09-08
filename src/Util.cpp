@@ -384,12 +384,12 @@ int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
         ret = toios->Symlink(buf, to);
         goto out;
     }
-    fh_from = pathios->Open(path, O_RDONLY);
+    fh_from = pathios->Open(path, O_RDONLY, ret);
     if (fh_from == NULL) {
         goto out;
     }
     stored_mode = umask(0);
-    fh_to = toios->Open(to, O_WRONLY | O_CREAT, sbuf.st_mode);
+    fh_to = toios->Open(to, O_WRONLY | O_CREAT, sbuf.st_mode, ret);
     umask(stored_mode);
     if (fh_to == NULL) {
         pathios->Close(fh_from);
@@ -455,12 +455,10 @@ int Util::MakeFile( const char *path, mode_t mode, IOStore *store )
 {
     ENTER_PATH;
     IOSHandle *hand;
-    hand = store->Creat( path, mode );
+    hand = store->Creat( path, mode, ret );
     if ( hand != NULL) {
         ret = store->Close( hand );
-    } else {
-        ret = -errno;
-    }
+    } // else, error was already set in ret
     EXIT_UTIL;
 }
 

@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <sys/mman.h>
@@ -131,30 +132,38 @@ PosixIOStore::Mknod(const char* path, mode_t mode, dev_t dev) {
 }
 
 class IOSHandle *
-PosixIOStore::Open(const char *bpath, int flags, mode_t mode) {
+PosixIOStore::Open(const char *bpath, int flags, mode_t mode, int &ret) {
     int fd;
     PosixIOSHandle *hand;
     fd = open(bpath, flags, mode);
-    if (fd < 0)
+    if (fd < 0) {
+        ret = -errno;
         return(NULL);
+    }
     hand = new PosixIOSHandle(fd, bpath);
-    if (hand == NULL)
+    if (hand == NULL) {
+        ret = -ENOMEM;
         close(fd);
+    }
+    ret = 0;
     return(hand);
 }
 
 class IOSDirHandle *
-PosixIOStore::Opendir(const char *bpath) {
+PosixIOStore::Opendir(const char *bpath,int &ret) {
     DIR *dp;
     PosixIOSDirHandle *dhand;
     dp = opendir(bpath);
     if (!dp)
+        ret = -errno;
         return(NULL);
     dhand = new PosixIOSDirHandle(dp, bpath);
     if (!dhand) {
+        ret = -ENOMEM;
         closedir(dp);
         return(NULL);
     }
+    ret = 0;
     return(dhand);
 }
 

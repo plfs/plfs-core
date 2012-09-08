@@ -87,13 +87,11 @@ int Access( const string& path, IOStore *store, int mask )
         }
         assert(mode_set);
         mlog(FOP_DCOMMON, "The file exists attempting open");
-        fh = store->Open(cstr,open_mode);
-        mlog(FOP_DCOMMON, "Open returns %p",fh);
+        fh = store->Open(cstr,open_mode,ret);
+        mlog(FOP_DCOMMON, "Open %s: %s",cstr,ret==0?"Success":strerror(-ret));
         if (fh != NULL) {
             store->Close(fh);
-        } else {
-            ret = -errno;
-        }
+        } // else, ret was set already
     }
     delete cstr;
     return ret;
@@ -244,9 +242,9 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
     int ret;
     IOSDirHandle *dir;
     struct dirent entstore, *ent;
-    dir = store->Opendir(path);
+    dir = store->Opendir(path,ret);
     if (dir == NULL) {
-        return(-1);
+        return ret;
     }
     while ((ret = dir->Readdir_r(&entstore, &ent)) == 0 && ent != NULL) {
         if (skip_dots && (!strcmp(ent->d_name,".")||
