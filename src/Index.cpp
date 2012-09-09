@@ -548,7 +548,7 @@ Index::mapIndex( string hostindex, IOSHandle **xfh, off_t *length,
 {
     void *addr;
     int ret;
-    *xfh = hback->store->Open(hostindex.c_str(), O_RDONLY,ret);
+    *xfh = hback->store->Open(hostindex.c_str(), O_RDONLY, ret);
     if ( *xfh == NULL ) {
         mlog(IDX_DRARE, "%s WTF open: %s", __FUNCTION__, strerror(-ret));
         return (void *)-1;
