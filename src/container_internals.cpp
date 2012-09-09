@@ -784,11 +784,11 @@ perform_read_task( ReadTask *task, Index *index )
                 // this is currently working with metalinks.  We resolve
                 // them before we get here
                 task->fh = task->backend->store->Open(task->path.c_str(),
-                                                      O_RDONLY);
+                                                      O_RDONLY,ret);
                 if ( task->fh == NULL ) {
                     mlog(INT_ERR, "WTF? Open of %s: %s",
                          task->path.c_str(), strerror(errno) );
-                    return -errno;
+                    return ret;
                 }
                 // now we got the fd, let's stash it in the index so others
                 // might benefit from it later
@@ -1011,12 +1011,12 @@ plfs_num_host_dirs(int *hostdir_count,char *target, void *vback, char *bm)
     IOStore *store = ((plfs_backend *)vback)->store;
     IOSDirHandle *dirp;
     struct dirent entstore, *dirent;
-    int isfile = 0;
+    int isfile = 0, ret = 0;
     *hostdir_count = 0;
     // Open the directory and check value
-    if ((dirp = store->Opendir(target)) == NULL) {
+    if ((dirp = store->Opendir(target,ret)) == NULL) {
         mlog(PLFS_DRARE, "Num hostdir opendir error on %s",target);
-        *hostdir_count = -errno;
+        *hostdir_count = ret;
         return *hostdir_count;
     }
     // Start reading the directory

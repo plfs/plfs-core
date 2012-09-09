@@ -8,6 +8,7 @@
 #include "LogMessage.h"
 
 #include "PosixIOStore.h"
+#include "GlibIOStore.h"
 class PosixIOStore PosixIO;   /* shared for posix access */
 
 // why is these included???!!!????
@@ -740,6 +741,9 @@ setup_mlog(PlfsConf *pconf)
  */
 static int plfs_attach_factory(PlfsMount *pmnt, struct plfs_backend *bend) {
 
+    /* CHUCK, chuck, Chuck:
+        I think this function should be in IOStore.cpp no?
+    */
     if (bend->prefix[0] == '/' ||
         strncmp(bend->prefix, "posix:", sizeof("posix:")-1) == 0) {
         /* XXXCDC: TMP POSIX INIT HERE */
@@ -757,6 +761,10 @@ static int plfs_attach_factory(PlfsMount *pmnt, struct plfs_backend *bend) {
     }
     if (strncmp(bend->prefix, "hdfs:", sizeof("hdfs:")-1) == 0) {
         /* do HDFS */
+    }
+
+    if (strncmp(bend->prefix, "glib:", sizeof("glib:")-1) == 0) {
+        bend->store = new GlibIOStore(); 
     }
 
  done:
@@ -892,6 +900,8 @@ static int countchar(int c, char *str) {
 string *
 insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt, char *file)
 {
+    /* CHUCK: What is bpa?  Not intuitive, I have no idea :) */
+    /* Also, troff, and lcv */
     string *error;
     int backspeccnt, canspeccnt, shadowspeccnt;     /* counts */
     int backsoff, cansoff, shadsoff;                /* in backstore */

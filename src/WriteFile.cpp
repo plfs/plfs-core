@@ -122,9 +122,6 @@ int WriteFile::sync( pid_t pid )
             ret  = syncfh->Fsync();
         }
         Util::MutexUnlock( &index_mux, __FUNCTION__ );
-        if ( ret != 0 ) {
-            ret = -errno;
-        }
     }
     return ret;
 }
@@ -141,15 +138,13 @@ int WriteFile::addWriter( pid_t pid, bool child )
     } else {
         /* note: this uses subdirback from object to open */
         IOSHandle *fh;
-        fh = openDataFile( subdir_path, hostname, pid, DROPPING_MODE);
+        fh = openDataFile( subdir_path, hostname, pid, DROPPING_MODE,ret);
         if ( fh != NULL ) {
             struct OpenFh xofh;
             xofh.writers = 1;
             xofh.fh = fh;
             fhs[pid] = xofh;
-        } else {
-            ret = -errno;
-        }
+        } // else, ret was already set
     }
     int writers = incrementOpens(0);
     if ( ret == 0 && ! child ) {
@@ -239,7 +234,7 @@ int WriteFile::closeFh(IOSHandle *fh)
     int ret = this->subdirback->store->Close(fh);
     mlog(WF_DAPI, "%s:%s closed fh %p for %s: %d %s",
          __FILE__, __FUNCTION__, fh, path.c_str(), ret,
-         ( ret != 0 ? strerror(errno) : "success" ) );
+         ( ret != 0 ? strerror(-ret) : "success" ) );
     paths.erase ( fh );
     return ret;
 }
@@ -340,6 +335,7 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
         }
     }
     // return bytes written or error
+    // I don't like this errno here, it should be set by IOHandle->Write
     return ( ret >= 0 ? written : -errno );
 }
 
@@ -350,9 +346,9 @@ int WriteFile::openIndex( pid_t pid ) {
     string index_path;
     /* note: this uses subdirback from obj to open */
     IOSHandle *fh = openIndexFile(subdir_path, hostname, pid, DROPPING_MODE,
-                                  &index_path);
+                                  &index_path,ret);
     if ( fh == NULL ) {
-        ret = -errno;
+        ret = ret; 
     } else {
         Util::MutexLock(&index_mux , __FUNCTION__);
         //XXXCDC:iostore need to pass the backend down into index?
@@ -412,29 +408,30 @@ int WriteFile::truncate( off_t offset )
 
 /* uses this->subdirback to open */
 IOSHandle *WriteFile::openIndexFile(string path, string host, pid_t p,
-                                    mode_t m, string *index_path)
+                                    mode_t m, string *index_path, int &ret)
 {
     *index_path = Container::getIndexPath(path,host,p,createtime);
-    return openFile(*index_path,m);
+    return openFile(*index_path,m,ret);
 }
 
 /* uses this->subdirback to open */
-IOSHandle *WriteFile::openDataFile(string path, string host, pid_t p, mode_t m)
+IOSHandle *WriteFile::openDataFile(string path, string host, pid_t p, mode_t m,
+        int &ret)
 {
-    return openFile(Container::getDataPath(path,host,p,createtime),m);
+    return openFile(Container::getDataPath(path,host,p,createtime),m,ret);
 }
 
 // returns an fh or null
-IOSHandle *WriteFile::openFile(string physicalpath, mode_t xmode )
+IOSHandle *WriteFile::openFile(string physicalpath, mode_t xmode, int &ret )
 {
     mode_t old_mode=umask(0);
     int flags = O_WRONLY | O_APPEND | O_CREAT;
     IOSHandle *fh;
-    fh = this->subdirback->store->Open(physicalpath.c_str(), flags, xmode);
+    fh = this->subdirback->store->Open(physicalpath.c_str(), flags, xmode,ret);
     mlog(WF_DAPI, "%s.%s open %s : %p %s",
          __FILE__, __FUNCTION__,
          physicalpath.c_str(),
-         fh, ( fh == NULL ? strerror(errno) : "" ) );
+         fh, ( fh == NULL ? strerror(-ret) : "SUCCESS" ) );
     if ( fh != NULL ) {
         paths[fh] = physicalpath;    // remember so restore works
     }
@@ -451,6 +448,7 @@ int WriteFile::restoreFds( bool droppings_were_truncd )
 {
     map<IOSHandle *,string>::iterator paths_itr;
     map<pid_t, OpenFh >::iterator pids_itr;
+    int ret = -ENOSYS;
     // "has_been_renamed" is set at "addWriter, setPath" executing path.
     // This assertion will be triggered when user open a file with write mode
     // and do truncate. Has nothing to do with upper layer rename so I comment
@@ -474,12 +472,12 @@ int WriteFile::restoreFds( bool droppings_were_truncd )
         }
         string indexpath = paths_itr->second;
         /* note: this uses subdirback from object */
-        if ( closeFh( restfh ) != 0 ) {
-            return -errno;
+        if ( (ret=closeFh( restfh )) != 0 ) {
+            return ret; 
         }
         /* note: this uses subdirback from object */
-        if ( (retfh = openFile( indexpath, mode )) < 0 ) {
-            return -errno;
+        if ( (retfh = openFile( indexpath, mode, ret )) < 0 ) {
+            return ret; 
         }
         index->resetFh( retfh );
         if (droppings_were_truncd) {
@@ -496,13 +494,13 @@ int WriteFile::restoreFds( bool droppings_were_truncd )
         }
         string datapath = paths_itr->second;
         /* note: this uses subdirback from object */
-        if ( closeFh( pids_itr->second.fh ) != 0 ) {
-            return -errno;
+        if ( (ret = closeFh( pids_itr->second.fh )) != 0 ) {
+            return ret; 
         }
         /* note: this uses subdirback from object */
-        pids_itr->second.fh = openFile( datapath, mode );
+        pids_itr->second.fh = openFile( datapath, mode, ret );
         if ( pids_itr->second.fh == NULL ) {
-            return -errno;
+            return ret; 
         }
     }
     // normally we return ret at the bottom of our functions but this

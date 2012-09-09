@@ -75,6 +75,7 @@ FlatFileFS.h \
 FlatFileFD.h \
 IOStore.h \
 PosixIOStore.h \
+GlibIOStore.h \
 $(include_HEADERS) \
 $(dist_pkginclude_HEADERS)
 
@@ -91,6 +92,8 @@ mlog.c \
 ContainerFS.cpp \
 ContainerFD.cpp \
 FlatFileFD_FS.cpp \
+GlibIOStore.cpp \
+PosixIOStore.cpp \
 plfs_private.cpp \
 container_internals.cpp \
 plfs.cpp
