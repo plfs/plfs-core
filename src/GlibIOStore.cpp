@@ -17,8 +17,8 @@ GlibIOStore::Open(const char *path, int flags, mode_t mode, int &ret) {
     return NULL;
 }
 
-GlibIOSHandle::GlibIOSHandle(string path) {
-    this->path = path;
+GlibIOSHandle::GlibIOSHandle(string newpath) {
+    this->path = newpath;
 }
 
 
