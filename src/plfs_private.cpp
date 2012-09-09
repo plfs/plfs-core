@@ -803,6 +803,15 @@ int plfs_attach(PlfsMount *pmnt) {
         }
     } /* end: special case code for global_summary_dir */
     
+    { /* begin: special case code for statfs */
+        if (pmnt->statfs != NULL) {
+            if (plfs_attach_factory(pmnt, &pmnt->statfs_io) != 0) {
+                mlog(INT_WARN, "statfs %s: %s: failed to attach!",
+                     pmnt->mnt_pt.c_str(), (*pmnt->statfs).c_str());
+            }
+        }
+    } /* end: special case code for statfs */
+    
     /* be careful about partly attached mounts */
     for (lcv = 0 ; lcv < pmnt->nback && rv == 0 ; lcv++) {
         if (pmnt->backends[lcv]->store != NULL)
@@ -1019,6 +1028,8 @@ void
 set_default_mount(PlfsMount *pmnt)
 {
     pmnt->statfs = pmnt->syncer_ip = NULL;
+    pmnt->statfs_io.prefix = NULL;
+    pmnt->statfs_io.store = NULL;
     pmnt->file_type = CONTAINER;
     pmnt->fs_ptr = &containerfs;
     pmnt->checksum = (unsigned)-1;
@@ -1174,6 +1185,10 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
             pconf->err_msg = new string("No mount point yet declared");
         }
         (*pmntp)->statfs = new string(value);
+        (*pmntp)->statfs_io.prefix = strdup(value);
+        if ( (*pmntp)->statfs_io.prefix == NULL) {
+            pconf->err_msg = new string("Unable to malloc statfs");
+        }
     } else if (strcmp(key,"backends")==0) {
         if( !*pmntp ) {
             pconf->err_msg = new string("No mount point yet declared");

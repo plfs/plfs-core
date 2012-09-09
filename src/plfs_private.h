@@ -61,6 +61,7 @@ struct plfs_pathback {
 typedef struct PlfsMount {
     string mnt_pt;  // the logical mount point
     string *statfs; // where to resolve statfs calls
+    struct plfs_backend statfs_io;  /* for statfs */
     string *syncer_ip; // where to send commands within plfs_protect
     vector<string> mnt_tokens;
     plfs_filetype file_type;
