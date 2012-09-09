@@ -63,9 +63,9 @@ class WriteFile : public Metadata
 
     private:
         IOSHandle *openIndexFile( string path, string host, pid_t, mode_t,
-                                  string *index_path);
-        IOSHandle *openDataFile(string path, string host, pid_t, mode_t );
-        IOSHandle *openFile( string, mode_t mode );
+                                  string *index_path, int &ret);
+        IOSHandle *openDataFile(string path,string host,pid_t,mode_t,int &ret );
+        IOSHandle *openFile( string, mode_t mode, int &ret );
         int Close( );
         int closeFh( IOSHandle *fh );
         struct OpenFh *getFh( pid_t pid );
