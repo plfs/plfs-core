@@ -784,7 +784,7 @@ perform_read_task( ReadTask *task, Index *index )
                 // this is currently working with metalinks.  We resolve
                 // them before we get here
                 task->fh = task->backend->store->Open(task->path.c_str(),
-                                                      O_RDONLY,ret);
+                                                      O_RDONLY, ret);
                 if ( task->fh == NULL ) {
                     mlog(INT_ERR, "WTF? Open of %s: %s",
                          task->path.c_str(), strerror(errno) );

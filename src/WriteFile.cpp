@@ -138,7 +138,7 @@ int WriteFile::addWriter( pid_t pid, bool child )
     } else {
         /* note: this uses subdirback from object to open */
         IOSHandle *fh;
-        fh = openDataFile( subdir_path, hostname, pid, DROPPING_MODE,ret);
+        fh = openDataFile( subdir_path, hostname, pid, DROPPING_MODE, ret);
         if ( fh != NULL ) {
             struct OpenFh xofh;
             xofh.writers = 1;
@@ -346,7 +346,7 @@ int WriteFile::openIndex( pid_t pid ) {
     string index_path;
     /* note: this uses subdirback from obj to open */
     IOSHandle *fh = openIndexFile(subdir_path, hostname, pid, DROPPING_MODE,
-                                  &index_path,ret);
+                                  &index_path, ret);
     if ( fh == NULL ) {
         ret = ret; 
     } else {
@@ -427,7 +427,7 @@ IOSHandle *WriteFile::openFile(string physicalpath, mode_t xmode, int &ret )
     mode_t old_mode=umask(0);
     int flags = O_WRONLY | O_APPEND | O_CREAT;
     IOSHandle *fh;
-    fh = this->subdirback->store->Open(physicalpath.c_str(), flags, xmode,ret);
+    fh = this->subdirback->store->Open(physicalpath.c_str(), flags, xmode, ret);
     mlog(WF_DAPI, "%s.%s open %s : %p %s",
          __FILE__, __FUNCTION__,
          physicalpath.c_str(),
