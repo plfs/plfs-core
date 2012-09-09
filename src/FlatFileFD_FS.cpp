@@ -76,7 +76,7 @@ Flat_fd::open(const char *filename, int flags, pid_t pid,
         /* we assume that the caller has already set this->back */
         IOSHandle *ofh;
         int ret;
-        ofh = this->back->store->Open(filename, flags, mode,ret);
+        ofh = this->back->store->Open(filename, flags, mode, ret);
         if (ofh == NULL) {
             return ret;
         }
