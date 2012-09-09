@@ -2208,10 +2208,10 @@ Container::nextdropping(const string& canbpath, struct plfs_backend *canback,
         }
             
         /* now open up the subdir */
-        *subdir = (*dropback)->store->Opendir(hostdirpath->c_str(),ret);
+        *subdir = (*dropback)->store->Opendir(hostdirpath->c_str(), ret);
         if (*subdir == NULL) {
             mlog(CON_DRARE, "opendir %s: %s", hostdirpath->c_str(),
-                 strerror(errno));
+                 strerror(-ret));
             return ret;
         }
         mlog(CON_DCOMMON, "%s opened dir %s", __FUNCTION__,
@@ -2274,7 +2274,7 @@ Container::Truncate( const string& path, off_t offset,
                                                        O_TRUNC|O_WRONLY, ret);
                 if ( fh == NULL ) {
                     mlog(CON_CRIT, "Couldn't overwrite index file %s: %s",
-                         indexfile.c_str(), strerror( errno ));
+                         indexfile.c_str(), strerror( -ret ));
                     return ret;
                 }
                 /* note: index obj already contains indexback */
@@ -2336,7 +2336,7 @@ Container::truncateMeta(const string& path, off_t offset,
                 << "." << time.tv_nsec << "." << host;
             ret = back->store->Rename(full_path.c_str(), oss.str().c_str());
             //if a sibling raced us we may see ENOENT
-            if (ret != 0 and errno == ENOENT){
+            if (ret != 0 and errno == ENOENT) {
                ret = 0;
             }
             if ( ret != 0 ) {
