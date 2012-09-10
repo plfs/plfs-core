@@ -71,7 +71,7 @@ Container::transferCanonical(const string& from, const string& to,
         return ret;
     }
     // then make sure there is a directory in the right place
-    ret = cop.op(to.c_str(),DT_DIR);
+    ret = cop.op(to.c_str(),DT_CONTAINER);
     if ( ret != 0) {
         return ret;
     }
