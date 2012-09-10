@@ -49,7 +49,7 @@ README.patching \
 patches/mpich2/mpich2-1.2.1p1-plfs-prep.patch \
 patches/mpich2/mpich2-1.4.1p1-plfs-prep.patch \
 patches/openmpi/ompi-1.4.x-plfs-prep.patch \
-patches/openmpi/ompi-1.6-plfs-prep.patch \
+patches/openmpi/ompi-1.6.x-plfs-prep.patch \
 patches/openmpi/optimized-panfs-plfs \
 patches/openmpi/optimized-panfs-plfs.conf \
 scripts/make_ad_plfs_patch
