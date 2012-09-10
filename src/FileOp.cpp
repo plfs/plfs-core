@@ -98,7 +98,7 @@ int Access( const string& path, int mask )
 int
 AccessOp::do_op(const char *path, unsigned char isfile)
 {
-    if (isfile==DT_DIR || isfile==DT_LNK) {
+    if (isfile==DT_CONTAINER || isfile==DT_DIR || isfile==DT_LNK) {
         return Util::Access(path,mask);
     } else if (isfile==DT_REG) {
         return Access(path,mask);
@@ -168,7 +168,7 @@ UnlinkOp::do_op(const char *path, unsigned char isfile)
 {
     if (isfile==DT_REG || isfile==DT_LNK) {
         return Util::Unlink(path);
-    } else if (isfile==DT_DIR) {
+    } else if (isfile==DT_DIR||isfile==DT_CONTAINER) {
         return Util::Rmdir(path);
     } else {
         return -ENOSYS;
