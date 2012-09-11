@@ -93,6 +93,7 @@ ContainerFS.cpp \
 ContainerFD.cpp \
 FlatFileFD_FS.cpp \
 GlibIOStore.cpp \
+IOStore.cpp \
 PosixIOStore.cpp \
 plfs_private.cpp \
 container_internals.cpp \
