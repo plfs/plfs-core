@@ -119,4 +119,7 @@ inline int IOStore::Closedir(IOSDirHandle *handle) {
     return(rv);
 };
 
+class PlfsMount;
+int plfs_iostore_factory(PlfsMount *pmnt, struct plfs_backend *bend);
+
 #endif

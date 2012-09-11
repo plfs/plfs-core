@@ -6,10 +6,7 @@
 #include "Util.h"
 #include "mlog.h"
 #include "LogMessage.h"
-
-#include "PosixIOStore.h"
-#include "GlibIOStore.h"
-class PosixIOStore PosixIO;   /* shared for posix access */
+#include "IOStore.h"
 
 // why is these included???!!!????
 #include "FlatFileFS.h"
@@ -270,45 +267,21 @@ find_all_expansions(const char *logical, vector<plfs_pathback> &containers)
 // helper routine for plfs_dump_config
 // changes ret to -ENOENT or leaves it alone
 int
-plfs_check_dir(string type, string dir, int previous_ret, bool make_dir)
+plfs_check_dir(string type, struct plfs_backend *back, string bpath,
+               int previous_ret, bool make_dir)
 {
-    return(previous_ret);
-#if 0
-    /*
-     * XXXCDC: this is problematic because it is used to check
-     * directories that are not part of a plfs backend so we can't
-     * just route through an iostore.  just disable it for now.
-     *
-     * uses:
-     *
-     *   - the backend bmpoint.  this could be done if the backend is
-     *     attached through the backend's iostore
-     *
-     *   - global summary dir.  doesn't reside in a backend, this us
-     *     basically using a bunch of zero length files in a directory
-     *     as a log file.   is it used?
-     *
-     *   - mount points (logical).   this would be in the local FS.
-     *     I think only needed for FUSE (native libplfs or MPI doesn't
-     *     need them).   I don't think FUSE will start without a mount
-     *     point?
-     *
-     *   - statfs.  FUSE only.   even if it is, doesn't make sense for
-     *     it to be a local dir (could be HDFS, for example).
-     */
-    const char *directory = dir.c_str();
-    //XXXCDC:iostore ???
-    if(!Util::isDirectory(directory)) {
+    const char *directory = bpath.c_str();
+    if(!Util::isDirectory(directory, back->store)) {
         if (!make_dir) {
-            cout << "Error: Required " << type << " directory " << dir
+            cout << "Error: Required " << type << " directory "
+                 << back->prefix << directory
                  << " not found (ENOENT)" << endl;
             return -ENOENT;
         } else {
-            //XXXCDC:iostore ???
-            int retVal = Util::Mkdir(directory, CONTAINER_MODE);
+            int retVal = back->store->Mkdir(directory, CONTAINER_MODE);
             if (retVal != 0) {
-                cout << "Attempt to create direcotry " << dir
-                     << " failed." << endl;
+                cout << "Attempt to create direcotry "
+                     << back->prefix << directory << " failed." << endl;
                 return -ENOENT;
             }
             return previous_ret;
@@ -316,7 +289,6 @@ plfs_check_dir(string type, string dir, int previous_ret, bool make_dir)
     } else {
         return previous_ret;
     }
-#endif
 }
 
 int
@@ -329,8 +301,8 @@ print_backends(struct plfs_backend **backends, int nb, const char *which,
              << backends[lcv]->prefix 
              << backends[lcv]->bmpoint << endl;
         if(check_dirs) {
-            ret = plfs_check_dir("backend", backends[lcv]->bmpoint,
-                                 ret,make_dir);
+            ret = plfs_check_dir("backend", backends[lcv],
+                                 backends[lcv]->bmpoint,ret,make_dir);
         }
     }
     return ret;
@@ -341,6 +313,8 @@ int
 plfs_dump_config(int check_dirs, int make_dir)
 {
     PlfsConf *pconf = get_plfs_conf();
+    struct plfs_backend fake;
+    char fakespec[4];
     if ( ! pconf ) {
         cerr << "FATAL no plfsrc file found.\n" << endl;
         return -ENOENT;
@@ -349,7 +323,34 @@ plfs_dump_config(int check_dirs, int make_dir)
         cerr << "FATAL conf file error: " << *(pconf->err_msg) << endl;
         return -EINVAL;
     }
-    // if we make it here, we've parsed correctly
+
+    /*
+     * if we make it here, we've parsed correctly.  if we are checking
+     * dirs, then we need to attach to backends.  in order to check
+     * the global_summary_dir (if enabled), we do a one-off attach
+     * here first.   we also need a fake backend to check local posix
+     * mount points (e.g. for FUSE, but it doesn't make sense for MPI
+     * or library access XXX).
+     */
+
+    if (check_dirs) {
+        if (pconf->global_summary_dir) {
+            map<string,PlfsMount *>::iterator itr;
+            PlfsMount *pmnt;
+            itr = pconf->mnt_pts.begin();
+            /* note: get_plfs_conf() ensures there is at least 1 mnt */
+            pmnt = itr->second;
+            (void) plfs_attach(pmnt); /* ignore ret val */
+        }
+
+        /* XXX: generate a fake POSIX iostore, we'll never free it */
+        fakespec[0] = '/';
+        fakespec[1] = 0;
+        fake.prefix = fakespec;
+        fake.store = NULL;
+        (void)plfs_iostore_factory(NULL, &fake);
+    }
+
     vector<int> rets;
     int ret = 0;
     cout << "Config file " << pconf->file << " correctly parsed:" << endl
@@ -362,7 +363,8 @@ plfs_dump_config(int check_dirs, int make_dir)
         cout << "Global summary dir: " << pconf->global_summary_dir << endl;
         if(check_dirs) {
             ret = plfs_check_dir("global_summary_dir",
-                                 pconf->global_summary_dir,ret,make_dir);
+                                 &pconf->global_sum_io,
+                                 pconf->global_sum_io.bmpoint,ret,make_dir);
         }
     }
     if (pconf->test_metalink) {
@@ -371,28 +373,35 @@ plfs_dump_config(int check_dirs, int make_dir)
     map<string,PlfsMount *>::iterator itr;
     for(itr=pconf->mnt_pts.begin(); itr!=pconf->mnt_pts.end(); itr++) {
         PlfsMount *pmnt = itr->second;
+        int check_dirs_now = check_dirs;
         cout << "Mount Point " << itr->first << " :" << endl;
         cout << "\tExpected Workload "
              << (pmnt->file_type == CONTAINER ? "shared_file (N-1)"
                  : pmnt->file_type == FLAT_FILE ? "file_per_proc (N-N)"
                  : "UNKNOWN.  WTF.  email plfs-devel@lists.sourceforge.net")
              << endl;
-        if(check_dirs) {
-            ret = plfs_check_dir("mount_point",itr->first,ret,make_dir);
+        if (check_dirs && plfs_attach(pmnt) != 0) {
+            cout << "\tUnable to attach to mount point, disable check_dirs"
+                 << endl;
+            check_dirs_now = 0;
+        }
+        if(check_dirs_now && fake.store != NULL) {
+            ret = plfs_check_dir("mount_point",&fake,itr->first,ret,make_dir);
         }
         ret = print_backends(pmnt->backends,pmnt->nback,"",
-                             check_dirs,ret,make_dir);
+                             check_dirs_now,ret,make_dir);
         ret = print_backends(pmnt->canonical_backends,pmnt->ncanback,
-                             "Canonical", check_dirs,ret,make_dir);
+                             "Canonical", check_dirs_now,ret,make_dir);
         ret = print_backends(pmnt->shadow_backends,pmnt->nshadowback,
-                             "Shadow",check_dirs,ret, make_dir);
+                             "Shadow",check_dirs_now,ret, make_dir);
         if(pmnt->syncer_ip) {
             cout << "\tSyncer IP: " << pmnt->syncer_ip->c_str() << endl;
         }
         if(pmnt->statfs) {
             cout << "\tStatfs: " << pmnt->statfs->c_str() << endl;
-            if(check_dirs) {
-                ret=plfs_check_dir("statfs",pmnt->statfs->c_str(),ret,make_dir);
+            if(check_dirs_now && pmnt->statfs_io.store != NULL) {
+                ret=plfs_check_dir("statfs",&pmnt->statfs_io,
+                                   pmnt->statfs->c_str(),ret,make_dir);
             }
         }
         cout << "\tChecksum: " << pmnt->checksum << endl;
@@ -731,47 +740,6 @@ setup_mlog(PlfsConf *pconf)
 }
 
 /**
- * plfs_attach_factory: attach to the given backend by creating its iostore.
- * the entire spec from plfsrc comes in via prefix[], we must break it up
- * into path and prefix as part of the attach.
- *
- * @param pmnt mount point for log/err msgs, if any (can be NULL)
- * @param bend the backend to attach
- * @return 0 on success, -1 on error
- */
-static int plfs_attach_factory(PlfsMount *pmnt, struct plfs_backend *bend) {
-
-    /* CHUCK, chuck, Chuck:
-        I think this function should be in IOStore.cpp no?
-    */
-    if (bend->prefix[0] == '/' ||
-        strncmp(bend->prefix, "posix:", sizeof("posix:")-1) == 0) {
-        /* XXXCDC: TMP POSIX INIT HERE */
-        if (bend->prefix[0] == '/') {
-            bend->bmpoint = bend->prefix;  /* copy */
-            bend->prefix[0] = 0;   /* prefix is null string here */
-        } else {
-            bend->bmpoint = bend->prefix + sizeof("posix:")-1; /* copy */
-            /* XXX: save space by dropping the posix: ? */
-            bend->prefix[0] = 0;
-        }
-        bend->store = &PosixIO;
-        goto done;
-        /* XXXCDC: END TMP */
-    }
-    if (strncmp(bend->prefix, "hdfs:", sizeof("hdfs:")-1) == 0) {
-        /* do HDFS */
-    }
-
-    if (strncmp(bend->prefix, "glib:", sizeof("glib:")-1) == 0) {
-        bend->store = new GlibIOStore(); 
-    }
-
- done:
-    return((bend->store == NULL) ? -1 : 0);
-}
-
-/**
  * plfs_attach: attach a filesystem.  must protect pmnt iostore data
  * with a mutex.
  *
@@ -791,7 +759,11 @@ int plfs_attach(PlfsMount *pmnt) {
         PlfsConf *pconf = get_plfs_conf();
         if (pconf->global_summary_dir != NULL &&
             pconf->global_sum_io.store == NULL) {
-            if (plfs_attach_factory(pmnt, &pconf->global_sum_io) != 0) {
+            /*
+             * XXX: this results in the bpath to the dir going in
+             * the global_sum_io.bmpoint string.
+             */
+            if (plfs_iostore_factory(pmnt, &pconf->global_sum_io) != 0) {
                 mlog(INT_WARN, "global_summary_dir %s: failed to attach!",
                      pconf->global_summary_dir);
             } else if (!Util::isDirectory(pconf->global_sum_io.bmpoint.c_str(),
@@ -805,7 +777,7 @@ int plfs_attach(PlfsMount *pmnt) {
     
     { /* begin: special case code for statfs */
         if (pmnt->statfs != NULL) {
-            if (plfs_attach_factory(pmnt, &pmnt->statfs_io) != 0) {
+            if (plfs_iostore_factory(pmnt, &pmnt->statfs_io) != 0) {
                 mlog(INT_WARN, "statfs %s: %s: failed to attach!",
                      pmnt->mnt_pt.c_str(), (*pmnt->statfs).c_str());
             }
@@ -816,7 +788,7 @@ int plfs_attach(PlfsMount *pmnt) {
     for (lcv = 0 ; lcv < pmnt->nback && rv == 0 ; lcv++) {
         if (pmnt->backends[lcv]->store != NULL)
             continue;        /* this one already done, should be ok */
-        rv = plfs_attach_factory(pmnt, pmnt->backends[lcv]);
+        rv = plfs_iostore_factory(pmnt, pmnt->backends[lcv]);
     }
 
     if (rv == 0)
