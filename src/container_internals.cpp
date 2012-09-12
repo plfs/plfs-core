@@ -386,7 +386,7 @@ plfs_file_operation(const char *logical, FileOp& op)
         op.op(ritr->bpath.c_str(),DT_LNK,ritr->back->store);
     }
     for(ritr = dirs.rbegin(); ritr != dirs.rend() && ret == 0; ++ritr) {
-        ret = op.op(ritr->c_str(),is_container?DT_CONTAINER:DT_DIR,
+        ret = op.op(ritr->bpath.c_str(),is_container?DT_CONTAINER:DT_DIR,
                     ritr->back->store);
     }
     mlog(INT_DAPI, "%s: ret %d", __FUNCTION__,ret);

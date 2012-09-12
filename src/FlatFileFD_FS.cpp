@@ -41,27 +41,27 @@ Flat_fd::~Flat_fd()
 // this function is shared by chmod/utime/chown maybe others
 // it's here for directories which may span multiple backends
 // returns 0 or -errno
-int plfs_flatfile_operation(const char *logical, FileOp& op){
+int plfs_flatfile_operation(const char *logical, FileOp& op, IOStore *ios) {
     FLAT_ENTER;
-    vector<string> dirs;
+    vector<plfs_pathback> dirs;
     mode_t mode = 0;
     ret = is_plfs_file(logical, &mode);
     //perform operation on ALL directories
     if (S_ISDIR(mode)){
 
         ret = find_all_expansions(logical, dirs);
-        vector<string>::reverse_iterator ritr;
+        vector<plfs_pathback>::reverse_iterator ritr;
         for(ritr = dirs.rbegin(); ritr != dirs.rend() && ret == 0; ++ritr) {
-            ret = op.op(ritr->c_str(),DT_DIR);
+            ret = op.op(ritr->bpath.c_str(),DT_DIR,ritr->back->store);
         }
     }
     //we hit a regular flat file
     else if(S_ISREG(mode)){
-        ret = op.op(path.c_str(), DT_REG);
+        ret = op.op(path.c_str(), DT_REG, ios);
     }
     //symlink
     else{
-        ret = op.op(path.c_str(), DT_LNK);
+        ret = op.op(path.c_str(), DT_LNK, ios);
     }
     FLAT_EXIT(ret);
 }
@@ -393,9 +393,9 @@ FlatFileSystem::rmdir(const char *logical)
     if (ret==-ENOTEMPTY) {
         mlog(PLFS_DRARE, "Started removing a non-empty directory %s. "
              "Will restore.", logical);
-        CreateOp op(mode);
-        op.ignoreErrno(EEXIST);
-        plfs_iterate_backends(logical,op); // don't overwrite ret
+        CreateOp cop(mode);
+        cop.ignoreErrno(EEXIST);
+        plfs_iterate_backends(logical,cop); // don't overwrite ret
     }
     FLAT_EXIT(ret);
 }

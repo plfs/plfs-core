@@ -6,6 +6,7 @@
 #include <string>
 using namespace std;
 
+#include "mlogfacs.h"
 #include "IOStore.h"
 #include "PosixIOStore.h"
 
@@ -78,6 +79,7 @@ int
 PosixIOSDirHandle::Closedir() {
     int rv;
     rv = closedir(this->dp);
+    mlog(STO_DAPI, "posix:closedir %p", this->dp);
     return(rv);
 }
     
@@ -88,6 +90,7 @@ PosixIOSDirHandle::PosixIOSDirHandle(DIR *newdp, string newbpath) {
     
 int 
 PosixIOSDirHandle::Readdir_r(struct dirent *dst, struct dirent **dret) {
+    mlog(STO_DAPI, "posix:readir_r on %p", this->dp);
     return(readdir_r(this->dp, dst, dret));
 }
 
@@ -154,9 +157,10 @@ PosixIOStore::Opendir(const char *bpath,int &ret) {
     DIR *dp;
     PosixIOSDirHandle *dhand;
     dp = opendir(bpath);
-    if (!dp)
+    if (!dp) {
         ret = -errno;
         return(NULL);
+    }
     dhand = new PosixIOSDirHandle(dp, bpath);
     if (!dhand) {
         ret = -ENOMEM;

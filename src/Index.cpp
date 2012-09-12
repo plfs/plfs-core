@@ -1027,13 +1027,14 @@ Index::insertGlobal( ContainerEntry *g_entry )
 {
     pair<map<off_t,ContainerEntry>::iterator,bool> ret;
     bool overlap  = false;
-    mss::mlog_oss oss(IDX_DAPI);
+    mss::mlog_oss ioss(IDX_DAPI);
     mlog(IDX_DAPI, "Inserting offset %ld into index of %s (%d)",
          (long)g_entry->logical_offset, physical_path.c_str(),g_entry->id);
     ret = insertGlobalEntry( g_entry );
     if ( ret.second == false ) {
-        oss << "overlap1" <<endl<< *g_entry <<endl << ret.first->second << endl;
-        mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
+        ioss << "overlap1" <<endl<< *g_entry <<endl << 
+                ret.first->second << endl;
+        mlog(IDX_DCOMMON, "%s", ioss.str().c_str() );
         overlap  = true;
     }
     // also, need to check against prev and next for overlap
@@ -1067,9 +1068,9 @@ Index::insertGlobal( ContainerEntry *g_entry )
     } else if (compress_contiguous) {
         // does it abuts with the one before it
         if (ret.first!=global_index.begin() && g_entry->follows(prev->second)) {
-            oss << "Merging index for " << *g_entry << " and " << prev->second
+            ioss << "Merging index for " << *g_entry << " and " << prev->second
                 << endl;
-            mlog(IDX_DCOMMON, "%s", oss.str().c_str());
+            mlog(IDX_DCOMMON, "%s", ioss.str().c_str());
             prev->second.length += g_entry->length;
             global_index.erase( ret.first );
         }
