@@ -243,7 +243,6 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
     IOSDirHandle *dir;
     struct dirent entstore, *ent;
     dir = store->Opendir(path,ret);
-    mlog(FOP_DCOMMON, "readdir: opendir %s = %p (ret=%d)", path, dir, ret);
     if (dir == NULL) {
         return ret;
     }
