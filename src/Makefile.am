@@ -73,11 +73,8 @@ LogicalFS.h \
 LogicalFD.h \
 FlatFileFS.h \
 FlatFileFD.h \
-<<<<<<< HEAD
 mlog_oss.h \
 XAttrs.h  \
-=======
->>>>>>> bdfc11e0199ff74dcd22e997edaecc9ea005f4bb
 IOStore.h \
 PosixIOStore.h \
 GlibIOStore.h \
