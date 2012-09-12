@@ -1767,7 +1767,13 @@ Container::dirMode( mode_t mode )
 mode_t
 Container::containerMode( mode_t mode )
 {
-    return( mode | CONTAINER_AUGMENT_MODE );
+    if ( mode & S_IRGRP || mode & S_IWGRP ){
+        mode |= S_IXGRP;
+    }
+    if ( mode & S_IROTH || mode & S_IWOTH ){
+        mode |= S_IXOTH;
+    }
+    return( mode | S_IRUSR | S_IXUSR | S_IWUSR );
 }
 
 mode_t
