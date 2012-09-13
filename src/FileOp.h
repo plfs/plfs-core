@@ -24,12 +24,12 @@ class
 {
     public:
         // first arg to op is path, second is type of path
-        int op(const char *, unsigned char type, IOStore *s); //ret 0 or -errno
+        int op(const char *, unsigned char type, IOStore *s); //ret 0 or -err
         virtual const char *name() = 0;
         virtual bool onlyAccessFile() {
             return false;
         }
-        void ignoreErrno(int Errno); // can register errno's to be ignored
+        void ignoreErrno(int Errno); // can register errs to be ignored
         virtual int do_op(const char *, unsigned char type, IOStore *s) = 0;
         virtual ~FileOp() {}
     private:

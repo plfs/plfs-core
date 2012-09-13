@@ -245,7 +245,7 @@ expandPath(string logical, ExpansionInfo *exp_info,
 // it may well return some paths which don't actually exist
 // some callers assume that the ordering is consistent.  Don't change.
 // also, the order returned is the same as the ordering of the backends.
-// returns 0 or -errno
+// returns 0 or -err
 int
 find_all_expansions(const char *logical, vector<plfs_pathback> &containers)
 {
@@ -423,7 +423,7 @@ plfs_wtime()
 // this applies a function to a directory path on each backend
 // currently used by readdir, rmdir, mkdir
 // this doesn't require the dirs to already exist
-// returns 0 or -errno
+// returns 0 or -err
 int
 plfs_iterate_backends(const char *logical, FileOp& op)
 {
@@ -459,7 +459,7 @@ plfs_stats( void *vptr )
 // at the beginning and works up and many of the dirs probably already
 // do exist
 // currently this function is just used by plfs_recover
-// returns 0 or -errno
+// returns 0 or -err
 // if it sees EEXIST, it silently ignores it and returns 0
 int
 mkdir_dash_p(const string& path, bool parent_only, IOStore *store)
@@ -485,7 +485,7 @@ mkdir_dash_p(const string& path, bool parent_only, IOStore *store)
 
 // restores a lost directory hierarchy
 // currently just used in plfs_recover.  See more comments there
-// returns 0 or -errno
+// returns 0 or -err
 // if directories already exist, it returns 0
 int
 recover_directory(const char *logical, bool parent_only)
@@ -1518,7 +1518,7 @@ plfs_mutex_lock(pthread_mutex_t *mux, const char *func){
  * @param pmnt the mount to search
  * @param backout where the result is placed
  * @param bpathout put a copy of bpath here (see above)
- * @return 0 on success, -errno on failure
+ * @return 0 on success, -err on failure
  */
 static int
 plfs_phys_backlookup_mnt(const char *prefix, int prelen, const char *bpath,
@@ -1550,7 +1550,7 @@ plfs_phys_backlookup_mnt(const char *prefix, int prelen, const char *bpath,
         return(0);
     }
 
-    return(Util::retValue(ENOENT));
+    return(-ENOENT);
 }
 
 /**
@@ -1566,7 +1566,7 @@ plfs_phys_backlookup_mnt(const char *prefix, int prelen, const char *bpath,
  * @param pmnt the logical mount to look in (if null: global search)
  * @param backout where we place the result
  * @param bpathout also put bpath here if !NULL
- * @return 0 on success, -errno on failure
+ * @return 0 on success, -err on failure
  */
 int
 plfs_phys_backlookup(const char *phys, PlfsMount *pmnt,
@@ -1590,7 +1590,7 @@ plfs_phys_backlookup(const char *phys, PlfsMount *pmnt,
             bpath = strchr(bpath, '/');
         if (bpath == NULL) {
             mlog(CON_INFO, "plfs_phys_backlookup: bad phys %s", phys);
-            return(Util::retValue(EINVAL));
+            return(-EINVAL);
         }
         prelen = bpath - prefix;
     }
@@ -1606,7 +1606,7 @@ plfs_phys_backlookup(const char *phys, PlfsMount *pmnt,
     pconf = get_plfs_conf();
     if (!pconf) {
         mlog(CON_CRIT, "plfs_phys_backlookup: no config found");
-            return(Util::retValue(EINVAL));
+            return(-EINVAL);
     }
     for (itr = pconf->mnt_pts.begin() ; itr != pconf->mnt_pts.end() ; itr++) {
         rv = plfs_phys_backlookup_mnt(prefix, prelen, bpath,

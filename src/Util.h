@@ -86,7 +86,6 @@ class Util
         static string expandPath( string path, string hostname );
         static void addTime( string, double, bool );
         static char *hostname();
-        static int retValue( int res );
         static int traverseDirectoryTree(const char *physical,
                                          struct plfs_backend *back,
                                          vector<plfs_pathback> &files,

@@ -21,7 +21,7 @@ FlatFileSystem flatfs;
     string path(physical_path);                 \
     free(physical_path);
 
-#define FLAT_EXIT(X) if (X<0) X = -errno; return (X);
+#define FLAT_EXIT(X) return (X);
 
 #define EXPAND_TARGET                           \
     struct plfs_backend *targetback;            \
@@ -40,7 +40,7 @@ Flat_fd::~Flat_fd()
 
 // this function is shared by chmod/utime/chown maybe others
 // it's here for directories which may span multiple backends
-// returns 0 or -errno
+// returns 0 or -err
 int plfs_flatfile_operation(const char *logical, FileOp& op, IOStore *ios) {
     FLAT_ENTER;
     vector<plfs_pathback> dirs;

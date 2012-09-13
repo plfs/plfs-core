@@ -1,4 +1,3 @@
-#include <errno.h>
 #include "COPYRIGHT.h"
 #include <string>
 #include <fstream>
@@ -511,7 +510,7 @@ Index::ispopulated( )
     return populated;
 }
 
-// returns 0 or -errno
+// returns 0 or -err
 // this dumps the local index
 // and then clears it
 int
@@ -534,7 +533,7 @@ Index::flush()
              __FUNCTION__, fh, strerror(-ret));
     }
     hostIndex.clear();
-    return ( ret < 0 ? -errno : 0 );
+    return((ret < 0) ? ret : 0);
 }
 
 // takes a path and returns a ptr to the mmap of the file
@@ -574,7 +573,7 @@ Index::mapIndex( string hostindex, IOSHandle **xfh, off_t *length,
 
 
 // this builds a global in-memory index from a physical host index dropping
-// return 0 for sucess, -errno for failure
+// return 0 for sucess, -err for failure
 int Index::readIndex( string hostindex, struct plfs_backend *hback )
 {
     off_t length = (off_t)-1;
@@ -669,7 +668,7 @@ int Index::readIndex( string hostindex, struct plfs_backend *hback )
 }
 
 // constructs a global index from a "stream" (i.e. a chunk of memory)
-// returns 0 or -errno
+// returns 0 or -err
 // format:
 //    <quant> [ContainerEntry list] [chunk paths]
 int Index::global_from_stream(void *addr)
@@ -755,7 +754,7 @@ int Index::debug_from_stream(void *addr)
 }
 
 // this writes a flattened in-memory global index to a physical file
-// returns 0 or -errno
+// returns 0 or -err
 int Index::global_to_file(IOSHandle *xfh, struct plfs_backend *canback)
 {
     void *buffer;
@@ -770,7 +769,7 @@ int Index::global_to_file(IOSHandle *xfh, struct plfs_backend *canback)
 
 // this writes a flattened in-memory global index to a memory address
 // it allocates the memory.  The caller must free it.
-// returns 0 or -errno
+// returns 0 or -err
 int Index::global_to_stream(void **buffer,size_t *length)
 {
     int ret = 0;
@@ -1189,7 +1188,7 @@ Index::chunkFound( IOSHandle **xfh, off_t *chunk_off, size_t *chunk_len,
 // if the chunk does not currently have an fd, it is created here
 // if the lookup finds a hole, it returns -1 for the fd and
 // chunk_len for the size of the hole beyond the logical offset
-// returns 0 or -errno
+// returns 0 or -err
 int Index::globalLookup( IOSHandle **xfh, off_t *chunk_off, size_t *chunk_len,
                          string& path, struct plfs_backend **backp,
                          bool *hole, pid_t *chunkid,

@@ -13,7 +13,6 @@
 #include "ContainerFS.h"
 #include "mlog_oss.h"
 
-#include <errno.h>
 #include <list>
 #include <stdarg.h>
 #include <limits>
@@ -78,7 +77,7 @@ plfs_dump_index_size()
     return (int)sizeof(e);
 }
 
-// returns 0 or -errno
+// returns 0 or -err
 int
 plfs_dump_index( FILE *fp, const char *logical, int compress )
 {
@@ -98,7 +97,7 @@ plfs_dump_index( FILE *fp, const char *logical, int compress )
 
 // should be called with a logical path and already_expanded false
 // or called with a physical path and already_expanded true
-// returns 0 or -errno
+// returns 0 or -err
 int
 container_flatten_index(Container_OpenFile *pfd, const char *logical)
 {
@@ -202,7 +201,7 @@ container_create( const char *logical, mode_t mode, int flags, pid_t pid )
 // canonical_container/hostdir but if that hostdir doesn't exist,
 // then the proc creates a shadow_container/hostdir and links that
 // into the canonical_container
-// returns number of current writers sharing the WriteFile * or -errno
+// returns number of current writers sharing the WriteFile * or -err
 int
 addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
           string logical )
@@ -261,7 +260,7 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
             continue;
         }
     }
-    // all done.  we return either -errno or number of writers.
+    // all done.  we return either -err or number of writers.
     if ( ret == 0 ) {
         ret = writers;
     }
@@ -297,7 +296,7 @@ isReader( int flags )
 // may not be efficient since it checks every backend and probably some backends
 // won't exist.  Will be better to make this just go through canonical and find
 // everything that way.
-// returns 0 or -errno
+// returns 0 or -err
 int
 plfs_collect_from_containers(const char *logical, vector<plfs_pathback> &files,
                              vector<plfs_pathback> &dirs,
@@ -315,8 +314,7 @@ plfs_collect_from_containers(const char *logical, vector<plfs_pathback> &files,
             itr++) {
         ret = Util::traverseDirectoryTree(itr->bpath.c_str(), itr->back,
                                           files,dirs,links);
-        if (ret!=0) {
-            ret = -errno;
+        if (ret < 0) {
             break;
         }
     }
@@ -331,7 +329,7 @@ plfs_collect_from_containers(const char *logical, vector<plfs_pathback> &files,
 // for performance critical operations.  If needed,
 // then you'll have to figure out how to cheaply pass
 // the mode_t in
-// returns 0 or -errno
+// returns 0 or -err
 int
 plfs_file_operation(const char *logical, FileOp& op)
 {
@@ -446,7 +444,7 @@ container_access( const char *logical, int mask )
     PLFS_EXIT(ret);
 }
 
-// returns 0 or -errno
+// returns 0 or -err
 int container_statvfs( const char *logical, struct statvfs *stbuf )
 {
     PLFS_ENTER;
@@ -455,7 +453,7 @@ int container_statvfs( const char *logical, struct statvfs *stbuf )
 }
 
 // vptr needs to be a pointer to a set<string>
-// returns 0 or -errno
+// returns 0 or -err
 int
 container_readdir( const char *logical, void *vptr )
 {
@@ -556,7 +554,7 @@ container_rename( const char *logical, const char *to )
 // this has to iterate over the backends and make it everywhere
 // like all directory ops that iterate over backends, ignore weird failures
 // due to inconsistent backends.  That shouldn't happen but just in case
-// returns 0 or -errno
+// returns 0 or -err
 int
 container_mkdir( const char *logical, mode_t mode )
 {
@@ -571,7 +569,7 @@ container_mkdir( const char *logical, mode_t mode )
 // so if we delete some and then later discover that some aren't empty
 // we need to restore them all
 // need to test this corner case probably
-// return 0 or -errno
+// return 0 or -err
 int
 container_rmdir( const char *logical )
 {
@@ -603,7 +601,7 @@ container_rmdir( const char *logical )
 // different previous canonical location is now recovered to the new canonical
 // location.  hopefully it always works but it won't currently work across
 // different file systems because it uses rename()
-// returns 0 or -errno (-EEXIST means it didn't need to be recovered)
+// returns 0 or -err (-EEXIST means it didn't need to be recovered)
 // TODO: this should be made specific to container.  any general code
 // should be moved out
 int
@@ -854,7 +852,7 @@ reader_thread( void *va )
     pthread_exit((void *) ret);
 }
 
-// returns -errno or bytes read
+// returns -err or bytes read
 // TODO: rename this to container_reader or something better
 ssize_t
 plfs_reader(Container_OpenFile *pfd, char *buf, size_t size, off_t offset,
@@ -892,10 +890,10 @@ plfs_reader(Container_OpenFile *pfd, char *buf, size_t size, off_t offset,
              (unsigned long)num_threads,
              (unsigned long)offset);
         ThreadPool threadpool(num_threads,reader_thread, (void *)&args);
-        error = threadpool.threadError();   // returns errno
+        error = threadpool.threadError();   // returns err
         if ( error ) {
             mlog(INT_DRARE, "THREAD pool error %s", strerror(error) );
-            error = -error;       // convert to -errno
+            error = -error;       // convert to -err
         } else {
             vector<void *> *stati    = threadpool.getStati();
             for( size_t t = 0; t < num_threads; t++ ) {
@@ -925,7 +923,7 @@ plfs_reader(Container_OpenFile *pfd, char *buf, size_t size, off_t offset,
     return( error < 0 ? error : total );
 }
 
-// returns -errno or bytes read
+// returns -err or bytes read
 ssize_t
 container_read( Container_OpenFile *pfd, char *buf, size_t size, off_t offset )
 {
@@ -996,7 +994,7 @@ plfs_expand_path(const char *logical,char **physical, void **pmountp,
 // this function still works even with metalink stuff
 // probably though we should make an opaque function in
 // Container.cpp that encapsulates this....
-// returns -errno if the opendir fails
+// returns -err if the opendir fails
 // returns -EISDIR if it's actually a directory and not a file
 // returns a positive number otherwise as even an empty container
 // will have at least one hostdir
@@ -1136,7 +1134,7 @@ plfs_hostdir_rddir(void **index_stream,char *targets,int rank,
  * @param rank top-level rank (not the split one)
  * @param pmount logical PLFS mount point where file being open resides
  * @param pback the the canonical backend
- * @return size of hostdir stream entries or -errno
+ * @return size of hostdir stream entries or -err
  */
 int
 plfs_hostdir_zero_rddir(void **entries,const char *path,int rank,
@@ -1421,7 +1419,7 @@ plfs_trim(const char *logical, pid_t pid)
     UnlinkOp op;
     ret = op.op(paths.canonical_hostdir.c_str(),DT_LNK,
                 paths.canonicalback->store);
-    if (ret != 0 && errno==ENOENT) {
+    if (ret != 0 &&  ret == -ENOENT) {
         ret = 0;
     }
     if (ret != 0) {
@@ -1621,7 +1619,7 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
                                                index,true);
                 if ( ret != 0 ) {
                     mlog(INT_DRARE, "%s failed to create index on %s: %s",
-                         __FUNCTION__, path.c_str(), strerror(errno));
+                         __FUNCTION__, path.c_str(), strerror(-ret));
                     delete(index);
                     index = NULL;
                 }
@@ -1800,7 +1798,7 @@ container_readlink(const char *logical, char *buf, size_t bufsize)
 // when it disappears.  So we need to ignore ENOENT.
 // a bit ugly.  Probably we need to do the same
 // thing with chown
-// returns 0 or -errno
+// returns 0 or -err
 int
 container_utime( const char *logical, struct utimbuf *ut )
 {
@@ -1908,7 +1906,7 @@ truncateFileToZero(const string &physical_canonical, struct plfs_backend *back,
 // this should only be called if the uid has already been checked
 // and is allowed to access this file
 // Container_OpenFile can be NULL
-// returns 0 or -errno
+// returns 0 or -err
 int
 container_getattr(Container_OpenFile *of, const char *logical,
                   struct stat *stbuf,int sz_only)
@@ -1978,7 +1976,7 @@ container_getattr(Container_OpenFile *of, const char *logical,
     if ( ret != 0 ) {
         mlog(PLFS_DRARE, "logical %s,stashed %s,physical %s: %s",
              logical,of?of->getPath():"NULL",path.c_str(),
-             strerror(errno));
+             strerror(-ret));
     }
     mss::mlog_oss oss(PLFS_DAPI);
     oss << __FUNCTION__ << " of " << path << "("
@@ -2015,7 +2013,7 @@ plfs_file_version(const char *logical, const char **version)
 
 // the Container_OpenFile can be NULL (e.g. if file is not open by us)
 // be nice to use new FileOp class for this somehow
-// returns 0 or -errno
+// returns 0 or -err
 int
 container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
                 int open_file)
@@ -2119,10 +2117,10 @@ container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
             ret = of->getWritefile()->restoreFds(droppings_were_truncd);
             if ( ret != 0 ) {
                 mlog(PLFS_DRARE, "%s:%d failed: %s",
-                     __FUNCTION__, __LINE__, strerror(errno));
+                     __FUNCTION__, __LINE__, strerror(-ret));
             }
         } else {
-            mlog(PLFS_DRARE, "%s failed: %s", __FUNCTION__, strerror(errno));
+            mlog(PLFS_DRARE, "%s failed: %s", __FUNCTION__, strerror(-ret));
         }
         mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
     }
@@ -2238,7 +2236,7 @@ plfs_reference_count( Container_OpenFile *pfd )
     return ref_count;
 }
 
-// returns number of open handles or -errno
+// returns number of open handles or -err
 // the close_opt currently just means we're in ADIO mode
 int
 container_close( Container_OpenFile *pfd, pid_t pid, uid_t uid, int open_flags,

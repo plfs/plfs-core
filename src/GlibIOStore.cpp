@@ -1,4 +1,4 @@
-#include <errno.h>
+#include <errno.h>     /* error# ok */
 
 #include "GlibIOStore.h"
 #include "PosixIOStore.h"
@@ -14,8 +14,8 @@
 #if EOF != -1
 #error "EOF is not -1"
 #endif
-#define get_err(X) (((X) >= 0) ? (X) : -errno)
-#define get_null_err(X)  (((X) != NULL) ? 0 : -errno)
+#define get_err(X) (((X) >= 0) ? (X) : -errno)         /* error# ok */
+#define get_null_err(X)  (((X) != NULL) ? 0 : -errno)  /* error# ok */
 
 IOSHandle *
 GlibIOStore::Open(const char *path, int flags, mode_t mode, int &ret) {

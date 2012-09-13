@@ -89,7 +89,7 @@ typedef struct {
     bool is_mnt_pt;
     bool expand_error;
     PlfsMount *mnt_pt;
-    int Errno;  // can't use just errno, it's a weird macro
+    int Errno;  // don't want to shadow the global var
     string expanded;
     struct plfs_backend *backend;
 } ExpansionInfo;

@@ -9,7 +9,6 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/dir.h>
-#include <errno.h>
 #include <string>
 using namespace std;
 
@@ -129,7 +128,7 @@ int WriteFile::sync( pid_t pid )
 }
 
 
-// returns -errno or number of writers
+// returns -err or number of writers
 int WriteFile::addWriter( pid_t pid, bool child )
 {
     int ret = 0;
@@ -242,7 +241,7 @@ int WriteFile::closeFh(IOSHandle *fh)
     return ret;
 }
 
-// returns -errno or number of writers
+// returns -err or number of writers
 int
 WriteFile::removeWriter( pid_t pid )
 {
@@ -289,7 +288,7 @@ WriteFile::extend( off_t offset )
 // entire duration of the write, but that means our appended index will
 // have a lot duplicate information. buffer the index and flush on the close
 //
-// returns bytes written or -errno
+// returns bytes written or -err
 ssize_t
 WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
 {
@@ -342,7 +341,7 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
 }
 
 // this assumes that the hostdir exists and is full valid path
-// returns 0 or -errno
+// returns 0 or -err
 int WriteFile::openIndex( pid_t pid ) {
     int ret = 0;
     string index_path;
@@ -380,7 +379,7 @@ int WriteFile::closeIndex( )
     return ret;
 }
 
-// returns 0 or -errno
+// returns 0 or -err
 int WriteFile::Close()
 {
     int failures = 0;
@@ -398,7 +397,7 @@ int WriteFile::Close()
     return ( failures ? -EIO : 0 );
 }
 
-// returns 0 or -errno
+// returns 0 or -err
 int WriteFile::truncate( off_t offset )
 {
     Metadata::truncate( offset );
@@ -443,7 +442,7 @@ IOSHandle *WriteFile::openFile(string physicalpath, mode_t xmode, int &ret )
 // if fuse::f_truncate is used, we will have open handles that get messed up
 // in that case, we need to restore them
 // what if rename is called and then f_truncate?
-// return 0 or -errno
+// return 0 or -err
 int WriteFile::restoreFds( bool droppings_were_truncd )
 {
     map<IOSHandle *,string>::iterator paths_itr;

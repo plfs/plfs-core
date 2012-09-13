@@ -1,4 +1,4 @@
-#include <errno.h>
+#include <errno.h>   /* error# ok */
 #include <fcntl.h>
 #include <stdio.h>
 #include <sys/mman.h>
@@ -15,7 +15,7 @@ using namespace std;
  * with the error code in the global error number variable.   This macro
  * translates POSIX to IOStore.
  */
-#define get_err(X) (((X) >= 0) ? (X) : -errno)
+#define get_err(X) (((X) >= 0) ? (X) : -errno)  /* error# ok */
 
 int 
 PosixIOSHandle::Close() {

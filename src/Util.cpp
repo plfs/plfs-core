@@ -3,7 +3,6 @@
 #endif
 
 #include <stdlib.h>
-#include <errno.h>
 #include "COPYRIGHT.h"
 #include <string>
 #include <fstream>
@@ -47,7 +46,7 @@ using namespace std;
 
 #define O_CONCURRENT_WRITE                         020000000000
 
-// TODO.  Some functions in here return -errno.  Probably none of them
+// TODO.  Some functions in here return -err.  Probably none of them
 // should
 
 // shoot.  I just realized.  All this close timing stuff is not thread safe.
@@ -531,7 +530,7 @@ double Util::getTime( )
     struct timeval time;
     if ( gettimeofday( &time, NULL ) != 0 ) {
         mlog(UT_CRIT, "WTF: %s failed: %s",
-             __FUNCTION__, strerror(errno));
+             __FUNCTION__, strerror(errno)); /* error# ok */
     }
     return (double)time.tv_sec + time.tv_usec/1.e6;
 }
@@ -677,9 +676,9 @@ int Util::Setfsgid( gid_t g )
 {
     ENTER_UTIL;
 #ifndef __APPLE__
-    errno = 0;
+    errno = 0;     /* error# ok, but is this necessary? */
     ret = setfsgid( g );
-    mlog(UT_DCOMMON, "Set gid %d: %s", g, strerror(errno) );
+    mlog(UT_DCOMMON, "Set gid %d: %s", g, strerror(errno) ); /* error# ok */
 #endif
     EXIT_UTIL;
 }
@@ -688,17 +687,11 @@ int Util::Setfsuid( uid_t u )
 {
     ENTER_UTIL;
 #ifndef __APPLE__
-    errno = 0;
+    errno = 0;     /* error# ok, but is this necessary? */
     ret = setfsuid( u );
-    mlog(UT_DCOMMON, "Set uid %d: %s", u, strerror(errno) );
+    mlog(UT_DCOMMON, "Set uid %d: %s", u, strerror(errno) ); /* error# ok */
 #endif
     EXIT_UTIL;
-}
-
-// a utility for turning return values into 0 or -ERRNO
-int Util::retValue( int res )
-{
-    return (res == 0 ? 0 : -errno);
 }
 
 char *Util::hostname()

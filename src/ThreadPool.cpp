@@ -1,5 +1,4 @@
 #include <pthread.h>
-#include <errno.h>
 #include <string.h>
 #include "ThreadPool.h"
 #include "Util.h"
@@ -15,8 +14,9 @@ ThreadPool::ThreadPool( size_t size, void *(*func) (void *), void *args )
     mlog(INT_DAPI, "THREAD_POOL: Creating %lu threads", (unsigned long)size );
     for( size_t t = 0; t < size; t++ ) {
         if ( 0 != pthread_create(&threads[t], &attr, func, args) ) {
-            thread_error = errno;
-            mlog(INT_DRARE, "THREAD_POOL: create error %s", strerror(errno) );
+            thread_error = errno;  /* error# ok */
+            mlog(INT_DRARE, "THREAD_POOL: create error %s",
+                 strerror(thread_error) );
             break;
         }
     }
@@ -24,8 +24,9 @@ ThreadPool::ThreadPool( size_t size, void *(*func) (void *), void *args )
         for(size_t t=0; t < size; t++) {
             void *status;
             if ( 0 != pthread_join(threads[t], &status) ) {
-                thread_error = errno;
-                mlog(INT_DRARE, "THREAD_POOL: join error %s", strerror(errno));
+                thread_error = errno;  /* error# ok */
+                mlog(INT_DRARE, "THREAD_POOL: join error %s",
+                     strerror(thread_error));
                 break;
             } else {
                 stati.push_back(status);

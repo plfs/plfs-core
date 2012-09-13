@@ -41,7 +41,7 @@ Container::bytesToBlocks( size_t total_bytes )
 // moved as well.
 // by the way, it's easier to think about this sometimes if you think of the
 // from_backend as a shadow container to the to_backend which is now canonical
-// returns 0 or -errno
+// returns 0 or -err
 int
 Container::transferCanonical(const plfs_pathback *from,
                              const plfs_pathback *to,
@@ -409,7 +409,7 @@ Container::flattenIndex( const string& path, struct plfs_backend *canback,
  * @param canback the backend for the canonical container
  * @param index the index to load into
  * @param use_global set to false to disable global index file load attempt
- * @return -errno or 0
+ * @return -err or 0
  */
 int
 Container::populateIndex(const string& path, struct plfs_backend *canback,
@@ -715,7 +715,7 @@ Container::readMetalink(const string& srcbpath, struct plfs_backend *srcback,
     /* XXX: sanity check lenout? */
     if (*cp == '\0') {
         mlog(CON_DRARE, "readMetalink: bad path: %s",srcbpath.c_str());
-        return Util::retValue(EIO);
+        return(-EIO);
     }
 
     /*
@@ -748,7 +748,7 @@ Container::readMetalink(const string& srcbpath, struct plfs_backend *srcback,
  * @param pmnt the logical plfs mount to limit search to (can be NULL)
  * @param resolved the bpath of the resolved metalink
  * @param backout the backend of the resolved metalink is placed here
- * @return 0 on succes or -errno on error
+ * @return 0 on succes or -err on error
  */
 int
 Container::resolveMetalink(const string& metalink, struct plfs_backend *mback,
@@ -887,7 +887,7 @@ Container::createMetalink(struct plfs_backend *canback,
         }
         mlog(CON_DCOMMON, "%s failed bec no free hostdir entry is found"
              ,__FUNCTION__);
-        return Util::retValue(ret);
+        return(ret);
     }
 
     use_metalink = true; /*XXX: not totally clear how this is used */
@@ -1007,7 +1007,7 @@ Container::collectContents(const string& physical,
  * @param path the bpath to the canonical container
  * @param canback the backend the canonical container resides on
  * @param index the index to load into
- * @return 0 or -errno
+ * @return 0 or -err
  */
 int
 Container::aggregateIndices(const string& path, struct plfs_backend *canback,
@@ -1530,7 +1530,7 @@ Container::getattr( const string& path, struct plfs_backend *canback,
 // just a directory
 // the above is out of date.  We don't use S_ISUID anymore.  Now we use
 // the existence of the access file
-// returns -errno or 0
+// returns -err or 0
 int
 Container::makeTopLevel( const string& expanded_path,
                          struct plfs_backend *canback, 
@@ -1771,7 +1771,7 @@ Container::makeHostDir(const string& path, struct plfs_backend *back,
 // It may fail bec a sibling made a metalink at the same location,
 // then keep trying to create subdir at available location or use the first
 // existing directory found.
-// return 0 or -errno
+// return 0 or -err
 /**
  * Container::makeHostDir: make a hostdir subdir in container
  *
@@ -1887,7 +1887,7 @@ Container::makeHostDir(const ContainerPaths& paths,mode_t mode,
 // 1.  success: return 0
 // 2.  fails bec it already exists as a directory: return 0
 // 3.  fails bec it already exists as a metalink: return -EEXIST
-// 4.  fails for some other reason: return -errno
+// 4.  fails for some other reason: return -err
 int
 Container::makeSubdir( const string& path, mode_t mode, struct plfs_backend *b )
 {

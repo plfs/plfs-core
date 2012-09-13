@@ -49,8 +49,8 @@ typedef void *Plfs_fd;
        All PLFS functions are either approximations of POSIX file IO calls or
        utility functions.
 
-       Most PLFS functions return 0 or -errno, except write and read which
-       return the number of bytes or -errno
+       Most PLFS functions return 0 or -err, except write and read which
+       return the number of bytes or -err
 
        Many of the utility functions are shared by the ADIO and the FUSE layers
        of PLFS.  Typical applications should try to use those layers.  However,

@@ -1,7 +1,6 @@
 #ifndef __Container_H__
 #define __Container_H__
 
-#include <errno.h>
 #include <string>
 #include <fstream>
 #include <iostream>
