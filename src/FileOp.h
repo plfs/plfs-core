@@ -32,8 +32,6 @@ class
         void ignoreErrno(int Errno); // can register errno's to be ignored
         virtual int do_op(const char *, unsigned char type, IOStore *s) = 0;
         virtual ~FileOp() {}
-    protected:
-        int retValue(int ret);
     private:
         set<int> ignores;
 };

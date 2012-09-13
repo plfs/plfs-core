@@ -531,7 +531,7 @@ Index::flush()
     int ret     = Util::Writen(start, len, this->fh);
     if ( (size_t)ret != (size_t)len ) {
         mlog(IDX_DRARE, "%s failed write to fh %p: %s",
-             __FUNCTION__, fh, strerror(errno));
+             __FUNCTION__, fh, strerror(-ret));
     }
     hostIndex.clear();
     return ( ret < 0 ? -errno : 0 );
@@ -563,8 +563,9 @@ Index::mapIndex( string hostindex, IOSHandle **xfh, off_t *length,
         mlog(IDX_DRARE, "%s is a zero length index file", hostindex.c_str());
         return NULL;
     }
-    if (length < 0) {
-        mlog(IDX_DRARE, "%s WTF lseek: %s", __FUNCTION__, strerror(errno));
+    if (*length < 0) {
+        mlog(IDX_DRARE, "%s WTF lseek: %s", __FUNCTION__,
+             strerror(-(*length)));
         return (void *)-1;
     }
     Util::MapFile(*length,&addr,*xfh);
@@ -762,7 +763,6 @@ int Index::global_to_file(IOSHandle *xfh, struct plfs_backend *canback)
     int ret = global_to_stream(&buffer,&length);
     if (ret==0) {
         ret = Util::Writen(buffer,length,xfh);
-        ret = ( (size_t)ret == length ? 0 : -errno );
         free(buffer);
     }
     return ret;
@@ -1092,6 +1092,7 @@ Index::insertGlobal( ContainerEntry *g_entry )
 
 // just a little helper to print an error message and make sure the fd is
 // closed and the mmap is unmap'd
+// ret 0 or -err
 int
 Index::cleanupReadIndex( IOSHandle *xfh, void *maddr, off_t length, int ret,
                          const char *last_func, const char *indexfile,
@@ -1100,30 +1101,30 @@ Index::cleanupReadIndex( IOSHandle *xfh, void *maddr, off_t length, int ret,
     int ret2 = 0, ret3 = 0;
     if ( ret < 0 ) {
         mlog(IDX_DRARE, "WTF.  readIndex failed during %s on %s: %s",
-             last_func, indexfile, strerror( errno ) );
+             last_func, indexfile, strerror( -ret ) );
     }
     if ( maddr != NULL && maddr != (void *)-1 ) {
         ret2 = xfh->Munmap(maddr, length);
         if ( ret2 < 0 ) {
             mlog(IDX_DRARE,
                  "WTF.  readIndex failed during munmap of %s (%lu): %s",
-                 indexfile, (unsigned long)length, strerror(errno));
+                 indexfile, (unsigned long)length, strerror(-ret2));
             ret = ret2; // set to error
         }
     }
     if ( maddr == (void *)-1 ) {
-        mlog(IDX_DRARE, "mmap failed on %s: %s",indexfile,strerror(errno));
+        mlog(IDX_DRARE, "mmap failed on %s: %s",indexfile,strerror(-ret));
     }
     if ( xfh != NULL ) {
         ret3 = hback->store->Close(xfh);
         if ( ret3 < 0 ) {
             mlog(IDX_DRARE,
                  "WTF. readIndex failed during close of %s: %s",
-                 indexfile, strerror( errno ) );
+                 indexfile, strerror(ret3) );
             ret = ret3; // set to error
         }
     }
-    return ( ret == 0 ? 0 : -errno );
+    return(ret);
 }
 
 // returns any fd that has been stashed for a data chunk

@@ -66,6 +66,7 @@ int plfs_flatfile_operation(const char *logical, FileOp& op, IOStore *ios) {
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
 Flat_fd::open(const char *filename, int flags, pid_t pid,
               mode_t mode, Plfs_open_opt *unused)
@@ -102,6 +103,7 @@ Flat_fd::close(pid_t pid, uid_t u, int flags, Plfs_close_opt *unused)
     return 0; // Safe to delete the fd.
 }
 
+/* ret 0 or -err */
 ssize_t
 Flat_fd::read(char *buf, size_t size, off_t offset)
 {
@@ -109,6 +111,7 @@ Flat_fd::read(char *buf, size_t size, off_t offset)
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 ssize_t
 Flat_fd::write(const char *buf, size_t size, off_t offset, pid_t pid)
 {
@@ -116,6 +119,7 @@ Flat_fd::write(const char *buf, size_t size, off_t offset, pid_t pid)
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
 Flat_fd::sync()
 {
@@ -123,14 +127,16 @@ Flat_fd::sync()
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
 Flat_fd::sync(pid_t pid)
 {
-    //XXXCDC:iostore via this->back
+    //XXXCDC: this seems bogus to directly call posix sync(2) here?
     int ret = sync(); 
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
 Flat_fd::trunc(const char *xpath, off_t offset)
 {
@@ -138,6 +144,7 @@ Flat_fd::trunc(const char *xpath, off_t offset)
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
 Flat_fd::getattr(const char *xpath, struct stat *stbuf, int sz_only)
 {
@@ -234,6 +241,7 @@ FlatFileSystem::chmod( const char *logical, mode_t mode )
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
 FlatFileSystem::getmode( const char *logical, mode_t *mode)
 {
@@ -255,6 +263,7 @@ FlatFileSystem::access( const char *logical, int mask )
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
 FlatFileSystem::rename( const char *logical, const char *to )
 {
@@ -266,8 +275,8 @@ FlatFileSystem::rename( const char *logical, const char *to )
         goto out;
     }
     if (S_ISREG(stbuf.st_mode) || S_ISLNK(stbuf.st_mode)) {
-        ret = Util::retValue(flatback->store->Rename(old_canonical.c_str(),
-                                                     new_canonical.c_str()));
+        ret = flatback->store->Rename(old_canonical.c_str(),
+                                      new_canonical.c_str());
         // EXDEV is expected when the rename crosses different volumes.
         // We should do the copy+unlink in this case.
         if (ret == -EXDEV) {
@@ -276,8 +285,8 @@ FlatFileSystem::rename( const char *logical, const char *to )
             if (ret == 0) {
                 ret = flatback->store->Unlink(old_canonical.c_str());
             }
-            mlog(FUSE_DCOMMON, "Cross-device rename, do CopyFile+Unlink, "
-                 "ret: %d. errno: %d.\n", ret, errno);
+            mlog(PLFS_DCOMMON, "Cross-device rename, CopyFile+Unlink ret: %d",
+                 ret); 
         }
     } else if (S_ISDIR(stbuf.st_mode)) {
         vector<plfs_pathback> srcs, dsts;
@@ -290,10 +299,9 @@ FlatFileSystem::rename( const char *logical, const char *to )
         assert(srcs.size()==dsts.size());
         // now go through and rename all of them (ignore ENOENT)
         for(size_t i = 0; i < srcs.size(); i++) {
-            //XXXCDC:iostore via flatback
             int err;
-            err = Util::retValue(flatback->store->Rename(srcs[i].bpath.c_str(),
-                                                        dsts[i].bpath.c_str()));
+            err = flatback->store->Rename(srcs[i].bpath.c_str(),
+                                          dsts[i].bpath.c_str());
             if (err == -ENOENT) {
                 err = 0;    // might not be distributed on all
             }
@@ -328,6 +336,7 @@ FlatFileSystem::utime( const char *logical, struct utimbuf *ut )
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
 FlatFileSystem::getattr(const char *logical, struct stat *stbuf,int sz_only)
 {
@@ -336,6 +345,7 @@ FlatFileSystem::getattr(const char *logical, struct stat *stbuf,int sz_only)
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
 FlatFileSystem::trunc(const char *logical, off_t offset, int open_file)
 {
@@ -371,6 +381,7 @@ FlatFileSystem::readdir(const char *logical, void *buf)
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
 FlatFileSystem::readlink(const char *logical, char *buf, size_t bufsize)
 {
@@ -394,12 +405,13 @@ FlatFileSystem::rmdir(const char *logical)
         mlog(PLFS_DRARE, "Started removing a non-empty directory %s. "
              "Will restore.", logical);
         CreateOp cop(mode);
-        cop.ignoreErrno(EEXIST);
+        cop.ignoreErrno(-EEXIST);
         plfs_iterate_backends(logical,cop); // don't overwrite ret
     }
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
 FlatFileSystem::symlink(const char *logical, const char *to)
 {
@@ -412,6 +424,7 @@ FlatFileSystem::symlink(const char *logical, const char *to)
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
 FlatFileSystem::statvfs(const char *logical, struct statvfs *stbuf)
 {

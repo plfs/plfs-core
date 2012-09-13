@@ -181,10 +181,11 @@ PosixIOStore::Open(const char *bpath, int flags, mode_t mode, int &ret) {
     int fd;
     PosixIOSHandle *hand;
     fd = open(bpath, flags, mode);
-    ret = get_err(fd);
-    if (ret < 0) {
+    if (fd < 0) {
+        ret = get_err(-1);
         return(NULL);
     }
+    ret = 0;
     hand = new PosixIOSHandle(fd, bpath);
     if (hand == NULL) {
         ret = -ENOMEM;

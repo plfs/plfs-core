@@ -65,8 +65,8 @@ Container::transferCanonical(const plfs_pathback *from,
     ReaddirOp rop(&entries,NULL,false,true);
     UnlinkOp uop;
     CreateOp cop(mode);
-    cop.ignoreErrno(EEXIST);
-    cop.ignoreErrno(EISDIR);
+    cop.ignoreErrno(-EEXIST);
+    cop.ignoreErrno(-EISDIR);
     // do the readdir of old to get the list of things that need to be moved
     ret = rop.op(from->bpath.c_str(),DT_DIR,from->back->store);
     if ( ret != 0) {
@@ -308,27 +308,15 @@ Container::freeIndex( Index **index )
     return 0;
 }
 
-// a helper routine for functions that are accessing a file
-// which may not exist.  It's not an error if it doesn't
-// exist since it might not exist yet due to an error condition
-int
-Container::ignoreNoEnt( int ret )
-{
-    if ( ret != 0 && ( errno == ENOENT || errno == ENOTDIR ) ) {
-        return 0;
-    } else {
-        return ret;
-    }
-}
-
 // really just need to do the access file
+// returns 0 or -err
 int
 Container::Utime( const string& path, struct plfs_backend *back,
                   const struct utimbuf *ut )
 {
     string accessfile = getAccessFilePath(path);
     mlog(CON_DAPI, "%s on %s", __FUNCTION__,path.c_str());
-    return Util::retValue(back->store->Utime(accessfile.c_str(),ut));
+    return(back->store->Utime(accessfile.c_str(),ut));
 }
 
 // the shared arguments passed to all of the indexer threads
@@ -381,7 +369,7 @@ indexer_thread( void *va )
  * @param path the bpath to the canonical container
  * @param canback the canonical backend
  * @param index the index to dump
- * @return 0 or -errno
+ * @return 0 or -err
  */
 int
 Container::flattenIndex( const string& path, struct plfs_backend *canback,
@@ -395,7 +383,7 @@ Container::flattenIndex( const string& path, struct plfs_backend *canback,
     // open the unique temporary path
     int ret;
     IOSHandle *index_fh = canback->store->Open(unique_temporary.c_str(),
-                                        flags, mode, ret);
+                                               flags, mode, ret);
     if ( index_fh == NULL ) {
         return ret; 
     }
@@ -408,9 +396,6 @@ Container::flattenIndex( const string& path, struct plfs_backend *canback,
     if ( ret == 0 ) { // dump was successful so do the atomic rename
         ret = canback->store->Rename(unique_temporary.c_str(),
                                      globalIndex.c_str());
-        if ( ret != 0 ) {
-            ret = -errno;
-        }
     }
     return ret;
 }
@@ -445,8 +430,8 @@ Container::populateIndex(const string& path, struct plfs_backend *canback,
         off_t len = -1;
         //XXXCDC: really just want filesize for mmap, don't care about seeking
         len = idx_fh->Lseek(0, SEEK_END);
-        if (len == -1) {
-            ret = -1;
+        if (len < 0) {
+            ret = len;
         } else {
             void *addr;
             ret = Util::MapFile(len,&addr,idx_fh);
@@ -456,7 +441,7 @@ Container::populateIndex(const string& path, struct plfs_backend *canback,
             } else {
                 mlog(CON_ERR, "WTF: mmap %s of len %ld: %s",
                      getGlobalIndexPath(path).c_str(),
-                     (long)len, strerror(errno));
+                     (long)len, strerror(errno)); /*XXX:frommap ret?*/
             }
         }
         canback->store->Close(idx_fh);
@@ -701,7 +686,7 @@ Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
  * @param pmnt the logical mount being used (can be NULL if don't know)
  * @param lenout length read from metalink put here (bytes to remove)
  * @param backout pointer to the new backend is placed here
- * @return 0 on success, -errno on failure
+ * @return 0 on success, -err on failure
  */
 int
 Container::readMetalink(const string& srcbpath, struct plfs_backend *srcback,
@@ -714,8 +699,8 @@ Container::readMetalink(const string& srcbpath, struct plfs_backend *srcback,
     if (ret <= 0) {
         // it's OK to fail: we use this to check if things are metalinks
         mlog(CON_DCOMMON, "readlink %s failed: %s",srcbpath.c_str(),
-             strerror(errno));
-        return Util::retValue(ret);
+             (ret == 0) ? "ret==0" : strerror(-ret));
+        return(ret);
     }
     buf[ret] = '\0';   /* null terminate */
 
@@ -806,7 +791,7 @@ Container::resolveMetalink(const string& metalink, struct plfs_backend *mback,
  * @param physical_hostdir resulting bpath to hostdir on shadow
  * @param physbackp the backend physical_hostdir is on
  * @param use_metalink set to true if using metalink
- * @return 0 on success, -errno on failure
+ * @return 0 on success, -err on failure
  */
 int
 Container::createMetalink(struct plfs_backend *canback,
@@ -822,7 +807,9 @@ Container::createMetalink(struct plfs_backend *canback,
     string canonical_path_without_id;   /* canonical hostdir bpath w/o id */
     ostringstream oss, shadow;
     size_t i;
-    int ret = -1, id, dir_id;
+    int ret, id, dir_id;
+
+    ret = -EIO;  /* to be safe */
 
     /*
      * no need to check pconf to see if it is null, if we get this far
@@ -862,9 +849,8 @@ Container::createMetalink(struct plfs_backend *canback,
 
         /* if successful, we can stop */
         if (ret == 0) {
-            mlog(CON_DAPI, "%s: wrote %s into %s: %d",
-                 __FUNCTION__, shadow.str().c_str(),
-                 oss.str().c_str(), ret);
+            mlog(CON_DAPI, "%s: wrote %s into %s",
+                 __FUNCTION__, shadow.str().c_str(), oss.str().c_str());
             break;
         }
 
@@ -927,7 +913,7 @@ Container::createMetalink(struct plfs_backend *canback,
     if( ret!=0 ) {
         physical_hostdir.clear();
     }
-    return Util::retValue(ret);
+    return(ret);
 }
 
 int
@@ -1229,8 +1215,10 @@ Container::addMeta( off_t last_offset, size_t total_bytes,
         << host;
     metafile = oss.str();
     mlog(CON_DCOMMON, "Creating metafile %s", metafile.c_str() );
-    ret = ignoreNoEnt(Util::MakeFile(metafile.c_str(),DROPPING_MODE,
-                                     canback->store));
+    ret = Util::MakeFile(metafile.c_str(), DROPPING_MODE, canback->store);
+    if (ret == -ENOENT || ret == -ENOTDIR) {  /* can be ignored */
+        ret = 0;
+    }
     // now let's maybe make a global summary dropping
     PlfsConf *pconf = get_plfs_conf();
     if (pconf->global_sum_io.store != NULL) {
@@ -1343,7 +1331,7 @@ Container::getOpenrecord( const string& path, const string& host, pid_t pid)
  * @param canback the backend the canonical container resides on
  * @param host the host to create the record under
  * @param pid the pid to create the record number
- * @return 0 on success otherwise error
+ * @return 0 on success otherwise -err
  */
 int
 Container::addOpenrecord( const string& path, struct plfs_backend *canback,
@@ -1352,17 +1340,18 @@ Container::addOpenrecord( const string& path, struct plfs_backend *canback,
     string openrecord = getOpenrecord( path, host, pid );
     int ret = Util::MakeFile( openrecord.c_str(), DROPPING_MODE,
                               canback->store );
-    if ( ret != 0 && ( errno == ENOENT || errno == ENOTDIR ) ) {
+    if (ret == -ENOENT || ret == -ENOTDIR) {
         makeSubdir( getOpenHostsDir(path), CONTAINER_MODE, canback );
         ret = Util::MakeFile(openrecord.c_str(), DROPPING_MODE, canback->store);
     }
-    if ( ret != 0 ) {
+    if ( ret < 0 ) {
         mlog(CON_INFO, "Couldn't make openrecord %s: %s",
-             openrecord.c_str(), strerror( errno ) );
+             openrecord.c_str(), strerror( -ret ) );
     }
     return ret;
 }
 
+/* returns 0 or -err */
 int
 Container::removeOpenrecord(const string& path,struct plfs_backend *canback,
                             const string& host,pid_t pid)
@@ -1376,9 +1365,11 @@ Container::removeOpenrecord(const string& path,struct plfs_backend *canback,
 mode_t
 Container::getmode( const string& path, struct plfs_backend *back )
 {
+    int rv;
     struct stat stbuf;
-    if ( back->store->Lstat( path.c_str(), &stbuf ) < 0 ) {
-        mlog(CON_WARN, "Failed to getmode for %s", path.c_str() );
+    if ( (rv = back->store->Lstat( path.c_str(), &stbuf )) < 0 ) {
+        mlog(CON_WARN, "Failed to getmode for %s: %s", path.c_str(),
+             strerror(-rv));
         return CONTAINER_MODE;
     } else {
         return fileMode(stbuf.st_mode);
@@ -1391,12 +1382,13 @@ Container::getmode( const string& path, struct plfs_backend *back )
  * @param path the bpath to the canonical container
  * @param canback the canonical backend for bpath
  * @param stbuf where to place the results
- * @return 0 or -errno
+ * @return 0 or -err
  */
 int
 Container::getattr( const string& path, struct plfs_backend *canback,
                     struct stat *stbuf )
 {
+    int rv;
     // Need to walk the whole structure
     // and build up the stat.
     // three ways to do so:
@@ -1416,10 +1408,10 @@ Container::getattr( const string& path, struct plfs_backend *canback,
     int ret = 0;
     // get the permissions and stuff from the access file
     string accessfile = getAccessFilePath( path );
-    if ( canback->store->Lstat( accessfile.c_str(), stbuf ) < 0 ) {
+    if ( (rv = canback->store->Lstat( accessfile.c_str(), stbuf )) < 0 ) {
         mlog(CON_DRARE, "%s lstat of %s failed: %s",
-             __FUNCTION__, accessfile.c_str(), strerror( errno ) );
-        return -errno;
+             __FUNCTION__, accessfile.c_str(), strerror( -rv ) );
+        return(rv);
     }
     stbuf->st_size    = 0;
     stbuf->st_blocks  = 0;
@@ -1504,11 +1496,10 @@ Container::getattr( const string& path, struct plfs_backend *canback,
             // stat the dropping to get the timestamps
             // then read the index info
             struct stat dropping_st;
-            if (dropping.back->store->Lstat(dropping.bpath.c_str(),
-                                            &dropping_st) < 0 ) {
-                ret = -errno;
+            if ((ret = dropping.back->store->Lstat(dropping.bpath.c_str(),
+                                                   &dropping_st)) < 0 ) {
                 mlog(CON_DRARE, "lstat of %s failed: %s",
-                     dropping.bpath.c_str(), strerror( errno ) );
+                     dropping.bpath.c_str(), strerror( -ret ) );
                 continue;   // shouldn't this be break?
             }
             stbuf->st_ctime = max(dropping_st.st_ctime, stbuf->st_ctime);
@@ -1546,6 +1537,7 @@ Container::makeTopLevel( const string& expanded_path,
                          const string& hostname, mode_t mode, pid_t pid,
                          unsigned mnt_pt_checksum, bool lazy_subdir )
 {
+    int rv;
     /*
         // ok, instead of mkdir tmp ; chmod tmp ; rename tmp top
         // we tried just mkdir top ; chmod top to remove the rename
@@ -1565,33 +1557,35 @@ Container::makeTopLevel( const string& expanded_path,
     ostringstream oss;
     oss << expanded_path << "." << hostname << "." << pid;
     string tmpName( oss.str() );
-    if ( canback->store->Mkdir(tmpName.c_str(), containerMode(mode)) < 0) {
-        if ( errno != EEXIST && errno != EISDIR ) {
+    rv = canback->store->Mkdir(tmpName.c_str(), containerMode(mode));
+    if (rv < 0) {
+        if ( rv != -EEXIST && rv != -EISDIR ) {
             mlog(CON_DRARE, "Mkdir %s to %s failed: %s",
-                 tmpName.c_str(), expanded_path.c_str(), strerror(errno) );
-            return -errno;
-        } else if ( errno == EEXIST ) {
+                 tmpName.c_str(), expanded_path.c_str(), strerror(-rv) );
+            return(rv);
+        } else if ( rv == -EEXIST ) {
             struct plfs_pathback pb;
             pb.bpath = tmpName;
             pb.back = canback;
             if ( ! Container::isContainer(&pb,NULL) ) {
                 mlog(CON_DRARE, "Mkdir %s to %s failed: %s",
-                     tmpName.c_str(), expanded_path.c_str(), strerror(errno) );
+                     tmpName.c_str(), expanded_path.c_str(), strerror(-rv) );
             } else {
                 mlog(CON_DRARE, "%s is already a container.", tmpName.c_str());
             }
         }
     }
     string tmpAccess( getAccessFilePath(tmpName) );
-    if ( makeAccess( tmpAccess, canback, mode ) < 0 ) {
+    rv = makeAccess( tmpAccess, canback, mode );
+    if (rv < 0) {
         mlog(CON_DRARE, "create access file in %s failed: %s",
-             tmpName.c_str(), strerror(errno) );
-        int saveerrno = errno;
-        if ( canback->store->Rmdir( tmpName.c_str() ) != 0 ) {
+             tmpName.c_str(), strerror(-rv) );
+        int saverv = rv;
+        if ( (rv = canback->store->Rmdir( tmpName.c_str() )) != 0 ) {
             mlog(CON_DRARE, "rmdir of %s failed : %s",
-                 tmpName.c_str(), strerror(errno) );
+                 tmpName.c_str(), strerror(-rv) );
         }
-        return -saveerrno;
+        return(saverv);
     }
     // ok, this rename sometimes takes a long time
     // what if we check first to see if the dir already exists
@@ -1602,34 +1596,37 @@ Container::makeTopLevel( const string& expanded_path,
     int attempts = 0;
     while (attempts < 2 ) {
         attempts++;
-        if ( canback->store->Rename( tmpName.c_str(),
-                                     expanded_path.c_str() ) < 0 ) {
-            int saveerrno = errno;
+        rv = canback->store->Rename(tmpName.c_str(), expanded_path.c_str());
+        if (rv < 0) {
+            int saverv = rv;
             mlog(CON_DRARE, "rename of %s -> %s failed: %s",
-                 tmpName.c_str(), expanded_path.c_str(), strerror(errno) );
-            if ( saveerrno == ENOTDIR ) {
+                 tmpName.c_str(), expanded_path.c_str(), strerror(-rv) );
+            if ( saverv == -ENOTDIR ) {
                 // there's a normal file where we want to make our container
-                saveerrno = canback->store->Unlink( expanded_path.c_str() );
-                mlog(CON_DRARE, "Unlink of %s: %d (%s)", expanded_path.c_str(), saveerrno, 
-                    saveerrno ? strerror(saveerrno): "SUCCESS"); 
+                saverv = canback->store->Unlink( expanded_path.c_str() );
+                mlog(CON_DRARE, "Unlink of %s: %d (%s)",
+                     expanded_path.c_str(), saverv, 
+                    saverv < 0 ? strerror(-saverv): "SUCCESS"); 
                 // should be success or ENOENT if someone else already unlinked
-                if ( saveerrno != 0 && saveerrno != ENOENT ) {
+                if ( saverv != 0 && saverv != -ENOENT ) {
                     mlog(CON_DRARE, "%s failure %d (%s)\n", __FUNCTION__,
-                        saveerrno, strerror(saveerrno));
-                    return -saveerrno;
+                        saverv, strerror(-saverv));
+                    return(saverv);
                 }
                 continue;
             }
             // if we get here, we lost the race
             mlog(CON_DCOMMON, "We lost the race to create toplevel %s,"
                             " cleaning up\n", expanded_path.c_str());
-            if ( canback->store->Unlink( tmpAccess.c_str() ) < 0 ) {
+            rv = canback->store->Unlink(tmpAccess.c_str());
+            if ( rv < 0 ) {
                 mlog(CON_DRARE, "unlink of temporary %s failed : %s",
-                     tmpAccess.c_str(), strerror(errno) );
+                     tmpAccess.c_str(), strerror(-rv) );
             }
-            if ( canback->store->Rmdir( tmpName.c_str() ) < 0 ) {
+            rv = canback->store->Rmdir(tmpName.c_str());
+            if (rv < 0) {
                 mlog(CON_DRARE, "rmdir of temporary %s failed : %s",
-                     tmpName.c_str(), strerror(errno) );
+                     tmpName.c_str(), strerror(-rv) );
             }
             // probably what happened is some other node outraced us
             // if it is here now as a container, that's what happened
@@ -1638,12 +1635,12 @@ Container::makeTopLevel( const string& expanded_path,
             // if it's something like EEXIST or ENOTEMPTY or EISDIR
             // then that probably means the same thing
             //if ( ! isContainer( expanded_path ) )
-            if ( saveerrno != EEXIST && saveerrno != ENOTEMPTY
-                    && saveerrno != EISDIR ) {
+            if ( saverv != -EEXIST && saverv != -ENOTEMPTY
+                    && saverv != -EISDIR ) {
                 mlog(CON_DRARE, "rename %s to %s failed: %s",
-                     tmpName.c_str(), expanded_path.c_str(), strerror
-                     (saveerrno) );
-                return -saveerrno;
+                     tmpName.c_str(), expanded_path.c_str(),
+                     strerror(-saverv));
+                return(saverv);
             }
             break;
         } else {
@@ -1723,7 +1720,7 @@ Container::makeTopLevel( const string& expanded_path,
                  << "-dat." << STR(DATA_VERSION)
                  << "-chk." << mnt_pt_checksum;
             if (makeDropping(oss2.str(),canback) < 0) {
-                return -errno;
+                return -errno; //XXX return - of makeDropping ret val
             }
             break;
         }
@@ -1732,11 +1729,6 @@ Container::makeTopLevel( const string& expanded_path,
     return 0;
 }
 
-int
-Container::makeCreator(const string& path, struct plfs_backend *b)
-{
-    return makeDroppingReal( path , b, S_IRWXU );
-}
 int
 Container::makeAccess(const string& path, struct plfs_backend *b, mode_t mode)
 {
@@ -1756,7 +1748,7 @@ Container::makeDropping(const string& path, struct plfs_backend *b)
     umask(save_umask);
     return ret;
 }
-// returns 0 or -errno
+// returns 0 or -err
 int
 Container::makeHostDir(const string& path, struct plfs_backend *back,
                        const string& host, mode_t mode, parentStatus pstat)
@@ -1901,28 +1893,11 @@ Container::makeSubdir( const string& path, mode_t mode, struct plfs_backend *b )
 {
     int ret;
     ret =  b->store->Mkdir(path.c_str(), Container::subdirMode(mode));
-    if (errno == EEXIST && Util::isDirectory(path.c_str(),b->store)){
+    if (ret == -EEXIST && Util::isDirectory(path.c_str(),b->store)){
         ret = 0;
     }
 
-    return ( ret == 0 || errno == EISDIR ) ? 0 : -errno;
-}
-// this just creates a dir/file but it ignores an EEXIST error
-int
-Container::makeMeta( const string& path, mode_t type, mode_t mode, 
-                     struct plfs_backend *b )
-{
-    int ret;
-    if ( type == S_IFDIR ) {
-        ret = b->store->Mkdir(path.c_str(), mode);
-    } else if ( type == S_IFREG ) {
-        ret = Util::MakeFile( path.c_str(), mode, b->store );
-    } else {
-        mlog(CON_CRIT, "WTF.  Unknown type passed to %s", __FUNCTION__);
-        ret = -1;
-        errno = ENOSYS;
-    }
-    return ( ret == 0 || errno == EEXIST ) ? 0 : -1;
+    return ( ret == 0 || ret == -EISDIR ) ? 0 : ret;
 }
 
 string
@@ -2160,6 +2135,7 @@ Container::getnextent(IOSDirHandle *dhand, const char *prefix,
  * @param candir used to store canonical dir handle, caller init's to NULL
  * @param subdir used to store subdir dir handle ptr, caller init's to NULL
  * @param hostdirpath the bpath to current hostdir (after Metalink)
+ * @return 1 if we got one, 0 at EOF, -err on error
  */
 int
 Container::nextdropping(const string& canbpath, struct plfs_backend *canback,
@@ -2241,7 +2217,7 @@ Container::nextdropping(const string& canbpath, struct plfs_backend *canback,
 // and meta droppings
 // when a file is truncated to zero, that is handled separately and
 // that does actually remove data files
-// returns 0 or -errno
+// returns 0 or -err
 // path is physical path to canonical container
 int
 Container::Truncate( const string& path, off_t offset,
@@ -2304,7 +2280,7 @@ Container::Truncate( const string& path, off_t offset,
 // METADIR, so we need to go through the droppings in METADIR
 // and modify or remove droppings that show an offset beyond
 // this truncate point
-// returns 0 or -errno
+// returns 0 or -err
 // path is a physical path to canonical container
 int
 Container::truncateMeta(const string& path, off_t offset,
@@ -2336,13 +2312,12 @@ Container::truncateMeta(const string& path, off_t offset,
                 << "." << time.tv_nsec << "." << host;
             ret = back->store->Rename(full_path.c_str(), oss.str().c_str());
             //if a sibling raced us we may see ENOENT
-            if (ret != 0 and errno == ENOENT) {
+            if (ret != 0 and ret == -ENOENT) {
                ret = 0;
             }
             if ( ret != 0 ) {
                 mlog(CON_DRARE, "%s wtf, Rename: %s",__FUNCTION__,
-                     strerror(errno));
-                ret = -errno;
+                     strerror(-ret));
             }
         }
     }

@@ -1137,7 +1137,6 @@ int Plfs::f_statfs(const char *path, struct statvfs *stbuf)
         mlog(FUSE_DCOMMON, "Forwarding statfs to specified path %s",
              self->pmnt->statfs->c_str());
         ret = sst->Statvfs(self->pmnt->statfs_io.bmpoint.c_str(), stbuf);
-        ret = Util::retValue(ret);  // fix it up on error
     } else {
         ret = plfs_statvfs(strPath.c_str(), stbuf);
     }

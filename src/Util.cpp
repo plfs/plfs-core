@@ -356,6 +356,7 @@ int Util::MutexUnlock( pthread_mutex_t *mux, const char *where )
 
 // Use most popular used read+write to copy file,
 // as mmap/sendfile/splice may fail on some system.
+// returns 0 or -err
 int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
                     IOStore *toios)
 {
@@ -367,7 +368,7 @@ int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
     struct stat sbuf;
     mode_t stored_mode;
     ret = pathios->Lstat(path, &sbuf);
-    if (ret) {
+    if (ret < 0) {
         goto out;
     }
     ret = -1;
@@ -406,14 +407,16 @@ int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
     }
     copy_len = 0;
     while ((read_len = fh_from->Read(buf, buf_size)) != 0) {
-        if ((read_len==-1)&&(errno!=EINTR)) {
+        if (read_len < 0 && read_len != -EINTR) {
             break;
-        } else if (read_len>0) {
+        }
+        if (read_len>0) {
             ptr = buf;
             while ((write_len = fh_to->Write(ptr, read_len)) != 0) {
-                if ((write_len==-1)&&(errno!=EINTR)) {
+                if (write_len < 0 && write_len != -EINTR) {
                     goto done;
-                } else if (write_len==read_len) {
+                }
+                if (write_len==read_len) {
                     copy_len += write_len;
                     break;
                 } else if(write_len>0) {
@@ -427,13 +430,13 @@ int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
     if (copy_len==sbuf.st_size) {
         ret = 0;
     }
-    if (ret)
+    if (ret < 0)
         mlog(UT_DCOMMON, "Util::CopyFile, copy from %s to %s, ret: %d, %s",
-             path, to, ret, strerror(errno));
+             path, to, ret, strerror(-ret));
 done:
     pathios->Close(fh_from);
     toios->Close(fh_to);
-    if (ret) {
+    if (ret < 0) {
         toios->Unlink(to);    // revert our change, delete the file created.
     }
 out:
@@ -449,7 +452,7 @@ out:
  * @param path path to create the file on in backend
  * @param mode mode for the create
  * @param store the store to create the file on
- * @return 0 or -error
+ * @return 0 or -err
  */
 int Util::MakeFile( const char *path, mode_t mode, IOStore *store )
 {
@@ -458,7 +461,7 @@ int Util::MakeFile( const char *path, mode_t mode, IOStore *store )
     hand = store->Creat( path, mode, ret );
     if ( hand != NULL) {
         ret = store->Close( hand );
-    } // else, error was already set in ret
+    } // else, err was already set in ret
     EXIT_UTIL;
 }
 
@@ -533,7 +536,7 @@ double Util::getTime( )
     return (double)time.tv_sec + time.tv_usec/1.e6;
 }
 
-// returns n or returns -1
+// returns n or returns -err
 ssize_t Util::Writen(const void *vptr, size_t n, IOSHandle *hand)
 {
     ENTER_UTIL;
@@ -545,10 +548,8 @@ ssize_t Util::Writen(const void *vptr, size_t n, IOSHandle *hand)
     ret   = n;
     while (nleft > 0) {
         if ( (nwritten = hand->Write(ptr, nleft)) <= 0) {
-            if (errno == EINTR) {
-                nwritten = 0;    /* and call write() again */
-            } else {
-                ret = -1;           /* error */
+            if (nwritten < 0 && nwritten != -EINTR) {
+                ret = nwritten;   /* error! */
                 break;
             }
         }

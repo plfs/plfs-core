@@ -476,8 +476,8 @@ mkdir_dash_p(const string& path, bool parent_only, IOStore *store)
         recover_path += "/";
         recover_path += canonical_tokens[i];
         int ret = store->Mkdir(recover_path.c_str(), CONTAINER_MODE);
-        if ( ret != 0 && errno != EEXIST ) { // some other error
-            return -errno;
+        if ( ret != 0 && ret != -EEXIST ) { // some other error
+            return(ret);
         }
     }
     return 0;

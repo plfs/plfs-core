@@ -74,6 +74,7 @@ WriteFile::~WriteFile()
 }
 
 
+/* ret 0 or -err */
 int WriteFile::sync()
 {
     int ret = 0;
@@ -101,6 +102,7 @@ int WriteFile::sync()
     return ret;
 }
 
+/* ret 0 or -err */
 int WriteFile::sync( pid_t pid )
 {
     int ret=0;
@@ -225,6 +227,7 @@ struct OpenFh *WriteFile::getFh( pid_t pid ) {
     return ofh;
 }
 
+/* ret 0 or -err */
 /* uses this->subdirback for close */
 int WriteFile::closeFh(IOSHandle *fh)
 {
@@ -335,8 +338,7 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
         }
     }
     // return bytes written or error
-    // I don't like this errno here, it should be set by IOHandle->Write
-    return ( ret >= 0 ? written : -errno );
+    return((ret >= 0) ? written : ret);
 }
 
 // this assumes that the hostdir exists and is full valid path
@@ -347,9 +349,7 @@ int WriteFile::openIndex( pid_t pid ) {
     /* note: this uses subdirback from obj to open */
     IOSHandle *fh = openIndexFile(subdir_path, hostname, pid, DROPPING_MODE,
                                   &index_path, ret);
-    if ( fh == NULL ) {
-        ret = ret; 
-    } else {
+    if ( fh != NULL ) {
         Util::MutexLock(&index_mux , __FUNCTION__);
         //XXXCDC:iostore need to pass the backend down into index?
         index = new Index(container_path, subdirback, fh);

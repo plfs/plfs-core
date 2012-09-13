@@ -176,7 +176,6 @@ class Container
                               struct plfs_backend *canback, mode_t mode);
         static int makeDroppingReal(const string& path, struct plfs_backend *b,
                                     mode_t mode);
-        static int makeCreator(const string& path, struct plfs_backend *b);
         static int truncateMeta(const string& path, off_t offset,
                                 struct plfs_backend *back);
         // Added for par read index
@@ -216,9 +215,6 @@ class Container
         static struct dirent *getnextent( IOSDirHandle *dhand,
                                           const char *prefix,
                                           struct dirent *ds );
-        static int makeMeta( const string& path, mode_t type, mode_t mode,
-                              struct plfs_backend *b );
-        static int ignoreNoEnt( int ret );
 };
 
 #endif
