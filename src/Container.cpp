@@ -1809,10 +1809,10 @@ Container::createHelper(const string& expanded_path, const string& hostname,
     //creat specifies that we truncate if the file exists
     if (existing_container){
         res = Container::Truncate(expanded_path, 0);
-        if (res < 1){
-            mlog(CON_CRIT, "Failed to truncate file %s: %s",
+        if (res < 0){
+            mlog(CON_CRIT, "Failed to truncate file %s : %s",
                  expanded_path.c_str(), strerror(res));
-            return -errno;
+            return -res;
         }
     }
     mlog(CON_DCOMMON, "Making top level container %s %x",
