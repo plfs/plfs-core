@@ -267,21 +267,21 @@ find_all_expansions(const char *logical, vector<plfs_pathback> &containers)
 // helper routine for plfs_dump_config
 // changes ret to -ENOENT or leaves it alone
 int
-plfs_check_dir(string type, struct plfs_backend *back, string bpath,
+plfs_check_dir(string type, const char *prefix, IOStore *store, string bpath,
                int previous_ret, bool make_dir)
 {
     const char *directory = bpath.c_str();
-    if(!Util::isDirectory(directory, back->store)) {
+    if(!Util::isDirectory(directory, store)) {
         if (!make_dir) {
             cout << "Error: Required " << type << " directory "
-                 << back->prefix << directory
+                 << prefix << directory
                  << " not found (ENOENT)" << endl;
             return -ENOENT;
         } else {
-            int retVal = back->store->Mkdir(directory, CONTAINER_MODE);
+            int retVal = store->Mkdir(directory, CONTAINER_MODE);
             if (retVal != 0) {
                 cout << "Attempt to create direcotry "
-                     << back->prefix << directory << " failed." << endl;
+                     << prefix << directory << " failed." << endl;
                 return -ENOENT;
             }
             return previous_ret;
@@ -301,7 +301,8 @@ print_backends(struct plfs_backend **backends, int nb, const char *which,
              << backends[lcv]->prefix 
              << backends[lcv]->bmpoint << endl;
         if(check_dirs) {
-            ret = plfs_check_dir("backend", backends[lcv],
+            ret = plfs_check_dir("backend", backends[lcv]->prefix,
+                                 backends[lcv]->store,
                                  backends[lcv]->bmpoint,ret,make_dir);
         }
     }
@@ -313,8 +314,7 @@ int
 plfs_dump_config(int check_dirs, int make_dir)
 {
     PlfsConf *pconf = get_plfs_conf();
-    struct plfs_backend fake;
-    char fakespec[4];
+    static IOStore *fakestore = NULL;
     if ( ! pconf ) {
         cerr << "FATAL no plfsrc file found.\n" << endl;
         return -ENOENT;
@@ -344,11 +344,13 @@ plfs_dump_config(int check_dirs, int make_dir)
         }
 
         /* XXX: generate a fake POSIX iostore, we'll never free it */
-        fakespec[0] = '/';
-        fakespec[1] = 0;
-        fake.prefix = fakespec;
-        fake.store = NULL;
-        (void)plfs_iostore_factory(NULL, &fake);
+        if (fakestore == NULL) {
+            char *pp, *bmp, spec[2];
+            int pl;
+            spec[0] = '/';
+            spec[1] = 0;
+            fakestore = plfs_iostore_get(spec, &pp, &pl, &bmp);
+        }
     }
 
     vector<int> rets;
@@ -363,7 +365,8 @@ plfs_dump_config(int check_dirs, int make_dir)
         cout << "Global summary dir: " << pconf->global_summary_dir << endl;
         if(check_dirs) {
             ret = plfs_check_dir("global_summary_dir",
-                                 &pconf->global_sum_io,
+                                 pconf->global_sum_io.prefix,
+                                 pconf->global_sum_io.store,
                                  pconf->global_sum_io.bmpoint,ret,make_dir);
         }
     }
@@ -385,8 +388,9 @@ plfs_dump_config(int check_dirs, int make_dir)
                  << endl;
             check_dirs_now = 0;
         }
-        if(check_dirs_now && fake.store != NULL) {
-            ret = plfs_check_dir("mount_point",&fake,itr->first,ret,make_dir);
+        if(check_dirs_now && fakestore != NULL) {
+            ret = plfs_check_dir("mount_point","",
+                                 fakestore,itr->first,ret,make_dir);
         }
         ret = print_backends(pmnt->backends,pmnt->nback,"",
                              check_dirs_now,ret,make_dir);
@@ -400,7 +404,8 @@ plfs_dump_config(int check_dirs, int make_dir)
         if(pmnt->statfs) {
             cout << "\tStatfs: " << pmnt->statfs->c_str() << endl;
             if(check_dirs_now && pmnt->statfs_io.store != NULL) {
-                ret=plfs_check_dir("statfs",&pmnt->statfs_io,
+                ret=plfs_check_dir("statfs",pmnt->statfs_io.prefix,
+                                   pmnt->statfs_io.store,
                                    pmnt->statfs->c_str(),ret,make_dir);
             }
         }
