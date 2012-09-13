@@ -1806,25 +1806,33 @@ Container::createHelper(const string& expanded_path, const string& hostname,
         res = -EISDIR;
     }
     existing_container = res;
-    if (res==0) {
-        mlog(CON_DCOMMON, "Making top level container %s %x",
-             expanded_path.c_str(),mode);
-        begin_time = time(NULL);
-        res = makeTopLevel( expanded_path, hostname, mode, pid,
-                            mnt_pt_cksum, lazy_subdir );
-        end_time = time(NULL);
-        if ( end_time - begin_time > 2 ) {
-            mlog(CON_WARN, "WTF: TopLevel create of %s took %.2f",
-                 expanded_path.c_str(), end_time - begin_time );
-        }
-        if ( res != 0 ) {
-            mlog(CON_DRARE, "Failed to make top level container %s:%s",
-                 expanded_path.c_str(), strerror(errno));
+    //creat specifies that we truncate if the file exists
+    if (existing_container){
+        res = Container::Truncate(expanded_path, 0);
+        if (res < 1){
+            mlog(CON_CRIT, "Failed to truncate file %s: %s",
+                 expanded_path.c_str(), strerror(res));
+            return -errno;
         }
     }
+    mlog(CON_DCOMMON, "Making top level container %s %x",
+         expanded_path.c_str(),mode);
+    begin_time = time(NULL);
+    res = makeTopLevel( expanded_path, hostname, mode, pid,
+                        mnt_pt_cksum, lazy_subdir );
+    end_time = time(NULL);
+    if ( end_time - begin_time > 2 ) {
+        mlog(CON_WARN, "WTF: TopLevel create of %s took %.2f",
+             expanded_path.c_str(), end_time - begin_time );
+    }
+    if ( res != 0 ) {
+        mlog(CON_DRARE, "Failed to make top level container %s:%s",
+             expanded_path.c_str(), strerror(errno));
+    }
+
     // hmm.  what should we do if someone calls create on an existing object
     // I think we need to return success since ADIO expects this
-    return (existing_container ? 0 : res);
+    return res;
 }
 
 // This should be in a mutex if multiple procs on the same node try to create
