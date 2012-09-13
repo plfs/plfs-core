@@ -14,6 +14,12 @@ class IOSDirHandle;
 
 /**
  * IOStore: A pure virtual class for IO manipulation of a backend store
+ *
+ * return values:
+ *   - functions that return signed ints: 0 = success, otherwise -err
+ *   - otherwise the success/-err info is returned as a param
+ *
+ * this also applies for functions in the IOSHandle and IOSDirHandle classes.
  */
 class IOStore {
  public:
