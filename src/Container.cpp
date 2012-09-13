@@ -1807,7 +1807,7 @@ Container::createHelper(const string& expanded_path, const string& hostname,
     }
     existing_container = res;
     //creat specifies that we truncate if the file exists
-    if (existing_container){
+    if (existing_container && flags & O_TRUNC){
         res = Container::Truncate(expanded_path, 0);
         if (res < 0){
             mlog(CON_CRIT, "Failed to truncate file %s : %s",
