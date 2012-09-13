@@ -210,7 +210,21 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
     // ADIO makes 2 calls into here:
     // first, just 0 with CREATE
     // then everyone without
-    if (fd->access_mode & ADIO_CREATE) {
+
+    //check for existence of file
+    struct stat buffer;
+    int file_exists;
+    file_exists = lstat(fd->filename, &buffer) == 0?1:0;
+
+    if (fd->access_mode &  MPI_MODE_EXCL && file_exists){
+    //throw an error if the file exists
+        *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
+            myname, __LINE__, MPI_ERR_IO,
+            "**io",
+            "**io %s", strerror(-err));
+        return;
+    }
+    if (fd->access_mode & ADIO_CREATE && !file_exists) {
         err = plfs_create(fd->filename, perm, amode, rank);
         if ( err != 0 ) {
             *error_code =MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
