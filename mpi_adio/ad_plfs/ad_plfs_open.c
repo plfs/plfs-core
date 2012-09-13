@@ -224,7 +224,7 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
             "**io %s", strerror(-err));
         return;
     }
-    if (fd->access_mode & ADIO_CREATE && !file_exists) {
+    else if (fd->access_mode & ADIO_CREATE && !file_exists) {
         err = plfs_create(fd->filename, perm, amode, rank);
         if ( err != 0 ) {
             *error_code =MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
@@ -238,6 +238,12 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
         fd->fs_ptr = NULL; // set null because ADIO is about to close it
         return;
     }
+    else if(fd->access_mode & ADIO_CREATE && file_exists){
+        *error_code = MPI_SUCCESS;
+        fd->fs_ptr = NULL;
+        return;
+    }
+
     // if we make it here, we're doing RDONLY, WRONLY, or RDWR
     // at this point, we want to do different for container/flat_file mode
     if (plfs_get_filetype(fd->filename) != CONTAINER) {
