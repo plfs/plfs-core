@@ -111,12 +111,6 @@ typedef struct {
 
 #define PLFS_EXIT(X) return(X);
 
-
-#define EISDIR_DEBUG \
-    if(ret!=0) {\
-        Util::OpenError(__FILE__,__FUNCTION__,__LINE__,pid,errno);\
-    }
-
 typedef struct {
     string file; // which top-level plfsrc was used
     set<string> files;     /* to detect recursive includes in plfsrc */

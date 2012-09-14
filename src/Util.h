@@ -9,7 +9,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
-#include <errno.h>
+#include <errno.h>       /* error# ok */
 #include <string>
 #include <fstream>
 #include <iostream>
@@ -75,7 +75,6 @@ class Util
                                             const string& delimiters,
                                             vector<string> &tokens);
         static void SeriousError(string,pid_t);
-        static void OpenError(const char *, const char *,int,int,pid_t);
         static bool exists( const char *, IOStore *);
         static bool isDirectory( struct stat *buf );
         static bool isDirectory( const char *, IOStore *);

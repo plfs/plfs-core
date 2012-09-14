@@ -485,10 +485,9 @@ Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index, string path)
             ThreadPool threadpool(count,indexer_thread, (void *)&args);
             mlog(CON_DAPI, "%lu THREADS to create index of %s",
                  (unsigned long)count,path.c_str());
-            ret = threadpool.threadError();    // returns errno
+            ret = threadpool.threadError();    // rets negative error#
             if ( ret ) {
-                mlog(CON_DRARE, "THREAD pool error %s", strerror(ret) );
-                ret = -ret;
+                mlog(CON_DRARE, "THREAD pool error %s", strerror(-ret));
             } else {
                 vector<void *> *stati    = threadpool.getStati();
                 ssize_t rc;  // needs to be size of void*
@@ -1015,8 +1014,8 @@ Container::aggregateIndices(const string& path, struct plfs_backend *canback,
 {
     vector<plfs_pathback> files;
     int ret = collectIndices(path,canback,files,true);
-    if (ret!=0) {
-        return -errno;
+    if (ret < 0) {
+        return(ret);
     }
     IndexerTask task;
     deque<IndexerTask> tasks;
@@ -1194,6 +1193,7 @@ Container::hostFromChunk( string chunkpath, const char *type )
 
 // this function drops a file in the metadir which contains
 // stat info so that we can later satisfy stats using just readdir
+// return 0 or -err
 int
 Container::addMeta( off_t last_offset, size_t total_bytes,
                     const string& path, struct plfs_backend *canback,
@@ -1204,9 +1204,10 @@ Container::addMeta( off_t last_offset, size_t total_bytes,
     struct timeval time;
     int ret = 0;
     if ( gettimeofday( &time, NULL ) != 0 ) {
+        ret = -errno;   /* error# ok */
         mlog(CON_CRIT, "WTF: gettimeofday in %s failed: %s",
-             __FUNCTION__, strerror(errno ) );
-        return -errno;
+             __FUNCTION__, strerror(-ret));
+        return(ret);
     }
     ostringstream oss;
     oss << getMetaDirPath(path) << "/"
@@ -1631,7 +1632,7 @@ Container::makeTopLevel( const string& expanded_path,
             // probably what happened is some other node outraced us
             // if it is here now as a container, that's what happened
             // this check for whether it's a container might be slow
-            // if worried about that, change it to check saveerrno
+            // if worried about that, change it to check saverv
             // if it's something like EEXIST or ENOTEMPTY or EISDIR
             // then that probably means the same thing
             //if ( ! isContainer( expanded_path ) )
@@ -1651,15 +1652,15 @@ Container::makeTopLevel( const string& expanded_path,
             // don't make an extra unnecessary dir, but this does create
             // a race if someone wants to use the meta dir and it doesn't
             // exist, so we need to make sure we never assume the metadir
-            if ( makeSubdir(getMetaDirPath(expanded_path),
-                            mode, canback ) < 0) {
-                return -errno;
+            rv = makeSubdir(getMetaDirPath(expanded_path), mode, canback);
+            if (rv < 0) {
+                return(rv);
             }
             if (getOpenHostsDir(expanded_path)!=getMetaDirPath(expanded_path)) {
                 // as of 2.0, the openhostsdir and the metadir are the same dir
-                if ( makeSubdir( getOpenHostsDir(expanded_path), mode,
-                                 canback )< 0) {
-                    return -errno;
+                if ((rv = makeSubdir( getOpenHostsDir(expanded_path), mode,
+                                      canback)) < 0) {
+                    return(rv);
                 }
             }
             // go ahead and make our subdir here now (good for both N-1 & N-N):
@@ -1695,14 +1696,15 @@ Container::makeTopLevel( const string& expanded_path,
                         __FILE__, __LINE__);
             }
             if (create_subdir) {
-                if (makeHostDir(expanded_path,canback,hostname,
-                                mode,PARENT_CREATED)<0) {
+                if ((rv = makeHostDir(expanded_path,canback,hostname,
+                                      mode,PARENT_CREATED)) < 0) {
                     // EEXIST means a sibling raced us and make one for us
                     // or a metalink exists at the specified location, which
                     // is ok. plfs::addWriter will do it lazily.
-                    if ( errno != EEXIST ) {
-                        return -errno;
+                    if ( rv != -EEXIST ) {
+                        return(rv);
                     }
+                    rv = 0;    /* clear out EEXIST, it is ok */
                 }
             }
             // make the version stuff here?  this means that it is
@@ -1719,14 +1721,14 @@ Container::makeTopLevel( const string& expanded_path,
                  << "-svn." << STR(SVN_VERSION)
                  << "-dat." << STR(DATA_VERSION)
                  << "-chk." << mnt_pt_checksum;
-            if (makeDropping(oss2.str(),canback) < 0) {
-                return -errno; //XXX return - of makeDropping ret val
+            if ((rv = makeDropping(oss2.str(),canback)) < 0) {
+                return(rv);
             }
             break;
         }
     }
-    mlog(CON_DCOMMON, "%s on %s success\n", __FUNCTION__, expanded_path.c_str());
-    return 0;
+    mlog(CON_DCOMMON, "%s on %s success", __FUNCTION__, expanded_path.c_str());
+    return(0);
 }
 
 int
@@ -1761,7 +1763,7 @@ Container::makeHostDir(const string& path, struct plfs_backend *back,
     if (ret == 0) {
         ret = makeSubdir(getHostDirPath(path,host,PERM_SUBDIR), mode, back);
     }
-    return ( ret == 0 ? ret : -errno );
+    return(ret);
 }
 
 // If plfs use different shadow and canonical backend,
@@ -1811,7 +1813,7 @@ Container::makeHostDir(const ContainerPaths& paths,mode_t mode,
                  paths.canonical.c_str());
             ret = makeSubdir(paths.canonical.c_str(),mode,paths.canonicalback);
         }
-        if (ret == 0 || errno == EEXIST || errno == EISDIR) { //otherwise fail
+        if (ret == 0 || ret == -EEXIST || ret == -EISDIR) { //otherwise fail
             PlfsConf *pconf = get_plfs_conf();
             size_t current_hostdir = getHostDirId(hostname), id = 0;
             bool subdir=false;
@@ -1874,12 +1876,12 @@ Container::makeHostDir(const ContainerPaths& paths,mode_t mode,
                 } else {
                     mlog(CON_DRARE, "BIG PROBLEM: %s on %s failed (%s)",
                             __FUNCTION__, paths.canonical.c_str(),
-                            strerror(errno));
+                            strerror(-ret));
                 }
             }
         }
     }
-    return ( ret == 0 ? ret : -errno );
+    return(ret);
 }
 
 
@@ -2006,8 +2008,7 @@ Container::subdirMode(mode_t mode) {
     return Container::containerMode(mode);
 }
 
-// this has a return value but the caller also consults errno so if we
-// want to error out we need to explicitly set errno
+// return 0 or -err
 int
 Container::createHelper(const string& expanded_path,
                         struct plfs_backend *canback,
@@ -2049,7 +2050,7 @@ Container::createHelper(const string& expanded_path,
         }
         if ( res != 0 ) {
             mlog(CON_DRARE, "Failed to make top level container %s:%s",
-                 expanded_path.c_str(), strerror(errno));
+                 expanded_path.c_str(), strerror(-res));
         }
     }
     // hmm.  what should we do if someone calls create on an existing object
@@ -2071,10 +2072,9 @@ Container::create( const string& expanded_path, struct plfs_backend *canback,
                            mode,flags,extra_attempts,
                            pid, mnt_pt_cksum, lazy_subdir);
         if ( res != 0 ) {
-            if ( errno != EEXIST && errno != ENOENT && errno != EISDIR
-                    && errno != ENOTEMPTY ) {
-                // if it's some other errno, than it's a real error so return it
-                res = -errno;
+            if ( res != -EEXIST && res != -ENOENT && res != -EISDIR
+                    && res != -ENOTEMPTY ) {
+                // if some other err, than it's a real error so return it
                 break;
             }
         }

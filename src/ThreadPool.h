@@ -14,7 +14,7 @@ class ThreadPool
         int threadError();
         vector<void *>* getStati();
     private:
-        int thread_error;
+        int thread_error;    /* store negative error number here */
         vector<void *> stati;
 };
 

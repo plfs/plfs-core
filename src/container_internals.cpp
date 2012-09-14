@@ -890,10 +890,9 @@ plfs_reader(Container_OpenFile *pfd, char *buf, size_t size, off_t offset,
              (unsigned long)num_threads,
              (unsigned long)offset);
         ThreadPool threadpool(num_threads,reader_thread, (void *)&args);
-        error = threadpool.threadError();   // returns err
+        error = threadpool.threadError();   // returns negative err
         if ( error ) {
-            mlog(INT_DRARE, "THREAD pool error %s", strerror(error) );
-            error = -error;       // convert to -err
+            mlog(INT_DRARE, "THREAD pool error %s", strerror(-error) );
         } else {
             vector<void *> *stati    = threadpool.getStati();
             for( size_t t = 0; t < num_threads; t++ ) {
@@ -1551,12 +1550,10 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
     //ret = Container::Access(path.c_str(),flags);
     if ( ret == 0 && flags & O_CREAT ) {
         ret = container_create( logical, mode, flags, pid );
-        EISDIR_DEBUG;
     }
     if ( ret == 0 && flags & O_TRUNC ) {
         // truncating an open file
         ret = container_trunc( NULL, logical, 0,(int)true );
-        EISDIR_DEBUG;
     }
     if ( ret == 0 && *pfd) {
         plfs_reference_count(*pfd);
@@ -1592,11 +1589,9 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
         if ( ret > 0 ) {
             ret = 0;    // add writer returns # of current writers
         }
-        EISDIR_DEBUG;
         if ( ret == 0 && new_writefile ) {
             ret = wf->openIndex( pid );
         }
-        EISDIR_DEBUG;
         if ( ret != 0 && wf ) {
             delete wf;
             wf = NULL;
@@ -1623,7 +1618,6 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
                     delete(index);
                     index = NULL;
                 }
-                EISDIR_DEBUG;
             }
         }
         if ( ret == 0 ) {
@@ -1661,7 +1655,6 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
                 ret = Container::addOpenrecord(path, expansion_info.backend,
                                                Util::hostname(),pid);
             }
-            EISDIR_DEBUG;
         }
         //cerr << __FUNCTION__ << " added open record for " << path << endl;
     } else if ( ret == 0 ) {

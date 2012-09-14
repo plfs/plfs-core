@@ -154,15 +154,6 @@ Util::SeriousError( string msg, pid_t pid )
     }
 }
 
-void
-Util::OpenError(const char *file, const char *func, int line, int Err, pid_t p)
-{
-    ostringstream oss;
-    oss << "open() error seen at " << file << ":" << func << ":" << line << ": "
-        << strerror(Err);
-    //SeriousError(oss.str(), p);
-}
-
 // initialize static variables
 HASH_MAP<string, double> utimers;
 HASH_MAP<string, off_t>  kbytes;
