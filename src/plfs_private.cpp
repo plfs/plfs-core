@@ -291,7 +291,8 @@ plfs_check_dir(string type, const char *prefix, IOStore *store, string bpath,
 }
 
 int
-print_backends(PlfsMount *pmnt, bool check_dirs, int ret, bool make_dir)
+print_backends(PlfsMount *pmnt, int simple, bool check_dirs,
+               int ret, bool make_dir)
 {
     int lcv, idx, can, shd;
     struct plfs_backend **bcks;
@@ -299,14 +300,17 @@ print_backends(PlfsMount *pmnt, bool check_dirs, int ret, bool make_dir)
     bcks = pmnt->backends;
     for (lcv = 0 ; lcv < pmnt->nback ; lcv++) {
 
-        for (idx = 0, can = 0 ; idx < pmnt->ncanback && can == 0; idx++) {
-            if (pmnt->canonical_backends[idx] == bcks[lcv]) {
-                can++;
+        can = shd = 0;
+        if (!simple) {
+            for (idx = 0, can = 0; idx < pmnt->ncanback && can == 0; idx++) {
+                if (pmnt->canonical_backends[idx] == bcks[lcv]) {
+                    can++;
+                }
             }
-        }
-        for (idx = 0, shd = 0 ; idx < pmnt->nshadowback && shd == 0; idx++) {
-            if (pmnt->canonical_backends[idx] == bcks[lcv]) {
-                shd++;
+            for (idx = 0, shd = 0; idx < pmnt->nshadowback && shd == 0; idx++) {
+                if (pmnt->shadow_backends[idx] == bcks[lcv]) {
+                    shd++;
+                }
             }
         }
 
@@ -329,6 +333,7 @@ plfs_dump_config(int check_dirs, int make_dir)
 {
     PlfsConf *pconf = get_plfs_conf();
     static IOStore *fakestore = NULL;
+    int simple;
     if ( ! pconf ) {
         cerr << "FATAL no plfsrc file found.\n" << endl;
         return -ENOENT;
@@ -406,7 +411,18 @@ plfs_dump_config(int check_dirs, int make_dir)
             ret = plfs_check_dir("mount_point","",
                                  fakestore,itr->first,ret,make_dir);
         }
-        ret = print_backends(pmnt, check_dirs_now, ret, make_dir);
+
+        simple = (pmnt->ncanback == pmnt->nback) &&
+            (pmnt->nshadowback == pmnt->nback);
+        if (simple) {
+            printf("\tBackends: total=%d (no restrictions)\n", pmnt->nback);
+        } else {
+        printf("\tBackends: canonical=%d, shadow=%d, total=%d\n",
+               pmnt->ncanback, pmnt->nshadowback, pmnt->nback);
+        }
+
+        ret = print_backends(pmnt, simple, check_dirs_now, ret, make_dir);
+
         if(pmnt->syncer_ip) {
             cout << "\tSyncer IP: " << pmnt->syncer_ip->c_str() << endl;
         }
