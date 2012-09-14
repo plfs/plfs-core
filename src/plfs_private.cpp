@@ -265,51 +265,65 @@ find_all_expansions(const char *logical, vector<plfs_pathback> &containers)
 }
 
 // helper routine for plfs_dump_config
-// changes ret to -ENOENT or leaves it alone
+// changes ret to new error or leaves it alone
 int
 plfs_check_dir(string type, const char *prefix, IOStore *store, string bpath,
                int previous_ret, bool make_dir)
 {
     const char *directory = bpath.c_str();
-    if(!Util::isDirectory(directory, store)) {
-        if (!make_dir) {
-            cout << "Error: Required " << type << " directory "
-                 << prefix << directory
-                 << " not found (ENOENT)" << endl;
-            return -ENOENT;
-        } else {
-            int retVal = store->Mkdir(directory, CONTAINER_MODE);
-            if (retVal != 0) {
-                cout << "Attempt to create direcotry "
-                     << prefix << directory << " failed." << endl;
-                return -ENOENT;
-            }
-            return previous_ret;
-        }
-    } else {
-        return previous_ret;
+    int rv;
+
+    if(Util::isDirectory(directory, store)) {
+        return(previous_ret);
     }
+    if (!make_dir) {
+        printf("Error: Required %s directory %s%s not found/not a directory\n",
+               type.c_str(), prefix, directory);
+        return(-ENOENT);
+    }
+    rv = store->Mkdir(directory, CONTAINER_MODE);
+    if (rv < 0) {
+        printf("Attempt to create directory %s%s failed (%s)\n",
+               prefix, directory, strerror(-rv));
+        return(rv);
+    }
+    return(previous_ret);
 }
 
 int
-print_backends(struct plfs_backend **backends, int nb, const char *which,
-               bool check_dirs, int ret, bool make_dir)
+print_backends(PlfsMount *pmnt, bool check_dirs, int ret, bool make_dir)
 {
-    int lcv;
-    for (lcv = 0 ; lcv < nb ; lcv++) {
-        cout << "\t" << which << " Backend: "
-             << backends[lcv]->prefix 
-             << backends[lcv]->bmpoint << endl;
-        if(check_dirs) {
-            ret = plfs_check_dir("backend", backends[lcv]->prefix,
-                                 backends[lcv]->store,
-                                 backends[lcv]->bmpoint,ret,make_dir);
+    int lcv, idx, can, shd;
+    struct plfs_backend **bcks;
+
+    bcks = pmnt->backends;
+    for (lcv = 0 ; lcv < pmnt->nback ; lcv++) {
+
+        for (idx = 0, can = 0 ; idx < pmnt->ncanback && can == 0; idx++) {
+            if (pmnt->canonical_backends[idx] == bcks[lcv]) {
+                can++;
+            }
         }
+        for (idx = 0, shd = 0 ; idx < pmnt->nshadowback && shd == 0; idx++) {
+            if (pmnt->canonical_backends[idx] == bcks[lcv]) {
+                shd++;
+            }
+        }
+
+        printf("\tBackend: %s%s%s%s\n", bcks[lcv]->prefix,
+               bcks[lcv]->bmpoint.c_str(), (can) ? " CANONICAL" : "",
+               (shd) ? " SHADOW" : "");
     }
-    return ret;
+
+    if (check_dirs) {
+        ret = plfs_check_dir("backend", bcks[lcv]->prefix,
+                             bcks[lcv]->store, bcks[lcv]->bmpoint,
+                             ret, make_dir);
+    }
+    return(ret);
 }
 
-// returns 0 or -EINVAL or -ENOENT
+// returns 0 or -err
 int
 plfs_dump_config(int check_dirs, int make_dir)
 {
@@ -328,7 +342,7 @@ plfs_dump_config(int check_dirs, int make_dir)
      * if we make it here, we've parsed correctly.  if we are checking
      * dirs, then we need to attach to backends.  in order to check
      * the global_summary_dir (if enabled), we do a one-off attach
-     * here first.   we also need a fake backend to check local posix
+     * here first.   we also need a fake iostore to check local posix
      * mount points (e.g. for FUSE, but it doesn't make sense for MPI
      * or library access XXX).
      */
@@ -392,12 +406,7 @@ plfs_dump_config(int check_dirs, int make_dir)
             ret = plfs_check_dir("mount_point","",
                                  fakestore,itr->first,ret,make_dir);
         }
-        ret = print_backends(pmnt->backends,pmnt->nback,"",
-                             check_dirs_now,ret,make_dir);
-        ret = print_backends(pmnt->canonical_backends,pmnt->ncanback,
-                             "Canonical", check_dirs_now,ret,make_dir);
-        ret = print_backends(pmnt->shadow_backends,pmnt->nshadowback,
-                             "Shadow",check_dirs_now,ret, make_dir);
+        ret = print_backends(pmnt, check_dirs_now, ret, make_dir);
         if(pmnt->syncer_ip) {
             cout << "\tSyncer IP: " << pmnt->syncer_ip->c_str() << endl;
         }
