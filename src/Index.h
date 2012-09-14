@@ -177,7 +177,8 @@ class Index : public Metadata
                         pid_t *, ContainerEntry * );
         int cleanupReadIndex(IOSHandle *, void *, off_t, int, const char *,
                              const char *, struct plfs_backend *);
-        void *mapIndex( string, IOSHandle **, off_t *, struct plfs_backend * );
+        int mapIndex( void **, string, IOSHandle **, off_t *,
+                      struct plfs_backend * );
         int handleOverlap( ContainerEntry& g_entry,
                            pair< map<off_t,ContainerEntry>::iterator,
                            bool > &insert_ret );
@@ -235,7 +236,7 @@ class Index : public Metadata
  * in the container (readIndex does the merge using insertGlobal).
  *
  * 2: a previous PLFS user computed a global index and saved it to a
- * file.  if we trust the global index, we simply open the file, mmap
+ * file.  if we trust the global index, we simply open the file, map
  * it into our address space, and call Index::global_from_stream() to
  * load it in from the memory mapping.
  *

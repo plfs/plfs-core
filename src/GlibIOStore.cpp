@@ -2,6 +2,7 @@
 
 #include "GlibIOStore.h"
 #include "PosixIOStore.h"
+#include "Util.h"
 
 /*
  * IOStore functions that return signed int should return 0 on success
@@ -106,6 +107,20 @@ GlibIOSHandle::Ftruncate(off_t length) {
     return(get_err(rv));
 };
 
+int
+GlibIOSHandle::GetDataBuf(void **bufp, size_t length) {
+    int myfd;
+    void *b;
+
+    myfd = fileno(this->fp);
+    b = mmap(NULL, length, PROT_READ, MAP_PRIVATE|MAP_NOCACHE, myfd, 0);
+    if (b == MAP_FAILED) {
+        return(get_err(-1));
+    }
+    *bufp = b;
+    return(0);
+}
+
 off_t 
 GlibIOSHandle::Lseek(off_t offset, int whence) {
     off_t rv;
@@ -114,20 +129,6 @@ GlibIOSHandle::Lseek(off_t offset, int whence) {
     if (rv == 0)
         rv = ftell(this->fp);   /* lseek returns current offset on success */
     return(rv);
-};
-
-void *
-GlibIOSHandle::Mmap(void *addr, size_t len, int prot, int flags, off_t offset) {
-    int fd = fileno(this->fp);
-    return mmap(addr, len, prot, flags, fd, offset);
-};
-
-int 
-GlibIOSHandle::Munmap(void *addr, size_t length)
-{
-    int rv;
-    rv = munmap(addr, length);
-    return(get_err(rv));
 };
 
 ssize_t 
@@ -176,6 +177,14 @@ GlibIOSHandle::Read(void *buf, size_t count) {
     }
     return(rv);
 };
+
+int 
+GlibIOSHandle::ReleaseDataBuf(void *addr, size_t length)
+{
+    int rv;
+    rv = munmap(addr, length);
+    return(get_err(rv));
+}
 
 ssize_t 
 GlibIOSHandle::Write(const void* buf, size_t len) {

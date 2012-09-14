@@ -26,13 +26,6 @@
 #include "plfs_private.h"
 #include "mlog_oss.h"
 
-#ifndef MAP_NOCACHE
-// this is a way to tell mmap not to waste buffer cache.  since we just
-// read the index files once sequentially, we don't want it polluting cache
-// unfortunately, not all platforms support this (but they're small)
-#define MAP_NOCACHE 0
-#endif
-
 HostEntry::HostEntry()
 {
     // valgrind complains about unitialized bytes in this thing
@@ -536,23 +529,24 @@ Index::flush()
     return((ret < 0) ? ret : 0);
 }
 
-// takes a path and returns a ptr to the mmap of the file
+// takes a path and returns a ptr to the databuf of the file
 // also computes the length of the file
 // Update: seems to work with metalink
 // this is for reading an index file
 // only called by Index::readIndex.  must call cleanupReadIndex to
 // close and unmap
-void *
-Index::mapIndex( string hostindex, IOSHandle **xfh, off_t *length,
-                 struct plfs_backend *hback)
+// return 0 or -err
+int
+Index::mapIndex( void **ibufp, string hostindex, IOSHandle **xfh,
+                 off_t *length, struct plfs_backend *hback)
 {
-    void *addr;
     int ret;
     *xfh = hback->store->Open(hostindex.c_str(), O_RDONLY, ret);
     if ( *xfh == NULL ) {
         mlog(IDX_DRARE, "%s WTF open: %s", __FUNCTION__, strerror(-ret));
-        return (void *)-1;
+        return(ret);
     }
+
     // lseek doesn't always see latest data if panfs hasn't flushed
     // could be a zero length chunk although not clear why that gets
     // created.
@@ -560,15 +554,16 @@ Index::mapIndex( string hostindex, IOSHandle **xfh, off_t *length,
     *length = (*xfh)->Lseek(0, SEEK_END);
     if ( *length == 0 ) {
         mlog(IDX_DRARE, "%s is a zero length index file", hostindex.c_str());
-        return NULL;
+        return(-EIO);
     }
     if (*length < 0) {
         mlog(IDX_DRARE, "%s WTF lseek: %s", __FUNCTION__,
              strerror(-(*length)));
-        return (void *)-1;
+        return(*length);
     }
-    Util::MapFile(*length,&addr,*xfh);
-    return addr;
+    
+    ret = (*xfh)->GetDataBuf(ibufp, *length);
+    return(ret);
 }
 
 
@@ -576,6 +571,7 @@ Index::mapIndex( string hostindex, IOSHandle **xfh, off_t *length,
 // return 0 for sucess, -err for failure
 int Index::readIndex( string hostindex, struct plfs_backend *hback )
 {
+    int rv;
     off_t length = (off_t)-1;
     IOSHandle *rfh = NULL;
     void  *maddr = NULL;
@@ -584,9 +580,11 @@ int Index::readIndex( string hostindex, struct plfs_backend *hback )
     os << __FUNCTION__ << ": " << this << " reading index on " <<
        physical_path;
     mlog(IDX_DAPI, "%s", os.str().c_str() );
-    maddr = mapIndex( hostindex, &rfh, &length, hback );
-    if( maddr == (void *)-1 ) {
-        return cleanupReadIndex( rfh, maddr, length, 0, "mapIndex",
+
+    rv = mapIndex(&maddr, hostindex, &rfh, &length, hback);
+
+    if( rv < 0) {
+        return cleanupReadIndex( rfh, maddr, length, rv, "mapIndex",
                                  hostindex.c_str(), hback );
     }
     // ok, there's a bunch of data structures in here
@@ -1090,7 +1088,7 @@ Index::insertGlobal( ContainerEntry *g_entry )
 }
 
 // just a little helper to print an error message and make sure the fd is
-// closed and the mmap is unmap'd
+// closed and the data buffers released
 // ret 0 or -err
 int
 Index::cleanupReadIndex( IOSHandle *xfh, void *maddr, off_t length, int ret,
@@ -1102,24 +1100,24 @@ Index::cleanupReadIndex( IOSHandle *xfh, void *maddr, off_t length, int ret,
         mlog(IDX_DRARE, "WTF.  readIndex failed during %s on %s: %s",
              last_func, indexfile, strerror( -ret ) );
     }
-    if ( maddr != NULL && maddr != (void *)-1 ) {
-        ret2 = xfh->Munmap(maddr, length);
+    if ( maddr != NULL ) {
+        ret2 = xfh->ReleaseDataBuf(maddr, length);
         if ( ret2 < 0 ) {
             mlog(IDX_DRARE,
-                 "WTF.  readIndex failed during munmap of %s (%lu): %s",
+                 "WTF.  readIndex failed during release of %s (%lu): %s",
                  indexfile, (unsigned long)length, strerror(-ret2));
             ret = ret2; // set to error
         }
     }
-    if ( maddr == (void *)-1 ) {
-        mlog(IDX_DRARE, "mmap failed on %s: %s",indexfile,strerror(-ret));
+    if ( maddr == NULL ) {
+        mlog(IDX_DRARE, "get/map failed on %s: %s",indexfile,strerror(-ret));
     }
     if ( xfh != NULL ) {
         ret3 = hback->store->Close(xfh);
         if ( ret3 < 0 ) {
             mlog(IDX_DRARE,
                  "WTF. readIndex failed during close of %s: %s",
-                 indexfile, strerror(ret3) );
+                 indexfile, strerror(-ret3) );
             ret = ret3; // set to error
         }
     }

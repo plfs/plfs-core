@@ -428,20 +428,20 @@ Container::populateIndex(const string& path, struct plfs_backend *canback,
         mlog(CON_DCOMMON,"Using cached global flattened index for %s",
              path.c_str());
         off_t len = -1;
-        //XXXCDC: really just want filesize for mmap, don't care about seeking
+        //XXXCDC: just want filesize for getdatabuf, don't care about seeking
         len = idx_fh->Lseek(0, SEEK_END);
         if (len < 0) {
             ret = len;
         } else {
             void *addr;
-            ret = Util::MapFile(len,&addr,idx_fh);
-            if ( ret != -1 ) {
+            ret = idx_fh->GetDataBuf(&addr, len);
+            if ( ret == 0 ) {
                 ret = index->global_from_stream(addr);
-                idx_fh->Munmap(addr,len);
+                idx_fh->ReleaseDataBuf(addr,len);
             } else {
-                mlog(CON_ERR, "WTF: mmap %s of len %ld: %s",
+                mlog(CON_ERR, "WTF: getdatabuf %s of len %ld: %s",
                      getGlobalIndexPath(path).c_str(),
-                     (long)len, strerror(errno)); /*XXX:frommap ret?*/
+                     (long)len, strerror(-ret));
             }
         }
         canback->store->Close(idx_fh);

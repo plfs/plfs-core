@@ -8,6 +8,7 @@ using namespace std;
 
 #include "IOStore.h"
 #include "PosixIOStore.h"
+#include "Util.h"
 
 /*
  * IOStore functions that return signed int should return 0 on success
@@ -52,23 +53,22 @@ PosixIOSHandle::Ftruncate(off_t length) {
     return(get_err(rv));
 }
 
+int
+PosixIOSHandle::GetDataBuf(void **bufp, size_t length) {
+    void *b;
+
+    b = mmap(NULL, length, PROT_READ, MAP_PRIVATE|MAP_NOCACHE, this->fd, 0);
+    if (b == MAP_FAILED) {
+        return(get_err(-1));
+    }
+    *bufp = b;
+    return(0);
+}
+
 off_t 
 PosixIOSHandle::Lseek(off_t offset, int whence) {
     off_t rv;
     rv = lseek(this->fd, offset, whence);
-    return(get_err(rv));
-}
-
-void *
-PosixIOSHandle::Mmap(void *addr, size_t len, int prot, int flags, off_t offset) {
-    return mmap(addr, len, prot, flags, this->fd, offset);
-}
-
-int 
-PosixIOSHandle::Munmap(void *addr, size_t length)
-{
-    int rv;
-    rv = munmap(addr, length);
     return(get_err(rv));
 }
 
@@ -90,6 +90,14 @@ ssize_t
 PosixIOSHandle::Read(void *buf, size_t count) {
     ssize_t rv;
     rv = read(this->fd, buf, count);
+    return(get_err(rv));
+}
+
+int 
+PosixIOSHandle::ReleaseDataBuf(void *addr, size_t length)
+{
+    int rv;
+    rv = munmap(addr, length);
     return(get_err(rv));
 }
 

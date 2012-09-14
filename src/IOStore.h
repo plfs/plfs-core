@@ -70,25 +70,12 @@ class IOSHandle {
     virtual int Fstat(struct stat *sb)=0;
     virtual int Fsync(void)=0;
     virtual int Ftruncate(off_t length)=0;
+    virtual int GetDataBuf(void **bufp, size_t length)=0;
     virtual off_t Lseek(off_t offset, int whence)=0;
-
-    // XXX: PLFS only uses this for memory mapping a file read-only to
-    // avoid a data copy, so this is a richer API than needed (and it
-    // doesn't have to be a memory map in this case, a malloc/read/free
-    // sequence works too).  since memory mapped isn't going to work
-    // on non-kernel backends (e.g. HDFS, IOFSL) we had better keep it
-    // optional (or easy to emuluate without real mmap).
-    virtual void *Mmap(void *addr, size_t len, int prot,
-                       int flags, off_t offset)=0;
-
-    // XXX: Munmap doesn't operate on a file handle, so maybe it doesn't
-    // belong here, but it pairs well with Mmap so we'll keep it here
-    // for now.
-    virtual int Munmap(void *addr, size_t length)=0;
-
     virtual ssize_t Pread(void *buf, size_t nbytes, off_t offset)=0;
     virtual ssize_t Pwrite(const void *buf, size_t nbytes, off_t offset)=0;
     virtual ssize_t Read(void *buf, size_t offset)=0;
+    virtual int ReleaseDataBuf(void *buf, size_t length)=0;
     virtual ssize_t Write(const void *buf , size_t nbytes)=0;
 };
 

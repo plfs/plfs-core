@@ -61,7 +61,6 @@ class Util
         static uid_t Getuid();
         static gid_t Getgid();
         static int MakeFile( const char *, mode_t, IOStore * );
-        static int MapFile( size_t, void **, IOSHandle * );
         static int MutexLock( pthread_mutex_t *mux, const char *whence );
         static int MutexUnlock( pthread_mutex_t *mux, const char *whence );
         static int CopyFile( const char *, IOStore *, const char *,

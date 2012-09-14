@@ -345,7 +345,7 @@ int Util::MutexUnlock( pthread_mutex_t *mux, const char *where )
 }
 
 // Use most popular used read+write to copy file,
-// as mmap/sendfile/splice may fail on some system.
+// as map/sendfile/splice may fail on some system.
 // returns 0 or -err
 int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
                     IOStore *toios)
@@ -458,19 +458,6 @@ int Util::MakeFile( const char *path, mode_t mode, IOStore *store )
 char *Util::Strdup(const char *s1)
 {
     return strdup(s1);
-}
-
-/*
- * Util::MapFile: maps files in memory, read-only
- */
-int Util::MapFile(size_t len, void **retaddr, IOSHandle *hand)
-{
-    ENTER_UTIL;
-    int prot  = PROT_READ;
-    int flags = MAP_PRIVATE|MAP_NOCACHE;
-    *retaddr = hand->Mmap( NULL, len, prot, flags, 0 );
-    ret = ( *retaddr == (void *)NULL || *retaddr == (void *)-1 ? -1 : 0 );
-    EXIT_UTIL;
 }
 
 bool Util::exists( const char *path, IOStore *store )
