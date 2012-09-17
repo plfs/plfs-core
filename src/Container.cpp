@@ -2048,8 +2048,8 @@ Container::createHelper(const string& expanded_path,
         res = Container::Truncate(expanded_path, 0, canback);
         if (res < 0){
             mlog(CON_CRIT, "Failed to truncate file %s : %s",
-                 expanded_path.c_str(), strerror(res));
-            return -res;
+                 expanded_path.c_str(), strerror(-res));
+            return(res);
         }
     }
     mlog(CON_DCOMMON, "Making top level container %s %x",
@@ -2064,7 +2064,7 @@ Container::createHelper(const string& expanded_path,
     }
     if ( res != 0 ) {
         mlog(CON_DRARE, "Failed to make top level container %s:%s",
-             expanded_path.c_str(), strerror(errno));
+             expanded_path.c_str(), strerror(-res));
     }
 
     // hmm.  what should we do if someone calls create on an existing object
