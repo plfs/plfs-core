@@ -2000,7 +2000,13 @@ Container::dirMode( mode_t mode )
 mode_t
 Container::containerMode( mode_t mode )
 {
-    return( mode | CONTAINER_AUGMENT_MODE );
+    if ( mode & S_IRGRP || mode & S_IWGRP ){
+        mode |= S_IXGRP;
+    }
+    if ( mode & S_IROTH || mode & S_IWOTH ){
+        mode |= S_IXOTH;
+    }
+    return( mode | S_IRUSR | S_IXUSR | S_IWUSR );
 }
 
 mode_t
@@ -2037,25 +2043,33 @@ Container::createHelper(const string& expanded_path,
         res = -EISDIR;
     }
     existing_container = res;
-    if (res==0) {
-        mlog(CON_DCOMMON, "Making top level container %s %x",
-             expanded_path.c_str(),mode);
-        begin_time = time(NULL);
-        res = makeTopLevel( expanded_path, canback, hostname, mode, pid,
-                            mnt_pt_cksum, lazy_subdir );
-        end_time = time(NULL);
-        if ( end_time - begin_time > 2 ) {
-            mlog(CON_WARN, "WTF: TopLevel create of %s took %.2f",
-                 expanded_path.c_str(), end_time - begin_time );
-        }
-        if ( res != 0 ) {
-            mlog(CON_DRARE, "Failed to make top level container %s:%s",
-                 expanded_path.c_str(), strerror(-res));
+    //creat specifies that we truncate if the file exists
+    if (existing_container && flags & O_TRUNC){
+        res = Container::Truncate(expanded_path, 0, canback);
+        if (res < 0){
+            mlog(CON_CRIT, "Failed to truncate file %s : %s",
+                 expanded_path.c_str(), strerror(res));
+            return -res;
         }
     }
+    mlog(CON_DCOMMON, "Making top level container %s %x",
+         expanded_path.c_str(),mode);
+    begin_time = time(NULL);
+    res = makeTopLevel( expanded_path, canback, hostname, mode, pid,
+                        mnt_pt_cksum, lazy_subdir );
+    end_time = time(NULL);
+    if ( end_time - begin_time > 2 ) {
+        mlog(CON_WARN, "WTF: TopLevel create of %s took %.2f",
+             expanded_path.c_str(), end_time - begin_time );
+    }
+    if ( res != 0 ) {
+        mlog(CON_DRARE, "Failed to make top level container %s:%s",
+             expanded_path.c_str(), strerror(errno));
+    }
+
     // hmm.  what should we do if someone calls create on an existing object
     // I think we need to return success since ADIO expects this
-    return (existing_container ? 0 : res);
+    return res;
 }
 
 // This should be in a mutex if multiple procs on the same node try to create
