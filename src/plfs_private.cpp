@@ -902,14 +902,40 @@ static int countchar(int c, char *str) {
 string *
 insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt, char *file)
 {
-    /* CHUCK: What is bpa?  Not intuitive, I have no idea :) */
-    /* Also, troff, and lcv */
+    /*
+     * two main mallocs here:
+     *
+     * struct plfs_backend *backstore
+     *
+     *    there is one struct per backend physical path in plfsrc
+     *    allocated here, starting with "backends" then
+     *    "canonical_backends" and finally "shadow_backends"
+     * 
+     * struct plfs_backends **bpa
+     *
+     *    an array of backend pointers that eventually get broken
+     *    up into the PlfsMount's backends, canonical_backends, and
+     *    shadow_backends.  this indirection allows a single backend
+     *    from backstore to appear in more than one of PlfsMount's
+     *    lists.
+     *
+     * simple example: if plfsrc has 
+     *
+     * "backends /m/vol0/plfs,/m/vol1/plfs"
+     *
+     * and no "canonical_backends" or "shadow_backends" set, then
+     * backstore will have two entries (for vol0 and vol1) and the
+     * size of bpa will be 6, as vol0/vol1 will appear in all three
+     * lists (backends, canonical_backends, shadow_backends) and 3*2
+     * == 6.  so each entry in backstore will be pointed to multiple
+     * times (3 times).
+     */
     string *error;
-    int backspeccnt, canspeccnt, shadowspeccnt;     /* counts */
-    int backsoff, cansoff, shadsoff;                /* in backstore */
-    int backptroff, canptroff, shadowptroff;        /* in bpa */
-    int lcv;
-    struct plfs_backend **bpa;
+    int backspeccnt, canspeccnt, shadowspeccnt;  /* plfsrc counts */
+    int backsoff, cansoff, shadsoff;             /* offset in backstore[] */
+    int backptroff, canptroff, shadowptroff;     /* offset in bpa[] */
+    int lcv;                    /* loop control variable */
+    struct plfs_backend **bpa;  /* backpointer array */
     pair<map<string,PlfsMount *>::iterator, bool> insert_ret;
 
     /* this makes use of countchar() returning -1 if string is NULL */
@@ -929,6 +955,17 @@ insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt, char *file)
      */
     if (pmnt->nback == 0) { 
         error = new string("no backends for mount: ");
+        error->append(pmnt->mnt_pt);
+        return(error);
+    }
+
+    /*
+     * disallow 'backends' to be used with 'canonical_backends' or
+     * 'shadow_backends' for now...
+     */
+    if (backspeccnt != 0 && (canspeccnt || shadowspeccnt)) {
+        error = new string("cannot use 'backends' with 'canonical_backends' "
+                           "or 'shadow_backends': ");
         error->append(pmnt->mnt_pt);
         return(error);
     }
