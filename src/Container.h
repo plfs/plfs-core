@@ -27,8 +27,7 @@ using namespace std;
 // a container needs to look like a directory
 // dropping mode gets the umask by default
 #define DROPPING_MODE  (S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH)//Container::dropping_mode()
-#define CONTAINER_AUGMENT_MODE  (S_IXUSR|S_IXGRP|S_IXOTH) 
-#define CONTAINER_MODE (DROPPING_MODE | CONTAINER_AUGMENT_MODE)
+#define CONTAINER_MODE (DROPPING_MODE | S_IXUSR |S_IXGRP | S_IXOTH)
 
 // add a type to types in readdir() so we can diff btwn logical dir and containr
 #define DT_CONTAINER (unsigned char)-1
