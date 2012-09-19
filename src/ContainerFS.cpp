@@ -28,6 +28,7 @@ int
 ContainerFileSystem::create(const char *logical, mode_t mode,
                             int flags, pid_t pid)
 {
+    flags = O_WRONLY|O_CREAT|O_TRUNC;
     return container_create(logical, mode, flags, pid);
 }
 
