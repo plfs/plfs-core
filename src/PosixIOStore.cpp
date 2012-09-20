@@ -170,13 +170,6 @@ PosixIOStore::Mkdir(const char* path, mode_t mode) {
     return(get_err(rv));
 }
 
-int 
-PosixIOStore::Mknod(const char* path, mode_t mode, dev_t dev) {
-    int rv;
-    rv = mknod(path, mode, dev);
-    return(get_err(rv));
-}
-
 class IOSHandle *
 PosixIOStore::Open(const char *bpath, int flags, mode_t mode, int &ret) {
     int fd;

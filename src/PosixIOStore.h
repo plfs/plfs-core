@@ -51,7 +51,6 @@ public:
     int Lchown(const char *path, uid_t owner, gid_t group);
     int Lstat(const char* path, struct stat* buf);
     int Mkdir(const char* path, mode_t mode);
-    int Mknod(const char* path, mode_t mode, dev_t dev);
     class IOSHandle *Open(const char *bpath, int flags, mode_t mode, int &ret);
     class IOSDirHandle *Opendir(const char *bpath, int &ret);
     int Rename(const char*, const char*);
