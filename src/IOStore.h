@@ -29,7 +29,6 @@ class IOStore {
     int Close(IOSHandle *handle);               /* inlined below */
     int Closedir(class IOSDirHandle *dhandle);  /* inlined below */
     virtual int Lchown(const char *bpath, uid_t owner, gid_t group)=0;
-    virtual int Link(const char *bpath1, const char *bpath2)=0;
     virtual int Lstat(const char *bpath, struct stat *sb)=0;
     virtual int Mkdir(const char *bpath, mode_t mode)=0;
     virtual int Mknod(const char *bpath, mode_t mode, dev_t dev)=0;

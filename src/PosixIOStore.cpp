@@ -157,13 +157,6 @@ PosixIOStore::Lchown(const char *path, uid_t owner, gid_t group) {
 }
 
 int 
-PosixIOStore::Link(const char* oldpath, const char* newpath) {
-    int rv;
-    rv = link(oldpath, newpath);
-    return(get_err(rv));
-}
-
-int 
 PosixIOStore::Lstat(const char* path, struct stat* buf) {
     int rv;
     rv = lstat(path, buf);

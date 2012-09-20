@@ -49,7 +49,6 @@ public:
     int Chmod(const char* path, mode_t mode);
     int Chown(const char *path, uid_t owner, gid_t group);
     int Lchown(const char *path, uid_t owner, gid_t group);
-    int Link(const char* oldpath, const char* newpath);
     int Lstat(const char* path, struct stat* buf);
     int Mkdir(const char* path, mode_t mode);
     int Mknod(const char* path, mode_t mode, dev_t dev);

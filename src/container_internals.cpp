@@ -1762,13 +1762,6 @@ container_link(const char *logical, const char *to)
     *(&ret) = 0;    // suppress warning about unused variable
     mlog(PLFS_DAPI, "Can't make a hard link to a container." );
     PLFS_EXIT(-ENOSYS);
-    /*
-    string toPath = expandPath(to);
-    ret = Util::Link(logical,toPath.c_str());
-    mlog(PFS_DAPI, "%s: %s to %s: %d", __FUNCTION__,
-            path.c_str(), toPath.c_str(),ret);
-    PLFS_EXIT(ret);
-    */
 }
 
 // returns -err for error, otherwise number of bytes read
