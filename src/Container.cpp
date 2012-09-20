@@ -428,8 +428,7 @@ Container::populateIndex(const string& path, struct plfs_backend *canback,
         mlog(CON_DCOMMON,"Using cached global flattened index for %s",
              path.c_str());
         off_t len = -1;
-        //XXXCDC: just want filesize for getdatabuf, don't care about seeking
-        len = idx_fh->Lseek(0, SEEK_END);
+        len = idx_fh->Size();
         if (len < 0) {
             ret = len;
         } else {

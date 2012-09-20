@@ -65,13 +65,6 @@ PosixIOSHandle::GetDataBuf(void **bufp, size_t length) {
     return(0);
 }
 
-off_t 
-PosixIOSHandle::Lseek(off_t offset, int whence) {
-    off_t rv;
-    rv = lseek(this->fd, offset, whence);
-    return(get_err(rv));
-}
-
 ssize_t 
 PosixIOSHandle::Pread(void* buf, size_t count, off_t offset) {
     ssize_t rv;
@@ -98,6 +91,13 @@ PosixIOSHandle::ReleaseDataBuf(void *addr, size_t length)
 {
     int rv;
     rv = munmap(addr, length);
+    return(get_err(rv));
+}
+
+off_t 
+PosixIOSHandle::Size() {
+    off_t rv;
+    rv = lseek(this->fd, 0, SEEK_END);
     return(get_err(rv));
 }
 

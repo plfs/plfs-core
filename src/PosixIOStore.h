@@ -16,11 +16,11 @@ class PosixIOSHandle: public IOSHandle {
     int Fsync();
     int Ftruncate(off_t length);
     int GetDataBuf(void **bufp, size_t length);
-    off_t Lseek(off_t offset, int whence);
     ssize_t Pread(void* buf, size_t count, off_t offset);
     ssize_t Pwrite(const void* buf, size_t count, off_t offset);
     ssize_t Read(void *buf, size_t count);
     int ReleaseDataBuf(void *buf, size_t length);
+    off_t Size();
     ssize_t Write(const void* buf, size_t len);
     
  private:

@@ -69,12 +69,12 @@ class IOSHandle {
     virtual int Fsync(void)=0;
     virtual int Ftruncate(off_t length)=0;
     virtual int GetDataBuf(void **bufp, size_t length)=0;
-    virtual off_t Lseek(off_t offset, int whence)=0;
     virtual ssize_t Pread(void *buf, size_t nbytes, off_t offset)=0;
     virtual ssize_t Pwrite(const void *buf, size_t nbytes, off_t offset)=0;
     virtual ssize_t Read(void *buf, size_t offset)=0;
     virtual int ReleaseDataBuf(void *buf, size_t length)=0;
-    virtual ssize_t Write(const void *buf , size_t nbytes)=0;
+    virtual off_t Size(void)=0;
+    virtual ssize_t Write(const void *buf, size_t nbytes)=0;
 };
 
 /**

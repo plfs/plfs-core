@@ -550,8 +550,7 @@ Index::mapIndex( void **ibufp, string hostindex, IOSHandle **xfh,
     // lseek doesn't always see latest data if panfs hasn't flushed
     // could be a zero length chunk although not clear why that gets
     // created.
-    //XXXCDC - just want file size, doesn't really need seek here
-    *length = (*xfh)->Lseek(0, SEEK_END);
+    *length = (*xfh)->Size();
     if ( *length == 0 ) {
         mlog(IDX_DRARE, "%s is a zero length index file", hostindex.c_str());
         return(-EIO);

@@ -121,16 +121,6 @@ GlibIOSHandle::GetDataBuf(void **bufp, size_t length) {
     return(0);
 }
 
-off_t 
-GlibIOSHandle::Lseek(off_t offset, int whence) {
-    off_t rv;
-    rv = fseek(this->fp,offset,whence); /* ret 0 or -1 */
-    rv = get_err(rv);
-    if (rv == 0)
-        rv = ftell(this->fp);   /* lseek returns current offset on success */
-    return(rv);
-};
-
 ssize_t 
 GlibIOSHandle::Pread(void* buf, size_t count, off_t offset) {
     ssize_t rv;
@@ -185,6 +175,16 @@ GlibIOSHandle::ReleaseDataBuf(void *addr, size_t length)
     rv = munmap(addr, length);
     return(get_err(rv));
 }
+
+off_t 
+GlibIOSHandle::Size() {
+    off_t rv;
+    rv = fseek(this->fp,0,SEEK_END); /* ret 0 or -1 */
+    rv = get_err(rv);
+    if (rv == 0)
+        rv = ftell(this->fp);   /* lseek returns current offset on success */
+    return(rv);
+};
 
 ssize_t 
 GlibIOSHandle::Write(const void* buf, size_t len) {
