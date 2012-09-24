@@ -3,7 +3,7 @@
 
 Name:		plfs
 Summary:	plfs - Parallel Log Structured File System
-Version:    2.2.2
+Version:    2.2.3
 Release:	%{_release}%{?dist}
 License:	LANS LLC
 Group:		System Environment/Filesystems
