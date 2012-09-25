@@ -53,11 +53,11 @@ small N to 1 strided write patterns to a parallel file system.
 %{__mkdir_p} %{buildroot}%{_sysconfdir}/sysconfig
 %{__mkdir_p} %{buildroot}%{_sysconfdir}/plfs
 %if 0%{?suse_version}
-   %{__install} -m 0755 fuse/plfs.init.suse %{buildroot}%{_initrddir}/plfs
+   %{__install} -m 0755 contrib/init.d/plfs.init.suse %{buildroot}%{_initrddir}/plfs
 %else
-   %{__install} -m 0755 fuse/plfs.init %{buildroot}%{_initrddir}/plfs
+   %{__install} -m 0755 contrib/init.d/plfs.init %{buildroot}%{_initrddir}/plfs
 %endif
-%{__install} -m 0644 fuse/plfs.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/plfs
+%{__install} -m 0644 contrib/init.d/plfs.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/plfs
 %{__install} -m 0644 plfsrc.example %{buildroot}%{_sysconfdir}/plfsrc
 
 %{__make} install DESTDIR=$RPM_BUILD_ROOT
