@@ -112,6 +112,7 @@ container_flatten_index(Container_OpenFile *pfd, const char *logical)
         newly_created = true;
         // before we populate, need to blow away any old one
         ret = Container::populateIndex(path,expansion_info.backend,index,false);
+        /* XXXCDC: why are we ignoring return value of populateIndex? */
     }
     if (is_plfs_file(logical,NULL)) {
         ret = Container::flattenIndex(path,expansion_info.backend,index);

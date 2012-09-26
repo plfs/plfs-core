@@ -544,6 +544,9 @@ Index::mapIndex( void **ibufp, string hostindex, IOSHandle **xfh,
     *xfh = hback->store->Open(hostindex.c_str(), O_RDONLY, ret);
     if ( *xfh == NULL ) {
         mlog(IDX_DRARE, "%s WTF open: %s", __FUNCTION__, strerror(-ret));
+        /* play it safe in case store doesn't set ret properly */
+        *ibufp = NULL;
+        *length = 0;
         return(ret);
     }
 
@@ -552,8 +555,10 @@ Index::mapIndex( void **ibufp, string hostindex, IOSHandle **xfh,
     // created.
     *length = (*xfh)->Size();
     if ( *length == 0 ) {
+        /* this can happen if index !flushed, or after a truncate */
         mlog(IDX_DRARE, "%s is a zero length index file", hostindex.c_str());
-        return(-EIO);
+        *ibufp = NULL;
+        return(0);
     }
     if (*length < 0) {
         mlog(IDX_DRARE, "%s WTF lseek: %s", __FUNCTION__,
@@ -759,6 +764,9 @@ int Index::global_to_file(IOSHandle *xfh, struct plfs_backend *canback)
     int ret = global_to_stream(&buffer,&length);
     if (ret==0) {
         ret = Util::Writen(buffer,length,xfh);
+        if (ret >= 0) {   /* let -err pass up to caller */
+            ret = 0;
+        }
         free(buffer);
     }
     return ret;
