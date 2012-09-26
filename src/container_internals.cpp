@@ -1191,6 +1191,7 @@ plfs_parindex_read(int rank,int ranks_per_comm,void *index_files,
     if (rv != 0) {
         /* this shouldn't ever happen */
         mlog(INT_CRIT, "plfs_parindex_read: backlookup failed?");
+        mlog(INT_CRIT, "plfs_parindex_read: phys=%s", phys.c_str());
         return(rv);
     }
     mlog(INT_DCOMMON, "Hostdir path pushed on the list %s (bpath=%s)",
