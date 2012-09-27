@@ -1646,10 +1646,11 @@ plfs_phys_backlookup(const char *phys, PlfsMount *pmnt,
         prelen = 0;
         if (*prefix == 'p')
             prefix = prefix + (sizeof("posix:") - 1);
+        bpath = prefix;
     } else {
         bpath = strstr(prefix, "://");
         if (bpath)
-            bpath = strchr(bpath, '/');
+            bpath = strchr(bpath+(sizeof("://")-1), '/');
         if (bpath == NULL) {
             mlog(CON_INFO, "plfs_phys_backlookup: bad phys %s", phys);
             return(-EINVAL);
