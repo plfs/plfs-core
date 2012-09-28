@@ -628,6 +628,9 @@ Container::indices_from_subdir(string path, PlfsMount *cmnt,
              index_dropping.hostname.c_str(), itr->bpath.c_str());
         indices.push_back(index_dropping);
     }
+
+    /* done, don't forget to return iback back up to the caller... */
+    *ibackp = iback;
     return 0;
 }
 
