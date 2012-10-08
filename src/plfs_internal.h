@@ -12,6 +12,7 @@
 #define INDEXPREFIX    DROPPINGPREFIX"index."
 #define TMPPREFIX      "tmp."
 #define METADIR        "meta"         // where to stash shortcut metadata
+#define XATTRSDIR      "xattrs"       // where to store xattrs
 #define VERSIONPREFIX  "version"      // where to stash the version info 
 // OPENHOSTDIR is now the same as METADIR
 //#define OPENHOSTDIR    "openhosts"    // where to stash whether file open

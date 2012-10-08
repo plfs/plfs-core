@@ -1,7 +1,6 @@
 #ifndef __Container_H__
 #define __Container_H__
 
-#include <errno.h>
 #include <string>
 #include <fstream>
 #include <iostream>
@@ -18,12 +17,22 @@
 #include <time.h>
 #include <map>
 #include <deque>
+
+
 using namespace std;
 
 struct PlfsMount;
+class IOSDirHandle;
 
-#define DEFAULT_MODE (S_IRUSR|S_IWUSR|S_IXUSR|S_IXGRP|S_IXOTH)
-#define DROPPING_MODE (S_IRWXU|S_IRWXG|S_IRWXO)
+// ok, for security reasons, we mess with the mode of containers and their
+// subdirs as well as the droppings within
+// a container needs to look like a directory
+// dropping mode gets the umask by default
+#define DROPPING_MODE  (S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH)//Container::dropping_mode()
+#define CONTAINER_MODE (DROPPING_MODE | S_IXUSR |S_IXGRP | S_IXOTH)
+
+// add a type to types in readdir() so we can diff btwn logical dir and containr
+#define DT_CONTAINER (unsigned char)-1
 
 enum
 parentStatus {
@@ -60,6 +69,7 @@ class Container
 {
     public:
         // static stuff
+        static mode_t dropping_mode();
         static int create( const string&, struct plfs_backend *,const string&,
                            mode_t mode, int flags, int *extra_attempts,pid_t,
                            unsigned, bool lazy_subdir );
@@ -100,6 +110,9 @@ class Container
         static mode_t fileMode( mode_t );
         static mode_t dirMode(  mode_t );
         static mode_t containerMode(  mode_t );
+        static mode_t subdirMode(  mode_t );
+
+
         static int makeHostDir(const string& path, struct plfs_backend *b,
                                const string& host,
                                mode_t mode, parentStatus);
@@ -153,7 +166,7 @@ class Container
         static blkcnt_t bytesToBlocks( size_t total_bytes );
         static int nextdropping( const string&, struct plfs_backend *,
                                  string *, struct plfs_backend **, const char *,
-                                 DIR **, DIR **, string * );
+                                 IOSDirHandle **, IOSDirHandle **, string * );
         static int makeSubdir(const string& path, mode_t mode,
                               struct plfs_backend *backend);
         static int makeDropping(const string& path, struct plfs_backend *b);
@@ -161,7 +174,6 @@ class Container
                               struct plfs_backend *canback, mode_t mode);
         static int makeDroppingReal(const string& path, struct plfs_backend *b,
                                     mode_t mode);
-        static int makeCreator(const string& path, struct plfs_backend *b);
         static int truncateMeta(const string& path, off_t offset,
                                 struct plfs_backend *back);
         // Added for par read index
@@ -198,12 +210,9 @@ class Container
         static string hostdirFromChunk( string chunkpath, const char *type );
         static string timestampFromChunk(string hostindex, const char *type);
         static string containerFromChunk( string datapath );
-        static struct dirent *getnextent( DIR *dir, struct plfs_backend *b,
+        static struct dirent *getnextent( IOSDirHandle *dhand,
                                           const char *prefix,
                                           struct dirent *ds );
-        static int makeMeta( const string& path, mode_t type, mode_t mode,
-                              struct plfs_backend *b );
-        static int ignoreNoEnt( int ret );
 };
 
 #endif

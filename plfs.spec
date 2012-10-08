@@ -3,7 +3,7 @@
 
 Name:		plfs
 Summary:	plfs - Parallel Log Structured File System
-Version:  2.0.2
+Version:    2.2.2
 Release:	%{_release}%{?dist}
 License:	LANS LLC
 Group:		System Environment/Filesystems
@@ -37,22 +37,28 @@ small N to 1 strided write patterns to a parallel file system.
 %setup -q -n plfs-%{version}
 
 %build
-./configure --prefix=%{_prefix} --libdir=%{_libdir} --bindir=%{_sbindir} --includedir=%{_includedir} --sysconfdir=/etc
+./configure --prefix=%{_prefix} \
+            --libdir=%{_libdir} \
+            --bindir=%{_bindir} \
+            --sbindir=%{_sbindir} \
+            --includedir=%{_includedir} \
+            --datarootdir=%{_prefix}/share \
+            --sysconfdir=%{_sysconfdir}
 %{__make}
 
 %install
-%{__mkdir_p} %{buildroot}{%{_sbindir},%{_libdir}}
+%{__mkdir_p} %{buildroot}{%{_sbindir},%{_bindir},%{_libdir}}
 %{__mkdir_p} %{buildroot}%{_includedir}/plfs
 %{__mkdir_p} %{buildroot}%{_initrddir}
-%{__mkdir_p} %{buildroot}/etc/sysconfig
-%{__mkdir_p} %{buildroot}/etc/plfs
+%{__mkdir_p} %{buildroot}%{_sysconfdir}/sysconfig
+%{__mkdir_p} %{buildroot}%{_sysconfdir}/plfs
 %if 0%{?suse_version}
    %{__install} -m 0755 fuse/plfs.init.suse %{buildroot}%{_initrddir}/plfs
 %else
    %{__install} -m 0755 fuse/plfs.init %{buildroot}%{_initrddir}/plfs
 %endif
-%{__install} -m 0644 fuse/plfs.sysconfig %{buildroot}/etc/sysconfig/plfs
-%{__install} -m 0644 plfsrc.example %{buildroot}/etc/plfsrc
+%{__install} -m 0644 fuse/plfs.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/plfs
+%{__install} -m 0644 plfsrc.example %{buildroot}%{_sysconfdir}/plfsrc
 
 %{__make} install DESTDIR=$RPM_BUILD_ROOT
 
@@ -84,26 +90,21 @@ fi
 %defattr(-,root,root,0755)
 %{_sbindir}/plfs
 %config %{_initrddir}/plfs
-%config(noreplace) /etc/sysconfig/plfs
-%config(noreplace) /etc/plfsrc
-%{_sbindir}/plfs_check_config
-%{_sbindir}/plfs_flatten_index
-%{_sbindir}/plfs_map
-%{_sbindir}/plfs_recover
-%{_sbindir}/plfs_query
-%{_sbindir}/plfs_version
+%defattr(-,root,root,0644)
+%config(noreplace) %{_sysconfdir}/sysconfig/plfs
+%config(noreplace) %{_sysconfdir}/plfsrc
 %{_mandir}/man1/plfs.1.gz
-%{_mandir}/man1/plfs_check_config.1.gz
-%{_mandir}/man1/plfs_flatten_index.1.gz
-%{_mandir}/man1/plfs_map.1.gz
-%{_mandir}/man1/plfs_recover.1.gz
-%{_mandir}/man1/plfs_query.1.gz
-%{_mandir}/man1/plfs_version.1.gz
-%{_mandir}/man5/plfsrc.5.gz
-%{_mandir}/man7/plfs.7.gz
 
 %files lib
 %defattr(-,root,root,0755)
+%{_bindir}/dcon
+%{_bindir}/findmesgbuf
+%{_bindir}/plfs_check_config
+%{_bindir}/plfs_flatten_index
+%{_bindir}/plfs_map
+%{_bindir}/plfs_recover
+%{_bindir}/plfs_query
+%{_bindir}/plfs_version
 %{_libdir}/libplfs.a
 %{_libdir}/libplfs.la
 %{_libdir}/libplfs.so
@@ -111,12 +112,20 @@ fi
 %{_libdir}/libplfs.so.0.0.0
 %defattr(-,root,root,0644)
 %{_includedir}/plfs/COPYRIGHT.h
+%{_includedir}/plfs/mlogfacs.h
 %{_includedir}/plfs/plfs_internal.h
 %{_includedir}/plfs/Util.h
 %{_includedir}/plfs.h
-%config /etc/plfs/VERSION
-%config /etc/plfs/VERSION.LAYOUT
+%config %{_sysconfdir}/plfs/VERSION
+%config %{_sysconfdir}/plfs/VERSION.LAYOUT
 %doc COPYRIGHT.h
+%{_mandir}/man1/plfs_check_config.1.gz
+%{_mandir}/man1/plfs_flatten_index.1.gz
+%{_mandir}/man1/plfs_map.1.gz
+%{_mandir}/man1/plfs_recover.1.gz
+%{_mandir}/man1/plfs_query.1.gz
+%{_mandir}/man1/plfs_version.1.gz
+%{_mandir}/man5/plfsrc.5.gz
 %{_mandir}/man3/is_plfs_file.3.gz
 %{_mandir}/man3/plfs.3.gz
 %{_mandir}/man3/plfs_access.3.gz
@@ -154,8 +163,16 @@ fi
 %{_mandir}/man3/plfs_version.3.gz
 %{_mandir}/man3/plfs_write.3.gz
 %{_mandir}/man3/plfs_wtime.3.gz
+%{_mandir}/man7/plfs.7.gz
 
 %changelog
+* Mon Jul 2 2012 David Shrader <dshrader@lanl.gov>
+- Added dcon, findmesgbuf, and mlogfacs.h.
+- Moved all binaries except plfs into the plfs-lib rpm as they will be useful
+  when using just the library. Also moved the respective man pages.
+- Converted use of /etc to %{_sysconfdir} to help keep PLFS in line with
+  distributions' standards of where to put system configuration files.
+
 * Tue May 3 2011 Ben McClelland <ben@lanl.gov>
 - suse has different dependencies than redhat put in distro specifics
 - add plfs_recover, plfs_query, plfs_version and respective man pages

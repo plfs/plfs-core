@@ -210,20 +210,50 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
     // ADIO makes 2 calls into here:
     // first, just 0 with CREATE
     // then everyone without
+
+    //check for existence of file
+    struct stat buffer;
+
+    if (fd->access_mode &  MPI_MODE_EXCL){
+        //if MPI_MODE_EXCL is set, check if the file already exists
+        //will stat either an empty file, or a file that exists and die
+        if (plfs_access(fd->filename, F_OK) == 0){
+            //throw an error if the file exists
+            *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
+                myname, __LINE__, MPI_ERR_IO,
+                "**io",
+                "**io %s", strerror(-err));
+            return;
+        }
+    }
     if (fd->access_mode & ADIO_CREATE) {
-        err = plfs_create(fd->filename, perm, amode, rank);
+        //rather then call creat directly, call open w/ O_CREAT to avoid truncate
+        //of existing files
+        err = plfs_open(&pfd, fd->filename, amode|O_CREAT, rank, perm, NULL);
         if ( err != 0 ) {
-            *error_code =MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
+            *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
                                               myname, __LINE__, MPI_ERR_IO,
                                               "**io",
                                               "**io %s", strerror(-err));
             errno = -err;
         } else {
+            //passing pfd as the fs_ptr will result in a hang n-1 with many
+            //procs so close instead if open
             *error_code = MPI_SUCCESS;
+            err = plfs_close(pfd, rank, geteuid(), amode, NULL);
+            if ( err != 0 ) {
+                *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
+                                                  myname, __LINE__, MPI_ERR_IO,
+                                                  "**io",
+                                                  "**io %s", strerror(-err));
+                errno = -err;
+            }
         }
-        fd->fs_ptr = NULL; // set null because ADIO is about to close it
+
+        fd->fs_ptr = NULL;
         return;
     }
+
     // if we make it here, we're doing RDONLY, WRONLY, or RDWR
     // at this point, we want to do different for container/flat_file mode
     if (plfs_get_filetype(fd->filename) != CONTAINER) {

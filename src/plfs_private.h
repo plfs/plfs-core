@@ -61,6 +61,7 @@ struct plfs_pathback {
 typedef struct PlfsMount {
     string mnt_pt;  // the logical mount point
     string *statfs; // where to resolve statfs calls
+    struct plfs_backend statfs_io;  /* for statfs */
     string *syncer_ip; // where to send commands within plfs_protect
     vector<string> mnt_tokens;
     plfs_filetype file_type;
@@ -88,7 +89,7 @@ typedef struct {
     bool is_mnt_pt;
     bool expand_error;
     PlfsMount *mnt_pt;
-    int Errno;  // can't use just errno, it's a weird macro
+    int Errno;  // don't want to shadow the global var
     string expanded;
     struct plfs_backend *backend;
 } ExpansionInfo;
@@ -110,12 +111,6 @@ typedef struct {
 
 #define PLFS_EXIT(X) return(X);
 
-
-#define EISDIR_DEBUG \
-    if(ret!=0) {\
-        Util::OpenError(__FILE__,__FUNCTION__,__LINE__,pid,errno);\
-    }
-
 typedef struct {
     string file; // which top-level plfsrc was used
     set<string> files;     /* to detect recursive includes in plfsrc */
@@ -128,7 +123,10 @@ typedef struct {
     bool test_metalink; // for developers only
     bool lazy_stat;
     string *err_msg;
-    string *global_summary_dir;
+
+    char *global_summary_dir;
+    struct plfs_backend global_sum_io;
+    
     PlfsMount *tmp_mnt; // just used during parsing
 
     /* mlog related settings, read from plfsrc, allow for cmd line override */

@@ -9,7 +9,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
-#include <errno.h>
+#include <errno.h>       /* error# ok */
 #include <string>
 #include <fstream>
 #include <iostream>
@@ -33,6 +33,7 @@
 
 using namespace std;
 class IOStore;
+class IOSHandle;
 
 #ifndef MAP_NOCACHE
 // this is a way to tell mmap not to waste buffer cache.  since we just
@@ -60,7 +61,6 @@ class Util
         static uid_t Getuid();
         static gid_t Getgid();
         static int MakeFile( const char *, mode_t, IOStore * );
-        static int MapFile( size_t, int, void **, IOStore * );
         static int MutexLock( pthread_mutex_t *mux, const char *whence );
         static int MutexUnlock( pthread_mutex_t *mux, const char *whence );
         static int CopyFile( const char *, IOStore *, const char *,
@@ -74,18 +74,16 @@ class Util
                                             const string& delimiters,
                                             vector<string> &tokens);
         static void SeriousError(string,pid_t);
-        static void OpenError(const char *, const char *,int,int,pid_t);
         static bool exists( const char *, IOStore *);
         static bool isDirectory( struct stat *buf );
         static bool isDirectory( const char *, IOStore *);
         static double getTime();
-        static ssize_t Writen( int, const void *, size_t, IOStore * );
+        static ssize_t Writen(const void *, size_t, IOSHandle *);
         static string toString();
         static string openFlagsToString( int );
         static string expandPath( string path, string hostname );
         static void addTime( string, double, bool );
         static char *hostname();
-        static int retValue( int res );
         static int traverseDirectoryTree(const char *physical,
                                          struct plfs_backend *back,
                                          vector<plfs_pathback> &files,

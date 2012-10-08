@@ -62,6 +62,7 @@
 
 #include "mlog.h"
 
+
 /*
  * dispose of the mlog() macro function, if it is defined.   we need
  * the real thing here...
@@ -852,7 +853,7 @@ error:
 int mlog_reopen(char *logfile)
 {
     int rv;
-    char *oldpid, *dup;
+    char *oldpid, *sdup;
     if (!mlog_xst.tag) {
         return(-1);    /* log wasn't open in the first place */
     }
@@ -893,8 +894,8 @@ int mlog_reopen(char *logfile)
          * different from what was there before, so we need to malloc a
          * new mst.logfile.
          */
-        dup = strdup(logfile);
-        if (dup == NULL) {
+        sdup = strdup(logfile);
+        if (sdup == NULL) {
             fprintf(stderr, "mlog_reopen: out of memory - strdup(%s)\n",
                     logfile);
             /* XXX: what else can we do? */
@@ -904,7 +905,7 @@ int mlog_reopen(char *logfile)
         if (mst.logfile) {
             free(mst.logfile);    /* dump the old one, if present */
         }
-        mst.logfile = dup;        /* install the new one */
+        mst.logfile = sdup;       /* install the new one */
     }
     if (mst.logfile) {
         mst.logfd = open(mst.logfile, O_RDWR|O_APPEND|O_CREAT, 0666);

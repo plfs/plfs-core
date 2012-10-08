@@ -1,7 +1,7 @@
 #include "plfs.h"
 #include "plfs_private.h"
+#include "IOStore.h"
 #include "LogMessage.h"
-#include "PosixIOStore.h"
 #include "COPYRIGHT.h"
 
 #include <errno.h>
@@ -272,7 +272,7 @@ int Plfs::init( int *argc, char **argv )
     // figure out our hostname now in order to make containers
     if (gethostname(hostname, sizeof(hostname)) < 0) {
         fprintf(stderr, "plfsfuse gethostname failed\n");
-        return -errno;
+        return -errno;   /* error# ok */
     }
     myhost = hostname;
     // we've been stashing stuff in self but we can also stash in
@@ -494,7 +494,7 @@ int Plfs::f_create(const char *path, mode_t mode, struct fuse_file_info *fi)
     FUSE_PLFS_EXIT    ;
 }
 
-// returns 0 or -errno
+// returns 0 or -err
 // nothing to do for a read file
 int Plfs::f_fsync(const char *path, int datasync, struct fuse_file_info *fi)
 {
@@ -522,7 +522,7 @@ int Plfs::f_ftruncate(const char *path, off_t offset,
 }
 
 // use removeDirectoryTree to remove all data but not the dir structure
-// return 0 or -errno
+// return 0 or -err
 int Plfs::f_truncate( const char *path, off_t offset )
 {
     EXIT_IF_DEBUG;
@@ -664,7 +664,7 @@ int Plfs::get_groups( vector<gid_t> *vec )
     }
     delete []groups;
     groups = NULL;
-    return ( val >= 0 ? 0 : -errno );
+    return ( val >= 0 ? 0 : -errno );  /* error# ok */
 }
 
 // fills the set of supplementary groups of a uid
@@ -801,7 +801,7 @@ int Plfs::f_unlink( const char *path )
 }
 
 // see f_readdir for some documentation here
-// returns 0 or -errno
+// returns 0 or -err
 int Plfs::f_opendir( const char *path, struct fuse_file_info *fi )
 {
     FUSE_PLFS_ENTER;
@@ -870,7 +870,7 @@ int Plfs::f_releasedir( const char *path, struct fuse_file_info *fi )
     FUSE_PLFS_EXIT;
 }
 
-// returns 0 or -errno
+// returns 0 or -err
 // O_WRONLY and O_RDWR are handled as a write
 // O_RDONLY is handled as a read
 // PLFS is optimized for O_WRONLY and tries to do OK for O_RDONLY
@@ -1126,29 +1126,24 @@ int Plfs::f_statfs(const char *path, struct statvfs *stbuf)
     // then pull into our test results like a version or some string
     // identifying any optimizations we're trying.  but the statvfs struct
     // doesn't have anything good.  very sparse.  it does have an f_fsid flag.
-    errno = 0;
+
     // problem here is that the statfs_path will be a physical path
     // but FUSE only sees logical paths and all the plfs_* routines
     // expect logical paths so how do we specify that it's a physical path?
     // hmmm, I guess we can call Util:: and bypass plfs_ but that's a bit
     // of a kludge since we try to make everything in FUSE go through plfs
-    if(self->pmnt->statfs) {
-        /*
-         * XXXCDC: statfs.  currently it is POSIX only (via PosixIO).
-         * do we need to expand this?
-         */
-        extern class PosixIOStore PosixIO;
+    if(self->pmnt->statfs_io.store) {
+        IOStore *sst = self->pmnt->statfs_io.store;
         mlog(FUSE_DCOMMON, "Forwarding statfs to specified path %s",
              self->pmnt->statfs->c_str());
-        ret = PosixIO.Statvfs(self->pmnt->statfs->c_str(),stbuf);
-        ret = Util::retValue(ret);  // fix it up on error
+        ret = sst->Statvfs(self->pmnt->statfs_io.bmpoint.c_str(), stbuf);
     } else {
         ret = plfs_statvfs(strPath.c_str(), stbuf);
     }
     FUSE_PLFS_EXIT;
 }
 
-// returns bytes read or -errno
+// returns bytes read or -err
 int Plfs::f_readn(const char *path, char *buf, size_t size, off_t offset,
                   struct fuse_file_info *fi)
 {
@@ -1232,7 +1227,7 @@ int Plfs::f_flush( const char *path, struct fuse_file_info *fi )
     FUSE_PLFS_EXIT;
 }
 
-// returns 0 or -errno
+// returns 0 or -err
 // there's complexity bec we saw bugs here before when we were doing
 // a cvs co into a plfs mount.  I think the problem was doing a rename
 // on an open file so that what the complexity is

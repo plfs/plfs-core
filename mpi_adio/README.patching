@@ -79,7 +79,7 @@ to the ROMIO layer (such as MVAPICH2).
 
       Then, run configure with like this:
 
-      ./configure --with_io_romio_flags=--with-file-system=ufs+nfs+plfs
+      ./configure --with-io-romio-flags=--with-file-system=ufs+nfs+plfs
 
       Other flags can be passed to configure such as prefix.
       It is also possible to put the above in a platform file and give that to
