@@ -30,8 +30,10 @@ class Plfs_fd
         virtual void setPath( string p, struct plfs_backend *b ) = 0;
         virtual const char *getPath() = 0;
 
-        // a function that all might not necessarily implement
+        // functions that all might not necessarily implement
         virtual int compress_metadata(const char *path) = 0;
+	virtual int getxattr(void *value, const char *key, size_t len) = 0;
+	virtual int setxattr(const void *value, const char *key, size_t len) = 0;
 
         // a function called to rename an open file
         // the caller must also call the FS rename separately

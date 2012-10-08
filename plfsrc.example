@@ -30,7 +30,8 @@
 
 #################
 # num_hostdirs:
-# this should be square root of total number of compute nodes
+# this should be set to a number near the square root of the total number of
+# PE's on the system
 #################
 # 
 # Official rule:

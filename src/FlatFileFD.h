@@ -10,7 +10,7 @@ class Flat_fd : public Plfs_fd
 {
     public:
         Flat_fd() {
-            backend_fd = -1;
+            backend_fh = NULL;
             refs = 0;
         }
         ~Flat_fd();
@@ -28,7 +28,7 @@ class Flat_fd : public Plfs_fd
                   bool *reopen);
         bool is_good();
 
-        int compress_metadata(const char *path) {
+        int compress_metadata(const char *xpath) {
             return 0;
         }
         int incrementOpens(int amount) {
@@ -41,17 +41,24 @@ class Flat_fd : public Plfs_fd
         const char *getPath() {
             return path.c_str();
         }
-        int rename(const char *path, struct plfs_backend *b) {
-            setPath(path,b);
+        int rename(const char *xpath, struct plfs_backend *b) {
+            setPath(xpath,b);
             return 0;
         }
 
+	int getxattr(void *value, const char *key, size_t len) {
+	  return -ENOSYS;
+	}
+
+	int setxattr(const void *value, const char *key, size_t len) {
+	  return -ENOSYS;
+	}
     private:
         int refs;
         string path;
         string backend_pathname;
         struct plfs_backend *back;
-        int backend_fd;
+        IOSHandle *backend_fh;
 };
 
 #endif

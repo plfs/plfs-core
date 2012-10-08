@@ -7,8 +7,7 @@
 #include "plfs_private.h"
 #include "plfs.h"
 
-// TODO: remove this dependency on container internals
-#include "container_internals.h"
+#include "FileOp.h"
 
 using namespace std;
 
@@ -22,7 +21,7 @@ FlatFileSystem flatfs;
     string path(physical_path);                 \
     free(physical_path);
 
-#define FLAT_EXIT(X) if (X<0) X = -errno; return (X);
+#define FLAT_EXIT(X) return (X);
 
 #define EXPAND_TARGET                           \
     struct plfs_backend *targetback;            \
@@ -33,25 +32,56 @@ FlatFileSystem flatfs;
 
 Flat_fd::~Flat_fd()
 {
-    if (refs > 0 || backend_fd >= 0) {
+    if (refs > 0 || backend_fh != NULL) {
         plfs_debug("File %s is not closed!\n", backend_pathname.c_str());
-        this->back->store->Close(backend_fd);
+        this->back->store->Close(backend_fh);
     }
 }
 
+// this function is shared by chmod/utime/chown maybe others
+// it's here for directories which may span multiple backends
+// returns 0 or -err
+int plfs_flatfile_operation(const char *logical, FileOp& op, IOStore *ios) {
+    FLAT_ENTER;
+    vector<plfs_pathback> dirs;
+    mode_t mode = 0;
+    ret = is_plfs_file(logical, &mode);
+    //perform operation on ALL directories
+    if (S_ISDIR(mode)){
+
+        ret = find_all_expansions(logical, dirs);
+        vector<plfs_pathback>::reverse_iterator ritr;
+        for(ritr = dirs.rbegin(); ritr != dirs.rend() && ret == 0; ++ritr) {
+            ret = op.op(ritr->bpath.c_str(),DT_DIR,ritr->back->store);
+        }
+    }
+    //we hit a regular flat file
+    else if(S_ISREG(mode)){
+        ret = op.op(path.c_str(), DT_REG, ios);
+    }
+    //symlink
+    else{
+        ret = op.op(path.c_str(), DT_LNK, ios);
+    }
+    FLAT_EXIT(ret);
+}
+
+/* ret 0 or -err */
 int
 Flat_fd::open(const char *filename, int flags, pid_t pid,
               mode_t mode, Plfs_open_opt *unused)
 {
-    if (backend_fd != -1) {// This fd has already been opened.
+    if (backend_fh != NULL) {// This fh has already been opened.
         refs++;
     } else {
         /* we assume that the caller has already set this->back */
-        int fd = this->back->store->Open(filename, flags, mode);
-        if (fd < 0) {
-            return -errno;
+        IOSHandle *ofh;
+        int ret;
+        ofh = this->back->store->Open(filename, flags, mode, ret);
+        if (ofh == NULL) {
+            return ret;
         }
-        backend_fd = fd;
+        this->backend_fh = ofh;
         /* XXXCDC: seem comment in FlatFileSystem::open */
         backend_pathname = filename;  /* XXX: replaces logical */
         refs = 1;
@@ -66,53 +96,59 @@ Flat_fd::close(pid_t pid, uid_t u, int flags, Plfs_close_opt *unused)
     if (refs > 0) {
         return refs;    // Others are still using this fd.
     }
-    if (backend_fd >= 0) {
-        this->back->store->Close(backend_fd);
-        backend_fd = -1;
+    if (backend_fh != NULL) {
+        this->back->store->Close(backend_fh);
+        backend_fh = NULL;
     }
     return 0; // Safe to delete the fd.
 }
 
+/* ret 0 or -err */
 ssize_t
 Flat_fd::read(char *buf, size_t size, off_t offset)
 {
-    int ret = this->back->store->Pread(backend_fd, buf, size, offset);
+    int ret = this->backend_fh->Pread(buf, size, offset);
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 ssize_t
 Flat_fd::write(const char *buf, size_t size, off_t offset, pid_t pid)
 {
-    int ret = this->back->store->Pwrite(backend_fd, buf, size, offset);
+    int ret = this->backend_fh->Pwrite(buf, size, offset);
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
 Flat_fd::sync()
 {
-    int ret = this->back->store->Fsync(backend_fd);
+    int ret = this->backend_fh->Fsync();
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
 Flat_fd::sync(pid_t pid)
 {
-    //XXXCDC:iostore via this->back
+    //XXXCDC: this seems bogus to directly call posix sync(2) here?
     int ret = sync(); 
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
-Flat_fd::trunc(const char *path, off_t offset)
+Flat_fd::trunc(const char *xpath, off_t offset)
 {
-    int ret = this->back->store->Ftruncate(backend_fd, offset);
+    int ret = this->backend_fh->Ftruncate(offset);
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
-Flat_fd::getattr(const char *path, struct stat *stbuf, int sz_only)
+Flat_fd::getattr(const char *xpath, struct stat *stbuf, int sz_only)
 {
-    int ret = this->back->store->Fstat(backend_fd, stbuf);
+    int ret = this->backend_fh->Fstat(stbuf);
     FLAT_EXIT(ret);
 }
 
@@ -132,7 +168,7 @@ Flat_fd::query(size_t *writers, size_t *readers, size_t *bytes_written,
 
 bool Flat_fd::is_good()
 {
-    if (backend_fd > 0 && refs > 0) {
+    if (backend_fh != NULL && refs > 0) {
         return true;
     }
     return false;
@@ -191,7 +227,8 @@ int
 FlatFileSystem::chown( const char *logical, uid_t u, gid_t g )
 {
     FLAT_ENTER;
-    ret = flatback->store->Lchown(path.c_str(),u,g);
+    ChownOp op(u,g);
+    ret = plfs_flatfile_operation(logical,op,flatback->store);
     FLAT_EXIT(ret);
 }
 
@@ -199,10 +236,12 @@ int
 FlatFileSystem::chmod( const char *logical, mode_t mode )
 {
     FLAT_ENTER;
-    ret = flatback->store->Chmod(path.c_str(),mode);
+    ChmodOp op(mode);
+    ret = plfs_flatfile_operation(logical,op,flatback->store);
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
 FlatFileSystem::getmode( const char *logical, mode_t *mode)
 {
@@ -219,10 +258,12 @@ int
 FlatFileSystem::access( const char *logical, int mask )
 {
     FLAT_ENTER;
-    ret = flatback->store->Access(path.c_str(),mask);
+    AccessOp op(mask);
+    ret = plfs_flatfile_operation(logical,op,flatback->store);
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
 FlatFileSystem::rename( const char *logical, const char *to )
 {
@@ -234,8 +275,8 @@ FlatFileSystem::rename( const char *logical, const char *to )
         goto out;
     }
     if (S_ISREG(stbuf.st_mode) || S_ISLNK(stbuf.st_mode)) {
-        ret = Util::retValue(flatback->store->Rename(old_canonical.c_str(),
-                                                     new_canonical.c_str()));
+        ret = flatback->store->Rename(old_canonical.c_str(),
+                                      new_canonical.c_str());
         // EXDEV is expected when the rename crosses different volumes.
         // We should do the copy+unlink in this case.
         if (ret == -EXDEV) {
@@ -244,8 +285,8 @@ FlatFileSystem::rename( const char *logical, const char *to )
             if (ret == 0) {
                 ret = flatback->store->Unlink(old_canonical.c_str());
             }
-            mlog(FUSE_DCOMMON, "Cross-device rename, do CopyFile+Unlink, "
-                 "ret: %d. errno: %d.\n", ret, errno);
+            mlog(PLFS_DCOMMON, "Cross-device rename, CopyFile+Unlink ret: %d",
+                 ret); 
         }
     } else if (S_ISDIR(stbuf.st_mode)) {
         vector<plfs_pathback> srcs, dsts;
@@ -258,10 +299,9 @@ FlatFileSystem::rename( const char *logical, const char *to )
         assert(srcs.size()==dsts.size());
         // now go through and rename all of them (ignore ENOENT)
         for(size_t i = 0; i < srcs.size(); i++) {
-            //XXXCDC:iostore via flatback
             int err;
-            err = Util::retValue(flatback->store->Rename(srcs[i].bpath.c_str(),
-                                                        dsts[i].bpath.c_str()));
+            err = flatback->store->Rename(srcs[i].bpath.c_str(),
+                                          dsts[i].bpath.c_str());
             if (err == -ENOENT) {
                 err = 0;    // might not be distributed on all
             }
@@ -291,10 +331,12 @@ int
 FlatFileSystem::utime( const char *logical, struct utimbuf *ut )
 {
     FLAT_ENTER;
-    ret = flatback->store->Utime(path.c_str(),ut);
+    UtimeOp op(ut);
+    ret = plfs_flatfile_operation(logical,op,flatback->store);
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
 FlatFileSystem::getattr(const char *logical, struct stat *stbuf,int sz_only)
 {
@@ -303,6 +345,7 @@ FlatFileSystem::getattr(const char *logical, struct stat *stbuf,int sz_only)
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
 FlatFileSystem::trunc(const char *logical, off_t offset, int open_file)
 {
@@ -315,22 +358,30 @@ int
 FlatFileSystem::unlink( const char *logical )
 {
     FLAT_ENTER;
-    ret = flatback->store->Unlink(path.c_str());
+    UnlinkOp op;
+    ret = plfs_flatfile_operation(logical,op,flatback->store);
     FLAT_EXIT(ret);
 }
 
 int
 FlatFileSystem::mkdir(const char *logical, mode_t mode)
 {
-    return container_mkdir(logical, mode);
+    FLAT_ENTER;
+    CreateOp op(mode);
+    ret = plfs_iterate_backends(logical,op);
+    FLAT_EXIT(ret);
 }
 
 int
 FlatFileSystem::readdir(const char *logical, void *buf)
 {
-    return container_readdir(logical, buf);
+    FLAT_ENTER;
+    ReaddirOp op(NULL,(set<string> *)buf,false,false);
+    ret = plfs_iterate_backends(logical,op);
+    FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
 FlatFileSystem::readlink(const char *logical, char *buf, size_t bufsize)
 {
@@ -345,9 +396,22 @@ FlatFileSystem::readlink(const char *logical, char *buf, size_t bufsize)
 int
 FlatFileSystem::rmdir(const char *logical)
 {
-    return container_rmdir(logical);
+    FLAT_ENTER;
+    mode_t mode;
+    ret = FlatFileSystem::getmode(logical, &mode);
+    UnlinkOp op;
+    ret = plfs_iterate_backends(logical,op);
+    if (ret==-ENOTEMPTY) {
+        mlog(PLFS_DRARE, "Started removing a non-empty directory %s. "
+             "Will restore.", logical);
+        CreateOp cop(mode);
+        cop.ignoreErrno(-EEXIST);
+        plfs_iterate_backends(logical,cop); // don't overwrite ret
+    }
+    FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
 FlatFileSystem::symlink(const char *logical, const char *to)
 {
@@ -360,6 +424,7 @@ FlatFileSystem::symlink(const char *logical, const char *to)
     FLAT_EXIT(ret);
 }
 
+/* ret 0 or -err */
 int
 FlatFileSystem::statvfs(const char *logical, struct statvfs *stbuf)
 {

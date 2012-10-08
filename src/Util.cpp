@@ -3,7 +3,6 @@
 #endif
 
 #include <stdlib.h>
-#include <errno.h>
 #include "COPYRIGHT.h"
 #include <string>
 #include <fstream>
@@ -37,6 +36,7 @@ using namespace std;
 #include "LogMessage.h"
 #include "mlogfacs.h"
 #include "Container.h"
+#include "mlog_oss.h"
 
 #ifdef HAVE_SYS_FSUID_H
 #include <sys/fsuid.h>
@@ -46,7 +46,7 @@ using namespace std;
 
 #define O_CONCURRENT_WRITE                         020000000000
 
-// TODO.  Some functions in here return -errno.  Probably none of them
+// TODO.  Some functions in here return -err.  Probably none of them
 // should
 
 // shoot.  I just realized.  All this close timing stuff is not thread safe.
@@ -64,7 +64,7 @@ off_t total_ops = 0;
 #else
 #define DEBUG_ENTER /* mlog(UT_DAPI, "Enter %s", __FUNCTION__ );*/
 #define DEBUG_EXIT  LogMessage lm1;                             \
-                        ostringstream oss;                          \
+                        mss::mlog_oss oss(UT_DAPI);             \
                         oss << "Util::" << setw(13) << __FUNCTION__; \
                         if (path) oss << " on " << path << " ";     \
                         oss << setw(7) << " ret=" << setprecision(0) << ret    \
@@ -152,15 +152,6 @@ Util::SeriousError( string msg, pid_t pid )
         fprintf(debugfile,"%s\n",msg.c_str());
         fclose(debugfile);
     }
-}
-
-void
-Util::OpenError(const char *file, const char *func, int line, int Err, pid_t p)
-{
-    ostringstream oss;
-    oss << "open() error seen at " << file << ":" << func << ":" << line << ": "
-        << strerror(Err);
-    //SeriousError(oss.str(), p);
 }
 
 // initialize static variables
@@ -334,7 +325,7 @@ void Util::addTime( string function, double elapsed, bool error )
 int Util::MutexLock(  pthread_mutex_t *mux , const char *where )
 {
     ENTER_MUX;
-    ostringstream os, os2;
+    mss::mlog_oss os(UT_DAPI), os2(UT_DAPI);
     os << "Locking mutex " << mux << " from " << where;
     mlog(UT_DAPI, "%s", os.str().c_str() );
     pthread_mutex_lock( mux );
@@ -346,7 +337,7 @@ int Util::MutexLock(  pthread_mutex_t *mux , const char *where )
 int Util::MutexUnlock( pthread_mutex_t *mux, const char *where )
 {
     ENTER_MUX;
-    ostringstream os;
+    mss::mlog_oss os(UT_DAPI);
     os << "Unlocking mutex " << mux << " from " << where;
     mlog(UT_DAPI, "%s", os.str().c_str() );
     pthread_mutex_unlock( mux );
@@ -354,18 +345,20 @@ int Util::MutexUnlock( pthread_mutex_t *mux, const char *where )
 }
 
 // Use most popular used read+write to copy file,
-// as mmap/sendfile/splice may fail on some system.
+// as map/sendfile/splice may fail on some system.
+// returns 0 or -err
 int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
                     IOStore *toios)
 {
     ENTER_PATH;
-    int fd_from, fd_to, buf_size;
+    IOSHandle *fh_from, *fh_to;
+    int buf_size;
     ssize_t read_len, write_len, copy_len;
     char *buf = NULL, *ptr;
     struct stat sbuf;
     mode_t stored_mode;
     ret = pathios->Lstat(path, &sbuf);
-    if (ret) {
+    if (ret < 0) {
         goto out;
     }
     ret = -1;
@@ -382,15 +375,15 @@ int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
         ret = toios->Symlink(buf, to);
         goto out;
     }
-    fd_from = pathios->Open(path, O_RDONLY);
-    if (fd_from<0) {
+    fh_from = pathios->Open(path, O_RDONLY, ret);
+    if (fh_from == NULL) {
         goto out;
     }
     stored_mode = umask(0);
-    fd_to = toios->Open(to, O_WRONLY | O_CREAT, sbuf.st_mode);
+    fh_to = toios->Open(to, O_WRONLY | O_CREAT, sbuf.st_mode, ret);
     umask(stored_mode);
-    if (fd_to<0) {
-        pathios->Close(fd_from);
+    if (fh_to == NULL) {
+        pathios->Close(fh_from);
         goto out;
     }
     if (!sbuf.st_size) {
@@ -403,15 +396,17 @@ int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
         goto done;
     }
     copy_len = 0;
-    while ((read_len = pathios->Read(fd_from, buf, buf_size)) != 0) {
-        if ((read_len==-1)&&(errno!=EINTR)) {
+    while ((read_len = fh_from->Read(buf, buf_size)) != 0) {
+        if (read_len < 0 && read_len != -EINTR) {
             break;
-        } else if (read_len>0) {
+        }
+        if (read_len>0) {
             ptr = buf;
-            while ((write_len = toios->Write(fd_to, ptr, read_len)) != 0) {
-                if ((write_len==-1)&&(errno!=EINTR)) {
+            while ((write_len = fh_to->Write(ptr, read_len)) != 0) {
+                if (write_len < 0 && write_len != -EINTR) {
                     goto done;
-                } else if (write_len==read_len) {
+                }
+                if (write_len==read_len) {
                     copy_len += write_len;
                     break;
                 } else if(write_len>0) {
@@ -425,13 +420,13 @@ int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
     if (copy_len==sbuf.st_size) {
         ret = 0;
     }
-    if (ret)
+    if (ret < 0)
         mlog(UT_DCOMMON, "Util::CopyFile, copy from %s to %s, ret: %d, %s",
-             path, to, ret, strerror(errno));
+             path, to, ret, strerror(-ret));
 done:
-    pathios->Close(fd_from);
-    toios->Close(fd_to);
-    if (ret) {
+    pathios->Close(fh_from);
+    toios->Close(fh_to);
+    if (ret < 0) {
         toios->Unlink(to);    // revert our change, delete the file created.
     }
 out:
@@ -447,36 +442,22 @@ out:
  * @param path path to create the file on in backend
  * @param mode mode for the create
  * @param store the store to create the file on
- * @return 0 or -error
+ * @return 0 or -err
  */
 int Util::MakeFile( const char *path, mode_t mode, IOStore *store )
 {
     ENTER_PATH;
-    ret = store->Creat( path, mode );
-    if ( ret > 0 ) {
-        ret = store->Close( ret );
-    } else {
-        ret = -errno;
-    }
+    IOSHandle *hand;
+    hand = store->Creat( path, mode, ret );
+    if ( hand != NULL) {
+        ret = store->Close( hand );
+    } // else, err was already set in ret
     EXIT_UTIL;
 }
 
 char *Util::Strdup(const char *s1)
 {
     return strdup(s1);
-}
-
-/*
- * Util::MapFile: maps files in memory, read-only
- */
-int Util::MapFile( size_t len, int fildes, void **retaddr, IOStore *store)
-{
-    ENTER_UTIL;
-    int prot  = PROT_READ;
-    int flags = MAP_PRIVATE|MAP_NOCACHE;
-    *retaddr = store->Mmap( NULL, len, prot, flags, fildes, 0 );
-    ret = ( *retaddr == (void *)NULL || *retaddr == (void *)-1 ? -1 : 0 );
-    EXIT_UTIL;
 }
 
 bool Util::exists( const char *path, IOStore *store )
@@ -527,13 +508,13 @@ double Util::getTime( )
     struct timeval time;
     if ( gettimeofday( &time, NULL ) != 0 ) {
         mlog(UT_CRIT, "WTF: %s failed: %s",
-             __FUNCTION__, strerror(errno));
+             __FUNCTION__, strerror(errno)); /* error# ok */
     }
     return (double)time.tv_sec + time.tv_usec/1.e6;
 }
 
-// returns n or returns -1
-ssize_t Util::Writen( int fd, const void *vptr, size_t n, IOStore *store )
+// returns n or returns -err
+ssize_t Util::Writen(const void *vptr, size_t n, IOSHandle *hand)
 {
     ENTER_UTIL;
     size_t      nleft;
@@ -543,11 +524,9 @@ ssize_t Util::Writen( int fd, const void *vptr, size_t n, IOStore *store )
     nleft = n;
     ret   = n;
     while (nleft > 0) {
-        if ( (nwritten = store->Write(fd, ptr, nleft)) <= 0) {
-            if (errno == EINTR) {
-                nwritten = 0;    /* and call write() again */
-            } else {
-                ret = -1;           /* error */
+        if ( (nwritten = hand->Write(ptr, nleft)) <= 0) {
+            if (nwritten < 0 && nwritten != -EINTR) {
+                ret = nwritten;   /* error! */
                 break;
             }
         }
@@ -675,9 +654,9 @@ int Util::Setfsgid( gid_t g )
 {
     ENTER_UTIL;
 #ifndef __APPLE__
-    errno = 0;
+    errno = 0;     /* error# ok, but is this necessary? */
     ret = setfsgid( g );
-    mlog(UT_DCOMMON, "Set gid %d: %s", g, strerror(errno) );
+    mlog(UT_DCOMMON, "Set gid %d: %s", g, strerror(errno) ); /* error# ok */
 #endif
     EXIT_UTIL;
 }
@@ -686,17 +665,11 @@ int Util::Setfsuid( uid_t u )
 {
     ENTER_UTIL;
 #ifndef __APPLE__
-    errno = 0;
+    errno = 0;     /* error# ok, but is this necessary? */
     ret = setfsuid( u );
-    mlog(UT_DCOMMON, "Set uid %d: %s", u, strerror(errno) );
+    mlog(UT_DCOMMON, "Set uid %d: %s", u, strerror(errno) ); /* error# ok */
 #endif
     EXIT_UTIL;
-}
-
-// a utility for turning return values into 0 or -ERRNO
-int Util::retValue( int res )
-{
-    return (res == 0 ? 0 : -errno);
 }
 
 char *Util::hostname()

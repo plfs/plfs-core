@@ -11,8 +11,8 @@
 #include "FileOp.h"
 #include "container_internals.h"
 #include "ContainerFS.h"
+#include "mlog_oss.h"
 
-#include <errno.h>
 #include <list>
 #include <stdarg.h>
 #include <limits>
@@ -39,7 +39,7 @@ bool cache_index_on_rdwr = false;   // DO NOT change to true!!!!
 
 // a struct for making reads be multi-threaded
 typedef struct {
-    int fd;
+    IOSHandle *fh;
     size_t length;
     off_t chunk_offset;
     off_t logical_offset;
@@ -77,7 +77,7 @@ plfs_dump_index_size()
     return (int)sizeof(e);
 }
 
-// returns 0 or -errno
+// returns 0 or -err
 int
 plfs_dump_index( FILE *fp, const char *logical, int compress )
 {
@@ -97,7 +97,7 @@ plfs_dump_index( FILE *fp, const char *logical, int compress )
 
 // should be called with a logical path and already_expanded false
 // or called with a physical path and already_expanded true
-// returns 0 or -errno
+// returns 0 or -err
 int
 container_flatten_index(Container_OpenFile *pfd, const char *logical)
 {
@@ -112,6 +112,7 @@ container_flatten_index(Container_OpenFile *pfd, const char *logical)
         newly_created = true;
         // before we populate, need to blow away any old one
         ret = Container::populateIndex(path,expansion_info.backend,index,false);
+        /* XXXCDC: why are we ignoring return value of populateIndex? */
     }
     if (is_plfs_file(logical,NULL)) {
         ret = Container::flattenIndex(path,expansion_info.backend,index);
@@ -122,13 +123,6 @@ container_flatten_index(Container_OpenFile *pfd, const char *logical)
         delete index;
     }
     PLFS_EXIT(ret);
-}
-
-// a shortcut for functions that are expecting zero
-int
-retValue( int res )
-{
-    return Util::retValue(res);
 }
 
 // this is a helper routine that takes a logical path and figures out a
@@ -208,7 +202,7 @@ container_create( const char *logical, mode_t mode, int flags, pid_t pid )
 // canonical_container/hostdir but if that hostdir doesn't exist,
 // then the proc creates a shadow_container/hostdir and links that
 // into the canonical_container
-// returns number of current writers sharing the WriteFile * or -errno
+// returns number of current writers sharing the WriteFile * or -err
 int
 addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
           string logical )
@@ -267,7 +261,7 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
             continue;
         }
     }
-    // all done.  we return either -errno or number of writers.
+    // all done.  we return either -err or number of writers.
     if ( ret == 0 ) {
         ret = writers;
     }
@@ -303,7 +297,7 @@ isReader( int flags )
 // may not be efficient since it checks every backend and probably some backends
 // won't exist.  Will be better to make this just go through canonical and find
 // everything that way.
-// returns 0 or -errno
+// returns 0 or -err
 int
 plfs_collect_from_containers(const char *logical, vector<plfs_pathback> &files,
                              vector<plfs_pathback> &dirs,
@@ -321,8 +315,7 @@ plfs_collect_from_containers(const char *logical, vector<plfs_pathback> &files,
             itr++) {
         ret = Util::traverseDirectoryTree(itr->bpath.c_str(), itr->back,
                                           files,dirs,links);
-        if (ret!=0) {
-            ret = -errno;
+        if (ret < 0) {
             break;
         }
     }
@@ -333,7 +326,11 @@ plfs_collect_from_containers(const char *logical, vector<plfs_pathback> &files,
 // anything that needs to operate on possibly a lot of items
 // either on a bunch of dirs across the backends
 // or on a bunch of entries within a container
-// returns 0 or -errno
+// Be careful.  This performs a stat.  Do not use
+// for performance critical operations.  If needed,
+// then you'll have to figure out how to cheaply pass
+// the mode_t in
+// returns 0 or -err
 int
 plfs_file_operation(const char *logical, FileOp& op)
 {
@@ -348,6 +345,7 @@ plfs_file_operation(const char *logical, FileOp& op)
     // else just operate on whatever it is (ENOENT, symlink)
     mode_t mode = 0;
     ret = is_plfs_file(logical,&mode);
+    bool is_container = false; // differentiate btwn logical dir and container
     if (S_ISREG(mode)) { // it's a PLFS file
         if (op.onlyAccessFile()) {
             pb.bpath = Container::getAccessFilePath(path);
@@ -356,6 +354,7 @@ plfs_file_operation(const char *logical, FileOp& op)
             ret = 0;    // ret was one from is_plfs_file
         } else {
             // everything
+            is_container=true;
             ret = plfs_collect_from_containers(logical,files,dirs,links);
         }
     } else if (S_ISDIR(mode)) { // need to iterate across dirs
@@ -379,7 +378,8 @@ plfs_file_operation(const char *logical, FileOp& op)
         op.op(ritr->bpath.c_str(),DT_LNK,ritr->back->store);
     }
     for(ritr = dirs.rbegin(); ritr != dirs.rend() && ret == 0; ++ritr) {
-        ret = op.op(ritr->bpath.c_str(),DT_DIR,ritr->back->store);
+        ret = op.op(ritr->bpath.c_str(),is_container?DT_CONTAINER:DT_DIR,
+                    ritr->back->store);
     }
     mlog(INT_DAPI, "%s: ret %d", __FUNCTION__,ret);
     PLFS_EXIT(ret);
@@ -391,7 +391,7 @@ container_chown( const char *logical, uid_t u, gid_t g )
 {
     PLFS_ENTER;
     ChownOp op(u,g);
-    op.ignoreErrno(ENOENT); // see comment in container_utime
+    op.ignoreErrno(-ENOENT); // see comment in container_utime
     ret = plfs_file_operation(logical,op);
     PLFS_EXIT(ret);
 }
@@ -434,7 +434,7 @@ container_access( const char *logical, int mask )
          * make sense to call access on a logical path....
          */
         mlog(MLOG_CRIT, "container_access on bad file %s", logical);
-        /*  ret = retValue(Util::Access(logical,mask)); */
+        /*  ret = Util::Access(logical,mask); */
         ret = -EIO;
     } else {
         // oh look.  someone here is using PLFS for its intended purpose to
@@ -445,17 +445,16 @@ container_access( const char *logical, int mask )
     PLFS_EXIT(ret);
 }
 
-// returns 0 or -errno
+// returns 0 or -err
 int container_statvfs( const char *logical, struct statvfs *stbuf )
 {
     PLFS_ENTER;
-    ret = retValue( expansion_info.backend->store->Statvfs(path.c_str(),
-                                                           stbuf) );
+    ret = expansion_info.backend->store->Statvfs(path.c_str(), stbuf);
     PLFS_EXIT(ret);
 }
 
 // vptr needs to be a pointer to a set<string>
-// returns 0 or -errno
+// returns 0 or -err
 int
 container_readdir( const char *logical, void *vptr )
 {
@@ -527,7 +526,6 @@ container_rename( const char *logical, const char *to )
         /* XXX: check backend usage here? */
         err = expansion_info.backend->store->Rename(srcs[i].bpath.c_str(),
                                                     dsts[i].bpath.c_str());
-        err = retValue(err);
         if (err == -ENOENT) {
             err = 0;    // a file might not be distributed on all
         }
@@ -557,7 +555,7 @@ container_rename( const char *logical, const char *to )
 // this has to iterate over the backends and make it everywhere
 // like all directory ops that iterate over backends, ignore weird failures
 // due to inconsistent backends.  That shouldn't happen but just in case
-// returns 0 or -errno
+// returns 0 or -err
 int
 container_mkdir( const char *logical, mode_t mode )
 {
@@ -572,7 +570,7 @@ container_mkdir( const char *logical, mode_t mode )
 // so if we delete some and then later discover that some aren't empty
 // we need to restore them all
 // need to test this corner case probably
-// return 0 or -errno
+// return 0 or -err
 int
 container_rmdir( const char *logical )
 {
@@ -585,9 +583,9 @@ container_rmdir( const char *logical )
     if (ret==-ENOTEMPTY) {
         mlog(PLFS_DRARE, "Started removing a non-empty directory %s. "
              "Will restore.", logical);
-        CreateOp op(mode);
-        op.ignoreErrno(EEXIST);
-        plfs_iterate_backends(logical,op); // don't overwrite ret
+        CreateOp cop(mode);
+        cop.ignoreErrno(-EEXIST);
+        plfs_iterate_backends(logical,cop); // don't overwrite ret
     }
     PLFS_EXIT(ret);
 }
@@ -604,7 +602,7 @@ container_rmdir( const char *logical )
 // different previous canonical location is now recovered to the new canonical
 // location.  hopefully it always works but it won't currently work across
 // different file systems because it uses rename()
-// returns 0 or -errno (-EEXIST means it didn't need to be recovered)
+// returns 0 or -err (-EEXIST means it didn't need to be recovered)
 // TODO: this should be made specific to container.  any general code
 // should be moved out
 int
@@ -709,7 +707,7 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
     ReadTask task;
     do {
         // find a read task
-        ret = index->globalLookup(&(task.fd),
+        ret = index->globalLookup(&(task.fh),
                                   &(task.chunk_offset),
                                   &(task.length),
                                   task.path,
@@ -727,17 +725,17 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
         }
         // then if there is anything to it, add it to the queue
         if ( ret == 0 && task.length > 0 ) {
-            ostringstream oss;
+            mss::mlog_oss oss(INT_DCOMMON);
             oss << chunk << ".1) Found index entry offset "
                 << task.chunk_offset << " len "
-                << task.length << " fd " << task.fd << " path "
+                << task.length << " fh " << task.fh << " path "
                 << task.path << endl;
             // check to see if we can combine small sequential reads
             // when merging is off, that breaks things even more.... ?
             // there seems to be a merging bug now too
             if ( ! tasks->empty() > 0 ) {
                 ReadTask lasttask = tasks->back();
-                if ( lasttask.fd == task.fd &&
+                if ( lasttask.fh == task.fh &&
                         lasttask.hole == task.hole &&
                         lasttask.chunk_offset + (off_t)lasttask.length ==
                         task.chunk_offset &&
@@ -746,7 +744,7 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
                     // merge last into this and pop last
                     oss << chunk++ << ".1) Merge with last index entry offset "
                         << lasttask.chunk_offset << " len "
-                        << lasttask.length << " fd " << lasttask.fd
+                        << lasttask.length << " fh " << lasttask.fh
                         << endl;
                     task.chunk_offset = lasttask.chunk_offset;
                     task.length += lasttask.length;
@@ -762,7 +760,7 @@ find_read_tasks(Index *index, list<ReadTask> *tasks, size_t size, off_t offset,
     } while(bytes_remaining && ret == 0 && task.length);
     PLFS_EXIT(ret);
 }
-
+/* ret 0 or -err */
 int
 perform_read_task( ReadTask *task, Index *index )
 {
@@ -771,53 +769,53 @@ perform_read_task( ReadTask *task, Index *index )
         memset((void *)task->buf, 0, task->length);
         ret = task->length;
     } else {
-        if ( task->fd < 0 ) {
+        if ( task->fh == NULL ) {
             // since the task was made, maybe someone else has stashed it
             index->lock(__FUNCTION__);
-            task->fd = index->getChunkFd(task->chunk_id);
+            task->fh = index->getChunkFh(task->chunk_id);
             index->unlock(__FUNCTION__);
-            if ( task->fd < 0 ) {   // not currently stashed, we have to open it
+            if ( task->fh == NULL) { // not currently stashed, we have to open
                 bool won_race = true;   // assume we will be first stash
                 // This is where the data chunk is opened.  We need to
                 // create a helper function that does this open and reacts
                 // appropriately when it fails due to metalinks
                 // this is currently working with metalinks.  We resolve
                 // them before we get here
-                task->fd = task->backend->store->Open(task->path.c_str(),
-                                                      O_RDONLY);
-                if ( task->fd < 0 ) {
+                task->fh = task->backend->store->Open(task->path.c_str(),
+                                                      O_RDONLY, ret);
+                if ( task->fh == NULL ) {
                     mlog(INT_ERR, "WTF? Open of %s: %s",
-                         task->path.c_str(), strerror(errno) );
-                    return -errno;
+                         task->path.c_str(), strerror(-ret) );
+                    return ret;
                 }
                 // now we got the fd, let's stash it in the index so others
                 // might benefit from it later
                 // someone else might have stashed one already.  if so,
                 // close the one we just opened and use the stashed one
                 index->lock(__FUNCTION__);
-                int existing = index->getChunkFd(task->chunk_id);
-                if ( existing >= 0 ) {
+                IOSHandle *existing;
+                existing = index->getChunkFh(task->chunk_id);
+                if ( existing != NULL ) {
                     won_race = false;
                 } else {
-                    index->setChunkFd(task->chunk_id, task->fd);   // stash it
+                    index->setChunkFh(task->chunk_id, task->fh);   // stash it
                 }
                 index->unlock(__FUNCTION__);
                 if ( ! won_race ) {
-                    task->backend->store->Close(task->fd);
-                    task->fd = existing; // already stashed by someone else
+                    task->backend->store->Close(task->fh);
+                    task->fh = existing; // already stashed by someone else
                 }
-                mlog(INT_DCOMMON, "Opened fd %d for %s and %s stash it",
-                     task->fd, task->path.c_str(),
+                mlog(INT_DCOMMON, "Opened fh %p for %s and %s stash it",
+                     task->fh, task->path.c_str(),
                      won_race ? "did" : "did not");
             }
         }
         /* here's where we actually read container data! */
-        ret = task->backend->store->Pread( task->fd, task->buf, task->length,
-                                           task->chunk_offset );
+        ret = task->fh->Pread(task->buf, task->length, task->chunk_offset );
     }
-    ostringstream oss;
+    mss::mlog_oss oss(INT_DCOMMON);
     oss << "\t READ TASK: offset " << task->chunk_offset << " len "
-        << task->length << " fd " << task->fd << ": ret " << ret;
+        << task->length << " fh " << task->fh << ": ret " << ret;
     mlog(INT_DCOMMON, "%s", oss.str().c_str() );
     PLFS_EXIT(ret);
 }
@@ -855,7 +853,7 @@ reader_thread( void *va )
     pthread_exit((void *) ret);
 }
 
-// returns -errno or bytes read
+// returns -err or bytes read
 // TODO: rename this to container_reader or something better
 ssize_t
 plfs_reader(Container_OpenFile *pfd, char *buf, size_t size, off_t offset,
@@ -893,10 +891,9 @@ plfs_reader(Container_OpenFile *pfd, char *buf, size_t size, off_t offset,
              (unsigned long)num_threads,
              (unsigned long)offset);
         ThreadPool threadpool(num_threads,reader_thread, (void *)&args);
-        error = threadpool.threadError();   // returns errno
+        error = threadpool.threadError();   // returns negative err
         if ( error ) {
-            mlog(INT_DRARE, "THREAD pool error %s", strerror(error) );
-            error = -error;       // convert to -errno
+            mlog(INT_DRARE, "THREAD pool error %s", strerror(-error) );
         } else {
             vector<void *> *stati    = threadpool.getStati();
             for( size_t t = 0; t < num_threads; t++ ) {
@@ -926,7 +923,7 @@ plfs_reader(Container_OpenFile *pfd, char *buf, size_t size, off_t offset,
     return( error < 0 ? error : total );
 }
 
-// returns -errno or bytes read
+// returns -err or bytes read
 ssize_t
 container_read( Container_OpenFile *pfd, char *buf, size_t size, off_t offset )
 {
@@ -997,7 +994,7 @@ plfs_expand_path(const char *logical,char **physical, void **pmountp,
 // this function still works even with metalink stuff
 // probably though we should make an opaque function in
 // Container.cpp that encapsulates this....
-// returns -errno if the opendir fails
+// returns -err if the opendir fails
 // returns -EISDIR if it's actually a directory and not a file
 // returns a positive number otherwise as even an empty container
 // will have at least one hostdir
@@ -1007,20 +1004,19 @@ int
 plfs_num_host_dirs(int *hostdir_count,char *target, void *vback, char *bm)
 {
     // Directory reading variables
-    //XXXCDC: should use the iostore for IO
     IOStore *store = ((plfs_backend *)vback)->store;
-    DIR *dirp;
+    IOSDirHandle *dirp;
     struct dirent entstore, *dirent;
-    int isfile = 0;
+    int isfile = 0, ret = 0, rv;
     *hostdir_count = 0;
     // Open the directory and check value
-    if ((dirp = store->Opendir(target)) == NULL) {
+    if ((dirp = store->Opendir(target,ret)) == NULL) {
         mlog(PLFS_DRARE, "Num hostdir opendir error on %s",target);
-        *hostdir_count = -errno;
+        *hostdir_count = ret;  /* XXX  why? */
         return *hostdir_count;
     }
     // Start reading the directory
-    while (store->Readdir_r(dirp, &entstore, &dirent) == 0 && dirent != NULL) {
+    while (dirp->Readdir_r(&entstore, &dirent) == 0 && dirent != NULL) {
         // Look for entries that beging with hostdir
         if(strncmp(HOSTDIRPREFIX,dirent->d_name,strlen(HOSTDIRPREFIX))==0) {
             char *substr;
@@ -1045,10 +1041,10 @@ plfs_num_host_dirs(int *hostdir_count,char *target, void *vback, char *bm)
         }
     }
     // Close the dir error out if we have a problem
-    if (store->Closedir(dirp) == -1 ) {
+    if ((rv = store->Closedir(dirp)) < 0) {
         mlog(PLFS_DRARE, "Num hostdir closedir error on %s",target);
-        *hostdir_count = -errno;
-        return *hostdir_count;
+        *hostdir_count = rv;
+        return(rv);
     }
     mlog(PLFS_DCOMMON, "%s of %s isfile %d hostdirs %d",
                __FUNCTION__,target,isfile,*hostdir_count);
@@ -1138,7 +1134,7 @@ plfs_hostdir_rddir(void **index_stream,char *targets,int rank,
  * @param rank top-level rank (not the split one)
  * @param pmount logical PLFS mount point where file being open resides
  * @param pback the the canonical backend
- * @return size of hostdir stream entries or -errno
+ * @return size of hostdir stream entries or -err
  */
 int
 plfs_hostdir_zero_rddir(void **entries,const char *path,int rank,
@@ -1195,6 +1191,7 @@ plfs_parindex_read(int rank,int ranks_per_comm,void *index_files,
     if (rv != 0) {
         /* this shouldn't ever happen */
         mlog(INT_CRIT, "plfs_parindex_read: backlookup failed?");
+        mlog(INT_CRIT, "plfs_parindex_read: phys=%s", phys.c_str());
         return(rv);
     }
     mlog(INT_DCOMMON, "Hostdir path pushed on the list %s (bpath=%s)",
@@ -1277,15 +1274,15 @@ plfs_parindexread_merge(const char *path,char *index_streams,
     Index merger(path, NULL);  /* temporary obj use for collection */
     // Merge all of the indices that were passed in
     for(count=0; count<procs; count++) {
-        char *index_stream;
+        char *istream;
         if(count>0) {
             int index_inc=index_sizes[count-1];
             mlog(INT_DCOMMON, "Incrementing the index by %d",index_inc);
             index_streams+=index_inc;
         }
         Index *tmp = new Index(path, NULL);
-        index_stream=index_streams;
-        tmp->global_from_stream(index_stream);
+        istream=index_streams;
+        tmp->global_from_stream(istream);
         merger.merge(tmp);
     }
     // Convert temporary merger Index object into a stream and return that
@@ -1423,7 +1420,7 @@ plfs_trim(const char *logical, pid_t pid)
     UnlinkOp op;
     ret = op.op(paths.canonical_hostdir.c_str(),DT_LNK,
                 paths.canonicalback->store);
-    if (ret != 0 && errno==ENOENT) {
+    if (ret != 0 &&  ret == -ENOENT) {
         ret = 0;
     }
     if (ret != 0) {
@@ -1432,7 +1429,7 @@ plfs_trim(const char *logical, pid_t pid)
     // rename the replica at the right location
     ret = paths.canonicalback->store->Rename(replica.c_str(),
                                              paths.canonical_hostdir.c_str());
-    if (ret != 0 && errno==ENOENT) {
+    if (ret != 0 && ret == -ENOENT) {
         ret = 0;
     }
     if (ret != 0) {
@@ -1456,8 +1453,8 @@ plfs_trim(const char *logical, pid_t pid)
     // now remove paths.shadow_hostdir (which might fail due to slow siblings)
     // then remove paths.shadow (which might fail due to slow siblings)
     // the slowest sibling will succeed in removing the shadow container
-    op.ignoreErrno(ENOENT);    // sibling beat us
-    op.ignoreErrno(ENOTEMPTY); // we beat sibling
+    op.ignoreErrno(-ENOENT);    // sibling beat us
+    op.ignoreErrno(-ENOTEMPTY); // we beat sibling
     ret = op.op(paths.shadow_hostdir.c_str(),DT_DIR,paths.shadowback->store);
     if (ret!=0) {
         PLFS_EXIT(ret);
@@ -1497,13 +1494,12 @@ plfs_protect(const char *logical, pid_t pid)
     string src = paths.shadow_hostdir;
     string dst = Container::getHostDirPath(paths.canonical,Util::hostname(),
                                            TMP_SUBDIR);
-    ret = retValue(paths.canonicalback->store->Mkdir(dst.c_str(),
-                                                     DEFAULT_MODE));
+    ret = paths.canonicalback->store->Mkdir(dst.c_str(), CONTAINER_MODE);
     if (ret == -EEXIST || ret == -EISDIR ) {
         ret = 0;
     }
     if (ret != 0) {
-        PLFS_EXIT(-ret);
+        PLFS_EXIT(ret);
     }
     mlog(INT_DCOMMON, "Need to protect contents of %s into %s\n",
          src.c_str(),dst.c_str());
@@ -1556,12 +1552,10 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
     //ret = Container::Access(path.c_str(),flags);
     if ( ret == 0 && flags & O_CREAT ) {
         ret = container_create( logical, mode, flags, pid );
-        EISDIR_DEBUG;
     }
     if ( ret == 0 && flags & O_TRUNC ) {
         // truncating an open file
         ret = container_trunc( NULL, logical, 0,(int)true );
-        EISDIR_DEBUG;
     }
     if ( ret == 0 && *pfd) {
         plfs_reference_count(*pfd);
@@ -1597,11 +1591,9 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
         if ( ret > 0 ) {
             ret = 0;    // add writer returns # of current writers
         }
-        EISDIR_DEBUG;
         if ( ret == 0 && new_writefile ) {
             ret = wf->openIndex( pid );
         }
-        EISDIR_DEBUG;
         if ( ret != 0 && wf ) {
             delete wf;
             wf = NULL;
@@ -1624,11 +1616,10 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
                                                index,true);
                 if ( ret != 0 ) {
                     mlog(INT_DRARE, "%s failed to create index on %s: %s",
-                         __FUNCTION__, path.c_str(), strerror(errno));
+                         __FUNCTION__, path.c_str(), strerror(-ret));
                     delete(index);
                     index = NULL;
                 }
-                EISDIR_DEBUG;
             }
         }
         if ( ret == 0 ) {
@@ -1666,7 +1657,6 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
                 ret = Container::addOpenrecord(path, expansion_info.backend,
                                                Util::hostname(),pid);
             }
-            EISDIR_DEBUG;
         }
         //cerr << __FUNCTION__ << " added open record for " << path << endl;
     } else if ( ret == 0 ) {
@@ -1707,7 +1697,7 @@ container_symlink(const char *logical, const char *to)
     if (exp_info.expand_error) {
         PLFS_EXIT(-ENOENT);
     }
-    ret = retValue(exp_info.backend->store->Symlink(logical, topath.c_str()));
+    ret = exp_info.backend->store->Symlink(logical, topath.c_str());
     mlog(PLFS_DAPI, "%s: %s to %s: %d", __FUNCTION__,
          path.c_str(), topath.c_str(),ret);
     PLFS_EXIT(ret);
@@ -1774,26 +1764,15 @@ container_link(const char *logical, const char *to)
     *(&ret) = 0;    // suppress warning about unused variable
     mlog(PLFS_DAPI, "Can't make a hard link to a container." );
     PLFS_EXIT(-ENOSYS);
-    /*
-    string toPath = expandPath(to);
-    ret = retValue(Util::Link(logical,toPath.c_str()));
-    mlog(PFS_DAPI, "%s: %s to %s: %d", __FUNCTION__,
-            path.c_str(), toPath.c_str(),ret);
-    PLFS_EXIT(ret);
-    */
 }
 
-// returns -1 for error, otherwise number of bytes read
-// therefore can't use retValue here
+// returns -err for error, otherwise number of bytes read
 int
 container_readlink(const char *logical, char *buf, size_t bufsize)
 {
     PLFS_ENTER;
     memset((void *)buf, 0, bufsize);
     ret = expansion_info.backend->store->Readlink(path.c_str(),buf,bufsize);
-    if ( ret < 0 ) {
-        ret = -errno;
-    }
     mlog(PLFS_DAPI, "%s: readlink %s: %d", __FUNCTION__, path.c_str(),ret);
     PLFS_EXIT(ret);
 }
@@ -1807,13 +1786,13 @@ container_readlink(const char *logical, char *buf, size_t bufsize)
 // when it disappears.  So we need to ignore ENOENT.
 // a bit ugly.  Probably we need to do the same
 // thing with chown
-// returns 0 or -errno
+// returns 0 or -err
 int
 container_utime( const char *logical, struct utimbuf *ut )
 {
     PLFS_ENTER;
     UtimeOp op(ut);
-    op.ignoreErrno(ENOENT);
+    op.ignoreErrno(-ENOENT);
     ret = plfs_file_operation(logical,op);
     PLFS_EXIT(ret);
 }
@@ -1897,7 +1876,7 @@ truncateFileToZero(const string &physical_canonical, struct plfs_backend *back,
     // duplicates.
     // duplicates are possible bec a backend can be defined in both
     // shadow_backends and backends
-    op.ignoreErrno(ENOENT);
+    op.ignoreErrno(-ENOENT);
     op.ignore(ACCESSFILE);
     op.ignore(OPENPREFIX);
     op.ignore(VERSIONPREFIX);
@@ -1915,7 +1894,7 @@ truncateFileToZero(const string &physical_canonical, struct plfs_backend *back,
 // this should only be called if the uid has already been checked
 // and is allowed to access this file
 // Container_OpenFile can be NULL
-// returns 0 or -errno
+// returns 0 or -err
 int
 container_getattr(Container_OpenFile *of, const char *logical,
                   struct stat *stbuf,int sz_only)
@@ -1946,8 +1925,7 @@ container_getattr(Container_OpenFile *of, const char *logical,
         } else {
             mlog(PLFS_DCOMMON, "%s on non plfs file %s", __FUNCTION__,
                  path.c_str());
-            ret = retValue( expansion_info.backend->store->Lstat(path.c_str(),
-                                                                 stbuf ) );
+            ret = expansion_info.backend->store->Lstat(path.c_str(),stbuf);
         }
     } else {    // operating on a plfs file here
         // there's a lazy stat flag, sz_only, which means all the caller
@@ -1986,9 +1964,9 @@ container_getattr(Container_OpenFile *of, const char *logical,
     if ( ret != 0 ) {
         mlog(PLFS_DRARE, "logical %s,stashed %s,physical %s: %s",
              logical,of?of->getPath():"NULL",path.c_str(),
-             strerror(errno));
+             strerror(-ret));
     }
-    ostringstream oss;
+    mss::mlog_oss oss(PLFS_DAPI);
     oss << __FUNCTION__ << " of " << path << "("
         << (of == NULL ? "closed" : "open")
         << ") size is " << stbuf->st_size;
@@ -2023,7 +2001,7 @@ plfs_file_version(const char *logical, const char **version)
 
 // the Container_OpenFile can be NULL (e.g. if file is not open by us)
 // be nice to use new FileOp class for this somehow
-// returns 0 or -errno
+// returns 0 or -err
 int
 container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
                 int open_file)
@@ -2037,8 +2015,7 @@ container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
         if ( mode == 0 ) {
             ret = -ENOENT;
         } else {
-            ret = retValue(expansion_info.backend->store->Truncate(path.c_str(),
-                                                                   offset));
+            ret = expansion_info.backend->store->Truncate(path.c_str(),offset);
         }
         PLFS_EXIT(ret);
     }
@@ -2128,10 +2105,10 @@ container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
             ret = of->getWritefile()->restoreFds(droppings_were_truncd);
             if ( ret != 0 ) {
                 mlog(PLFS_DRARE, "%s:%d failed: %s",
-                     __FUNCTION__, __LINE__, strerror(errno));
+                     __FUNCTION__, __LINE__, strerror(-ret));
             }
         } else {
-            mlog(PLFS_DRARE, "%s failed: %s", __FUNCTION__, strerror(errno));
+            mlog(PLFS_DRARE, "%s failed: %s", __FUNCTION__, strerror(-ret));
         }
         mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
     }
@@ -2181,7 +2158,7 @@ container_unlink( const char *logical )
     // duplicates
     // duplicates are possible bec a backend can be defined in both
     // shadow_backends and backends
-    op.ignoreErrno(ENOENT);
+    op.ignoreErrno(-ENOENT);
     ret = plfs_file_operation(logical,op);
     PLFS_EXIT(ret);
 }
@@ -2238,7 +2215,7 @@ plfs_reference_count( Container_OpenFile *pfd )
         ref_count += in->incrementOpens(0);
     }
     if ( ref_count != pfd->incrementOpens(0) ) {
-        ostringstream oss;
+        mss::mlog_oss oss(INT_DRARE);
         oss << __FUNCTION__ << " not equal counts: " << ref_count
             << " != " << pfd->incrementOpens(0) << endl;
         mlog(INT_DRARE, "%s", oss.str().c_str() );
@@ -2247,7 +2224,7 @@ plfs_reference_count( Container_OpenFile *pfd )
     return ref_count;
 }
 
-// returns number of open handles or -errno
+// returns number of open handles or -err
 // the close_opt currently just means we're in ADIO mode
 int
 container_close( Container_OpenFile *pfd, pid_t pid, uid_t uid, int open_flags,
@@ -2326,7 +2303,7 @@ container_close( Container_OpenFile *pfd, pid_t pid, uid_t uid, int open_flags,
     // make sure the reference counting is correct
     plfs_reference_count(pfd);
     if ( ret == 0 && ref_count == 0 ) {
-        ostringstream oss;
+        mss::mlog_oss oss(PLFS_DCOMMON);
         oss << __FUNCTION__ << " removing OpenFile " << pfd;
         mlog(PLFS_DCOMMON, "%s", oss.str().c_str() );
         delete pfd;

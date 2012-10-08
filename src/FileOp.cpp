@@ -8,34 +8,35 @@
 #include "mlogfacs.h"
 #include "plfs.h"
 
+/* returns 0 or -err */
 int
 FileOp::op(const char *path, unsigned char type, IOStore *store)
 {
     // the parent function is just a wrapper to insert a debug message
-    int ret = retValue(do_op(path,type, store));
-    mlog(FOP_DAPI, "FileOp:%s on %s: %d",name(),path,ret);
-    return ret;
+    int rv;
+    rv = this->do_op(path,type,store);
+    if (this->ignores.find(rv) != this->ignores.end()) {
+        rv = 0;
+    }
+    mlog(FOP_DAPI, "FileOp:%s on %s: %d (%s)",name(),path,rv,
+         (rv == 0) ? "AOK" : strerror(-rv));
+    return(rv);
 }
 
 void
 FileOp::ignoreErrno(int Errno)
 {
+    if (Errno > 0) {
+        mlog(FOP_CRIT, "FileOp:%s positive error %d used (corrected)",
+             this->name(), Errno);
+        Errno = -Errno;
+    }
     ignores.insert(Errno);
 }
 
-int
-FileOp::retValue(int ret)
+AccessOp::AccessOp(int newmask)
 {
-    ret = Util::retValue(ret);
-    if (ignores.find(-ret)!=ignores.end()) {
-        ret = 0;
-    }
-    return ret;
-}
-
-AccessOp::AccessOp(int mask)
-{
-    this->mask = mask;
+    this->mask = newmask;
 }
 
 // helper function for Access
@@ -50,6 +51,7 @@ bool checkMask(int mask,int value)
 // but now plfs_file_operation is doing that so this code isn't appropriate
 // in container.  really it should just be embedded in AccessOp::op() but
 // then I'd have to mess with indentation
+// return 0 or -err
 int Access( const string& path, IOStore *store, int mask )
 {
     // there used to be some concern here that the accessfile might not
@@ -59,14 +61,13 @@ int Access( const string& path, IOStore *store, int mask )
     // root can access everything.  so, we must also try the open
     mode_t open_mode;
     int ret;
-    errno = 0;
+    IOSHandle *fh;
     bool mode_set=false;
 
     //doing this to suppress a valgrind complaint
     char *cstr = strdup(path.c_str());
 
-    mlog(FOP_DAPI, "%s Check existence of %s",
-        __FUNCTION__, cstr);
+    mlog(FOP_DAPI, "%s Check existence of %s", __FUNCTION__, cstr);
 
     ret = store->Access( cstr, F_OK );
     if ( ret == 0 ) {
@@ -86,20 +87,21 @@ int Access( const string& path, IOStore *store, int mask )
         }
         assert(mode_set);
         mlog(FOP_DCOMMON, "The file exists attempting open");
-        ret = store->Open(cstr,open_mode);
-        mlog(FOP_DCOMMON, "Open returns %d",ret);
-        if(ret >= 0 ) {
-            store->Close(ret);
-        }
+        fh = store->Open(cstr,open_mode,ret);
+        mlog(FOP_DCOMMON, "Open %s: %s",cstr,ret==0?"Success":strerror(-ret));
+        if (fh != NULL) {
+            store->Close(fh);
+        } // else, ret was set already
     }
     delete cstr;
     return ret;
 }
 
+/* ret 0 or -err */
 int
 AccessOp::do_op(const char *path, unsigned char isfile, IOStore *store)
 {
-    if (isfile==DT_DIR || isfile==DT_LNK) {
+    if (isfile==DT_CONTAINER || isfile==DT_DIR || isfile==DT_LNK) {
         return store->Access(path,mask);
     } else if (isfile==DT_REG) {
         return Access(path,store,mask);
@@ -108,23 +110,24 @@ AccessOp::do_op(const char *path, unsigned char isfile, IOStore *store)
     }
 }
 
-ChownOp::ChownOp(uid_t u, gid_t g)
+ChownOp::ChownOp(uid_t newu, gid_t newg)
 {
-    this->u = u;
-    this->g = g;
+    this->u = newu;
+    this->g = newg;
 }
 
+/* ret 0 or -err */
 int
 ChownOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store )
 {
     return store->Chown(path,u,g);
 }
 
-TruncateOp::TruncateOp(bool open_file)
+TruncateOp::TruncateOp(bool newopen_file)
 {
-    this->open_file = open_file;
+    this->open_file = newopen_file;
     // it's possible that we lost a race and some other proc already removed
-    ignoreErrno(ENOENT);
+    ignoreErrno(-ENOENT);
 }
 
 // remember this is for truncate to offset 0 of a PLFS logical file
@@ -132,6 +135,7 @@ TruncateOp::TruncateOp(bool open_file)
 // on an open file, it truncates all the physical files.  This is because
 // on an open file, another sibling may have recently created a dropping so
 // don't delete
+// ret 0 or -err
 int
 TruncateOp::do_op(const char *path, unsigned char isfile, IOStore *store)
 {
@@ -164,37 +168,38 @@ TruncateOp::ignore(string path)
     ignores.push_back(path);
 }
 
+/* ret 0 or -err */
 int
 UnlinkOp::do_op(const char *path, unsigned char isfile, IOStore *store)
 {
     if (isfile==DT_REG || isfile==DT_LNK) {
-        //XXXCDC:iostore via store
         return store->Unlink(path);
-    } else if (isfile==DT_DIR) {
+    } else if (isfile==DT_DIR||isfile==DT_CONTAINER) {
         return store->Rmdir(path);
     } else {
         return -ENOSYS;
     }
 }
 
-CreateOp::CreateOp(mode_t m)
+CreateOp::CreateOp(mode_t newm)
 {
-    this->m = m;
+    this->m = newm;
 }
 
-ReaddirOp::ReaddirOp(map<string,unsigned char> *entries,
-                     set<string> *names, bool expand_path, bool skip_dots)
+ReaddirOp::ReaddirOp(map<string,unsigned char> *newentries,
+                     set<string> *newnames, bool expand_path,
+                     bool newskip_dots)
 {
-    this->entries = entries;
-    this->names   = names;
+    this->entries = newentries;
+    this->names   = newnames;
     this->expand  = expand_path;
-    this->skip_dots = skip_dots;
+    this->skip_dots = newskip_dots;
 }
 
 int
-ReaddirOp::filter(string filter)
+ReaddirOp::filter(string newfilter)
 {
-    filters.insert(filter);
+    filters.insert(newfilter);
     return filters.size();
 }
 
@@ -235,17 +240,18 @@ determine_type(const char *path, char *d_name)
     return(DT_UNKNOWN);   /* XXX */
 }
 
+/* ret 0 or -err */
 int
 ReaddirOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
 {
     int ret;
-    DIR *dir;
+    IOSDirHandle *dir;
     struct dirent entstore, *ent;
-    dir = store->Opendir(path);
+    dir = store->Opendir(path,ret);
     if (dir == NULL) {
-        return(-errno);
+        return ret;
     }
-    while (store->Readdir_r(dir, &entstore, &ent) == 0 && ent != NULL) {
+    while ((ret = dir->Readdir_r(&entstore, &ent)) == 0 && ent != NULL) {
         if (skip_dots && (!strcmp(ent->d_name,".")||
                           !strcmp(ent->d_name,".."))) {
             continue;   // skip the dots
@@ -285,9 +291,6 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
         }
     }
     store->Closedir(dir);
-    if (ret==1) {
-        ret = 0;    // read to end of directory
-    }
     return ret;
 }
 
@@ -295,38 +298,58 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
 //RmdirOp::do_op(const char *path, unsigned char /* isfile */ ) {
 //    return Util::Rmdir(path);
 //}
-
+/* ret 0 or -err */
 int
 CreateOp::do_op(const char *path, unsigned char isfile, IOStore *store)
 {
-    if (isfile==DT_DIR) {
-        mode_t mode = Container::dirMode(m);
-        return(store->Mkdir(path,mode));
-    } else if (isfile==DT_REG) {
-        return Util::MakeFile(path,m,store);
-    } else {
-        assert(0);
+    int ret = -ENOSYS; // just in case we somehow don't change
+    switch(isfile) {
+        case DT_DIR:
+            ret = store->Mkdir(path,Container::dirMode(m));
+            break;
+        case DT_CONTAINER:
+            ret = store->Mkdir(path,Container::containerMode(m));
+            break;
+        case DT_REG:
+            ret = Util::MakeFile(path,m,store);
+            break;
+        default:
+            assert(0);
+            break;
     }
-    return -ENOSYS;
+    return ret; 
 }
 
-ChmodOp::ChmodOp(mode_t m)
+ChmodOp::ChmodOp(mode_t newm)
 {
-    this->m = m;
+    this->m = newm;
 }
 
+/* ret 0 or -err */
 int
 ChmodOp::do_op(const char *path, unsigned char isfile, IOStore *store)
 {
-    mode_t this_mode = (isfile==DT_DIR?Container::dirMode(m):m);
+    mode_t this_mode;
+    switch(isfile) {
+        case DT_CONTAINER:
+            this_mode = Container::containerMode(m);
+            break;
+        case DT_DIR:
+            this_mode = Container::dirMode(m);
+            break;
+        default:
+            this_mode = m;
+            break;
+    } 
     return store->Chmod(path,this_mode);
 }
 
-UtimeOp::UtimeOp(struct utimbuf *ut)
+UtimeOp::UtimeOp(struct utimbuf *newut)
 {
-    this->ut = ut;
+    this->ut = newut;
 }
 
+/* ret 0 or -err */
 int
 UtimeOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
 {

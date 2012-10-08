@@ -1,6 +1,9 @@
 #include "plfs.h"
 #include "ContainerFD.h"
 #include "container_internals.h"
+#include "XAttrs.h"
+#include "mlog.h"
+#include "mlogfacs.h"
 
 Container_fd::Container_fd()
 {
@@ -102,4 +105,46 @@ const char *
 Container_fd::getPath()
 {
     return fd->getPath();
+}
+
+int
+Container_fd::getxattr(void *value, const char *key, size_t len) {
+    XAttrs *xattrs;
+    XAttr *xattr;
+    int ret = 0;
+
+    xattrs = new XAttrs(getPath(), this->fd->getCanBack());
+    xattr = xattrs->getXAttr(string(key), len);
+    if (xattr == NULL) {
+        ret = 1;
+        return ret;
+    }
+
+    memcpy(value, xattr->getValue(), len);
+    delete(xattr);
+    delete(xattrs);
+
+    return ret;
+}
+
+int
+Container_fd::setxattr(const void *value, const char *key, size_t len) {
+    stringstream sout;
+    XAttrs *xattrs;
+    bool xret;
+    int ret = 0;
+
+    mlog(PLFS_DBG, "In %s: Setting xattr - key: %s, value: %s\n", 
+         __FUNCTION__, key, (char *)value);
+    xattrs = new XAttrs(getPath(), this->fd->getCanBack());
+    xret = xattrs->setXAttr(string(key), value, len);
+    if (!xret) {
+        mlog(PLFS_DBG, "In %s: Error writing upc object size\n", 
+             __FUNCTION__);
+        ret = 1;
+    }
+
+    delete(xattrs);
+
+    return ret;
 }
