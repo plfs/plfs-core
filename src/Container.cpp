@@ -701,6 +701,8 @@ Container::readMetalink(const string& srcbpath, struct plfs_backend *srcback,
         // it's OK to fail: we use this to check if things are metalinks
         mlog(CON_DCOMMON, "readlink %s failed: %s",srcbpath.c_str(),
              (ret == 0) ? "ret==0" : strerror(-ret));
+        if (ret == 0)
+            ret = -ENOENT;   /* XXX */
         return(ret);
     }
     buf[ret] = '\0';   /* null terminate */
