@@ -1412,10 +1412,6 @@ parse_conf(FILE *fp, string file, PlfsConf *pconf)
         }
         sscanf(input, "%s %s\n", key, value);
         mlog(MLOG_DBG, "Read %s %s (%d)", key, value,line);
-        if( strstr(value,"//") != NULL ) {
-            pconf->err_msg = new string("Double slashes '//' are bad");
-            break;
-        }
         parse_conf_keyval(pconf, &pconf->tmp_mnt, (char *)file.c_str(),
                           key, value);
         if (pconf->err_msg) {

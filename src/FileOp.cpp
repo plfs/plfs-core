@@ -212,14 +212,14 @@ ReaddirOp::filter(string newfilter)
  * @return a proper DT_* code based on the st_mode
  */
 static unsigned char
-determine_type(const char *path, char *d_name)
+determine_type(IOStore *store, const char *path, char *d_name)
 {
     string file;
     struct stat sb;
     file = path;
     file += "/";
     file += d_name;  /* build full path */
-    if (lstat(file.c_str(), &sb) == 0) {
+    if (store->Lstat(file.c_str(), &sb) == 0) {
         switch (sb.st_mode & S_IFMT) {
         case S_IFSOCK:
             return(DT_SOCK);
@@ -284,8 +284,8 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
         }
         mlog(FOP_DCOMMON, "%s inserting %s", __FUNCTION__, file.c_str());
         if (entries) (*entries)[file] = (ent->d_type != DT_UNKNOWN) ?
-                                            ent->d_type :
-                                            determine_type(path, ent->d_name);
+                         ent->d_type :
+                         determine_type(store, path, ent->d_name);
         if (names) {
             names->insert(file);
         }
