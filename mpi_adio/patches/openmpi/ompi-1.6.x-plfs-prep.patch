@@ -123,42 +123,6 @@ diff -Naur openmpi-1.6/ompi/mca/io/romio/romio/adio/common/ad_fstype.c openmpi-1
      if (file_system == ADIO_HFS) {
  #ifndef ROMIO_HFS
  	*error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
-diff -Naur openmpi-1.6/ompi/mca/io/romio/romio/adio/common/ad_opencoll.c openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/common/ad_opencoll.c
---- openmpi-1.6/ompi/mca/io/romio/romio/adio/common/ad_opencoll.c	2012-04-03 08:30:22.000000000 -0600
-+++ openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/common/ad_opencoll.c	2012-05-16 11:59:12.594192000 -0600
-@@ -80,7 +80,7 @@
-    in fd, so that get_amode returns the right answer. */
- 
-     orig_amode_wronly = access_mode;
--    if (access_mode & ADIO_WRONLY) {
-+    if (access_mode & ADIO_WRONLY && fd->file_system != ADIO_PLFS) {
- 	access_mode = access_mode ^ ADIO_WRONLY;
- 	access_mode = access_mode | ADIO_RDWR;
-     }
-diff -Naur openmpi-1.6/ompi/mca/io/romio/romio/adio/common/ad_opencoll_failsafe.c openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/common/ad_opencoll_failsafe.c
---- openmpi-1.6/ompi/mca/io/romio/romio/adio/common/ad_opencoll_failsafe.c	2012-04-03 08:30:22.000000000 -0600
-+++ openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/common/ad_opencoll_failsafe.c	2012-05-16 11:59:58.952603000 -0600
-@@ -60,7 +60,7 @@
-    in fd, so that get_amode returns the right answer. */
- 
-     orig_amode_wronly = access_mode;
--    if (access_mode & ADIO_WRONLY) {
-+    if (access_mode & ADIO_WRONLY && fd->file_system != ADIO_PLFS) {
- 	access_mode = access_mode ^ ADIO_WRONLY;
- 	access_mode = access_mode | ADIO_RDWR;
-     }
-diff -Naur openmpi-1.6/ompi/mca/io/romio/romio/adio/common/ad_opencoll_scalable.c openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/common/ad_opencoll_scalable.c
---- openmpi-1.6/ompi/mca/io/romio/romio/adio/common/ad_opencoll_scalable.c	2012-04-03 08:30:22.000000000 -0600
-+++ openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/common/ad_opencoll_scalable.c	2012-05-16 12:01:15.211551000 -0600
-@@ -32,7 +32,7 @@
-        write_only in fd, so that get_amode returns the right answer. */
- 
-     orig_amode_wronly = access_mode;
--    if (access_mode & ADIO_WRONLY) {
-+    if (access_mode & ADIO_WRONLY && fd->file_system != ADIO_PLFS) {
- 	access_mode = access_mode ^ ADIO_WRONLY;
- 	access_mode = access_mode | ADIO_RDWR;
-     }
 diff -Naur openmpi-1.6/ompi/mca/io/romio/romio/adio/include/adio.h openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/include/adio.h
 --- openmpi-1.6/ompi/mca/io/romio/romio/adio/include/adio.h	2012-04-03 08:30:21.000000000 -0600
 +++ openmpi-1.6_patch-plfs/ompi/mca/io/romio/romio/adio/include/adio.h	2012-05-16 12:08:40.191472000 -0600
