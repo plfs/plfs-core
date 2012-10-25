@@ -100,9 +100,9 @@ ContainerFileSystem::mkdir(const char *path, mode_t mode)
 }
 
 int
-ContainerFileSystem::readdir(const char *path, void *buf)
+ContainerFileSystem::readdir(const char *path, set<string> *entries)
 {
-    return container_readdir(path, buf);
+    return container_readdir(path, entries);
 }
 
 int

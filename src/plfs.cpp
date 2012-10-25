@@ -286,6 +286,64 @@ plfs_read(Plfs_fd *fd, char *buf, size_t size, off_t offset)
     return ret;
 }
 
+typedef struct {
+    set<string> entries;
+    set<string>::iterator itr;
+    string path;
+} plfs_dir;
+
+int 
+plfs_opendir_c(const char *path, Plfs_dirp **pdirp) {
+    debug_enter(__FUNCTION__,path);
+    plfs_dir *pdir = new plfs_dir;
+    *pdirp = (Plfs_dirp *)pdir;
+    int ret = plfs_readdir(path, (void*)&(pdir->entries));
+    if (ret != 0) {
+        delete pdir;
+        *pdirp = NULL;
+    } else {
+        pdir->itr = pdir->entries.begin();
+        pdir->path = path;
+    }
+    debug_exit(__FUNCTION__,path,ret);
+    return ret;
+}
+
+int
+plfs_closedir_c(Plfs_dirp *pdirp) {
+    plfs_dir *pdir = (plfs_dir*)pdirp;
+    string path = pdir->path;
+    debug_enter(__FUNCTION__,path);
+    int ret = 0;
+    delete pdir;
+    debug_exit(__FUNCTION__,path,ret);
+    return ret;
+}
+
+int 
+plfs_readdir_c(Plfs_dirp *pdirp, char *dname, size_t bufsz) {
+    plfs_dir *pdir = (plfs_dir*)pdirp;
+    debug_enter(__FUNCTION__,pdir->path);
+    int ret = 0;
+    if (pdir->itr == pdir->entries.end()) {
+        dname[0] = '\0';
+    } else {
+        string path = *(pdir->itr);
+        if (path.size() >= bufsz) {
+            // user provided insufficient space into which to write dname
+            ret = -ENOMEM;
+            dname[0] = '\0';
+        } else {
+            strncpy(dname,path.c_str(),bufsz);
+            pdir->itr++; // move to next entry
+        }
+
+    }
+    debug_exit(__FUNCTION__,pdir->path,ret);
+    return ret;
+}
+
+
 int
 plfs_readdir(const char *path, void *buf)
 {
@@ -295,7 +353,7 @@ plfs_readdir(const char *path, void *buf)
     if (logicalfs == NULL) {
         ret = -EINVAL;
     }else{
-        ret = logicalfs->readdir(path, buf);
+        ret = logicalfs->readdir(path, (set<string>*)buf);
     }
     debug_exit(__FUNCTION__,path,ret);
     return ret;
