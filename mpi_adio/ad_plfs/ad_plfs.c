@@ -224,6 +224,13 @@ int plfs_merge_indexes(Plfs_fd **pfd, char *index_streams,
     return -1; /* never gets here */
 }
 
+int plfs_access(const char *path, int mask) __attribute__ ((weak));
+
+int plfs_access(const char *path, int mask){
+    no_link_abort();
+    return -1;
+}
+
 int plfs_open( Plfs_fd **, const char *path,
         int flags, pid_t pid, mode_t , Plfs_open_opt *open_opt)  __attribute__ ((weak));
 int plfs_open( Plfs_fd **fd, const char *path,
