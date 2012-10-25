@@ -37,18 +37,6 @@ diff -Naur openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/common/ad_fstype.c op
      if (file_system == ADIO_HFS) {
  #ifndef ROMIO_HFS
  	*error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
-diff -Naur openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/common/ad_open.c openmpi-1.4.3/ompi/mca/io/romio/romio/adio/common/ad_open.c
---- openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/common/ad_open.c	2009-12-08 13:36:28.000000000 -0700
-+++ openmpi-1.4.3/ompi/mca/io/romio/romio/adio/common/ad_open.c	2010-11-08 12:53:27.600075475 -0700
-@@ -231,7 +231,7 @@
-    in fd, so that get_amode returns the right answer. */
- 
-     orig_amode_wronly = access_mode;
--    if (access_mode & ADIO_WRONLY) {
-+    if (access_mode & ADIO_WRONLY && fd->file_system != ADIO_PLFS) {
- 	access_mode = access_mode ^ ADIO_WRONLY;
- 	access_mode = access_mode | ADIO_RDWR;
-     }
 diff -Naur openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/include/adio.h openmpi-1.4.3/ompi/mca/io/romio/romio/adio/include/adio.h
 --- openmpi-1.4.3.ORIG/ompi/mca/io/romio/romio/adio/include/adio.h	2009-12-08 13:36:28.000000000 -0700
 +++ openmpi-1.4.3/ompi/mca/io/romio/romio/adio/include/adio.h	2010-11-08 12:51:45.531958425 -0700

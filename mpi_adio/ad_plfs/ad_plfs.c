@@ -55,7 +55,7 @@ struct ADIOI_Fns_struct ADIO_PLFS_operations = {
      * The ROMIO that is in Open MPI 1.4.x is old and doesn't have
      * the following entry or OpenColl
      */
-     ADIOI_GEN_Feature, /* Features */
+     ADIOI_PLFS_Feature, /* Features */
 #endif
 };
 
