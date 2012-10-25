@@ -19,6 +19,8 @@ extern "C"
 typedef void *Plfs_fd;
 #endif
 
+typedef void *Plfs_dirp;
+
     typedef enum {
         PLFS_API, PLFS_POSIX, PLFS_MPIIO
     } plfs_interface;
@@ -170,8 +172,20 @@ typedef void *Plfs_fd;
     /* plfs_readdir
      * the void * needs to be a pointer to a vector<string> but void * is
      * used here so it compiles with C code
+     * this is the version of readdir that C++ codes can use
+     * this version does not call plfs_opendir / plfs_closedir
+     * see plfs_opendir_c/plfs_readdir_c/plfs_closedir_c for C codes
      */
     int plfs_readdir( const char *path, void * );
+
+    /* this is the way that C programs do a plfs readdir 
+     * dname is the buffer that the caller provides into which we write
+     * the name of each entry, plfs_readdir_c returns 0 or success 
+     * EOD is indicated with a zero-length dname
+     */
+    int plfs_opendir_c( const char *path, Plfs_dirp **plfs_dir );
+    int plfs_readdir_c(Plfs_dirp *, char *dname, size_t bufsz);
+    int plfs_closedir_c( Plfs_dirp *plfs_dir ); 
 
     int plfs_readlink( const char *path, char *buf, size_t bufsize );
 

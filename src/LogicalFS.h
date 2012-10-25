@@ -4,6 +4,10 @@
 #include "plfs.h"
 #include "LogicalFD.h"
 
+#include <set>
+#include <string>
+using namespace std;
+
 // our pure virtual class for which we currently have FlatFile and we need
 // ContainerFile
 class
@@ -32,7 +36,7 @@ class
         virtual int create(const char *logical, mode_t, int flags,
                            pid_t pid) = 0;
         virtual int mkdir(const char *path, mode_t) = 0;
-        virtual int readdir(const char *path, void *buf) = 0;
+        virtual int readdir(const char *path, set<string> *entries) = 0;
         virtual int readlink(const char *path, char *buf, size_t bufsize) = 0;
         virtual int rmdir(const char *path) = 0;
         virtual int symlink(const char *path, const char *to) = 0;
