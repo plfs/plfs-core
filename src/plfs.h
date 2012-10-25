@@ -181,7 +181,7 @@ typedef void *Plfs_dirp;
     /* this is the way that C programs do a plfs readdir 
      * dname is the buffer that the caller provides into which we write
      * the name of each entry, plfs_readdir_c returns 0 or success 
-     * EOD is indicated with a NULL dname
+     * EOD is indicated with a zero-length dname
      */
     int plfs_opendir_c( const char *path, Plfs_dirp **plfs_dir );
     int plfs_readdir_c(Plfs_dirp *, char *dname, size_t bufsz);
