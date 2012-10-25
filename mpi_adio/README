@@ -25,16 +25,23 @@ in README.patching.
    tells the MPI implementation to use ROMIO and to specifically use PLFS.
    Only files that are operated on through MPI/IO can utilize PLFS, so MPI/IO
    commands must be used.
-3) Link the PLFS library to your application at compile time. When linking
-   against plfs, the following also need to be linked in: libstdc++ and
-   libpthread. Example:
-   gcc -L/path/to/plfs -lplfs -lstdc++ -lpthread -o hello hello.c
+3) Link the PLFS library to your application at compile time. Example:
+   gcc -L/path/to/plfs -lplfs -o hello hello.c
 4) Run the application as normal.
 
 See the MPI/IO documentation for more information.
 
+It should be noted that collective buffering and data-sieving are not
+supported by PLFS as they are largely untested with PLFS. Support for
+collective buffering may be possible in the future, but it is not anticipated
+that data-sieving will ever be supported.
+
+Collective buffering and data-sieving are turned on/off by the use of hints
+such as romio_cb_write=enable|disable and romio_ds_write=enable|disable,
+respectively.
+
 
 *** Developer Information ***
 
-Developer information, such as tips for generating a new prep.path, is kept in
+Developer information, such as tips for generating a new prep.patch, is kept in
 README.developer.

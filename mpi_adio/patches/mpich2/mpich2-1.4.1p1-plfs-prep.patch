@@ -60,42 +60,6 @@ diff -Naur mpich2-1.4.1p1/src/mpi/romio/adio/common/ad_fstype.c mpich2-1.4.1p1-p
      if (file_system == ADIO_HFS) {
  #ifndef ROMIO_HFS
  	*error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
-diff -Naur mpich2-1.4.1p1/src/mpi/romio/adio/common/ad_opencoll.c mpich2-1.4.1p1-plfs/src/mpi/romio/adio/common/ad_opencoll.c
---- mpich2-1.4.1p1/src/mpi/romio/adio/common/ad_opencoll.c	2009-05-06 15:18:23.000000000 -0600
-+++ mpich2-1.4.1p1-plfs/src/mpi/romio/adio/common/ad_opencoll.c	2012-05-23 11:30:04.257510000 -0600
-@@ -80,7 +80,7 @@
-    in fd, so that get_amode returns the right answer. */
- 
-     orig_amode_wronly = access_mode;
--    if (access_mode & ADIO_WRONLY) {
-+    if (access_mode & ADIO_WRONLY && fd->file_system != ADIO_PLFS) {
- 	access_mode = access_mode ^ ADIO_WRONLY;
- 	access_mode = access_mode | ADIO_RDWR;
-     }
-diff -Naur mpich2-1.4.1p1/src/mpi/romio/adio/common/ad_opencoll_failsafe.c mpich2-1.4.1p1-plfs/src/mpi/romio/adio/common/ad_opencoll_failsafe.c
---- mpich2-1.4.1p1/src/mpi/romio/adio/common/ad_opencoll_failsafe.c	2008-10-27 15:59:40.000000000 -0600
-+++ mpich2-1.4.1p1-plfs/src/mpi/romio/adio/common/ad_opencoll_failsafe.c	2012-05-23 11:30:32.648719000 -0600
-@@ -60,7 +60,7 @@
-    in fd, so that get_amode returns the right answer. */
- 
-     orig_amode_wronly = access_mode;
--    if (access_mode & ADIO_WRONLY) {
-+    if (access_mode & ADIO_WRONLY && fd->file_system != ADIO_PLFS) {
- 	access_mode = access_mode ^ ADIO_WRONLY;
- 	access_mode = access_mode | ADIO_RDWR;
-     }
-diff -Naur mpich2-1.4.1p1/src/mpi/romio/adio/common/ad_opencoll_scalable.c mpich2-1.4.1p1-plfs/src/mpi/romio/adio/common/ad_opencoll_scalable.c
---- mpich2-1.4.1p1/src/mpi/romio/adio/common/ad_opencoll_scalable.c	2008-10-27 15:59:40.000000000 -0600
-+++ mpich2-1.4.1p1-plfs/src/mpi/romio/adio/common/ad_opencoll_scalable.c	2012-05-23 11:30:50.568365000 -0600
-@@ -32,7 +32,7 @@
-        write_only in fd, so that get_amode returns the right answer. */
- 
-     orig_amode_wronly = access_mode;
--    if (access_mode & ADIO_WRONLY) {
-+    if (access_mode & ADIO_WRONLY && fd->file_system != ADIO_PLFS) {
- 	access_mode = access_mode ^ ADIO_WRONLY;
- 	access_mode = access_mode | ADIO_RDWR;
-     }
 diff -Naur mpich2-1.4.1p1/src/mpi/romio/adio/include/adio.h mpich2-1.4.1p1-plfs/src/mpi/romio/adio/include/adio.h
 --- mpich2-1.4.1p1/src/mpi/romio/adio/include/adio.h	2011-05-12 08:41:57.000000000 -0600
 +++ mpich2-1.4.1p1-plfs/src/mpi/romio/adio/include/adio.h	2012-05-23 09:42:45.083774000 -0600
