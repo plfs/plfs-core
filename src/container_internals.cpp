@@ -456,10 +456,10 @@ int container_statvfs( const char *logical, struct statvfs *stbuf )
 // vptr needs to be a pointer to a set<string>
 // returns 0 or -err
 int
-container_readdir( const char *logical, void *vptr )
+container_readdir( const char *logical, set<string> *entries )
 {
     PLFS_ENTER;
-    ReaddirOp op(NULL,(set<string> *)vptr,false,false);
+    ReaddirOp op(NULL,entries,false,false);
     ret = plfs_iterate_backends(logical,op);
     PLFS_EXIT(ret);
 }
