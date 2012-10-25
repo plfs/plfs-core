@@ -373,10 +373,10 @@ FlatFileSystem::mkdir(const char *logical, mode_t mode)
 }
 
 int
-FlatFileSystem::readdir(const char *logical, void *buf)
+FlatFileSystem::readdir(const char *logical, set<string> *entries)
 {
     FLAT_ENTER;
-    ReaddirOp op(NULL,(set<string> *)buf,false,false);
+    ReaddirOp op(NULL,entries,false,false);
     ret = plfs_iterate_backends(logical,op);
     FLAT_EXIT(ret);
 }

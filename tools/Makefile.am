@@ -44,6 +44,7 @@ dcon \
 findmesgbuf \
 plfs_check_config \
 plfs_map \
+plfs_ls \
 plfs_version \
 plfs_recover \
 plfs_query \
@@ -69,6 +70,19 @@ findmesgbuf_CFLAGS = \
 -I$(top_srcdir)/src 
 
 findmesgbuf_LDFLAGS = \
+-L../src -lplfs \
+@PTHREAD_LIBS@
+
+################################################################################
+# plfs_ls
+################################################################################
+plfs_ls_SOURCES = \
+plfs_ls.C plfs_tool_common.h
+
+plfs_ls_CXXFLAGS = \
+-I$(top_srcdir)/src 
+
+plfs_ls_LDFLAGS = \
 -L../src -lplfs \
 @PTHREAD_LIBS@
 
