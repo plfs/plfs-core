@@ -15,7 +15,7 @@ class Container_fd : public Plfs_fd
                  mode_t mode, Plfs_open_opt *open_opt);
         int close(pid_t, uid_t, int flags, Plfs_close_opt *);
         ssize_t read(char *buf, size_t size, off_t offset);
-        int rename(const char *path);
+        int rename(const char *path, struct plfs_backend *b);
         ssize_t write(const char *buf, size_t size, off_t offset, pid_t pid);
         int sync();
         int sync(pid_t pid);
@@ -28,7 +28,7 @@ class Container_fd : public Plfs_fd
 
         // Functions leaked to FUSE and ADIO:
         int incrementOpens(int amount);
-        void setPath(string p);
+        void setPath(string p, struct plfs_backend *b);
         const char *getPath();
 
         int compress_metadata(const char *path);

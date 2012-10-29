@@ -7,11 +7,13 @@
 #include "mlog.h"
 #include "mlogfacs.h"
 #include "plfs_internal.h"
+#include "plfs_private.h"
+#include "IOStore.h"
 
-XAttr::XAttr(string key, const void* value)
+XAttr::XAttr(string newkey, const void* newvalue)
 {
-    this->key = key;
-    this->value = value;
+    this->key = newkey;
+    this->value = newvalue;
 }
  
 const void* XAttr::getValue()
@@ -29,14 +31,16 @@ XAttr::~XAttr()
 
 }
 
-XAttrs::XAttrs( string path ) 
+XAttrs::XAttrs( string newpath, struct plfs_backend *newback ) 
 {
     struct stat st;
     int ret = 0;
 
-    this->path = string(path + "/" + XATTRSDIR);
-    if ((stat(this->path.c_str(), &st)) < 0) {
-        ret = Util::Mkdir(this->path.c_str(), 0755);
+    this->path = string(newpath + "/" + XATTRSDIR);
+    this->canback = newback;
+
+    if (newback->store->Stat(this->path.c_str(), &st) != 0) {
+        ret = newback->store->Mkdir(this->path.c_str(), 0755);
     }
 
     if (ret == 0) {
@@ -56,13 +60,14 @@ XAttrs::XAttrs( string path )
  */
 XAttr *XAttrs::getXAttr(string key, size_t len) 
 {
-    int ret, fd;
+    int ret, err;
+    IOSHandle *fh;
     char buf[MAX_VALUE_LEN];
     string full_path;
 
     full_path = path + "/" + key;
-    fd = Util::Open( full_path.c_str(), O_RDONLY);
-    if (fd >= 0) {
+    fh = this->canback->store->Open( full_path.c_str(), O_RDONLY, err);
+    if (fh != NULL) {
         mlog(IDX_DAPI, "%s: Opened key path: %s for key: %s", __FUNCTION__,
              full_path.c_str(), key.c_str());  
     } else {
@@ -72,18 +77,18 @@ XAttr *XAttrs::getXAttr(string key, size_t len)
     } 
 
     memset(buf, 0, MAX_VALUE_LEN);
-    ret = Util::Read(fd, buf, len);    
+    ret = fh->Pread(buf, len, 0);
     if (ret < 0) {
         mlog(IDX_DRARE, "%s: Could not read value for key: %s", __FUNCTION__,
              key.c_str());
-        Util::Close(fd);
+        this->canback->store->Close(fh);
         return NULL;
     } 
 
     char* value = (char*) malloc (len);
     memcpy(value, &buf, len);
     XAttr *xattr = new XAttr(key, (const void*)value);
-    ret = Util::Close(fd);
+    ret = this->canback->store->Close(fh);
     if (ret >= 0) {
         mlog(IDX_DAPI, "%s: Closed file: %s", __FUNCTION__,
              full_path.c_str());  
@@ -105,7 +110,8 @@ XAttr *XAttrs::getXAttr(string key, size_t len)
  */
 bool XAttrs::setXAttr(string key, const void* value, size_t len) 
 {
-    int ret, fd;
+    int ret, err;
+    IOSHandle *fh;
     string full_path;
 
     if (key.length() > MAX_KEY_LEN) {
@@ -121,8 +127,9 @@ bool XAttrs::setXAttr(string key, const void* value, size_t len)
     }
 
     full_path = path + "/" + key;
-    fd = Util::Open( full_path.c_str(), O_WRONLY|O_CREAT|O_TRUNC, 0644);
-    if (fd >= 0) {
+    fh = this->canback->store->Open( full_path.c_str(), 
+                                     O_WRONLY|O_CREAT|O_TRUNC, 0644, err);
+    if (fh != NULL) {
         mlog(IDX_DAPI, "%s: Opened key path: %s for key: %s", __FUNCTION__,
              full_path.c_str(), key.c_str());  
     } else {
@@ -131,15 +138,15 @@ bool XAttrs::setXAttr(string key, const void* value, size_t len)
         return false;
     } 
 
-    ret = Util::Write( fd, value, len);    
+    ret = fh->Write(value, len);    
     if (ret < 0) {
         mlog(IDX_DRARE, "%s: Could not write value for key: %s", __FUNCTION__,
              key.c_str());
-        Util::Close(fd);
+        this->canback->store->Close(fh);
         return false;
     } 
 
-    ret = Util::Close(fd);
+    ret = this->canback->store->Close(fh);
     if (ret >= 0) {
         mlog(IDX_DAPI, "%s: Closed file: %s", __FUNCTION__,
              full_path.c_str());  

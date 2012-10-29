@@ -32,26 +32,66 @@ expansionMethod {
     EXPAND_TO_I,
 };
 
-typedef struct {
+/**
+ * plfs_backend: describes a single backend filesystem.   each mount
+ * point may have one or more backends, as per the plfsrc config.
+ */
+struct plfs_backend {
+    char *prefix;    /*!< hdfs://..., or can be empty for posix */
+    string bmpoint;  /*!< the backend plfs mount point */
+    /*
+     * note: store must be protected by a mutex since we allow apps
+     * defer attaching to a mount until its first reference.
+     */
+    IOStore *store;  /*!<  store (non-NULL if we've attached to this mount) */
+};
+
+/**
+ * plfs_pathback: bpath + backend (needed to access iostore)
+ */
+struct plfs_pathback {
+    string bpath;               /*!< bmpoint+bnode */
+    struct plfs_backend *back;  /*!< backend for the bpath */
+};
+
+/**
+ * PlfsMount: describes a PLFS mount point.   the mount point is backed
+ * by one or more backend filesystems.
+ */
+typedef struct PlfsMount {
     string mnt_pt;  // the logical mount point
     string *statfs; // where to resolve statfs calls
+    struct plfs_backend statfs_io;  /* for statfs */
     string *syncer_ip; // where to send commands within plfs_protect
-    vector<string> backends;    // a list of physical locations
-    vector<string> canonical_backends;
-    vector<string> shadow_backends;
     vector<string> mnt_tokens;
     plfs_filetype file_type;
     LogicalFileSystem *fs_ptr;
     unsigned checksum;
+
+    /* backend filesystem info */
+    char *backspec;       /*!< backend spec from plfsrc */
+    char *canspec;        /*!< canonical spec from plfsrc */
+    char *shadowspec;     /*!< shadow sepc from plfsrc */
+
+    /* must hold attach mutex to modify any of the following group */
+    int attached;         /*!< non-zero if we've attached to backends */
+    int nback;            /*!< number of backends */
+    int ncanback;         /*!< number of canonical */
+    int nshadowback;      /*!< number of shadow */
+    struct plfs_backend *backstore;             /*!< array of backends */
+    struct plfs_backend **backends;             /*!< all backends */
+    struct plfs_backend **canonical_backends;   /*!< ok for canonical */
+    struct plfs_backend **shadow_backends;      /*!< ok for shadow */
+
 } PlfsMount;
 
 typedef struct {
     bool is_mnt_pt;
     bool expand_error;
     PlfsMount *mnt_pt;
-    int Errno;  // can't use just errno, it's a weird macro
+    int Errno;  // don't want to shadow the global var
     string expanded;
-    string backend; // I tried to not put this in to save space . . .
+    struct plfs_backend *backend;
 } ExpansionInfo;
 
 #define PLFS_ENTER PLFS_ENTER2(PLFS_PATH_REQUIRED)
@@ -71,12 +111,6 @@ typedef struct {
 
 #define PLFS_EXIT(X) return(X);
 
-
-#define EISDIR_DEBUG \
-    if(ret!=0) {\
-        Util::OpenError(__FILE__,__FUNCTION__,__LINE__,pid,errno);\
-    }
-
 typedef struct {
     string file; // which top-level plfsrc was used
     set<string> files;     /* to detect recursive includes in plfsrc */
@@ -89,7 +123,10 @@ typedef struct {
     bool test_metalink; // for developers only
     bool lazy_stat;
     string *err_msg;
-    string *global_summary_dir;
+
+    char *global_summary_dir;
+    struct plfs_backend global_sum_io;
+    
     PlfsMount *tmp_mnt; // just used during parsing
 
     /* mlog related settings, read from plfsrc, allow for cmd line override */
@@ -115,14 +152,14 @@ PlfsConf *get_plfs_conf( );
 
 PlfsMount *find_mount_point(PlfsConf *pconf, const string& path, bool& found);
 PlfsMount *find_mount_point_using_tokens(PlfsConf *, vector <string> &, bool&);
-int find_all_expansions(const char *logical, vector<string> &containers);
+int find_all_expansions(const char *logical,vector<plfs_pathback> &containers);
 
 // a helper function that expands %t, %p, %h in mlog file name
 string expand_macros(const char *target);
 
 string expandPath(string logical, ExpansionInfo *exp_info,
                   expansionMethod hash_method, int which_backend, int depth);
-int mkdir_dash_p(const string& path, bool parent_only);
+int mkdir_dash_p(const string& path, bool parent_only, IOStore *);
 int recover_directory(const char *logical, bool parent_only);
 
 int plfs_iterate_backends(const char *logical, FileOp& op);
@@ -138,6 +175,8 @@ bool plfs_conditional_init();
 char **plfs_mlogargs(int *mlargc, char **mlargv);
 char *plfs_mlogtag(char *newtag);
 
+int plfs_attach(PlfsMount *pmnt);
+
 int plfs_chmod_cleanup(const char *logical,mode_t mode );
 int plfs_chown_cleanup (const char *logical,uid_t uid,gid_t gid );
 
@@ -151,4 +190,6 @@ gid_t plfs_getgid();
 int plfs_setfsuid(uid_t);
 int plfs_setfsgid(gid_t);
 
+int plfs_phys_backlookup(const char *phys, PlfsMount *pmnt,
+                         struct plfs_backend **backout, string *bpathout);
 #endif

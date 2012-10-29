@@ -157,8 +157,8 @@ void plfs_debug( const char *format, ... )
     no_link_abort();
 }
 
-int plfs_expand_path(const char *logical,char **physical)  __attribute__ ((weak));
-int plfs_expand_path(const char *logical,char **physical)
+int plfs_expand_path(const char *logical,char **physical,void **pmountp, void **pbackp)  __attribute__ ((weak));
+int plfs_expand_path(const char *logical,char **physical, void **pmountp, void **pbackp)
 {
     no_link_abort();
     return -1; /* never gets here */
@@ -193,16 +193,19 @@ char *plfs_gethostname()
 }
 
 int plfs_hostdir_rddir(void **index_stream,char *targets,
-        int rank,char * top_level)  __attribute__ ((weak));
+                       int rank,char * top_level, void *pmount,
+                       void *pback)  __attribute__ ((weak));
 int plfs_hostdir_rddir(void **index_stream,char *targets,
-        int rank,char * top_level)
+                       int rank,char * top_level, void *pmount, void *pback)
 {
     no_link_abort();
     return -1; /* never gets here */
 }
 
-int plfs_hostdir_zero_rddir(void **entries,const char* path,int rank)  __attribute__ ((weak));
-int plfs_hostdir_zero_rddir(void **entries,const char* path,int rank)
+int plfs_hostdir_zero_rddir(void **entries,const char* path,int rank,
+                            void *pmount, void *pback)  __attribute__ ((weak));
+int plfs_hostdir_zero_rddir(void **entries,const char* path,int rank,
+                            void *pmount, void *pback)
 {
     no_link_abort();
     return -1; /* never gets here */

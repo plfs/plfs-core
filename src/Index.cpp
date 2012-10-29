@@ -1,4 +1,3 @@
-#include <errno.h>
 #include "COPYRIGHT.h"
 #include <string>
 #include <fstream>
@@ -21,17 +20,11 @@
 
 #include <time.h>
 #include "plfs.h"
+#include "IOStore.h"
 #include "Container.h"
 #include "Index.h"
 #include "plfs_private.h"
 #include "mlog_oss.h"
-
-#ifndef MAP_NOCACHE
-// this is a way to tell mmap not to waste buffer cache.  since we just
-// read the index files once sequentially, we don't want it polluting cache
-// unfortunately, not all platforms support this (but they're small)
-#define MAP_NOCACHE 0
-#endif
 
 HostEntry::HostEntry()
 {
@@ -121,6 +114,15 @@ IndexFileInfo::IndexFileInfo()
 {
 }
 
+/**
+ * IndexFileInfo::listToStream: convert list of IndexFileInfos to byte stream
+ * the byte stream format is:
+ *    <#entries> [<timestamp><id><hostnamelen><hostname\0>]+
+ *
+ * @param list the list to covert
+ * @param bytes the number bytes allocated in returned buffer
+ * @return the newly malloc'd buffer with the byte stream in it
+ */
 void *
 IndexFileInfo::listToStream(vector<IndexFileInfo> &list,int *bytes)
 {
@@ -148,22 +150,30 @@ IndexFileInfo::listToStream(vector<IndexFileInfo> &list,int *bytes)
     size=list.size();
     buf_pos=memcpy_helper(buf_pos,&size,sizeof(int));
     for(itr=list.begin(); itr!=list.end(); itr++) {
-        double timestamp = (*itr).timestamp;
-        pid_t  id = (*itr).id;
+        double xtimestamp = (*itr).timestamp;
+        pid_t  xid = (*itr).id;
         // Putting the plus one for the null terminating  char
         // Try using the strcpy function
         int len =(*itr).hostname.size()+1;
         mlog(IDX_DCOMMON, "Size of hostname is %d",len);
-        char *hostname = strdup((*itr).hostname.c_str());
-        buf_pos=memcpy_helper(buf_pos,&timestamp,sizeof(double));
-        buf_pos=memcpy_helper(buf_pos,&id,sizeof(pid_t));
+        char *xhostname = strdup((*itr).hostname.c_str());
+        buf_pos=memcpy_helper(buf_pos,&xtimestamp,sizeof(double));
+        buf_pos=memcpy_helper(buf_pos,&xid,sizeof(pid_t));
         buf_pos=memcpy_helper(buf_pos,&len,sizeof(int));
-        buf_pos=memcpy_helper(buf_pos,(void *)hostname,len);
-        free(hostname);
+        buf_pos=memcpy_helper(buf_pos,(void *)xhostname,len);
+        free(xhostname);
     }
     return (void *)buffer;
 }
 
+/**
+ * IndexFileInfo::streamToList: convert byte-stream to IndexFileInfo list
+ * the byte stream format is:
+ *    <#entries> [<timestamp><id><hostnamelen><hostname\0>]+
+ *
+ * @param addr byte stream input (sized by number of entries)
+ * @return the decoded IndexFileInfo
+ */
 vector<IndexFileInfo>
 IndexFileInfo::streamToList(void *addr)
 {
@@ -180,7 +190,7 @@ IndexFileInfo::streamToList(void *addr)
         pid_t *id_ptr;
         int *hnamesz_ptr;
         char *hname_ptr;
-        string hostname;
+        string xhostname;
         IndexFileInfo index_dropping;
         ts_ptr=(double *)addr;
         index_dropping.timestamp=ts_ptr[0];
@@ -192,8 +202,8 @@ IndexFileInfo::streamToList(void *addr)
         hn_sz=hnamesz_ptr[0];
         addr= (void *)&hnamesz_ptr[1];
         hname_ptr=(char *)addr;
-        hostname.append(hname_ptr);
-        index_dropping.hostname=hostname;
+        xhostname.append(hname_ptr);
+        index_dropping.hostname=xhostname;
         addr=(void *)&hname_ptr[hn_sz];
         list.push_back(index_dropping);
         /*if(count==0 || count ==1){
@@ -279,7 +289,9 @@ ostream& operator <<(ostream& os,const Index& ndx )
     os << "# Index of " << ndx.physical_path << endl;
     os << "# Data Droppings" << endl;
     for(unsigned i = 0; i < ndx.chunk_map.size(); i++ ) {
-        os << "# " << i << " " << ndx.chunk_map[i].path << endl;
+        /* XXX: maybe print backend prefix too? */
+        os << "# " << i << " " << ndx.chunk_map[i].backend->prefix <<
+            ndx.chunk_map[i].bpath << endl;
     }
     map<off_t,ContainerEntry>::const_iterator itr;
     os << "# Entry Count: " << ndx.global_index.size() << endl;
@@ -291,10 +303,16 @@ ostream& operator <<(ostream& os,const Index& ndx )
     return os;
 }
 
+/*
+ * XXX: code is not consistant about what it puts in "physical", sometimes
+ * it is a top-level container directory, other times it is a specific
+ * index file inside a container hostdir.
+ */
 void
-Index::init( string physical )
+Index::init( string physical, struct plfs_backend *ibackend )
 {
     physical_path    = physical;
+    this->iobjback = ibackend;   /* mainly for flush() ? */
     populated       = false;
     buffering       = false;
     buffer_filled   = false;
@@ -308,12 +326,13 @@ Index::init( string physical )
     pthread_mutex_init( &fd_mux, NULL );
 }
 
-Index::Index( string logical, int fd ) : Metadata::Metadata()
+Index::Index( string logical, struct plfs_backend *iback, IOSHandle *newfh )
+    : Metadata::Metadata()
 {
-    init( logical );
-    this->fd = fd;
-    mlog(IDX_DAPI, "%s: created index on %s, fd=%d", __FUNCTION__,
-         physical_path.c_str(), fd);
+    init( logical, iback );
+    this->fh = newfh;
+    mlog(IDX_DAPI, "%s: created index on %s, fh=%p", __FUNCTION__,
+         physical_path.c_str(), newfh);
 }
 
 void
@@ -339,15 +358,16 @@ Index::resetPhysicalOffsets()
     return 0;
 }
 
-Index::Index( string logical ) : Metadata::Metadata()
+Index::Index( string logical, struct plfs_backend *iback )
+    : Metadata::Metadata()
 {
-    init( logical );
+    init( logical, iback );
     mlog(IDX_DAPI, "%s: created index on %s, %lu chunks", __FUNCTION__,
          physical_path.c_str(), (unsigned long)chunk_map.size());
 }
 
 void
-Index::setPath( string p )
+Index::setPath( string p )  /* XXX: when do we use this? */
 {
     this->physical_path = p;
 }
@@ -361,11 +381,15 @@ Index::~Index()
     mlog(IDX_DAPI, "%s", os.str().c_str() );
     mlog(IDX_DCOMMON, "There are %lu chunks to close fds for",
          (unsigned long)chunk_map.size());
+    /*
+     * XXX: things are currently setup so that this does not close
+     * this->fd.   worth noting and keeping an eye on it.
+     */
     for( unsigned i = 0; i < chunk_map.size(); i++ ) {
-        if ( chunk_map[i].fd > 0 ) {
-            mlog(IDX_DCOMMON, "Closing fd %d for %s",
-                 (int)chunk_map[i].fd, chunk_map[i].path.c_str() );
-            Util::Close( chunk_map[i].fd );
+        if ( chunk_map[i].fh != NULL) {
+            mlog(IDX_DCOMMON, "Closing fh %p for %s",
+                 chunk_map[i].fh, chunk_map[i].bpath.c_str() );
+            chunk_map[i].backend->store->Close(chunk_map[i].fh);
         }
     }
     pthread_mutex_destroy( &fd_mux );
@@ -479,7 +503,7 @@ Index::ispopulated( )
     return populated;
 }
 
-// returns 0 or -errno
+// returns 0 or -err
 // this dumps the local index
 // and then clears it
 int
@@ -494,61 +518,78 @@ Index::flush()
     }
     // valgrind complains about writing uninitialized bytes here....
     // but it's fine as far as I can tell.
+    //XXXCDC: it is prob complaining about structure padding
     void *start = &(hostIndex.front());
-    int ret     = Util::Writen( fd, start, len );
+    int ret     = Util::Writen(start, len, this->fh);
     if ( (size_t)ret != (size_t)len ) {
-        mlog(IDX_DRARE, "%s failed write to fd %d: %s",
-             __FUNCTION__, fd, strerror(errno));
+        mlog(IDX_DRARE, "%s failed write to fh %p: %s",
+             __FUNCTION__, fh, strerror(-ret));
     }
     hostIndex.clear();
-    return ( ret < 0 ? -errno : 0 );
+    return((ret < 0) ? ret : 0);
 }
 
-// takes a path and returns a ptr to the mmap of the file
+// takes a path and returns a ptr to the databuf of the file
 // also computes the length of the file
 // Update: seems to work with metalink
-void *
-Index::mapIndex( string hostindex, int *fd, off_t *length )
+// this is for reading an index file
+// only called by Index::readIndex.  must call cleanupReadIndex to
+// close and unmap
+// return 0 or -err
+int
+Index::mapIndex( void **ibufp, string hostindex, IOSHandle **xfh,
+                 off_t *length, struct plfs_backend *hback)
 {
-    void *addr;
-    *fd = Util::Open( hostindex.c_str(), O_RDONLY );
-    if ( *fd < 0 ) {
-        mlog(IDX_DRARE, "%s WTF open: %s", __FUNCTION__, strerror(errno));
-        return (void *)-1;
+    int ret;
+    *xfh = hback->store->Open(hostindex.c_str(), O_RDONLY, ret);
+    if ( *xfh == NULL ) {
+        mlog(IDX_DRARE, "%s WTF open: %s", __FUNCTION__, strerror(-ret));
+        /* play it safe in case store doesn't set ret properly */
+        *ibufp = NULL;
+        *length = 0;
+        return(ret);
     }
+
     // lseek doesn't always see latest data if panfs hasn't flushed
     // could be a zero length chunk although not clear why that gets
     // created.
-    Util::Lseek( *fd, 0, SEEK_END, length );
+    *length = (*xfh)->Size();
     if ( *length == 0 ) {
+        /* this can happen if index !flushed, or after a truncate */
         mlog(IDX_DRARE, "%s is a zero length index file", hostindex.c_str());
-        return NULL;
+        *ibufp = NULL;
+        return(0);
     }
-    if (length < 0) {
-        mlog(IDX_DRARE, "%s WTF lseek: %s", __FUNCTION__, strerror(errno));
-        return (void *)-1;
+    if (*length < 0) {
+        mlog(IDX_DRARE, "%s WTF lseek: %s", __FUNCTION__,
+             strerror(-(*length)));
+        return(*length);
     }
-    Util::Mmap(*length,*fd,&addr);
-    return addr;
+    
+    ret = (*xfh)->GetDataBuf(ibufp, *length);
+    return(ret);
 }
 
 
 // this builds a global in-memory index from a physical host index dropping
-// return 0 for sucess, -errno for failure
-int Index::readIndex( string hostindex )
+// return 0 for sucess, -err for failure
+int Index::readIndex( string hostindex, struct plfs_backend *hback )
 {
+    int rv;
     off_t length = (off_t)-1;
-    int   fd = -1;
+    IOSHandle *rfh = NULL;
     void  *maddr = NULL;
     populated = true;
     mss::mlog_oss os(IDX_DAPI);
     os << __FUNCTION__ << ": " << this << " reading index on " <<
        physical_path;
     mlog(IDX_DAPI, "%s", os.str().c_str() );
-    maddr = mapIndex( hostindex, &fd, &length );
-    if( maddr == (void *)-1 ) {
-        return cleanupReadIndex( fd, maddr, length, 0, "mapIndex",
-                                 hostindex.c_str() );
+
+    rv = mapIndex(&maddr, hostindex, &rfh, &length, hback);
+
+    if( rv < 0) {
+        return cleanupReadIndex( rfh, maddr, length, rv, "mapIndex",
+                                 hostindex.c_str(), hback );
     }
     // ok, there's a bunch of data structures in here
     // some temporary some more permanent
@@ -593,13 +634,14 @@ int Index::readIndex( string hostindex )
         // and set the initial offset
         if( known_chunks.find(h_entry.id) == known_chunks.end() ) {
             ChunkFile cf;
-            cf.path = Container::chunkPathFromIndexPath(hostindex,h_entry.id);
-            cf.fd   = -1;
+            cf.bpath = Container::chunkPathFromIndexPath(hostindex,h_entry.id);
+            cf.backend = hback;
+            cf.fh   = NULL;
             chunk_map.push_back( cf );
             known_chunks[h_entry.id]  = chunk_id++;
             // chunk_map is indexed by chunk_id so these need to be the same
             assert( (size_t)chunk_id == chunk_map.size() );
-            mlog(IDX_DCOMMON, "Inserting chunk %s (%lu)", cf.path.c_str(),
+            mlog(IDX_DCOMMON, "Inserting chunk %s (%lu)", cf.bpath.c_str(),
                  (unsigned long)chunk_map.size());
         }
         // copy all info from the host entry to the global and advance
@@ -616,17 +658,21 @@ int Index::readIndex( string hostindex )
         c_entry.end_timestamp     = h_entry.end_timestamp;
         int ret = insertGlobal( &c_entry );
         if ( ret != 0 ) {
-            return cleanupReadIndex( fd, maddr, length, ret, "insertGlobal",
-                                     hostindex.c_str() );
+            /* caller should prob discard index if we fail here */
+            return cleanupReadIndex( rfh, maddr, length, ret, "insertGlobal",
+                                     hostindex.c_str(), hback );
         }
     }
     mlog(IDX_DAPI, "After %s in %p, now are %lu chunks",
          __FUNCTION__,this,(unsigned long)chunk_map.size());
-    return cleanupReadIndex(fd, maddr, length, 0, "DONE",hostindex.c_str());
+    return cleanupReadIndex(rfh, maddr, length, 0, "DONE",hostindex.c_str(),
+                            hback);
 }
 
 // constructs a global index from a "stream" (i.e. a chunk of memory)
-// returns 0 or -errno
+// returns 0 or -err
+// format:
+//    <quant> [ContainerEntry list] [chunk paths]
 int Index::global_from_stream(void *addr)
 {
     // first read the header to know how many entries there are
@@ -659,14 +705,27 @@ int Index::global_from_stream(void *addr)
     for( size_t i = 0; i < chunk_paths.size(); i++ ) {
         if(chunk_paths[i].size()<7) {
             continue;    // WTF does <7 mean???
+            /*
+             * XXXCDC: chunk path has a minimum length, 7 may not be
+             * correct?  maybe change it to complain loudly if this
+             * ever fires? (what is the min chunk size?)
+             */
         }
+        int ret;
         ChunkFile cf;
         // we used to strip the physical path off in global_to_stream
         // and add it back here.  See comment in global_to_stream for why
         // we don't do that anymore
         //cf.path = physical_path + "/" + chunk_paths[i];
-        cf.path = chunk_paths[i];
-        cf.fd = -1;
+
+        ret = plfs_phys_backlookup(chunk_paths[i].c_str(), NULL,
+                                   &cf.backend, &cf.bpath);
+        if (ret != 0) {
+            //XXXCDC: NOW WHAT?   not going to be able to read the
+            //data log files without a valid backend, so we are sunk
+            //if we try to read
+        }
+        cf.fh = NULL;
         chunk_map.push_back(cf);
     }
     return 0;
@@ -697,15 +756,17 @@ int Index::debug_from_stream(void *addr)
 }
 
 // this writes a flattened in-memory global index to a physical file
-// returns 0 or -errno
-int Index::global_to_file(int fd)
+// returns 0 or -err
+int Index::global_to_file(IOSHandle *xfh, struct plfs_backend *canback)
 {
     void *buffer;
     size_t length;
     int ret = global_to_stream(&buffer,&length);
     if (ret==0) {
-        ret = Util::Writen(fd,buffer,length);
-        ret = ( (size_t)ret == length ? 0 : -errno );
+        ret = Util::Writen(buffer,length,xfh);
+        if (ret >= 0) {   /* let -err pass up to caller */
+            ret = 0;
+        }
         free(buffer);
     }
     return ret;
@@ -713,7 +774,7 @@ int Index::global_to_file(int fd)
 
 // this writes a flattened in-memory global index to a memory address
 // it allocates the memory.  The caller must free it.
-// returns 0 or -errno
+// returns 0 or -err
 int Index::global_to_stream(void **buffer,size_t *length)
 {
     int ret = 0;
@@ -750,7 +811,7 @@ int Index::global_to_stream(void **buffer,size_t *length)
                 chunk_path.c_str(), chunk_map[i].path.c_str());
         chunks << chunk_path << endl;
         */
-        chunks << chunk_map[i].path << endl;
+        chunks << chunk_map[i].backend->prefix << chunk_map[i].bpath << endl;
     }
     chunks << '\0'; // null term the file
     size_t chunks_length = chunks.str().length();
@@ -970,13 +1031,14 @@ Index::insertGlobal( ContainerEntry *g_entry )
 {
     pair<map<off_t,ContainerEntry>::iterator,bool> ret;
     bool overlap  = false;
-    mss::mlog_oss oss(IDX_DAPI);
+    mss::mlog_oss ioss(IDX_DAPI);
     mlog(IDX_DAPI, "Inserting offset %ld into index of %s (%d)",
          (long)g_entry->logical_offset, physical_path.c_str(),g_entry->id);
     ret = insertGlobalEntry( g_entry );
     if ( ret.second == false ) {
-        oss << "overlap1" <<endl<< *g_entry <<endl << ret.first->second << endl;
-        mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
+        ioss << "overlap1" <<endl<< *g_entry <<endl << 
+                ret.first->second << endl;
+        mlog(IDX_DCOMMON, "%s", ioss.str().c_str() );
         overlap  = true;
     }
     // also, need to check against prev and next for overlap
@@ -1010,9 +1072,9 @@ Index::insertGlobal( ContainerEntry *g_entry )
     } else if (compress_contiguous) {
         // does it abuts with the one before it
         if (ret.first!=global_index.begin() && g_entry->follows(prev->second)) {
-            oss << "Merging index for " << *g_entry << " and " << prev->second
+            ioss << "Merging index for " << *g_entry << " and " << prev->second
                 << endl;
-            mlog(IDX_DCOMMON, "%s", oss.str().c_str());
+            mlog(IDX_DCOMMON, "%s", ioss.str().c_str());
             prev->second.length += g_entry->length;
             global_index.erase( ret.first );
         }
@@ -1033,47 +1095,49 @@ Index::insertGlobal( ContainerEntry *g_entry )
 }
 
 // just a little helper to print an error message and make sure the fd is
-// closed and the mmap is unmap'd
+// closed and the data buffers released
+// ret 0 or -err
 int
-Index::cleanupReadIndex( int fd, void *maddr, off_t length, int ret,
-                         const char *last_func, const char *indexfile )
+Index::cleanupReadIndex( IOSHandle *xfh, void *maddr, off_t length, int ret,
+                         const char *last_func, const char *indexfile,
+                         struct plfs_backend *hback)
 {
     int ret2 = 0, ret3 = 0;
     if ( ret < 0 ) {
         mlog(IDX_DRARE, "WTF.  readIndex failed during %s on %s: %s",
-             last_func, indexfile, strerror( errno ) );
+             last_func, indexfile, strerror( -ret ) );
     }
-    if ( maddr != NULL && maddr != (void *)-1 ) {
-        ret2 = Util::Munmap( maddr, length );
+    if ( maddr != NULL ) {
+        ret2 = xfh->ReleaseDataBuf(maddr, length);
         if ( ret2 < 0 ) {
             mlog(IDX_DRARE,
-                 "WTF.  readIndex failed during munmap of %s (%lu): %s",
-                 indexfile, (unsigned long)length, strerror(errno));
+                 "WTF.  readIndex failed during release of %s (%lu): %s",
+                 indexfile, (unsigned long)length, strerror(-ret2));
             ret = ret2; // set to error
         }
     }
-    if ( maddr == (void *)-1 ) {
-        mlog(IDX_DRARE, "mmap failed on %s: %s",indexfile,strerror(errno));
+    if ( maddr == NULL ) {
+        mlog(IDX_DRARE, "get/map failed on %s: %s",indexfile,strerror(-ret));
     }
-    if ( fd > 0 ) {
-        ret3 = Util::Close( fd );
+    if ( xfh != NULL ) {
+        ret3 = hback->store->Close(xfh);
         if ( ret3 < 0 ) {
             mlog(IDX_DRARE,
                  "WTF. readIndex failed during close of %s: %s",
-                 indexfile, strerror( errno ) );
+                 indexfile, strerror(-ret3) );
             ret = ret3; // set to error
         }
     }
-    return ( ret == 0 ? 0 : -errno );
+    return(ret);
 }
 
 // returns any fd that has been stashed for a data chunk
 // if an fd has not yet been stashed, it returns the initial
 // value of -1
-int
-Index::getChunkFd( pid_t chunk_id )
+IOSHandle *
+Index::getChunkFh( pid_t chunkid )
 {
-    return chunk_map[chunk_id].fd;
+    return chunk_map[chunkid].fh;
 }
 
 // stashes an fd for a data chunk
@@ -1081,9 +1145,9 @@ Index::getChunkFd( pid_t chunk_id )
 // they might be opened in parallel when a single logical read
 // spans multiple data chunks
 int
-Index::setChunkFd( pid_t chunk_id, int fd )
+Index::setChunkFh( pid_t chunkid, IOSHandle *newfh )
 {
-    chunk_map[chunk_id].fd = fd;
+    chunk_map[chunkid].fh = newfh;
     return 0;
 }
 
@@ -1092,15 +1156,16 @@ Index::setChunkFd( pid_t chunk_id, int fd )
 // we found a chunk containing an offset, return necessary stuff
 // this does not open the fd to the chunk however
 int
-Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
-                   off_t shift, string& path, pid_t *chunk_id,
+Index::chunkFound( IOSHandle **xfh, off_t *chunk_off, size_t *chunk_len,
+                   off_t shift, string& path,
+                   struct plfs_backend **backp, pid_t *chunkid,
                    ContainerEntry *entry )
 {
     ChunkFile *cf_ptr = &(chunk_map[entry->id]); // typing shortcut
     *chunk_off  = entry->physical_offset + shift;
     *chunk_len  = entry->length       - shift;
-    *chunk_id   = entry->id;
-    if( cf_ptr->fd < 0 ) {
+    *chunkid   = entry->id;
+    if( cf_ptr->fh == NULL ) {
         // I'm not sure why we used to open the chunk file here and
         // now we don't.  If you figure it out, pls explain it here.
         // we must have done the open elsewhere.  But where and why not here?
@@ -1113,12 +1178,13 @@ Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
         // be parallelized.  However, it turns out that the opens are then
         // later mutex'ed so they're actually parallized.  But we've done the
         // best that we can here at least.
-        mlog(IDX_DRARE, "Not opening chunk file %s yet", cf_ptr->path.c_str());
+        mlog(IDX_DRARE, "Not opening chunkfile %s yet", cf_ptr->bpath.c_str());
     }
     mlog(IDX_DCOMMON, "Will read from chunk %s at off %ld (shift %ld)",
-         cf_ptr->path.c_str(), (long)*chunk_off, (long)shift );
-    *fd = cf_ptr->fd;
-    path = cf_ptr->path;
+         cf_ptr->bpath.c_str(), (long)*chunk_off, (long)shift );
+    *xfh = cf_ptr->fh;
+    path = cf_ptr->bpath;
+    *backp = cf_ptr->backend;
     return 0;
 }
 
@@ -1127,16 +1193,17 @@ Index::chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
 // if the chunk does not currently have an fd, it is created here
 // if the lookup finds a hole, it returns -1 for the fd and
 // chunk_len for the size of the hole beyond the logical offset
-// returns 0 or -errno
-int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
-                         string& path, bool *hole, pid_t *chunk_id,
+// returns 0 or -err
+int Index::globalLookup( IOSHandle **xfh, off_t *chunk_off, size_t *chunk_len,
+                         string& path, struct plfs_backend **backp,
+                         bool *hole, pid_t *chunkid,
                          off_t logical )
 {
     mss::mlog_oss os(IDX_DAPI);
     os << __FUNCTION__ << ": " << this << " using index.";
     mlog(IDX_DAPI, "%s", os.str().c_str() );
     *hole = false;
-    *chunk_id = (pid_t)-1;
+    *chunkid = (pid_t)-1;
     //mlog(IDX_DCOMMON, "Look up %ld in %s",
     //        (long)logical, physical_path.c_str() );
     ContainerEntry entry, previous;
@@ -1151,7 +1218,7 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
     itr = global_index.lower_bound( logical );
     // zero length file, nothing to see here, move along
     if ( global_index.size() == 0 ) {
-        *fd = -1;
+        *xfh = NULL;
         *chunk_len = 0;
         return 0;
     }
@@ -1175,9 +1242,9 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
         //ostringstream oss;
         //oss << "FOUND(1): " << entry << " contains " << logical;
         //mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
-        return chunkFound( fd, chunk_off, chunk_len,
+        return chunkFound( xfh, chunk_off, chunk_len,
                            logical - entry.logical_offset, path,
-                           chunk_id, &entry );
+                           backp, chunkid, &entry );
     }
     // case 1 or 2
     if ( prev != (MAP_ITR)NULL ) {
@@ -1186,9 +1253,9 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
             //ostringstream oss;
             //oss << "FOUND(2): "<< previous << " contains " << logical << endl;
             //mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
-            return chunkFound( fd, chunk_off, chunk_len,
+            return chunkFound( xfh, chunk_off, chunk_len,
                                logical - previous.logical_offset, path,
-                               chunk_id, &previous );
+                               backp, chunkid, &previous );
         }
     }
     // now it's either before entry and in a hole or after entry and off
@@ -1199,7 +1266,7 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
         oss << "FOUND(4): " << logical << " is in a hole";
         mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
         off_t remaining_hole_size = entry.logical_offset - logical;
-        *fd = -1;
+        *xfh = NULL;
         *chunk_len = remaining_hole_size;
         *chunk_off = 0;
         *hole = true;
@@ -1209,7 +1276,7 @@ int Index::globalLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
     //oss.str("");    // stupid way to clear the buffer
     //oss << "FOUND(3): " <<logical << " is beyond the end of the file" << endl;
     //mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
-    *fd = -1;
+    *xfh = NULL;
     *chunk_len = 0;
     return 0;
 }
@@ -1294,11 +1361,12 @@ Index::addWrite( off_t offset, size_t length, pid_t pid,
         // global one
         if(chunk_map.size()==0) {
             ChunkFile cf;
-            cf.fd = -1;
-            cf.path = Container::chunkPathFromIndexPath(index_path,pid);
+            cf.fh = NULL;
+            cf.bpath = Container::chunkPathFromIndexPath(index_path,pid);
+            //XXXCDC:iostore backend??? --- use the write one
             // No good we need the Index Path please be stashed somewhere
             mlog(IDX_DCOMMON, "Use chunk path from index path: %s",
-                 cf.path.c_str());
+                 cf.bpath.c_str());
             chunk_map.push_back( cf );
         }
     }
@@ -1370,10 +1438,11 @@ Index::truncateHostIndex( off_t offset )
 // created a partial global index, and truncated that global
 // index, so now we need to dump the modified global index into
 // a new local index
+// XXX: fd's backend is stored in Index::iback, use it to flush()
 int
-Index::rewriteIndex( int fd )
+Index::rewriteIndex( IOSHandle *rfh )
 {
-    this->fd = fd;
+    this->fh = rfh;
     map<off_t,ContainerEntry>::iterator itr;
     map<double,ContainerEntry> global_index_timesort;
     map<double,ContainerEntry>::iterator itrd;
