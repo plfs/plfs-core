@@ -47,8 +47,8 @@ setenv PLFS_WANT_DEBUG_FLAGS 1
 setenv PLFS_WANT_VERBOSE_CONF_OUT 1 
 setenv PLFS_WANT_ADIO 0
 # treat all build warnings as errors.  No build warnings!
-setenv CFLAGS '-Wall -Werror'
-setenv CXXFLAGS '-Wall -Werror'
+setenv CFLAGS '-Wall -Werror -Wshadow'
+setenv CXXFLAGS '-Wall -Werror -Wshadow'
 
 Notice especially the bottom two.  We want warning free code so print out
 all warnings and treat them as errors.

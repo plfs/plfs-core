@@ -31,11 +31,12 @@ int container_query( Container_OpenFile *, size_t *writers,
 ssize_t container_read( Container_OpenFile *, char *buf, size_t size,
                         off_t offset );
 
-int container_readdir( const char *path, void * );
+int container_readdir( const char *path, set<string> * );
 
 int container_readlink( const char *path, char *buf, size_t bufsize );
 
-int container_rename_open_file(Container_OpenFile *of, const char *logical);
+int container_rename_open_file(Container_OpenFile *of, const char *logical,
+                               struct plfs_backend *b);
 
 int container_rename( const char *from, const char *to );
 
