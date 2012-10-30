@@ -10,6 +10,7 @@
 #include <libgen.h>
 using namespace std;
 
+#include "IOStore.h"
 #include "FileOp.h"
 #include "Container.h"
 #include "OpenFile.h"
@@ -40,9 +41,10 @@ Container::bytesToBlocks( size_t total_bytes )
 // moved as well.
 // by the way, it's easier to think about this sometimes if you think of the
 // from_backend as a shadow container to the to_backend which is now canonical
-// returns 0 or -errno
+// returns 0 or -err
 int
-Container::transferCanonical(const string& from, const string& to,
+Container::transferCanonical(const plfs_pathback *from,
+                             const plfs_pathback *to,
                              const string& from_backend,
                              const string& to_backend, mode_t mode)
 {
@@ -56,32 +58,32 @@ Container::transferCanonical(const string& from, const string& to,
     //    else assert(0): there should be nothing else
     // set up our operators
     mlog(CON_DAPI, "%s need to transfer from %s into %s",
-         __FUNCTION__, from.c_str(), to.c_str());
+         __FUNCTION__, from->bpath.c_str(), to->bpath.c_str());
     map<string,unsigned char> entries;
     map<string,unsigned char>::iterator itr;
     string old_path, new_path;
     ReaddirOp rop(&entries,NULL,false,true);
     UnlinkOp uop;
     CreateOp cop(mode);
-    cop.ignoreErrno(EEXIST);
-    cop.ignoreErrno(EISDIR);
+    cop.ignoreErrno(-EEXIST);
+    cop.ignoreErrno(-EISDIR);
     // do the readdir of old to get the list of things that need to be moved
-    ret = rop.op(from.c_str(),DT_DIR);
+    ret = rop.op(from->bpath.c_str(),DT_DIR,from->back->store);
     if ( ret != 0) {
         return ret;
     }
     // then make sure there is a directory in the right place
-    ret = cop.op(to.c_str(),DT_CONTAINER);
+    ret = cop.op(to->bpath.c_str(),DT_CONTAINER,to->back->store);
     if ( ret != 0) {
         return ret;
     }
     // now transfer all contents from old to new
     for(itr=entries.begin(); itr!=entries.end() && ret==0; itr++) {
         // set up full paths
-        old_path = from;
+        old_path = from->bpath;
         old_path += "/";
         old_path += itr->first;
-        new_path = to;
+        new_path = to->bpath;
         new_path += "/";
         new_path += itr->first;;
         switch(itr->second) {
@@ -90,10 +92,10 @@ Container::transferCanonical(const string& from, const string& to,
             // except for global index.  We should really copy global
             // index over.  Someone do that later.  Now we just ophan it.
             // for the zero length ones, just create them new, delete old.
-            if (Util::Filesize(old_path.c_str())==0) {
-                ret = cop.op(new_path.c_str(),DT_REG);
+            if (Util::Filesize(old_path.c_str(),from->back->store)==0) {
+                ret = cop.op(new_path.c_str(),DT_REG,to->back->store);
                 if (ret==0) {
-                    ret = uop.op(old_path.c_str(),DT_REG);
+                    ret = uop.op(old_path.c_str(),DT_REG,from->back->store);
                 }
             } else {
                 if(istype(itr->first,GLOBALINDEX)) {
@@ -117,21 +119,29 @@ Container::transferCanonical(const string& from, const string& to,
             string physical_hostdir; // we don't need this
             bool use_metalink; // we don't need this
             string canonical_backend = to_backend;
-            string other_backend;
-            ret = readMetalink(old_path,other_backend,sz);
-            if (ret==0 && canonical_backend!=other_backend) {
-                ret = createMetalink(canonical_backend,other_backend,
-                                     new_path,physical_hostdir,use_metalink);
+            struct plfs_backend *mbackout, *physback;
+            //XXX: would be more efficient with mountpoint
+            ret = readMetalink(old_path, from->back, NULL, sz, &mbackout);
+            if (ret==0 && canonical_backend!=mbackout->bmpoint) {
+
+                ret = createMetalink(to->back, mbackout, new_path,
+                                     physical_hostdir, &physback,
+                                     use_metalink);
             }
             if (ret==0) {
-                ret = uop.op(old_path.c_str(),DT_LNK);
+                ret = uop.op(old_path.c_str(),DT_LNK,from->back->store);
             }
         }
         break;
         case DT_DIR:
             // two types of dir.  meta dir and host dir
             if (istype(itr->first,METADIR)) {
-                ret = transferCanonical(old_path,new_path,
+                struct plfs_pathback opb, npb;
+                opb.bpath = old_path;
+                opb.back = from->back;
+                npb.bpath = new_path;
+                npb.back = to->back;
+                ret = transferCanonical(&opb, &npb,
                                         from_backend,to_backend,mode);
             } else if (istype(itr->first,HOSTDIRPREFIX)) {
                 // in this case what happens is that the former canonical
@@ -141,8 +151,11 @@ Container::transferCanonical(const string& from, const string& to,
                 bool use_metalink; // we don't need this
                 string canonical_backend = to_backend;
                 string shadow_backend = from_backend;
-                ret = createMetalink(canonical_backend,shadow_backend,
-                                     new_path,physical_hostdir,use_metalink);
+                struct plfs_backend *physback;
+
+                ret = createMetalink(to->back, from->back,
+                                     new_path, physical_hostdir, &physback,
+                                     use_metalink);
             } else {
                 // something unexpected if we're here
                 // try including the string in the assert so we get
@@ -207,12 +220,14 @@ Container::hashValue( const char *str )
 // is good?  oh.  bec if there is a symlink to the plfs file and we stat
 // the symlink, then it will appear as a regular file instead of as a symlink
 bool
-Container::isContainer( const string& physical_path, mode_t *mode )
+Container::isContainer( const struct plfs_pathback *physical_path,
+                        mode_t *mode )
 {
-
-    mlog(CON_DAPI, "%s checking %s", __FUNCTION__, physical_path.c_str());
+    mlog(CON_DAPI, "%s checking %s", __FUNCTION__,
+         physical_path->bpath.c_str());
     struct stat buf;
-    int ret = Util::Lstat( physical_path.c_str(), &buf );
+    int ret = physical_path->back->store->Lstat(physical_path->bpath.c_str(),
+                                                &buf);
     if ( ret == 0 ) {
         if ( mode ) {
             *mode = buf.st_mode;
@@ -220,12 +235,13 @@ Container::isContainer( const string& physical_path, mode_t *mode )
         if ( Util::isDirectory(&buf) ) {
             // it's either a directory or a container.  check for access file
             mlog(CON_DCOMMON, "%s %s is a directory", __FUNCTION__,
-                 physical_path.c_str());
-            string accessfile = getAccessFilePath(physical_path);
-            ret = Util::Lstat( accessfile.c_str(), &buf );
+                 physical_path->bpath.c_str());
+            string accessfile = getAccessFilePath(physical_path->bpath);
+            ret = physical_path->back->store->Lstat(accessfile.c_str(),
+                                                    &buf);
             if ( ret == 0 && mode ) {
                 mlog(CON_DCOMMON, "%s %s is a container", __FUNCTION__,
-                     physical_path.c_str());
+                     physical_path->bpath.c_str());
                 // something weird here.  it should be: *mode = buf.st_mode;
                 // but then the rename has a weird error.
                 // but leaving it like this adds an execute bit to renamed files
@@ -247,7 +263,7 @@ Container::isContainer( const string& physical_path, mode_t *mode )
             *mode = 0;    // ENOENT
         }
         mlog(CON_DCOMMON, "%s on %s: returning false",
-             __FUNCTION__,physical_path.c_str());
+             __FUNCTION__,physical_path->bpath.c_str());
         return false;
     }
     // actually, I think we can do this the old one but then on
@@ -292,26 +308,15 @@ Container::freeIndex( Index **index )
     return 0;
 }
 
-// a helper routine for functions that are accessing a file
-// which may not exist.  It's not an error if it doesn't
-// exist since it might not exist yet due to an error condition
-int
-Container::ignoreNoEnt( int ret )
-{
-    if ( ret != 0 && ( errno == ENOENT || errno == ENOTDIR ) ) {
-        return 0;
-    } else {
-        return ret;
-    }
-}
-
 // really just need to do the access file
+// returns 0 or -err
 int
-Container::Utime( const string& path, const struct utimbuf *ut )
+Container::Utime( const string& path, struct plfs_backend *back,
+                  const struct utimbuf *ut )
 {
     string accessfile = getAccessFilePath(path);
     mlog(CON_DAPI, "%s on %s", __FUNCTION__,path.c_str());
-    return Util::retValue(Util::Utime(accessfile.c_str(),ut));
+    return(back->store->Utime(accessfile.c_str(),ut));
 }
 
 // the shared arguments passed to all of the indexer threads
@@ -344,8 +349,8 @@ indexer_thread( void *va )
             break;
         }
         // handle the task
-        Index subindex(task.path);
-        ret = subindex.readIndex(task.path);
+        Index subindex(task.path, task.backend);
+        ret = subindex.readIndex(task.path, task.backend);
         if ( ret != 0 ) {
             break;
         }
@@ -358,9 +363,17 @@ indexer_thread( void *va )
     pthread_exit((void *)ret);
 }
 
-// returns 0 or -errno
+/**
+ * Container::flattenIndex: flatten a global index into a single file
+ *
+ * @param path the bpath to the canonical container
+ * @param canback the canonical backend
+ * @param index the index to dump
+ * @return 0 or -err
+ */
 int
-Container::flattenIndex( const string& path, Index *index )
+Container::flattenIndex( const string& path, struct plfs_backend *canback,
+                         Index *index )
 {
     // get unique names, and then rename on success so it's atomic
     string globalIndex = getGlobalIndexPath(path);
@@ -368,61 +381,73 @@ Container::flattenIndex( const string& path, Index *index )
     int flags = O_WRONLY|O_CREAT|O_EXCL;
     mode_t mode = DROPPING_MODE;
     // open the unique temporary path
-    int index_fd = Util::Open(unique_temporary.c_str(),flags,mode);
-    if ( index_fd <= 0 ) {
-        return -errno;
+    int ret;
+    IOSHandle *index_fh = canback->store->Open(unique_temporary.c_str(),
+                                               flags, mode, ret);
+    if ( index_fh == NULL ) {
+        return ret; 
     }
     // compress then dump and then close the files
     // compress adds overhead and no benefit if the writes weren't through FUSE
     //index->compress();
-    int ret = index->global_to_file(index_fd);
+    ret = index->global_to_file(index_fh,canback);
     mlog(CON_DCOMMON, "index->global_to_file returned %d",ret);
-    Util::Close(index_fd);
+    (void) canback->store->Close(index_fh);
     if ( ret == 0 ) { // dump was successful so do the atomic rename
-        ret = Util::Rename(unique_temporary.c_str(),globalIndex.c_str());
-        if ( ret != 0 ) {
-            ret = -errno;
-        }
+        ret = canback->store->Rename(unique_temporary.c_str(),
+                                     globalIndex.c_str());
     }
     return ret;
 }
 
-// this is the function that returns the container index
-// should first check for top-level index and if it exists, just use it
-// returns -errno or 0
+/**
+ * Container::populateIndex: load the container's global index, trying
+ * to use global index file first (if present), otherwise we assemble
+ * a new global index from all the index dropping files.
+ *
+ * @param path the bpath to the canonical container
+ * @param canback the backend for the canonical container
+ * @param index the index to load into
+ * @param use_global set to false to disable global index file load attempt
+ * @return -err or 0
+ */
 int
-Container::populateIndex(const string& path, Index *index,bool use_global)
+Container::populateIndex(const string& path, struct plfs_backend *canback,
+                         Index *index,bool use_global)
 {
     int ret = 0;
     // first try for the top-level global index
     mlog(CON_DAPI, "%s on %s %s attempt to use flattened index",
          __FUNCTION__,path.c_str(),(use_global?"will":"will not"));
-    int idx_fd = -1;
+    IOSHandle *idx_fh = NULL;
     if ( use_global ) {
-        idx_fd = Util::Open(getGlobalIndexPath(path).c_str(),O_RDONLY);
+        idx_fh = canback->store->Open(getGlobalIndexPath(path).c_str(),
+                                      O_RDONLY, ret);
     }
-    if ( idx_fd >= 0 ) {
+    if ( idx_fh != NULL) {
         mlog(CON_DCOMMON,"Using cached global flattened index for %s",
              path.c_str());
         off_t len = -1;
-        ret = Util::Lseek(idx_fd,0,SEEK_END,&len);
-        if ( ret != -1 ) {
+        len = idx_fh->Size();
+        if (len < 0) {
+            ret = len;
+        } else {
             void *addr;
-            ret = Util::Mmap(len,idx_fd,&addr);
-            if ( ret != -1 ) {
+            ret = idx_fh->GetDataBuf(&addr, len);
+            if ( ret == 0 ) {
                 ret = index->global_from_stream(addr);
-                Util::Munmap(addr,len);
+                idx_fh->ReleaseDataBuf(addr,len);
             } else {
-                mlog(CON_ERR, "WTF: mmap %s of len %ld: %s",
+                mlog(CON_ERR, "WTF: getdatabuf %s of len %ld: %s",
                      getGlobalIndexPath(path).c_str(),
-                     (long)len, strerror(errno));
+                     (long)len, strerror(-ret));
             }
         }
-        Util::Close(idx_fd);
+        canback->store->Close(idx_fh);
     } else {    // oh well, do it the hard way
         mlog(CON_DCOMMON, "Building global flattened index for %s",
              path.c_str());
-        ret = aggregateIndices(path,index);
+        ret = aggregateIndices(path,canback,index);
     }
     return ret;
 }
@@ -444,7 +469,7 @@ Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index, string path)
             while( ! tasks.empty() ) {
                 IndexerTask task = tasks.front();
                 tasks.pop_front();
-                ret = index->readIndex(task.path);
+                ret = index->readIndex(task.path, task.backend);
                 if ( ret != 0 ) {
                     break;
                 }
@@ -459,10 +484,9 @@ Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index, string path)
             ThreadPool threadpool(count,indexer_thread, (void *)&args);
             mlog(CON_DAPI, "%lu THREADS to create index of %s",
                  (unsigned long)count,path.c_str());
-            ret = threadpool.threadError();    // returns errno
+            ret = threadpool.threadError();    // rets negative error#
             if ( ret ) {
-                mlog(CON_DRARE, "THREAD pool error %s", strerror(ret) );
-                ret = -ret;
+                mlog(CON_DRARE, "THREAD pool error %s", strerror(-ret));
             } else {
                 vector<void *> *stati    = threadpool.getStati();
                 ssize_t rc;  // needs to be size of void*
@@ -487,15 +511,15 @@ Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index, string path)
 // 0.1.6.  Otherwise, it parses the version out of the VERSIONPREFIX file
 #define VERSION_LEN 1024
 const char *
-Container::version(const string& path)
+Container::version(const struct plfs_pathback *pb)
 {
-    mlog(CON_DAPI, "%s checking %s", __FUNCTION__, path.c_str());
+    mlog(CON_DAPI, "%s checking %s", __FUNCTION__, pb->bpath.c_str());
     // first look for the version file idea that we started in 2.0.1
     map<string,unsigned char> entries;
     map<string,unsigned char>::iterator itr;
     ReaddirOp op(&entries,NULL,false,true);
     op.filter(VERSIONPREFIX);
-    if(op.op(path.c_str(),DT_DIR)!=0) {
+    if(op.op(pb->bpath.c_str(),DT_DIR,pb->back->store)!=0) {
         return NULL;
     }
     for(itr=entries.begin(); itr!=entries.end(); itr++) {
@@ -512,65 +536,122 @@ Container::version(const string& path)
 }
 
 // added the code where it handles metalinks by trying again on error
+/**
+ * indices_from_subdir: get list of indices from a subdir
+ *
+ * @param path the bpath of the canonical hostdir to read (can be metalink)
+ * @param cmnt the mount for our logical file
+ * @param canback the canonical backend we are reading from
+ * @param ibackp the backend the subdir is really on (could be shadow)
+ * @param indices returned list of index files we found in the subdir
+ * @return 0 or error
+ */
 int
-Container::indices_from_subdir(string path, vector<IndexFileInfo> &indices)
+Container::indices_from_subdir(string path, PlfsMount *cmnt,
+                               struct plfs_backend *canback,
+                               struct plfs_backend **ibackp,
+                               vector<IndexFileInfo> &indices)
 {
-    // resolve it if metalink.  otherwise unchanged.
+    int ret;
     string resolved;
-    int ret = resolveMetalink(path,resolved);
-    if (ret==0) {
-        path = resolved;
-    }
-    // collect the indices from subdir
-    vector<string> index_files;
-    ret = collectIndices(path,index_files,false);
+    struct plfs_backend *iback;
+    vector<plfs_pathback> index_files;
+
+    /* see if it is a metalink (may need to switch backends) */
+    iback = canback;
+    ret = resolveMetalink(path, canback, cmnt, resolved, &iback);
+    if (ret == 0) {
+        path = resolved;  /* overwrites param ... */
+    }        
+
+    /* have correct backend now, collect indices from subdir */
+    ret = collectIndices(path, iback, index_files, false);
     if (ret!=0) {
         return ret;
     }
-    // I need the path so I am going to try this out
-    // Should always be the first element
+
+    /*
+     * note: some callers need a copy of the physical path (including
+     * prefix) after it has been resolved with resolveMetalink so they
+     * know where the actual files are (currently the MPI open "split
+     * and merge" code path).  to handle this we put a special
+     * "path_holder" record at the front of the indices list that
+     * returns the physical path in the hostname field.  callers that
+     * don't want this info should pop it off before using the
+     * returned indices...
+     */
     IndexFileInfo path_holder;
     path_holder.timestamp=-1;
-    path_holder.hostname=path;
+    path_holder.hostname= iback->prefix + path; /* not a hostname! */
     path_holder.id=-1;
     indices.push_back(path_holder);
-    // Start reading the directory
-    vector<string>::iterator itr;
+
+    /*
+     * now go through the list of files we got from the directory
+     * and generate the indices list.
+     */
+    vector<plfs_pathback>::iterator itr;
     for(itr = index_files.begin(); itr!=index_files.end(); itr++) {
         string str_time_stamp;
         vector<string> tokens;
         IndexFileInfo index_dropping;
-        // unpack the file name into components (should be separate func)
-        // ugh, this should be encapsulated.  if we ever change format
-        // of index filename, this will break.
-        Util::tokenize(itr->c_str(),".",tokens);
-        str_time_stamp+=tokens[2];
-        str_time_stamp+=".";
-        str_time_stamp+=tokens[3];
-        index_dropping.timestamp = strtod(str_time_stamp.c_str(),NULL);
-        int left_over = (tokens.size()-1)-5;    // WTF is 5?!?!?
-        // Hostname can contain "."
-        int count;
-        for(count=0; count<=left_over; count++) {
-            index_dropping.hostname+=tokens[4+count];   // WTF is 4?!?!?
-            if(count!=left_over) {
-                index_dropping.hostname+=".";
+        int left_over, count;
+
+        /*
+         * parse the filename into parts...
+         *  format: dropping.index.secs.usecs.host.pid
+         *  idx:       0        1    2    3     4   >=5
+         *
+         * XXX: pid is >=5 because hostname can contain '.' ... ugh.
+         * XXX: if we ever change the filename format, must update this.
+         */
+        Util::tokenize(itr->bpath.c_str(),".",tokens);
+
+        str_time_stamp += tokens[2];   /* secs */
+        str_time_stamp += ".";
+        str_time_stamp += tokens[3];   /* usec */
+        index_dropping.timestamp = strtod(str_time_stamp.c_str(), NULL);
+
+        /* handle/reassemble hostname (which can contain ".") */
+        left_over = (tokens.size() - 1) - 5;
+        for (count = 0 ; count <= left_over ; count++) {
+            index_dropping.hostname += tokens[4+count];
+            if (count != left_over) {
+                index_dropping.hostname += ".";
             }
         }
-        index_dropping.id=atoi(
-                              tokens[5+left_over].c_str());    // WTF is 5?!?!?!
+
+        /* last, find the ID at the end ... */
+        index_dropping.id=atoi(tokens[5+left_over].c_str());
+
         mlog(CON_DCOMMON, "Pushing path %s into index list from %s",
-             index_dropping.hostname.c_str(), itr->c_str());
+             index_dropping.hostname.c_str(), itr->bpath.c_str());
         indices.push_back(index_dropping);
     }
+
+    /* done, don't forget to return iback back up to the caller... */
+    *ibackp = iback;
     return 0;
 }
 
+/**
+ * parAggregateIndices: multithread read of a set of index files.  this is
+ * post-Metalink processing and all the requested index files reside on
+ * the same backend.  this is only used for MPI open.
+ *
+ * @param index_list the list of index files to read
+ * @param rank used to select a subset from the list (split and merge case)
+ * @param ranks_per_comm used to select a subset from the list
+ * @param path the bpath to hostdir (post Metalink)
+ * @param backend the backend the hostdir resides on
+ * @return the new index
+ */
 Index
 Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
-                               int rank, int ranks_per_comm,string path)
+                               int rank, int ranks_per_comm,string path,
+                               struct plfs_backend *backend)
 {
-    Index index(path);
+    Index index(path,backend);
     IndexerTask task;
     deque<IndexerTask> tasks;
     size_t count=0;
@@ -588,6 +669,7 @@ Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
         string index_path = getIndexHostPath(path,current->hostname,
                                              current->id,current->timestamp);
         task.path = index_path;
+        task.backend = backend;
         mlog(CON_DCOMMON, "Task push path %s",index_path.c_str());
         tasks.push_back(task);
     }
@@ -596,104 +678,56 @@ Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
     return index;
 }
 
-// this function will try to make a metalink at the specified location.
-// If it fails bec a sibling made a different metalink at the same location,
-// then keep trying to find an available one.
-// If metalink is created successfully, this code will try to create
-// shadow_container/hostdir directories.
-// If it fails bec there is no available hostdir entry in canonical,
-// try to use subdir directory in canonical container.
-// return path to physical hostdir if it's created.
-// returns 0 or -errno
+/**
+ * readMetalink: given a physical bpath to a hostdir on a backend,
+ * attempt to read it as a metalink.
+ *
+ * @param srcbpath the source bpath of the Metalink to read
+ * @param srcback the backend the src bpath resides on
+ * @param pmnt the logical mount being used (can be NULL if don't know)
+ * @param lenout length read from metalink put here (bytes to remove)
+ * @param backout pointer to the new backend is placed here
+ * @return 0 on success, -err on failure
+ */
 int
-Container::createMetalink(
-    const string& canonical_backend,
-    const string& shadow_backend,
-    const string& canonical_hostdir,
-    string& physical_hostdir,
-    bool& use_metalink)
-{
-    PlfsConf *pconf = get_plfs_conf();
-    string container_path;
-    size_t current_hostdir;
-    int ret = -1, id, dir_id = -1;
-    decomposeHostDirPath(canonical_hostdir, container_path, current_hostdir);
-    string canonical_path_without_id = container_path + '/' + HOSTDIRPREFIX;
-    ostringstream oss, shadow;
-    shadow << canonical_backend.size() << shadow_backend;
-    // loop all possible hostdir # to create metalink
-    // if no metalink is created, try to use the first found hostdir directory
-    for(size_t i = 0; i < pconf->num_hostdirs; i ++ ) {
-        id = (current_hostdir + i)%pconf->num_hostdirs;
-        oss.str(std::string());
-        oss << canonical_path_without_id << id;
-        ret = Util::Symlink(shadow.str().c_str(),oss.str().c_str());
-        if (ret==0) {
-            // create metalink successfully
-            mlog(CON_DAPI, "%s: wrote %s into %s: %d",
-                 __FUNCTION__, shadow.str().c_str(),
-                 oss.str().c_str(), ret);
-            break;
-        } else if (Util::isDirectory(oss.str().c_str())) {
-            //Keep the first hostdir directory found
-            if (dir_id == -1) {
-                dir_id = id;
-            }
-        } else {
-            //if symlink has been created, read it to verify.
-            //if it's linked to other shadows, continue
-            size_t sz;
-            string shadow_backend;
-            if ( !readMetalink(oss.str(),shadow_backend,sz) ) {
-                ostringstream tmp;
-                tmp << sz << shadow_backend;
-                if ( !strcmp(tmp.str().c_str(),
-                             shadow.str().c_str()) ) {
-                    mlog(CON_DCOMMON, "Same metalink already created\n");
-                    ret = 0;
-                    break;
-                }
-            }
-        }
+Container::readMetalink(const string& srcbpath, struct plfs_backend *srcback,
+                        PlfsMount *pmnt, size_t& lenout,
+                        struct plfs_backend **backout) {
+    int ret;
+    char buf[METALINK_MAX], *cp;
+
+    ret = srcback->store->Readlink(srcbpath.c_str(), buf, sizeof(buf)-1);
+    if (ret <= 0) {
+        // it's OK to fail: we use this to check if things are metalinks
+        mlog(CON_DCOMMON, "readlink %s failed: %s",srcbpath.c_str(),
+             (ret == 0) ? "ret==0" : strerror(-ret));
+        if (ret == 0)
+            ret = -ENOENT;   /* XXX */
+        return(ret);
     }
-    //compose physical hostdir path
-    ostringstream physical;
-    if( ret==0 ) {
-        //metalink created successfully
-        use_metalink = true;
-        physical << shadow_backend << '/'
-                 << canonical_path_without_id.substr(canonical_backend.size())
-                 << id;
-        physical_hostdir = physical.str();
-    } else if ( dir_id != -1 ) {
-        // no metalink created but find a hostdir directory
-        // a sibling raced us and made the directory for us, return it.
-        physical << canonical_path_without_id << dir_id;
-        physical_hostdir = physical.str();
-        ret = 0;
-        return Util::retValue(ret);
-    } else {
-        mlog(CON_DCOMMON, "%s failed bec no free hostdir entry is found\n"
-             ,__FUNCTION__);
-        return Util::retValue(ret);
+    buf[ret] = '\0';   /* null terminate */
+
+    /*
+     * buf should contain an int length and then a backspec.  extract
+     * the length first...
+     */
+    lenout = 0;
+    for (cp = buf ; *cp && isdigit(*cp) ; cp++) {
+        lenout = (lenout * 10) + (*cp - '0'); 
     }
-    string parent = physical_hostdir.substr(0,
-                                            physical_hostdir.find(HOSTDIRPREFIX)
-                                           );
-    //create shadow container and subdir directory
-    mlog(CON_DCOMMON, "Making absent parent %s", parent.c_str());
-    ret=makeSubdir(parent, CONTAINER_MODE);
-    if (ret == 0 || ret == -EEXIST) {
-        mlog(CON_DCOMMON, "Making hostdir %s", physical_hostdir.c_str());
-        ret = makeSubdir(physical_hostdir, CONTAINER_MODE);
-        if (ret == 0 || ret == -EEXIST) {
-            ret = 0;
-        }
+    /* XXX: sanity check lenout? */
+    if (*cp == '\0') {
+        mlog(CON_DRARE, "readMetalink: bad path: %s",srcbpath.c_str());
+        return(-EIO);
     }
-    if( ret!=0 ) {
-        physical_hostdir.clear();
-    }
-    return Util::retValue(ret);
+
+    /*
+     * now cp points at the backspec.   we must parse it into a prefix
+     * and bmpoint so we can search out and find its corresponding
+     * plfs_backend structure.
+     */
+    ret = plfs_phys_backlookup(cp, pmnt, backout, NULL);
+    return(ret);
 }
 
 // this function reads a metalink and replaces the canonical backend
@@ -706,61 +740,195 @@ Container::createMetalink(
 // e.g. /johnbent/projectA/data/expl1.dat
 // we then preface this with the string we read from readlink
 // e.g. /panfs/volume13/.plfs_store/johnbent/projectA/data/exp1.dat
-//
-// it's OK to fail: we use this to check if things are metalinks
-// returns 0 or -errno
+
+/**
+ * resolveMetalink: read a metalink and replace the canonical backend
+ * in the metalink with the shadow backend read from the link.  can be
+ * used to check if something is a metalink or not (so failing is ok).
+ *
+ * @param metalink the bpath of the metalink
+ * @param mback the backend the metalink resides on
+ * @param pmnt the logical plfs mount to limit search to (can be NULL)
+ * @param resolved the bpath of the resolved metalink
+ * @param backout the backend of the resolved metalink is placed here
+ * @return 0 on succes or -err on error
+ */
 int
-Container::resolveMetalink(const string& metalink, string& resolved)
-{
+Container::resolveMetalink(const string& metalink, struct plfs_backend *mback,
+                           PlfsMount *pmnt,
+                           string& resolved, struct plfs_backend **backout) {
     size_t canonical_backend_length;
     int ret = 0;
     mlog(CON_DAPI, "%s resolving %s", __FUNCTION__, metalink.c_str());
-    ret = readMetalink(metalink,resolved,canonical_backend_length);
+    ret = readMetalink(metalink, mback, pmnt,
+                       canonical_backend_length, backout);
     if (ret==0) {
+        resolved = (*backout)->bmpoint;
         resolved += '/'; // be safe.  we'll probably end up with 3 '///'
         resolved += metalink.substr(canonical_backend_length);
-    }
-    mlog(CON_DAPI, "%s: resolved %s into %s",
-         __FUNCTION__,metalink.c_str(), resolved.c_str());
-    return ret;
-}
-
-// ok a metalink is a link at path P pointing to a shadow subdir at path S/L
-// P is comprised of B/L where B is canonical backend
-// and L is remainder of path all the way to subdir
-// the contents of the metalink are XS where X is stringlen of B and S
-// to get L we just remove the first X bytes from P
-// then we can easily get S/L
-// returns 0 or -errno
-int
-Container::readMetalink(const string& P, string& S, size_t& X)
-{
-    istringstream iss;
-    char buf[METALINK_MAX];
-    int ret = Util::Readlink(P.c_str(),buf,METALINK_MAX);
-    if (ret<=0) {
-        // it's OK to fail: we use this to check if things are metalinks
-        mlog(CON_DCOMMON, "readlink %s failed: %s",P.c_str(),strerror(errno));
-        return Util::retValue(ret);
+        mlog(CON_DAPI, "%s: resolved %s into %s",
+             __FUNCTION__,metalink.c_str(), resolved.c_str());
     } else {
-        buf[ret] = '\0';
-        ret = 0;
+        mlog(CON_DAPI, "%s: failed to resolve %s", __FUNCTION__,
+             metalink.c_str());
     }
-    // so read the info out of the symlink
-    iss.str(buf);
-    iss >> X;
-    iss >> S;
     return ret;
 }
 
+
+/**
+ * createMetalink: try and create a metalink on the specified backend.
+ * if it fails because a sibling made a different metalink at the same
+ * location, then keep trying to find an available one.  if the
+ * metalink is successfully created, then the shadow container (and
+ * hostdir) will be created.  if we fail because there are no
+ * available hostdir slots in the canonical, use an already existing
+ * subdir in the canonical container instead.  NOTE: this means that a
+ * successful createMetalink() may return with the physical_hostdir in
+ * the canonical container instead of the shadow (physbackp will point
+ * to the correct backend chosen).
+ *
+ * @param canback canonical backend for the container
+ * @param shadowback the shadow backend we want to use
+ * @param canonical_hostdir bpath to hostdir on canback
+ * @param physical_hostdir resulting bpath to hostdir on shadow
+ * @param physbackp the backend physical_hostdir is on
+ * @param use_metalink set to true if using metalink
+ * @return 0 on success, -err on failure
+ */
 int
-Container::collectIndices(const string& physical, vector<string> &indices,
+Container::createMetalink(struct plfs_backend *canback,
+                          struct plfs_backend *shadowback,
+                          const string& canonical_hostdir,
+                          string& physical_hostdir,
+                          struct plfs_backend **physbackp,
+                          bool& use_metalink) {
+
+    PlfsConf *pconf = get_plfs_conf();  /* for num_hostdirs */
+    string container_path;              /* canonical bpath to container */
+    size_t current_hostdir;             /* canonical hostdir# from caller */
+    string canonical_path_without_id;   /* canonical hostdir bpath w/o id */
+    ostringstream oss, shadow;
+    size_t i;
+    int ret, id, dir_id;
+
+    ret = -EIO;  /* to be safe */
+
+    /*
+     * no need to check pconf to see if it is null, if we get this far
+     * into the code, we've definitely already loaded the config.
+     */
+       
+    /* break up canonical_hostdir bpath into 2 parts */
+    decomposeHostDirPath(canonical_hostdir, container_path, current_hostdir);
+    canonical_path_without_id = container_path + '/' + HOSTDIRPREFIX;
+
+    /*
+     * shadow: the string stored in the metalink in canonical container.
+     * examples:  23/pana/volume12/.plfs_store
+     *            18hdfs://example.com:8000/h/plfs
+     */
+    shadow << canback->bmpoint.size() << shadowback->prefix <<
+        shadowback->bmpoint;
+
+    /*
+     * now we want put a hostdir metalink in the canonical container.
+     * we need to find a free hostdir index number (the numbers are
+     * chosen using a hash of the hostname, so it is possible for
+     * multiple users to want to try and use the same number.   if
+     * our number is busy, we try the next.  if we can't find a free
+     * slot, we can just use a hostdir from the canonical container.
+     */
+    for (i = 0, dir_id = -1 ; i < pconf->num_hostdirs ; i++) {
+        /* start with current and go from there, wrapping as needed... */
+        id = (current_hostdir + i) % pconf->num_hostdirs;
+
+        /* put bpath to canonical hostdir slot we are trying in oss */
+        oss.str(std::string());  /* cryptic C++, zeros oss? */
+        oss << canonical_path_without_id << id;
+
+        /* attempt to create the metalink */
+        ret = canback->store->Symlink(shadow.str().c_str(), oss.str().c_str());
+
+        /* if successful, we can stop */
+        if (ret == 0) {
+            mlog(CON_DAPI, "%s: wrote %s into %s",
+                 __FUNCTION__, shadow.str().c_str(), oss.str().c_str());
+            break;
+        }
+
+        /* remember the first normal directory we hit */
+        if (Util::isDirectory(oss.str().c_str(), canback->store)) {
+            if (dir_id == -1) {
+                dir_id = id;
+            }
+            continue;
+        }
+
+        /* if failed, see if someone else created our metalink for us */
+        size_t sz;
+        struct plfs_backend *mlback;
+        if (readMetalink(oss.str(), canback, NULL, sz, &mlback) == 0) {
+            ostringstream tmp;
+            tmp << sz << mlback->bmpoint;
+            if (strcmp(tmp.str().c_str(), shadow.str().c_str()) == 0) {
+                mlog(CON_DCOMMON, "same metalink already created");
+                ret = 0;
+                break;
+            }
+        }
+    } /* end of for i loop */
+
+    /* generate physical_hostdir and set physbackp */
+    ostringstream physical;
+    if (ret != 0) {                /* we failed */
+        if (dir_id != -1) {        /* but we found a directory we can use */
+            physical << canonical_path_without_id << dir_id;
+            physical_hostdir = physical.str();
+            *physbackp = canback;
+            return(0);
+        }
+        mlog(CON_DCOMMON, "%s failed bec no free hostdir entry is found"
+             ,__FUNCTION__);
+        return(ret);
+    }
+
+    use_metalink = true; /*XXX: not totally clear how this is used */
+    physical << shadowback->bmpoint << '/'
+             << canonical_path_without_id.substr(canback->bmpoint.size())
+             << id;
+    physical_hostdir = physical.str();
+    *physbackp = shadowback;
+
+    /* create shadow container and its hostdir */
+    string parent = physical_hostdir.substr(0,
+                                            physical_hostdir.find(HOSTDIRPREFIX)
+                                           );
+    mlog(CON_DCOMMON, "Making absent parent %s", parent.c_str());
+    ret = makeSubdir(parent, DROPPING_MODE, shadowback);
+    if (ret == 0 || ret == -EEXIST) {
+        mlog(CON_DCOMMON, "Making hostdir %s", physical_hostdir.c_str());
+        ret = makeSubdir(physical_hostdir, DROPPING_MODE, shadowback);
+        if (ret == 0 || ret == -EEXIST) {
+            ret = 0;
+        }
+    }
+    if( ret!=0 ) {
+        physical_hostdir.clear();
+    }
+    return(ret);
+}
+
+int
+Container::collectIndices(const string& physical,
+                          struct plfs_backend *back,
+                          vector<plfs_pathback> &indices,
                           bool full_path)
 {
     vector<string> filters;
     filters.push_back(INDEXPREFIX);
     filters.push_back(HOSTDIRPREFIX);
-    return collectContents(physical,indices,NULL,NULL,filters,full_path);
+    return collectContents(physical,back,indices,NULL,NULL,filters,full_path);
 }
 
 // this function collects all droppings from a container
@@ -772,8 +940,9 @@ Container::collectIndices(const string& physical, vector<string> &indices,
 // That's our goal though!
 int
 Container::collectContents(const string& physical,
-                           vector<string> &files,
-                           vector<string> *dirs,
+                           struct plfs_backend *back,
+                           vector<plfs_pathback> &files,
+                           vector<plfs_pathback> *dirs,
                            vector<string> *mlinks,
                            vector<string> &filters,
                            bool full_path)
@@ -784,27 +953,36 @@ Container::collectContents(const string& physical,
     ReaddirOp rop(&entries,NULL,full_path,true);
     int ret = 0;
     if (dirs) {
-        dirs->push_back(physical);
+        struct plfs_pathback pb;
+        pb.bpath = physical;
+        pb.back = back;
+        dirs->push_back(pb);
     }
     // set up and use our ReaddirOp to get all entries out of top-level
     for(f_itr=filters.begin(); f_itr!=filters.end(); f_itr++) {
         rop.filter(*f_itr);
     }
     mlog(CON_DAPI, "%s on %s", __FUNCTION__, physical.c_str());
-    ret = rop.op(physical.c_str(),DT_DIR);
+    ret = rop.op(physical.c_str(),DT_DIR,back->store);
     // now for each entry we found: descend into dirs, resolve metalinks and
     // then descend, save files.
     for(e_itr = entries.begin(); ret==0 && e_itr != entries.end(); e_itr++) {
         if(e_itr->second==DT_DIR) {
-            ret = collectContents(e_itr->first,files,dirs,mlinks,filters,true);
+            ret = collectContents(e_itr->first,back,files,dirs,mlinks,
+                                  filters,true);
         } else if (e_itr->second==DT_LNK) {
             string resolved;
-            ret = Container::resolveMetalink(e_itr->first,resolved);
+            struct plfs_backend *metaback;
+            /* XXX: would be nice to have the mountpoint too... */
+
+            ret = Container::resolveMetalink(e_itr->first, back, NULL,
+                                             resolved, &metaback);
             if (mlinks) {
                 mlinks->push_back(e_itr->first);
             }
             if (ret==0) {
-                ret = collectContents(resolved,files,dirs,mlinks,filters,true);
+                ret = collectContents(resolved,metaback,
+                                      files,dirs,mlinks,filters,true);
                 if (ret==-ENOENT) {
                     // maybe this is some other node's shadow that we can't see
                     plfs_debug("%s Unable to access %s.  "
@@ -814,7 +992,10 @@ Container::collectContents(const string& physical,
                 }
             }
         } else if (e_itr->second==DT_REG) {
-            files.push_back(e_itr->first);
+            struct plfs_pathback pb;
+            pb.bpath = e_itr->first;
+            pb.back = back;
+            files.push_back(pb);
         } else {
             assert(0);
         }
@@ -822,27 +1003,37 @@ Container::collectContents(const string& physical,
     return ret;
 }
 
-// this function traverses the container, finds all the index droppings,
-// and aggregates them into a global in-memory index structure
-// returns 0 or -errno
+/**
+ * Container::aggregateIndices: traverse container, find all index droppings,
+ * and aggregate them into a global in-memory index structure.
+ *
+ * @param path the bpath to the canonical container
+ * @param canback the backend the canonical container resides on
+ * @param index the index to load into
+ * @return 0 or -err
+ */
 int
-Container::aggregateIndices(const string& path, Index *index)
+Container::aggregateIndices(const string& path, struct plfs_backend *canback,
+                            Index *index)
 {
-    vector<string> files;
-    int ret = collectIndices(path,files,true);
-    if (ret!=0) {
-        return -errno;
+    vector<plfs_pathback> files;
+    int ret = collectIndices(path,canback,files,true);
+    if (ret < 0) {
+        return(ret);
     }
     IndexerTask task;
     deque<IndexerTask> tasks;
     mlog(CON_DAPI, "In %s", __FUNCTION__);
     // create the list of tasks.  A task is reading one index file.
-    for(vector<string>::iterator itr=files.begin(); itr!=files.end(); itr++) {
+    for(vector<plfs_pathback>::iterator itr=files.begin();
+        itr!=files.end();
+        itr++) {
         string filename; // find just the filename
-        size_t lastslash = itr->rfind('/');
-        filename = itr->substr(lastslash+1,itr->npos);
+        size_t lastslash = itr->bpath.rfind('/');
+        filename = itr->bpath.substr(lastslash+1,itr->bpath.npos);
         if (istype(filename,INDEXPREFIX)) {
-            task.path = (*itr);
+            task.path = itr->bpath;
+            task.backend = itr->back;
             tasks.push_back(task);
             mlog(CON_DCOMMON, "Ag indices path is %s",path.c_str());
         }
@@ -1006,18 +1197,21 @@ Container::hostFromChunk( string chunkpath, const char *type )
 
 // this function drops a file in the metadir which contains
 // stat info so that we can later satisfy stats using just readdir
+// return 0 or -err
 int
 Container::addMeta( off_t last_offset, size_t total_bytes,
-                    const string& path, const string& host, uid_t uid,
+                    const string& path, struct plfs_backend *canback,
+                    const string& host, uid_t uid,
                     double createtime, int interface, size_t max_writers)
 {
     string metafile;
     struct timeval time;
     int ret = 0;
     if ( gettimeofday( &time, NULL ) != 0 ) {
+        ret = -errno;   /* error# ok */
         mlog(CON_CRIT, "WTF: gettimeofday in %s failed: %s",
-             __FUNCTION__, strerror(errno ) );
-        return -errno;
+             __FUNCTION__, strerror(-ret));
+        return(ret);
     }
     ostringstream oss;
     oss << getMetaDirPath(path) << "/"
@@ -1026,10 +1220,13 @@ Container::addMeta( off_t last_offset, size_t total_bytes,
         << host;
     metafile = oss.str();
     mlog(CON_DCOMMON, "Creating metafile %s", metafile.c_str() );
-    ret = ignoreNoEnt(Util::Creat( metafile.c_str(), DROPPING_MODE ));
+    ret = Util::MakeFile(metafile.c_str(), DROPPING_MODE, canback->store);
+    if (ret == -ENOENT || ret == -ENOTDIR) {  /* can be ignored */
+        ret = 0;
+    }
     // now let's maybe make a global summary dropping
     PlfsConf *pconf = get_plfs_conf();
-    if (pconf->global_summary_dir) {
+    if (pconf->global_sum_io.store != NULL) {
         string path_without_slashes = path;
         size_t pos = path_without_slashes.find("/");
         double bw = ((double)last_offset/(Util::getTime()-createtime))/1048576;
@@ -1040,7 +1237,7 @@ Container::addMeta( off_t last_offset, size_t total_bytes,
         ostringstream oss_global;
         oss_global
                 << std::setprecision(2) << std::fixed
-                << *(pconf->global_summary_dir) << "/"
+                << pconf->global_sum_io.bmpoint << "/"
                 << "SZ:" << last_offset << "."
                 << "BL:" << total_bytes  << "."
                 << "OT:" << createtime << "."
@@ -1053,11 +1250,14 @@ Container::addMeta( off_t last_offset, size_t total_bytes,
                 << "PA:" << path_without_slashes;
         metafile = oss_global.str().substr(0,PATH_MAX);
         mlog(CON_DCOMMON, "Creating metafile %s", metafile.c_str() );
-        Util::Creat( metafile.c_str(), DROPPING_MODE);
+        /* ignores makefile errors */
+        Util::MakeFile(metafile.c_str(), DROPPING_MODE,
+                       pconf->global_sum_io.store);
     }
     return ret;
 }
 
+// metafile_name should be a physical_path in canonical container
 string
 Container::fetchMeta( const string& metafile_name,
                       off_t *last_offset, size_t *total_bytes,
@@ -1076,6 +1276,7 @@ Container::fetchMeta( const string& metafile_name,
 // this returns the path to the metadir
 // don't ever assume that this exists bec it's possible
 // that it doesn't yet
+// strPath is a physical path to canonical container
 string
 Container::getMetaDirPath( const string& strPath )
 {
@@ -1127,50 +1328,72 @@ Container::getOpenrecord( const string& path, const string& host, pid_t pid)
     return retstring;
 }
 
-// if this fails because the openhostsdir doesn't exist, then make it
-// and try again
+/**
+ * Container::addOpenrecord: add an open record dropping.  if it fails
+ * because the openhostdir isn't there, try and create.
+ *
+ * @param path the bpath to the canonical container
+ * @param canback the backend the canonical container resides on
+ * @param host the host to create the record under
+ * @param pid the pid to create the record number
+ * @return 0 on success otherwise -err
+ */
 int
-Container::addOpenrecord( const string& path, const string& host, pid_t pid)
+Container::addOpenrecord( const string& path, struct plfs_backend *canback,
+                          const string& host, pid_t pid)
 {
     string openrecord = getOpenrecord( path, host, pid );
-    int ret = Util::Creat( openrecord.c_str(), DROPPING_MODE );
-    if ( ret != 0 && ( errno == ENOENT || errno == ENOTDIR ) ) {
-        makeSubdir( getOpenHostsDir(path), CONTAINER_MODE );
-        ret = Util::Creat( openrecord.c_str(), DROPPING_MODE );
+    int ret = Util::MakeFile( openrecord.c_str(), DROPPING_MODE,
+                              canback->store );
+    if (ret == -ENOENT || ret == -ENOTDIR) {
+        makeSubdir( getOpenHostsDir(path), CONTAINER_MODE, canback );
+        ret = Util::MakeFile(openrecord.c_str(), DROPPING_MODE, canback->store);
     }
-    if ( ret != 0 ) {
+    if ( ret < 0 ) {
         mlog(CON_INFO, "Couldn't make openrecord %s: %s",
-             openrecord.c_str(), strerror( errno ) );
+             openrecord.c_str(), strerror( -ret ) );
     }
     return ret;
 }
 
+/* returns 0 or -err */
 int
-Container::removeOpenrecord(const string& path,const string& host,pid_t pid)
+Container::removeOpenrecord(const string& path,struct plfs_backend *canback,
+                            const string& host,pid_t pid)
 {
     string openrecord = getOpenrecord( path, host, pid );
-    return Util::Unlink( openrecord.c_str() );
+    return canback->store->Unlink( openrecord.c_str() );
 }
 
 // can this work without an access file?
 // just return the directory mode right but change it to be a normal file
 mode_t
-Container::getmode( const string& path )
+Container::getmode( const string& path, struct plfs_backend *back )
 {
+    int rv;
     struct stat stbuf;
-    if ( Util::Lstat( path.c_str(), &stbuf ) < 0 ) {
-        mlog(CON_WARN, "Failed to getmode for %s", path.c_str() );
+    if ( (rv = back->store->Lstat( path.c_str(), &stbuf )) < 0 ) {
+        mlog(CON_WARN, "Failed to getmode for %s: %s", path.c_str(),
+             strerror(-rv));
         return CONTAINER_MODE;
     } else {
         return fileMode(stbuf.st_mode);
     }
 }
 
-// this function does a stat of a plfs file by examining the internal droppings
-// returns 0 or -errno
+/**
+ * Container::getattr: does stat of a PLFS file by examining internal droppings
+ *
+ * @param path the bpath to the canonical container
+ * @param canback the canonical backend for bpath
+ * @param stbuf where to place the results
+ * @return 0 or -err
+ */
 int
-Container::getattr( const string& path, struct stat *stbuf )
+Container::getattr( const string& path, struct plfs_backend *canback,
+                    struct stat *stbuf )
 {
+    int rv;
     // Need to walk the whole structure
     // and build up the stat.
     // three ways to do so:
@@ -1190,10 +1413,10 @@ Container::getattr( const string& path, struct stat *stbuf )
     int ret = 0;
     // get the permissions and stuff from the access file
     string accessfile = getAccessFilePath( path );
-    if ( Util::Lstat( accessfile.c_str(), stbuf ) < 0 ) {
+    if ( (rv = canback->store->Lstat( accessfile.c_str(), stbuf )) < 0 ) {
         mlog(CON_DRARE, "%s lstat of %s failed: %s",
-             __FUNCTION__, accessfile.c_str(), strerror( errno ) );
-        return -errno;
+             __FUNCTION__, accessfile.c_str(), strerror( -rv ) );
+        return(rv);
     }
     stbuf->st_size    = 0;
     stbuf->st_blocks  = 0;
@@ -1208,7 +1431,7 @@ Container::getattr( const string& path, struct stat *stbuf )
     set<string> entries, openHosts, validMeta;
     set<string>::iterator itr;
     ReaddirOp rop(NULL,&entries,false,true);
-    ret = rop.op(getMetaDirPath(path).c_str(),DT_DIR);
+    ret = rop.op(getMetaDirPath(path).c_str(), DT_DIR, canback->store);
     // ignore ENOENT.  Possible this is freshly created container and meta
     // doesn't exist yet.
     if (ret!=0 && ret!=-ENOENT) {    
@@ -1258,13 +1481,13 @@ Container::getattr( const string& path, struct stat *stbuf )
         // all the contents of a container
         // but the new metalink stuff makes that hard.  So lets use our
         // helper functions which will make memory overheads....
-        vector<string> indices;
-        vector<string>::iterator itr;
-        ret = collectIndices(path,indices,true);
+        vector<plfs_pathback> indices;
+        vector<plfs_pathback>::iterator pitr;
+        ret = collectIndices(path,canback,indices,true);
         chunks = indices.size();
-        for(itr=indices.begin(); itr!=indices.end() && ret==0; itr++) {
-            string dropping = *itr;
-            string host = hostFromChunk(dropping,INDEXPREFIX);
+        for(pitr=indices.begin(); pitr!=indices.end() && ret==0; pitr++) {
+            plfs_pathback dropping = *pitr;
+            string host = hostFromChunk(dropping.bpath,INDEXPREFIX);
             // need to read index data when host_is_open OR not cached
             bool host_is_open;
             bool host_is_cached;
@@ -1278,18 +1501,18 @@ Container::getattr( const string& path, struct stat *stbuf )
             // stat the dropping to get the timestamps
             // then read the index info
             struct stat dropping_st;
-            if (Util::Lstat(dropping.c_str(), &dropping_st) < 0 ) {
-                ret = -errno;
+            if ((ret = dropping.back->store->Lstat(dropping.bpath.c_str(),
+                                                   &dropping_st)) < 0 ) {
                 mlog(CON_DRARE, "lstat of %s failed: %s",
-                     dropping.c_str(), strerror( errno ) );
+                     dropping.bpath.c_str(), strerror( -ret ) );
                 continue;   // shouldn't this be break?
             }
             stbuf->st_ctime = max(dropping_st.st_ctime, stbuf->st_ctime);
             stbuf->st_atime = max(dropping_st.st_atime, stbuf->st_atime);
             stbuf->st_mtime = max(dropping_st.st_mtime, stbuf->st_mtime);
             mlog(CON_DCOMMON, "Getting stat info from index dropping");
-            Index index(path);
-            index.readIndex(dropping);
+            Index index(path, dropping.back);
+            index.readIndex(dropping.bpath, dropping.back);
             stbuf->st_blocks += bytesToBlocks( index.totalBytes() );
             stbuf->st_size   = max(stbuf->st_size, index.lastOffset());
         }
@@ -1312,12 +1535,14 @@ Container::getattr( const string& path, struct stat *stbuf )
 // just a directory
 // the above is out of date.  We don't use S_ISUID anymore.  Now we use
 // the existence of the access file
-// returns -errno or 0
+// returns -err or 0
 int
 Container::makeTopLevel( const string& expanded_path,
+                         struct plfs_backend *canback, 
                          const string& hostname, mode_t mode, pid_t pid,
                          unsigned mnt_pt_checksum, bool lazy_subdir )
 {
+    int rv;
     /*
         // ok, instead of mkdir tmp ; chmod tmp ; rename tmp top
         // we tried just mkdir top ; chmod top to remove the rename
@@ -1337,30 +1562,35 @@ Container::makeTopLevel( const string& expanded_path,
     ostringstream oss;
     oss << expanded_path << "." << hostname << "." << pid;
     string tmpName( oss.str() );
-    if ( Util::Mkdir( tmpName.c_str(), containerMode(mode) ) < 0 ) {
-        if ( errno != EEXIST && errno != EISDIR ) {
+    rv = canback->store->Mkdir(tmpName.c_str(), containerMode(mode));
+    if (rv < 0) {
+        if ( rv != -EEXIST && rv != -EISDIR ) {
             mlog(CON_DRARE, "Mkdir %s to %s failed: %s",
-                 tmpName.c_str(), expanded_path.c_str(), strerror(errno) );
-            return -errno;
-        } else if ( errno == EEXIST ) {
-            if ( ! Container::isContainer(tmpName.c_str(),NULL) ) {
+                 tmpName.c_str(), expanded_path.c_str(), strerror(-rv) );
+            return(rv);
+        } else if ( rv == -EEXIST ) {
+            struct plfs_pathback pb;
+            pb.bpath = tmpName;
+            pb.back = canback;
+            if ( ! Container::isContainer(&pb,NULL) ) {
                 mlog(CON_DRARE, "Mkdir %s to %s failed: %s",
-                     tmpName.c_str(), expanded_path.c_str(), strerror(errno) );
+                     tmpName.c_str(), expanded_path.c_str(), strerror(-rv) );
             } else {
                 mlog(CON_DRARE, "%s is already a container.", tmpName.c_str());
             }
         }
     }
     string tmpAccess( getAccessFilePath(tmpName) );
-    if ( makeAccess( tmpAccess, mode ) < 0 ) {
+    rv = makeAccess( tmpAccess, canback, mode );
+    if (rv < 0) {
         mlog(CON_DRARE, "create access file in %s failed: %s",
-             tmpName.c_str(), strerror(errno) );
-        int saveerrno = errno;
-        if ( Util::Rmdir( tmpName.c_str() ) != 0 ) {
+             tmpName.c_str(), strerror(-rv) );
+        int saverv = rv;
+        if ( (rv = canback->store->Rmdir( tmpName.c_str() )) != 0 ) {
             mlog(CON_DRARE, "rmdir of %s failed : %s",
-                 tmpName.c_str(), strerror(errno) );
+                 tmpName.c_str(), strerror(-rv) );
         }
-        return -saveerrno;
+        return(saverv);
     }
     // ok, this rename sometimes takes a long time
     // what if we check first to see if the dir already exists
@@ -1371,47 +1601,51 @@ Container::makeTopLevel( const string& expanded_path,
     int attempts = 0;
     while (attempts < 2 ) {
         attempts++;
-        if ( Util::Rename( tmpName.c_str(), expanded_path.c_str() ) < 0 ) {
-            int saveerrno = errno;
+        rv = canback->store->Rename(tmpName.c_str(), expanded_path.c_str());
+        if (rv < 0) {
+            int saverv = rv;
             mlog(CON_DRARE, "rename of %s -> %s failed: %s",
-                 tmpName.c_str(), expanded_path.c_str(), strerror(errno) );
-            if ( saveerrno == ENOTDIR ) {
+                 tmpName.c_str(), expanded_path.c_str(), strerror(-rv) );
+            if ( saverv == -ENOTDIR ) {
                 // there's a normal file where we want to make our container
-                saveerrno = Util::Unlink( expanded_path.c_str() );
-                mlog(CON_DRARE, "Unlink of %s: %d (%s)", expanded_path.c_str(), saveerrno, 
-                    saveerrno ? strerror(saveerrno): "SUCCESS"); 
+                saverv = canback->store->Unlink( expanded_path.c_str() );
+                mlog(CON_DRARE, "Unlink of %s: %d (%s)",
+                     expanded_path.c_str(), saverv, 
+                    saverv < 0 ? strerror(-saverv): "SUCCESS"); 
                 // should be success or ENOENT if someone else already unlinked
-                if ( saveerrno != 0 && saveerrno != ENOENT ) {
+                if ( saverv != 0 && saverv != -ENOENT ) {
                     mlog(CON_DRARE, "%s failure %d (%s)\n", __FUNCTION__,
-                        saveerrno, strerror(saveerrno));
-                    return -saveerrno;
+                        saverv, strerror(-saverv));
+                    return(saverv);
                 }
                 continue;
             }
             // if we get here, we lost the race
             mlog(CON_DCOMMON, "We lost the race to create toplevel %s,"
                             " cleaning up\n", expanded_path.c_str());
-            if ( Util::Unlink( tmpAccess.c_str() ) < 0 ) {
+            rv = canback->store->Unlink(tmpAccess.c_str());
+            if ( rv < 0 ) {
                 mlog(CON_DRARE, "unlink of temporary %s failed : %s",
-                     tmpAccess.c_str(), strerror(errno) );
+                     tmpAccess.c_str(), strerror(-rv) );
             }
-            if ( Util::Rmdir( tmpName.c_str() ) < 0 ) {
+            rv = canback->store->Rmdir(tmpName.c_str());
+            if (rv < 0) {
                 mlog(CON_DRARE, "rmdir of temporary %s failed : %s",
-                     tmpName.c_str(), strerror(errno) );
+                     tmpName.c_str(), strerror(-rv) );
             }
             // probably what happened is some other node outraced us
             // if it is here now as a container, that's what happened
             // this check for whether it's a container might be slow
-            // if worried about that, change it to check saveerrno
+            // if worried about that, change it to check saverv
             // if it's something like EEXIST or ENOTEMPTY or EISDIR
             // then that probably means the same thing
             //if ( ! isContainer( expanded_path ) )
-            if ( saveerrno != EEXIST && saveerrno != ENOTEMPTY
-                    && saveerrno != EISDIR ) {
+            if ( saverv != -EEXIST && saverv != -ENOTEMPTY
+                    && saverv != -EISDIR ) {
                 mlog(CON_DRARE, "rename %s to %s failed: %s",
-                     tmpName.c_str(), expanded_path.c_str(), strerror
-                     (saveerrno) );
-                return -saveerrno;
+                     tmpName.c_str(), expanded_path.c_str(),
+                     strerror(-saverv));
+                return(saverv);
             }
             break;
         } else {
@@ -1422,13 +1656,15 @@ Container::makeTopLevel( const string& expanded_path,
             // don't make an extra unnecessary dir, but this does create
             // a race if someone wants to use the meta dir and it doesn't
             // exist, so we need to make sure we never assume the metadir
-            if ( makeSubdir(getMetaDirPath(expanded_path), mode ) < 0) {
-                return -errno;
+            rv = makeSubdir(getMetaDirPath(expanded_path), mode, canback);
+            if (rv < 0) {
+                return(rv);
             }
             if (getOpenHostsDir(expanded_path)!=getMetaDirPath(expanded_path)) {
                 // as of 2.0, the openhostsdir and the metadir are the same dir
-                if ( makeSubdir( getOpenHostsDir(expanded_path), mode )< 0) {
-                    return -errno;
+                if ((rv = makeSubdir( getOpenHostsDir(expanded_path), mode,
+                                      canback)) < 0) {
+                    return(rv);
                 }
             }
             // go ahead and make our subdir here now (good for both N-1 & N-N):
@@ -1464,13 +1700,15 @@ Container::makeTopLevel( const string& expanded_path,
                         __FILE__, __LINE__);
             }
             if (create_subdir) {
-                if (makeHostDir(expanded_path,hostname,mode,PARENT_CREATED)<0) {
+                if ((rv = makeHostDir(expanded_path,canback,hostname,
+                                      mode,PARENT_CREATED)) < 0) {
                     // EEXIST means a sibling raced us and make one for us
                     // or a metalink exists at the specified location, which
                     // is ok. plfs::addWriter will do it lazily.
-                    if ( errno != EEXIST ) {
-                        return -errno;
+                    if ( rv != -EEXIST ) {
+                        return(rv);
                     }
+                    rv = 0;    /* clear out EEXIST, it is ok */
                 }
             }
             // make the version stuff here?  this means that it is
@@ -1487,53 +1725,49 @@ Container::makeTopLevel( const string& expanded_path,
                  << "-svn." << STR(SVN_VERSION)
                  << "-dat." << STR(DATA_VERSION)
                  << "-chk." << mnt_pt_checksum;
-            if (makeDropping(oss2.str()) < 0) {
-                return -errno;
+            if ((rv = makeDropping(oss2.str(),canback)) < 0) {
+                return(rv);
             }
             break;
         }
     }
-    mlog(CON_DCOMMON, "%s on %s success\n", __FUNCTION__, expanded_path.c_str());
-    return 0;
+    mlog(CON_DCOMMON, "%s on %s success", __FUNCTION__, expanded_path.c_str());
+    return(0);
 }
 
 int
-Container::makeCreator(const string& path)
+Container::makeAccess(const string& path, struct plfs_backend *b, mode_t mode)
 {
-    return makeDroppingReal( path , S_IRWXU );
+    return makeDroppingReal( path, b, mode );
 }
 int
-Container::makeAccess(const string& path, mode_t mode)
+Container::makeDroppingReal(const string& path, struct plfs_backend *b,
+                            mode_t mode)
 {
-    return makeDroppingReal( path, mode );
+    return Util::MakeFile(path.c_str(), mode, b->store);
 }
 int
-Container::makeDroppingReal(const string& path, mode_t mode)
-{
-    return Util::Creat( path.c_str(), mode );
-}
-int
-Container::makeDropping(const string& path)
+Container::makeDropping(const string& path, struct plfs_backend *b)
 {
     mode_t save_umask = umask(0);
-    int ret = makeDroppingReal( path, DROPPING_MODE );
+    int ret = makeDroppingReal( path, b, DROPPING_MODE );
     umask(save_umask);
     return ret;
 }
-// returns 0 or -errno
+// returns 0 or -err
 int
-Container::makeHostDir(const string& path,
+Container::makeHostDir(const string& path, struct plfs_backend *back,
                        const string& host, mode_t mode, parentStatus pstat)
 {
     int ret = 0;
     if (pstat == PARENT_ABSENT) {
         mlog(CON_DCOMMON, "Making absent parent %s", path.c_str());
-        ret = makeSubdir(path.c_str(),mode);
+        ret = makeSubdir(path.c_str(),mode, back);
     }
     if (ret == 0) {
-        ret = makeSubdir(getHostDirPath(path,host,PERM_SUBDIR), mode);
+        ret = makeSubdir(getHostDirPath(path,host,PERM_SUBDIR), mode, back);
     }
-    return ( ret == 0 ? ret : -errno );
+    return(ret);
 }
 
 // If plfs use different shadow and canonical backend,
@@ -1543,10 +1777,22 @@ Container::makeHostDir(const string& path,
 // It may fail bec a sibling made a metalink at the same location,
 // then keep trying to create subdir at available location or use the first
 // existing directory found.
-// return 0 or -errno
+// return 0 or -err
+/**
+ * Container::makeHostDir: make a hostdir subdir in container
+ *
+ * @param paths path info for logical file (incls. canonical+shadow info)
+ * @param mode directory mode to use
+ * @param pstat parent directory status (absent/created)
+ * @param physical_hostdir bpath of resulting hostdir goes here
+ * @param phys_backp physical_hostdir's backend is placed here
+ * @param use_metalink set to true if we created a metalink on another backend
+ * @return 0 or -error
+ */
 int
 Container::makeHostDir(const ContainerPaths& paths,mode_t mode,
                        parentStatus pstat, string& physical_hostdir,
+                       struct plfs_backend **phys_backp,
                        bool& use_metalink)
 {
     char *hostname = Util::hostname();
@@ -1558,20 +1804,20 @@ Container::makeHostDir(const ContainerPaths& paths,mode_t mode,
         mlog(INT_DCOMMON,"Need to link %s at %s into %s \n",
              paths.shadow.c_str(), paths.shadow_backend.c_str(),
              paths.canonical.c_str());
-        ret = createMetalink(paths.canonical_backend,paths.shadow_backend,
+        ret = createMetalink(paths.canonicalback,paths.shadowback,
                              paths.canonical_hostdir, physical_hostdir,
-                             use_metalink);
+                             phys_backp, use_metalink);
     } else {
         use_metalink = false;
         // make the canonical container and hostdir
-        mlog(INT_DCOMMON,"Making canonical hostdir at %s\n",
+        mlog(INT_DCOMMON,"Making canonical hostdir at %s",
              paths.canonical.c_str());
         if (pstat == PARENT_ABSENT) {
             mlog(CON_DCOMMON, "Making absent parent %s",
                  paths.canonical.c_str());
-            ret = makeSubdir(paths.canonical.c_str(),mode);
+            ret = makeSubdir(paths.canonical.c_str(),mode,paths.canonicalback);
         }
-        if (ret == 0 || errno == EEXIST || errno == EISDIR) {
+        if (ret == 0 || ret == -EEXIST || ret == -EISDIR) { //otherwise fail
             PlfsConf *pconf = get_plfs_conf();
             size_t current_hostdir = getHostDirId(hostname), id = 0;
             bool subdir=false;
@@ -1583,6 +1829,7 @@ Container::makeHostDir(const ContainerPaths& paths,mode_t mode,
             // let's try to use someone else's metalink
             bool metalink_found = false;
             string possible_metalink;
+            struct plfs_backend *possible_metaback;
 
             // loop all possible hostdir # to try to make subdir
             // directory or use the first existing one 
@@ -1591,8 +1838,9 @@ Container::makeHostDir(const ContainerPaths& paths,mode_t mode,
                 id = (current_hostdir + i)%pconf->num_hostdirs;
                 oss.str(std::string());
                 oss << canonical_path_without_id << id;
-                ret = makeSubdir(oss.str().c_str(),mode);
-                if (Util::isDirectory(oss.str().c_str())) {
+                ret = makeSubdir(oss.str().c_str(),mode,paths.canonicalback);
+                if (Util::isDirectory(oss.str().c_str(),
+                                      paths.canonicalback->store)) {
                     // make subdir successfully or
                     // a sibling raced us and made one for us
                     ret = 0;
@@ -1600,13 +1848,16 @@ Container::makeHostDir(const ContainerPaths& paths,mode_t mode,
                     mlog(CON_DAPI, "%s: Making subdir %s in canonical : %d",
                          __FUNCTION__, oss.str().c_str(), ret);
                     physical_hostdir = oss.str();
+                    *phys_backp = paths.canonicalback;
                     break;
                 } else if ( !metalink_found ) {
                     // we couldn't make a subdir here.  Is it a metalink?
+                    //XXX: mountpoint would be nice
                     int my_ret = Container::resolveMetalink(oss.str(),
-                            possible_metalink);
+                            paths.canonicalback, NULL,
+                            possible_metalink, &possible_metaback);
                     if (my_ret == 0) {
-                        metalink_found = true;
+                        metalink_found = true; /* possible_meta* are valid */
                     }
                 }
             }
@@ -1618,21 +1869,23 @@ Container::makeHostDir(const ContainerPaths& paths,mode_t mode,
                         " Will use metalink %s\n", possible_metalink.c_str());
                     ret = 0;
                     physical_hostdir = possible_metalink;
+                    *phys_backp = possible_metaback;
                     // try to make the subdir and it's parent
                     // in case our sibling who created the metalink hasn't yet
                     size_t last_slash = physical_hostdir.find_last_of('/');
                     string parent_dir = physical_hostdir.substr(0,last_slash);
-                    ret = makeSubdir(parent_dir.c_str(),mode); 
-                    ret = makeSubdir(physical_hostdir.c_str(),mode); 
+                    ret = makeSubdir(parent_dir.c_str(),mode,possible_metaback);
+                    ret = makeSubdir(physical_hostdir.c_str(),mode,
+                                     possible_metaback); 
                 } else {
                     mlog(CON_DRARE, "BIG PROBLEM: %s on %s failed (%s)",
                             __FUNCTION__, paths.canonical.c_str(),
-                            strerror(errno));
+                            strerror(-ret));
                 }
             }
         }
     }
-    return ( ret == 0 ? ret : -errno );
+    return(ret);
 }
 
 
@@ -1640,33 +1893,17 @@ Container::makeHostDir(const ContainerPaths& paths,mode_t mode,
 // 1.  success: return 0
 // 2.  fails bec it already exists as a directory: return 0
 // 3.  fails bec it already exists as a metalink: return -EEXIST
-// 4.  fails for some other reason: return -errno
+// 4.  fails for some other reason: return -err
 int
-Container::makeSubdir( const string& path, mode_t mode )
+Container::makeSubdir( const string& path, mode_t mode, struct plfs_backend *b )
 {
     int ret;
-    ret = Util::Mkdir( path.c_str(), Container::subdirMode(mode) );
-    if (errno == EEXIST && Util::isDirectory(path.c_str())){
+    ret =  b->store->Mkdir(path.c_str(), Container::subdirMode(mode));
+    if (ret == -EEXIST && Util::isDirectory(path.c_str(),b->store)){
         ret = 0;
     }
 
-    return ( ret == 0 || errno == EISDIR ) ? 0 : -errno;
-}
-// this just creates a dir/file but it ignores an EEXIST error
-int
-Container::makeMeta( const string& path, mode_t type, mode_t mode )
-{
-    int ret;
-    if ( type == S_IFDIR ) {
-        ret = Util::Mkdir( path.c_str(), mode );
-    } else if ( type == S_IFREG ) {
-        ret = Util::Creat( path.c_str(), mode );
-    } else {
-        mlog(CON_CRIT, "WTF.  Unknown type passed to %s", __FUNCTION__);
-        ret = -1;
-        errno = ENOSYS;
-    }
-    return ( ret == 0 || errno == EEXIST ) ? 0 : -1;
+    return ( ret == 0 || ret == -EISDIR ) ? 0 : ret;
 }
 
 string
@@ -1781,10 +2018,11 @@ Container::subdirMode(mode_t mode) {
     return Container::containerMode(mode);
 }
 
-// this has a return value but the caller also consults errno so if we
-// want to error out we need to explicitly set errno
+// return 0 or -err
 int
-Container::createHelper(const string& expanded_path, const string& hostname,
+Container::createHelper(const string& expanded_path,
+                        struct plfs_backend *canback,
+                        const string& hostname,
                         mode_t mode, int flags, int *extra_attempts,
                         pid_t pid, unsigned mnt_pt_cksum, bool lazy_subdir )
 {
@@ -1800,7 +2038,10 @@ Container::createHelper(const string& expanded_path, const string& hostname,
     bool existing_container = false;
     int res = 0;
     mode_t existing_mode = 0;
-    res = isContainer( expanded_path.c_str(), &existing_mode );
+    struct plfs_pathback pb;
+    pb.bpath = expanded_path;
+    pb.back = canback;
+    res = isContainer( &pb, &existing_mode );
     // check if someone is trying to overwrite a directory?
     if (!res && S_ISDIR(existing_mode)) {
         res = -EISDIR;
@@ -1808,17 +2049,17 @@ Container::createHelper(const string& expanded_path, const string& hostname,
     existing_container = res;
     //creat specifies that we truncate if the file exists
     if (existing_container && flags & O_TRUNC){
-        res = Container::Truncate(expanded_path, 0);
+        res = Container::Truncate(expanded_path, 0, canback);
         if (res < 0){
             mlog(CON_CRIT, "Failed to truncate file %s : %s",
-                 expanded_path.c_str(), strerror(res));
-            return -res;
+                 expanded_path.c_str(), strerror(-res));
+            return(res);
         }
     }
     mlog(CON_DCOMMON, "Making top level container %s %x",
          expanded_path.c_str(),mode);
     begin_time = time(NULL);
-    res = makeTopLevel( expanded_path, hostname, mode, pid,
+    res = makeTopLevel( expanded_path, canback, hostname, mode, pid,
                         mnt_pt_cksum, lazy_subdir );
     end_time = time(NULL);
     if ( end_time - begin_time > 2 ) {
@@ -1827,7 +2068,7 @@ Container::createHelper(const string& expanded_path, const string& hostname,
     }
     if ( res != 0 ) {
         mlog(CON_DRARE, "Failed to make top level container %s:%s",
-             expanded_path.c_str(), strerror(errno));
+             expanded_path.c_str(), strerror(-res));
     }
 
     // hmm.  what should we do if someone calls create on an existing object
@@ -1838,19 +2079,20 @@ Container::createHelper(const string& expanded_path, const string& hostname,
 // This should be in a mutex if multiple procs on the same node try to create
 // it at the same time
 int
-Container::create( const string& expanded_path, const string& hostname,
-                   mode_t mode, int flags, int *extra_attempts, pid_t pid,
+Container::create( const string& expanded_path, struct plfs_backend *canback,
+                   const string& hostname, mode_t mode, int flags,
+                   int *extra_attempts, pid_t pid,
                    unsigned mnt_pt_cksum, bool lazy_subdir )
 {
     int res = 0;
     do {
-        res = createHelper(expanded_path, hostname, mode,flags,extra_attempts,
+        res = createHelper(expanded_path, canback, hostname,
+                           mode,flags,extra_attempts,
                            pid, mnt_pt_cksum, lazy_subdir);
         if ( res != 0 ) {
-            if ( errno != EEXIST && errno != ENOENT && errno != EISDIR
-                    && errno != ENOTEMPTY ) {
-                // if it's some other errno, than it's a real error so return it
-                res = -errno;
+            if ( res != -EEXIST && res != -ENOENT && res != -EISDIR
+                    && res != -ENOTEMPTY ) {
+                // if some other err, than it's a real error so return it
                 break;
             }
         }
@@ -1861,19 +2103,31 @@ Container::create( const string& expanded_path, const string& hostname,
     return res;
 }
 
-// returns the first dirent that matches a prefix (or NULL)
+/**
+ * Container::getnextent: find next file in dir using a filter
+ *
+ * @param dir an open directory
+ * @param backend the backend the open directory is on
+ * @param prefix the prefix to filter the filenames on
+ * @param ds a dirent to store data in (e.g. for readdir_r)
+ * @return NULL on error, otherwise ds
+ */
 struct dirent *
-Container::getnextent( DIR *dir, const char *prefix ) {
+Container::getnextent(IOSDirHandle *dhand, const char *prefix,
+                      struct dirent *ds) {
     int rv;
-    if ( dir == NULL ) {
-        return NULL;    // this line not necessary, but doesn't hurt
-    }
-    struct dirent *next = NULL;
+    struct dirent *next;
+
+    if (dhand == NULL)
+        return(NULL);  /* to be safe, shouldn't happen */
+
     do {
-        rv = Util::Readdir(dir, &next);
-    } while( rv == 0 && next && prefix &&
-             strncmp( next->d_name, prefix, strlen(prefix) ) != 0 );
-    return next;
+        next = NULL;   //to be safe
+        rv = dhand->Readdir_r(ds, &next);
+    } while (rv == 0 && next && prefix &&
+             strncmp(next->d_name, prefix, strlen(prefix)) != 0);
+
+    return(next);  /* same as ds */
 }
 
 // this function traverses a container and returns the next dropping
@@ -1886,72 +2140,94 @@ Container::getnextent( DIR *dir, const char *prefix ) {
 // to the ReaddirOp.  That'd be more expensive.  We could think about
 // augmenting the ReaddirOp to take a function pointer (or a FileOp instance)
 // but that's a bit complicated as well.  This code isn't bad just a bit complex
-// this returns 0 if done.  1 if OK.  -errno if a problem
-// currently only used by Truncate.
+
+/**
+ * Conatiner::nextdropping: traverse a container and return the next dropping
+ * (currently only used by Truncate)
+ *
+ * @param canbpath canonical container bpath to physical store
+ * @param canback backend the canonical container lives in
+ * @param droppingpath next dropping's path is returned here
+ * @param dropback the backend droppingpath resides on is returned here
+ * @param dropping_filter filter applied to filenames to narrow set returned
+ * @param candir used to store canonical dir handle, caller init's to NULL
+ * @param subdir used to store subdir dir handle ptr, caller init's to NULL
+ * @param hostdirpath the bpath to current hostdir (after Metalink)
+ * @return 1 if we got one, 0 at EOF, -err on error
+ */
 int
-Container::nextdropping( const string& physical_path,
-                         string *droppingpath, const char *dropping_type,
-                         DIR **topdir, DIR **hostdir,
-                         struct dirent **topent )
+Container::nextdropping(const string& canbpath, struct plfs_backend *canback,
+                        string *droppingpath, struct plfs_backend **dropback,
+                        const char *dropping_filter,
+                        IOSDirHandle **candir, IOSDirHandle **subdir,
+                        string *hostdirpath)
 {
-    mss::mlog_oss oss(CON_DAPI);
-    string resolved;
+    struct dirent dirstore;
+    string tmppath, resolved;
     int ret;
-    oss << "looking for nextdropping in " << physical_path;
-    // mlog(CON_DAPI, "%s", oss.str().c_str() );
-    // open it on the initial
-    if ( *topdir == NULL ) {
-        Util::Opendir( physical_path.c_str(), topdir );
-        if ( *topdir == NULL ) {
-            return -errno;
+    
+    mlog(CON_DAPI, "nextdropping: %slooking in %s",
+         (*candir != NULL) ? "still " : "", canbpath.c_str());
+
+    /* if *candir is null, then this is the first call to nextdropping */
+    if (*candir == NULL) {
+        int rv;
+        *candir = canback->store->Opendir(canbpath.c_str(), rv);
+        if (*candir == NULL) {
+            return rv;
         }
     }
-    // make sure topent is valid
-    if ( *topent == NULL ) {
-        // here is where nextdropping is specific to HOSTDIR
-        *topent = getnextent( *topdir, HOSTDIRPREFIX );
-        if ( *topent == NULL ) {
-            // all done
-            Util::Closedir( *topdir );
-            *topdir = NULL;
-            return 0;
+
+ ReTry:
+    /* candir is open.  now get an open subdir (if we don't have it) */
+    if (*subdir == NULL) {
+
+        if (getnextent(*candir, HOSTDIRPREFIX, &dirstore) == NULL) {
+            /* no more subdirs ... */
+            canback->store->Closedir(*candir);
+            *candir = NULL;
+            return(0);                  /* success, we are done! */
         }
-    }
-    // set up the hostpath here.  We either need it in order to open hostdir
-    // or we need it in order to populate the chunk
-    string hostpath = physical_path;
-    hostpath       += "/";
-    hostpath       += (*topent)->d_name;
-    ret = Container::resolveMetalink(hostpath, resolved);
-    if (ret == 0) {
-        hostpath = resolved;
-    }
-    // make sure hostdir is valid
-    if ( *hostdir == NULL ) {
-        Util::Opendir( hostpath.c_str(), hostdir );
-        if ( *hostdir == NULL ) {
-            mlog(CON_DRARE, "opendir %s: %s",
-                 hostpath.c_str(),strerror(errno));
-            return -errno;
+
+        /* a new subdir in dirstore, must resolve possible metalinks now */
+        tmppath = canbpath + "/" + dirstore.d_name;
+        *dropback = canback;   /* assume no metalink */
+        ret = Container::resolveMetalink(tmppath, canback, NULL,
+                                         resolved, dropback);
+        if (ret == 0) {
+            *hostdirpath = resolved;   /* via metalink */
+            /* resolveMetalink also updated dropback */
         } else {
-            mlog(CON_DCOMMON, "%s opened dir %s",
-                 __FUNCTION__, hostpath.c_str() );
+            *hostdirpath = tmppath;    /* no metalink */
         }
+            
+        /* now open up the subdir */
+        *subdir = (*dropback)->store->Opendir(hostdirpath->c_str(), ret);
+        if (*subdir == NULL) {
+            mlog(CON_DRARE, "opendir %s: %s", hostdirpath->c_str(),
+                 strerror(-ret));
+            return ret;
+        }
+        mlog(CON_DCOMMON, "%s opened dir %s", __FUNCTION__,
+             hostdirpath->c_str());
     }
-    // get the next hostent, if null, reset topent and hostdir and try again
-    struct dirent *hostent = getnextent( *hostdir, dropping_type );
-    if ( hostent == NULL ) {
-        Util::Closedir( *hostdir );
-        *topent  = NULL;
-        *hostdir = NULL;
-        return nextdropping( physical_path, droppingpath, dropping_type,
-                             topdir, hostdir, topent );
+
+    /* now all directories are open, try and read next entry */
+    if (getnextent(*subdir, dropping_filter, &dirstore) == NULL) {
+        /* we hit EOF on the subdir, need to advance to next subdir */
+
+        (*dropback)->store->Closedir(*subdir);
+        *dropback = NULL;            /* just to be safe */
+        *subdir = NULL;              /* signals we are ready for next one */
+        goto ReTry;                  /* or could recurse(used to) */
     }
-    // once we make it here, we have a hostent to an dropping
+    
+    /* success, we have the next entry... */
     droppingpath->clear();
-    droppingpath->assign( hostpath + "/" + hostent->d_name );
-    return 1;
+    droppingpath->assign(*hostdirpath + "/" + dirstore.d_name);
+    return(1);
 }
+
 
 // this should be called when the truncate offset is less than the
 // current size of the file
@@ -1959,37 +2235,45 @@ Container::nextdropping( const string& physical_path,
 // and meta droppings
 // when a file is truncated to zero, that is handled separately and
 // that does actually remove data files
-// returns 0 or -errno
+// returns 0 or -err
+// path is physical path to canonical container
 int
-Container::Truncate( const string& path, off_t offset )
+Container::Truncate( const string& path, off_t offset,
+                     struct plfs_backend *canback )
 {
     int ret=0;
     string indexfile;
+    struct plfs_backend *indexback;
     mlog(CON_DAPI, "%s on %s to %ld", __FUNCTION__, path.c_str(),
          (unsigned long)offset);
     // this code here goes through each index dropping and rewrites it
     // preserving only entries that contain data prior to truncate offset
-    DIR *td = NULL, *hd = NULL;
-    struct dirent *tent = NULL;
-    while((ret = nextdropping(path,&indexfile,INDEXPREFIX,
-                              &td,&hd,&tent))== 1) {
-        Index index( indexfile, -1 );
+    IOSDirHandle *candir, *subdir;
+    string hostdirpath;
+    candir = subdir = NULL;
+
+    while ((ret = nextdropping(path, canback, &indexfile, &indexback,
+                               INDEXPREFIX, &candir, &subdir,
+                               &hostdirpath)) == 1) {
+        Index index( indexfile, indexback, NULL );
         mlog(CON_DCOMMON, "%s new idx %p %s", __FUNCTION__,
              &index,indexfile.c_str());
-        ret = index.readIndex( indexfile );
+        ret = index.readIndex(indexfile, indexback);
         if ( ret == 0 ) {
             if ( index.lastOffset() > offset ) {
                 mlog(CON_DCOMMON, "%s %p at %ld",__FUNCTION__,&index,
                      (unsigned long)offset);
-                index.truncate( offset );
-                int fd = Util::Open(indexfile.c_str(), O_TRUNC | O_WRONLY);
-                if ( fd < 0 ) {
+                index.truncate(offset);
+                IOSHandle *fh = indexback->store->Open(indexfile.c_str(),
+                                                       O_TRUNC|O_WRONLY, ret);
+                if ( fh == NULL ) {
                     mlog(CON_CRIT, "Couldn't overwrite index file %s: %s",
-                         indexfile.c_str(), strerror( fd ));
-                    return -errno;
+                         indexfile.c_str(), strerror( -ret ));
+                    return ret;
                 }
-                ret = index.rewriteIndex( fd );
-                Util::Close( fd );
+                /* note: index obj already contains indexback */
+                ret = index.rewriteIndex(fh);
+                indexback->store->Close(fh);
                 if ( ret != 0 ) {
                     break;
                 }
@@ -2001,7 +2285,7 @@ Container::Truncate( const string& path, off_t offset )
         }
     }
     if ( ret == 0 ) {
-        ret = truncateMeta(path,offset);
+        ret = truncateMeta(path,offset,canback);
     }
     mlog(CON_DAPI, "%s on %s to %ld ret: %d",
          __FUNCTION__, path.c_str(), (long)offset, ret);
@@ -2014,15 +2298,17 @@ Container::Truncate( const string& path, off_t offset )
 // METADIR, so we need to go through the droppings in METADIR
 // and modify or remove droppings that show an offset beyond
 // this truncate point
-// returns 0 or -errno
+// returns 0 or -err
+// path is a physical path to canonical container
 int
-Container::truncateMeta(const string& path, off_t offset)
+Container::truncateMeta(const string& path, off_t offset,
+                        struct plfs_backend *back)
 {
     int ret=0;
     set<string>entries;
     ReaddirOp op(NULL,&entries,false,true);
     string meta_path = getMetaDirPath(path);
-    if (op.op(meta_path.c_str(),DT_DIR)!=0) {
+    if (op.op(meta_path.c_str(),DT_DIR, back->store)!=0) {
         mlog(CON_DRARE, "%s wtf", __FUNCTION__ );
         return 0;
     }
@@ -2042,15 +2328,14 @@ Container::truncateMeta(const string& path, off_t offset)
             oss << meta_path << "/" << offset << "."
                 << offset    << "." << time.tv_sec
                 << "." << time.tv_nsec << "." << host;
-            ret = Util::Rename(full_path.c_str(), oss.str().c_str());
+            ret = back->store->Rename(full_path.c_str(), oss.str().c_str());
             //if a sibling raced us we may see ENOENT
-            if (ret != 0 and errno == ENOENT){
+            if (ret != 0 and ret == -ENOENT) {
                ret = 0;
             }
             if ( ret != 0 ) {
                 mlog(CON_DRARE, "%s wtf, Rename: %s",__FUNCTION__,
-                     strerror(errno));
-                ret = -errno;
+                     strerror(-ret));
             }
         }
     }

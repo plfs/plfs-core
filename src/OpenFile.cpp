@@ -4,7 +4,8 @@
 #include <stdlib.h>
 
 Container_OpenFile::Container_OpenFile(WriteFile *wf, Index *i, pid_t pi,
-                                       mode_t m, const char *p ) :
+                                       mode_t m, const char *p,
+                                       struct plfs_backend *b) :
     Metadata::Metadata()
 {
     struct timeval t;
@@ -13,6 +14,7 @@ Container_OpenFile::Container_OpenFile(WriteFile *wf, Index *i, pid_t pi,
     this->index     = i;
     this->pid       = pi;
     this->path      = p;
+    this->canback   = b;
     this->mode      = m;
     this->ctime     = t.tv_sec;
     this->reopen    = false;
@@ -30,9 +32,11 @@ int Container_OpenFile::unlockIndex()
 }
 
 // this should be in a mutex when it is called
-void Container_OpenFile::setPath( string p )
+void Container_OpenFile::setPath( string p, struct plfs_backend *b )
 {
     this->path = p;
+    if (b)
+        this->canback = b;
     if ( writefile ) {
         writefile->setContainerPath( p );
     }

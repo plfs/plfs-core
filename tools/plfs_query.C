@@ -22,7 +22,15 @@ show_usage(char* app_name) {
 }
 
 void
-print_entries(const vector<string> &entries, const char *type) {
+print_pbentries(const vector<plfs_pathback> &entries, const char *type) {
+    vector<plfs_pathback>::const_iterator itr;
+    for(itr=entries.begin(); itr!=entries.end(); itr++) {
+        printf("%s%s%s\n", itr->back->prefix, itr->bpath.c_str(), type);
+    }
+}
+
+void
+print_sentries(const vector<string> &entries, const char *type) {
     vector<string>::const_iterator itr;
     for(itr=entries.begin(); itr!=entries.end(); itr++) {
         printf("%s%s\n",itr->c_str(),type);
@@ -30,10 +38,12 @@ print_entries(const vector<string> &entries, const char *type) {
 }
 
 //Print the PLFS file from a given backend dropping
+//XXXCDC:clearly this is only going to work for posix backends...
 int
 logical_from_physical(char * physical_target, std::string &file_location) {
     char * c_physical;
     string full_physical;
+    int lcv;
 
     //We'll need the full path to find the PLFS file
     if ( (c_physical = 
@@ -85,14 +95,9 @@ logical_from_physical(char * physical_target, std::string &file_location) {
                         mount_itr++ ) 
                 {
                     PlfsMount * pmount = mount_itr->second;
-                    vector<string> pmount_backends = pmount->backends;
-                    vector<string>::const_iterator backend_check_itr;
-                    //Make sure this backend belongs to this mountpoint
-                    for(backend_check_itr = pmount_backends.begin();
-                            backend_check_itr != pmount_backends.end();
-                            backend_check_itr++) 
-                    {
-                        if (backend.compare(*backend_check_itr) == 0) {
+                    for (lcv = 0 ; lcv < pmount->nback ; lcv++) {
+                        if (backend.compare(pmount->backends[lcv]->bmpoint) 
+                                                                     == 0) {
                             mountPoint = pmount->mnt_pt;
                         }
                         foundMountPoint = true;
@@ -141,8 +146,8 @@ main (int argc, char **argv) {
         exit(1);
     }
 
-    vector<string> files;
-    vector<string> dirs;
+    vector<plfs_pathback> files;
+    vector<plfs_pathback> dirs;
     vector<string> metalinks;
     //Use the plfs_locate fucntion to determine if this is a
     //plfs file.
@@ -162,9 +167,9 @@ main (int argc, char **argv) {
         }
     } else {
         printf("Physical file locations:\n");
-        print_entries(dirs,dir_suffix.c_str());
-        print_entries(metalinks,metalink_suffix.c_str());
-        print_entries(files,"");
+        print_pbentries(dirs,dir_suffix.c_str());
+        print_sentries(metalinks,metalink_suffix.c_str());
+        print_pbentries(files,"");
     }
 
     exit( ret );

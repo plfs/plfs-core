@@ -23,7 +23,7 @@ class XAttr
 class XAttrs
 {
     public:
-        XAttrs( string );
+        XAttrs(string bpath, struct plfs_backend *canback);
         ~XAttrs();
 
         XAttr *getXAttr(string key, size_t len);
@@ -31,6 +31,7 @@ class XAttrs
 
     private:
 	string path;
+        struct plfs_backend *canback;
 };
 
 #endif

@@ -21,8 +21,8 @@ bool mss::mlog_oss::getNoLog() {
     return noLog;
 }
 
-void mss::mlog_oss::insert_os(const std::ostream& in) {
-    oss << in;
+void mss::mlog_oss::insert_os(const std::ostream& xin) {
+    oss << xin;
 }
 
 /*

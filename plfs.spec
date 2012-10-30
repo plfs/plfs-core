@@ -3,7 +3,7 @@
 
 Name:		plfs
 Summary:	plfs - Parallel Log Structured File System
-Version:    2.2.2
+Version:    2.2.3
 Release:	%{_release}%{?dist}
 License:	LANS LLC
 Group:		System Environment/Filesystems
@@ -49,16 +49,17 @@ small N to 1 strided write patterns to a parallel file system.
 %install
 %{__mkdir_p} %{buildroot}{%{_sbindir},%{_bindir},%{_libdir}}
 %{__mkdir_p} %{buildroot}%{_includedir}/plfs
+%{__mkdir_p} %{buildroot}%{_sysconfdir}/plfs
+%{__install} -m 0644 plfsrc.example %{buildroot}%{_sysconfdir}/plfsrc
+# create the directories and files for init.d
 %{__mkdir_p} %{buildroot}%{_initrddir}
 %{__mkdir_p} %{buildroot}%{_sysconfdir}/sysconfig
-%{__mkdir_p} %{buildroot}%{_sysconfdir}/plfs
 %if 0%{?suse_version}
-   %{__install} -m 0755 fuse/plfs.init.suse %{buildroot}%{_initrddir}/plfs
+   %{__install} -m 0755 contrib/init.d/plfs.init.suse %{buildroot}%{_initrddir}/plfs
 %else
-   %{__install} -m 0755 fuse/plfs.init %{buildroot}%{_initrddir}/plfs
+   %{__install} -m 0755 contrib/init.d/plfs.init %{buildroot}%{_initrddir}/plfs
 %endif
-%{__install} -m 0644 fuse/plfs.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/plfs
-%{__install} -m 0644 plfsrc.example %{buildroot}%{_sysconfdir}/plfsrc
+%{__install} -m 0644 contrib/init.d/plfs.sysconfig %{buildroot}%{_sysconfdir}/sysconfig/plfs
 
 %{__make} install DESTDIR=$RPM_BUILD_ROOT
 
