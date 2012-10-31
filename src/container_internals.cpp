@@ -67,6 +67,7 @@ typedef struct {
 typedef struct {
     FileOp *op;
     list<FileOperationTask> *tasks;
+    IOStore *store;
     pthread_mutex_t mux;
 } FileOperationArgs;
 
@@ -343,6 +344,7 @@ file_operation_thread( void *va )
     FileOperationArgs *args = (FileOperationArgs *)va;
     FileOperationTask task;
     FileOp *op = args->op;
+    IOStore *store = args->store;
     int ret;
     bool tasks_remaining = true;
     while( true ) {
@@ -357,7 +359,7 @@ file_operation_thread( void *va )
         if ( ! tasks_remaining ) {
             break;
         }
-        ret = op->do_op(task.path.c_str(),task.file_type);
+        ret = op->do_op(task.path.c_str(),task.file_type, store);
         if ( ret < 0 ) {
             mlog(PLFS_DRARE, "%s doing %s on %s failed: %s",
                  __FUNCTION__,
@@ -425,24 +427,24 @@ plfs_file_operation(const char *logical, FileOp& op)
     // now go through the lists and make thread tasks
     // this might be improved by not making a list originally but putting
     // them straight into tasks
-    vector<string>::reverse_iterator ritr;
+    vector<plfs_pathback>::reverse_iterator ritr;
     for(ritr = files.rbegin(); ritr != files.rend() && ret == 0; ++ritr) {
-        mlog(INT_DCOMMON, "%s on %s",__FUNCTION__,ritr->c_str());
+        mlog(INT_DCOMMON, "%s on %s",__FUNCTION__,ritr->bpath.c_str());
         if (pconf->threadpool_size > 1) {   // maybe user said no threads
-            task.path = *ritr;
+            task.path = ritr->bpath.c_str();
             task.file_type = DT_REG;
             tasks.push_back(task);
         } else {
-            ret = op.op(ritr->c_str(),DT_REG); // old non-threaded
+            ret = op.op(ritr->bpath.c_str(),DT_REG,ritr->back->store); // old non-threaded
         }
     }
     for(ritr = links.rbegin(); ritr != links.rend() && ret == 0; ++ritr) {
         if (pconf->threadpool_size > 1) {   // maybe user said no threads
-            task.path = *ritr;
+            task.path = ritr->bpath.c_str();
             task.file_type = DT_LNK;
             tasks.push_back(task);
         } else {
-            op.op(ritr->c_str(),DT_LNK); // old non-threaded
+            op.op(ritr->bpath.c_str(),DT_LNK,ritr->back->store); // old non-threaded
         }
     }
     // if we're threaded, launch the threadpool now
@@ -451,6 +453,7 @@ plfs_file_operation(const char *logical, FileOp& op)
         FileOperationArgs args;
         args.op = &op;
         args.tasks = &tasks;
+        args.store = ritr->back->store;
         pthread_mutex_init( &(args.mux), NULL );
         mlog(INT_DCOMMON, "%s %lu THREADS on %s doing %s",
              __FUNCTION__,
