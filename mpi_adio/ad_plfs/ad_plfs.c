@@ -123,6 +123,7 @@ void check_stream(int size,int rank)
     }
 }
 
+#ifdef ROMIO_CRAY
 /* --BEGIN CRAY ADDITION-- */
 
 /*
@@ -326,3 +327,4 @@ plfs_filetype plfs_get_filetype(const char *path)
 }
 
 /* --END CRAY ADDITION-- */
+#endif
