@@ -53,7 +53,10 @@ to the ROMIO layer (such as MVAPICH2).
 5) patch -p1 < /path/to/plfs/mpi_adio/patches/<mpi>/<mpi>-plfs.patch
    This patch puts in the PLFS-specific code in to the MPI implementation. It
    should work on any version of the needed MPI implementation.
-6) Since some of the templates for the MPI build have been modified by the
+6) Check the section labelled "Build Notes for specific versions of MPI" in
+   this README to find out if anything special needs to be done for the
+   desired MPI.
+7) Since some of the templates for the MPI build have been modified by the
    above two patches (such as Makefile.am or Makefile.in), the build scripts
    need to be generated again. This is done by different methods depending on
    the MPI implementation. For convenience, here are methods for doing this
@@ -64,9 +67,6 @@ to the ROMIO layer (such as MVAPICH2).
       ./maint/updatefiles
    Please note that the autotools used for this step be at least the versions
    specified by documentation for that MPI.
-7) Check the section labelled "Build Notes for specific versions of MPI" in
-   this README to find out if anything special needs to be done for the
-   desired MPI.
 8) Build MPI: ./configure; make; make install
    The MPI build needs to be able to find libplfs and use it. This is done by
    setting some environment variables and running the configure script.
@@ -123,3 +123,38 @@ The ROMIO in Open MPI 1.4.x is older. Some pieces of the PLFS ADIO code must
 be left out. This is done by using the following directive: ROMIO_OPENMPI_14x.
 Before running configure, set CPPFLAGS to include this directive:
 export CPPFLAGS="-DROMIO_OPENMPI_14x"
+
+*** Open MPI 1.6, 1.6.1, 1.6.2, 1.6.3 ***
+
+There is a missing file in the release tarballs for Open MPI 1.6 through 1.6.3.
+The file is ompi/mca/io/romio/romio/autogen.sh. This file is present in the
+Open MPI repository branches for these releases, but it is not included when
+creating the release tarball. Without this file, running the top-level
+autogen.sh will break romio's configure script (m4 macros are left
+un-substituted). The romio layer will not be built at all and it will not be
+possible to do any MPI/IO.
+
+To see if this behavior is happening, check the output from configure. Search
+for romio. There will be a section for it as it tries to run romio's configure
+script, but the following will be near the end of that section:
+
+configure: /bin/sh './configure' *failed* for ompi/mca/io/romio/romio
+configure: WARNING: ROMIO distribution did not configure successfully
+checking if MCA component io:romio can compile... no
+
+To fix this, it is necessary to replace romio's autogen.sh file. Either grab
+the file from Open MPI's repository branch for that release, or use the
+following (between the lines marked with ---) for the contents of the file:
+
+---beginning of file---
+:
+autoreconf -ivf -I confdb
+---end of file---
+
+Save the file as ompi/mca/io/romio/romio/autogen.sh and make sure it is
+executable. If it is not executable, it will be the same situation as if the
+file were missing.
+
+Once the missing autogen.sh file is in place, run Open MPI's top-level
+autogen.sh as outlined in the general instructions for patching Open MPI and
+continue with building as normal.
