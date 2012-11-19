@@ -57,25 +57,25 @@ then
 # SECTION 2. COMMIT MINOR CHANGES INTO trunk/master 
 ########
 
-1) Make changes to the code, local commits, and push to your github
+1) Make changes to the code and local commits, and push to your github
 
 >git add .  # or specify specific files
 >git status # check you're only committing what you intend 
 >git commit -m "modified some files"
->git push origin master
+>git pull upstream master   # ensure up to date. see section 5 for more info
+>git push origin master     # send your local changes to your github
 
 2) initiate a pull request to merge your origin/master into trunk/master. 
 Go to https://github.com/$GIT_USERNAME/plfs-core in your browser and click: 
 "Pull Request"
-This will take you to a new page with four pull down boxes.  Two on the left 
-that say 'base repo:' and 'base branch:' and two on the right that say 
-'head repo:' and 'head branch:'  You'll also see some images that indicate that
-the head repo and head branch are being merged into base repo and base branch. 
-Set the four boxes as so:
-base repo: plfs/plfs-core           # should be already set
-base branch: master                 # should be already set
-head repo: $GIT_USERNAME/plfs-core  # should be already set
-head branch: master                 # should be already set
+This will take you to a new page with three tabs,  
+'New Pull Request,' 'Commits', and 'Files Changed.'  Check out
+'Commits' and 'Files Changed' to make sure they are as expected.  Then go to
+the 'New Pull Request' tab and set the four pulldown boxes as so:
+    base repo: plfs/plfs-core           # should be already set
+    base branch: master                 # should be already set
+    head repo: $GIT_USERNAME/plfs-core  # should be already set
+    head branch: master                 # should be already set
 Add a title and a comment and click on "Send pull request"
 
 3) A PLFS admin will review your changes and either merge them into 
