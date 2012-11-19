@@ -1,33 +1,123 @@
-0) CODING STYLE
+1) CODING STYLE
 Please read README.coding
 
-0.5) SVN
-Please read README.svn for a few tricks about working with svn
+2) Git
+Since PLFS is hosted on github.com, git is the version control system in use.
+Please see README.git for further information on working with git.
 
-1) MAILING LIST
-Please join at https://lists.sourceforge.net/lists/listinfo/plfs-devel
+3) Receive notifications for PLFS on github.com
+Navigate to the plfs-core page on github.com, 
+https://github.com/plfs/plfs-core. Make sure to be logged in and click on the
+"Watch" button. A user who is "watching" a repository will receive
+notifications of what happens on the repository. Users can edit notification
+settings for their github account in Account Settings.
 
-2) TRACKING CODE CHANGES
-All developers should pay attention to what others are doing to the code.
-More on this below.  But all developers should either subscribe to the RSS
-feed at:
-http://sourceforge.net/export/rss2_keepsake.php?group_id=261435
-or set something up at sourceforge to email you when code is committed.
+4) Treat all build warnings as errors.
+No build warnings!
+Use the following environment variables when running configure to make sure
+all warnings are being treated as errors:
 
-3) COMMITTING SMALL CODE CHANGES TO TRUNK
-For small changes such as changes to the tools that don't change anything in
-the library or cosmetic stuff or changes to documentation, just go ahead and
-commit to the trunk.  The other developers will see this and can comment if
-they want.
+setenv CFLAGS '-Wall -Werror -Wshadow'
+setenv CXXFLAGS '-Wall -Werror -Wshadow'
 
-4) COMMITTING LARGE CODE CHANGES TO TRUNK
-All other coding efforts that aren't small code changes must be vetted on the
-mailing list before being committed.  Code in a branch and send the branch
-address to the mailing list.  In the email, describe the motivation for the
-change, and describe the decisions you made about how to implement your 
-changes.  Allow three business days before merging into the trunk.  
+5) Everything must be code-reviewed before being committed to the master
+branch on github
+The official master branch of PLFS will be referred to as plfs/plfs-core. In
+order to help maintain code review of every commit to plfs/plfs-core the PLFS
+project will use a Fork & Pull model that github provides.
 
-4) AUTOGEN
+In order to use the Fork & Pull model, users need to Fork plfs/plfs-core to
+their own account on github. See README.git, SECTION 1. SETUP A LOCAL REPO for
+more information. The user's clone of plfs/plfs-core that resides on
+github.com will be referred to as user/plfs-core.
+
+Each user will now clone their own user/plfs-core when they want to work on
+PLFS. See README.git for more information.
+
+Once a user is finished with the changes they would like to make and all
+changes are committed, they push those changes to user/plfs-core. Once the
+changes are in user/plfs-core, the user will initiate a "Pull Request" on
+github. The "Pull Request" allows others to verify the changes and commit them
+to the master branch of plfs/plfs-core.
+
+The information about initiating a "Pull Request" can be found in README.git.
+Depending on where the changes are coming from and where they are headed, see
+SECTION 2 (master to master), SECTION 3 (non-master branch to non-master
+branch), or SECTION 4 (non-master branch to master branch).
+
+A "Pull Request" is finalized by a developer who has push access to
+plfs/plfs-core. They navigate to the plfs/plfs-core page and click on the 
+"Pull Requests" tab. Each Pull Request will be listed here. The developer will
+click on the applicable Pull Request. On the Pull Request page, it is possible
+to see all commits associated with the Pull Request, including code changes.
+It is also possible to enter comments on the Pull Request page about the
+changes. If the changes are to be committed to plfs/plfs-core, the developer
+will click on the "Merge" button.
+
+A developer different than the one doing the Pull Request must do the code
+review. A developer is not allowed to Merge their own Pull Request.
+
+6) Development cycle
+The "master" branch will be the place to put code that we intend to go out in
+the next release. There is no real requirement that the master branch be
+deployable at any time; instead, it will be the main development branch.
+
+A non-master branch will be created to work on functionality that we know will
+not be in or are not sure will be ready for the next release. Bug fixes can go
+directly to the master branch.
+
+Developers using non-master branches should frequently merge the master branch
+of plfs/plfs-core in to their non-master branches to ensure whatever they are
+working on stays compatible with the current product.
+
+7) Release Process
+For the purposes of tagging a release, changes may be committed directly to
+plfs/plfs-core. Only changes to VERSION and ChangeLog are allowed to go
+directly to plfs/plfs-core; all others have to go through the normal code
+review process.
+
+Regression testing a release
+    1) Once all new features are in and a new release is to be made, the
+    master branch of plfs/plfs-core is now frozen. No new features may be
+    committed; only bug-fixes can be committed. Code review will be used to
+    enforce this.
+    2) Update plfs.spec. That is, make sure the files listed in the spec file
+    match what will be created via 'make install'. Make sure these change
+    3) If the procedure outlined in README.git has been followed, the
+    committer will have a working repository with a remote defined as upstream
+    that points to plfs/plfs-core. Upstream will be used directly in the
+    following instructions, so ensure that upstream is sufficiently set up.
+    4) Update ChangeLog
+    5) Update VERSION to contain <release>.rc1 where <release> is a version
+    number such as 2.3, for example.
+    6) Commit changes to the local repository.
+    7) Make an annotated git tag: git tag -a <release>.rc1
+    8) Push local commits to upstream: git push upstream master
+    9) Push <release>.rc1 tag to upstream: git push upstream <release>.rc1
+    10) Regression test <release>.rc1. If problems are found and fixed, iterate
+    through steps 4 through 9 to create rc2. Iterate as many times as needed
+    until the release passes all regression tests satisfactorily. Once all
+    testing requirements have been satisfied, move on to the "Tag the release"
+    section.
+
+Tag the release
+Once regression testing is done and a new release is ready, do the following:
+    1) Update VERSION to contain <release> (remove rc strings).
+    2) Commit that change to the local repository
+    3) Make an annotated git tag: git tag -a <release>
+    4) Push local commits to upstream: git push upstream master
+    5) Push <release> tag to upstream: git push upstream <release>
+    6) The master branch on plfs/plfs-core is now unfrozen.
+
+Generate a tarball
+    1) Make sure the local repository is set for <release> (use
+    'git checkout <release>')
+    2) ./autogen.sh
+    3) ./configure
+    4) make dist # Creates plfs-<version>.tar.gz
+    5) Upload the tarball to github.com
+
+8) AUTOGEN
 ./autogen.sh checks for versions of the autotools to create the PLFS build
 scripts. The check is a greater than or equal to check. That is, any version
 of the autotools that is greater than or equal to a minimum will work. 
@@ -39,49 +129,21 @@ annoying. In this case, just find one machine where you have all the right
 versions and then use sshfs from that machine to the target machine to do the
 autogen.
 
-5) CONFIGURE
+9) MAKEFILES
+Don't edit Makefiles directly.  Edit the Makefile.am files and then redo
+autogen and configure
+
+10) CONFIGURE
 ./easyconf.sh is your friend.  Here are the environment variables I set:
 
 setenv PLFS_WANT_ALL_DEBUG 1
 setenv PLFS_WANT_DEBUG_FLAGS 1
 setenv PLFS_WANT_VERBOSE_CONF_OUT 1 
 setenv PLFS_WANT_ADIO 0
-# treat all build warnings as errors.  No build warnings!
-setenv CFLAGS '-Wall -Werror -Wshadow'
-setenv CXXFLAGS '-Wall -Werror -Wshadow'
 
-Notice especially the bottom two.  We want warning free code so print out
-all warnings and treat them as errors.
-
-6) MAKEFILES
-Don't edit Makefiles directly.  Edit the Makefile.am files and then redo autogen and configure
-
-7) DEBUGGING WITH MLOG
+11) DEBUGGING WITH MLOG
 Please read README.mlog
 
-8) valgrind on OS X
+12) valgrind on OS X
 You will need to run dsymutil on the plfs binary and libplfs.0.dylib to get 
 debug symbols available for valgrind so it can report line numbers.
-
-9) Release Process
-   1) Make sure that the local svn instance has an updated ChangeLog
-   2) Make sure that the local svn instance has an updated plfs.spec file.
-      That is, make sure the files listed in the spec file match what will
-      be created via 'make install'.
-   3) The local svn instance needs to be already checked in, be it trunk or a
-      release branch.
-   4) Copy the local svn instance to the versions directory. Here's an example
-      using trunk:
-      svn co https://plfs.svn.sourceforge.net/svnroot/plfs plfs 
-      cd plfs
-      svn copy trunk versions/<release>
-   5) Update info specific to the release
-      cd versions/<release>
-      Update the VERSION file to contain <release>
-      Update the plfs.spec file to contain <release> on the "Version:" line
-      svn commit
-   6) Generate a tarball
-      ./autogen.sh
-      ./configure
-      make dist # Creates plfs-<version>.tar.gz
-   7) Upload the tarball to sourceforge.net
