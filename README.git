@@ -1,20 +1,51 @@
+PLFS github: https://github.com/plfs/plfs-core
+
+Table of contents:
+SECTION 0. TERMINOLOGY 
+SECTION 1. SETUP A LOCAL GIT REPO 
+SECTION 2. COMMIT MINOR CHANGES INTO trunk/master 
+SECTION 3. COMMIT MAJOR CHANGES INTO trunk/foo 
+SECTION 4. COMMIT MAJOR CHANGES INTO trunk/master 
+SECTION 5. KEEPING YOUR BRANCH UP TO DATE WITH trunk/master
+
+########
+# SECTION 0. TERMINOLOGY 
+########
+
+git: distributed version control used by PLFS
+github: a centralized location to store and manage git repositories
+local: a local copy of a git repository (created using git clone)
+trunk: the official plfs release repository 
+branch:  a branch of a git repository, typically necessary for major changes
+upstream: created when doing our fork procedure, this points at the trunk 
+          repository from your local repository
+origin/master: the master branch of a cloned repository
+upstream/master: the master branch of the trunk repository
+master: the master branch of your local repository
+
+########
+# SECTION 1. SETUP A LOCAL GIT REPO 
+########
+
 0) Create a github.com account: https://github.com/signup/ and
 set up ssh-keys or use http requests in the future:
 https://help.github.com/articles/generating-ssh-keys
 
 1) Fork the main plfs repository by going to https://github.com/plfs/plfs-core 
-in your browser and clicking Fork.
+in your browser and clicking Fork.  This creates a copy of the trunk into
+your github account.
 
-2) Clone a copy of your plfs repository 
-run the following from the command line if ssh is set up correctly:
+2) Clone a copy of your plfs repository to copy from your github account to
+your local machine into a local repository
 
-> git clone git@github.com:username/plfs-core.git 
+if ssh is setup correctly
+    > git clone git@github.com:$GIT_USERNAME/plfs-core.git 
+else
+    > git clone https://github.com/$GIT_USERNAME/plfs-core.git
+then
+    > cd plfs-core
 
-otherwise
-
-> git clone https://github.com/username/plfs-core.git
-
-3) Point your local repository at the upstream version:
+3) Associate the new local repository with the trunk and name it upstream.
 
 > git remote add upstream https://github.com/plfs/plfs-core.git
 
@@ -22,30 +53,91 @@ otherwise
 
 >git pull upstream
 
-5) Create a local branch for major code changes and check it out
+########
+# SECTION 2. COMMIT MINOR CHANGES INTO trunk/master 
+########
+
+1) Make changes to the code, local commits, and push to your github
+
+>git add .  # or specify specific files
+>git status # check you're only committing what you intend 
+>git commit -m "modified some files"
+>git push origin master
+
+2) initiate a pull request to merge your origin/master into trunk/master. 
+Go to https://github.com/$GIT_USERNAME/plfs-core in your browser and click: 
+"Pull Request"
+This will take you to a new page with four pull down boxes.  Two on the left 
+that say 'base repo:' and 'base branch:' and two on the right that say 
+'head repo:' and 'head branch:'  You'll also see some images that indicate that
+the head repo and head branch are being merged into base repo and base branch. 
+Set the four boxes as so:
+base repo: plfs/plfs-core           # should be already set
+base branch: master                 # should be already set
+head repo: $GIT_USERNAME/plfs-core  # should be already set
+head branch: master                 # should be already set
+Add a title and a comment and click on "Send pull request"
+
+3) A PLFS admin will review your changes and either merge them into 
+trunk/master or return them with comments
+
+########
+# SECTION 3. COMMIT MAJOR CHANGES INTO trunk/foo 
+########
+
+1) Create a local branch for major code changes and check it out
 
 >git branch foo
 >git checkout foo
 
-6) Do work and local commits, when ready push branch to your github
+2) Same as section 2.1 except replace 'master' with 'foo' thereby creating
+origin/foo
 
->git add .
->git commit -m "modified some files"
->git push origin foo
-
-7) To contribute back to master, request a branch be created called foo
+3) To contribute back to trunk/foo, request a branch be created called foo
 on the issue tracker https://github.com/plfs/plfs-core/issues/new
 
 Title: Branch Create Request: foo
 Comment: Description of Branch
 
-From here a branch will be created from Trunk using the name you requested
+PLFS devel team will then create an upstream branch named foo 
 
-8) initiate a pull request to merge your branch into Trunk by going to 
-https://github.com/username/plfs-core in your browser and clicking 
-"Pull Request"
-select foo from both drop down boxes (base branch and head branch) add any
-comments, then hit submit
+4) Same as section 2.2 except set the four pull-downs as so: 
+base repo: plfs/plfs-core # should be already set
+base branch: foo
+head repo: $GIT_USERNAME/plfs-core # should be already set
+head branch: foo
 
-9) A code reviewer will examine your code and either merge it, or return it
-with comments.
+5) Same as 2.3 except it will be merged into trunk/foo
+
+########
+# SECTION 4. COMMIT MAJOR CHANGES INTO trunk/master 
+########
+
+1) Same as section 3 except you need to ensure your branch is up to date with
+trunk/master.
+
+2) Same as section 3.4 except set the four pull-downs as so: 
+base repo: plfs/plfs-core # should be already set
+base branch: master
+head repo: $GIT_USERNAME/plfs-core # should be already set
+head branch: foo
+And then make sure that the page doesn't warn of any conflicts before clicking
+on 'Send pull request.'  If there are conflicts, repeat step 1.
+
+########
+# SECTION 5. KEEPING YOUR BRANCH UP TO DATE WITH trunk/master
+########
+
+1) merge trunk/master into your local master.  Within your plfs-core dir:
+> git checkout master 
+> git pull upstream master 
+
+2) merge changes into your branch 
+> git checkout foo  # this sets up your local foo branch
+> git merge master
+
+3) correct any conflicts reported in the 'git merge master' and then save
+> git commit
+
+4) repeat until no conflicts remain and save your local to your github
+> git push origin foo
