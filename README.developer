@@ -71,27 +71,31 @@ of plfs/plfs-core in to their non-master branches to ensure whatever they are
 working on stays compatible with the current product.
 
 7) Release Process
+For the purposes of tagging a release, changes may be committed directly to
+plfs/plfs-core. Only changes to VERSION and ChangeLog are allowed to go
+directly to plfs/plfs-core; all others have to go through the normal code
+review process.
+
 Regression testing a release
     1) Once all new features are in and a new release is to be made, the
     master branch of plfs/plfs-core is now frozen. No new features may be
     committed; only bug-fixes can be committed. Code review will be used to
     enforce this.
-    2) A developer will use a repository that has all changes in the master
-    branch of plfs/plfs-core (either by cloning anew or updating an existing
-    repository).
-    3) Update ChangeLog
-    4) Update plfs.spec. That is, make sure the files listed in the spec file
-    match what will be created via 'make install'.
+    2) Update plfs.spec. That is, make sure the files listed in the spec file
+    match what will be created via 'make install'. Make sure these change
+    3) If the procedure outlined in README.git has been followed, the
+    committer will have a working repository with a remote defined as upstream
+    that points to plfs/plfs-core. Upstream will be used directly in the
+    following instructions, so ensure that upstream is sufficiently set up.
+    4) Update ChangeLog
     5) Update VERSION to contain <release>.rc1 where <release> is a version
     number such as 2.3, for example.
     6) Commit changes to the local repository.
     7) Make an annotated git tag: git tag -a <release>.rc1
-    8) Push local commits to user/plfs-core: git push origin
-    9) Push <release>.rc1 tag to origin: git push origin <release>.rc1
-    10) Generate a Pull Request on github.
-    11) Merge the Pull Request on github.
-    12) Regression test <release>.rc1. If problems are found and fixed, iterate
-    through steps 2 through 8 to create rc2. Iterate as many times as needed
+    8) Push local commits to upstream: git push upstream master
+    9) Push <release>.rc1 tag to upstream: git push upstream <release>.rc1
+    10) Regression test <release>.rc1. If problems are found and fixed, iterate
+    through steps 4 through 9 to create rc2. Iterate as many times as needed
     until the release passes all regression tests satisfactorily. Once all
     testing requirements have been satisfied, move on to the "Tag the release"
     section.
@@ -101,14 +105,13 @@ Once regression testing is done and a new release is ready, do the following:
     1) Update VERSION to contain <release> (remove rc strings).
     2) Commit that change to the local repository
     3) Make an annotated git tag: git tag -a <release>
-    4) Push local commits to user/plfs-core: git push origin
-    5) Puls <release> tag to origin: git push origin <release>
-    6) Generate a Pull Request on github.
-    7) Merge the Pull Request on github.
-    8) The master branch on plfs/plfs-core is now unfrozen.
+    4) Push local commits to upstream: git push upstream master
+    5) Push <release> tag to upstream: git push upstream <release>
+    6) The master branch on plfs/plfs-core is now unfrozen.
 
 Generate a tarball
-    1) Make sure the local repository is set for <release> (use git checkout)
+    1) Make sure the local repository is set for <release> (use
+    'git checkout <release>')
     2) ./autogen.sh
     3) ./configure
     4) make dist # Creates plfs-<version>.tar.gz
