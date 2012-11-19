@@ -82,7 +82,8 @@ Regression testing a release
     committed; only bug-fixes can be committed. Code review will be used to
     enforce this.
     2) Update plfs.spec. That is, make sure the files listed in the spec file
-    match what will be created via 'make install'. Make sure these change
+    match what will be created via 'make install'. Make sure these changes are
+    checked in to plfs/plfs-core via the appropriate method.
     3) If the procedure outlined in README.git has been followed, the
     committer will have a working repository with a remote defined as upstream
     that points to plfs/plfs-core. Upstream will be used directly in the
