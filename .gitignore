@@ -42,3 +42,4 @@ tools/plfs_map
 tools/plfs_query
 tools/plfs_recover
 tools/plfs_version
+tools/plfs_ls

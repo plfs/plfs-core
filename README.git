@@ -1,0 +1,51 @@
+0) Create a github.com account: https://github.com/signup/ and
+set up ssh-keys or use http requests in the future:
+https://help.github.com/articles/generating-ssh-keys
+
+1) Fork the main plfs repository by going to https://github.com/plfs/plfs-core 
+in your browser and clicking Fork.
+
+2) Clone a copy of your plfs repository 
+run the following from the command line if ssh is set up correctly:
+
+> git clone git@github.com:username/plfs-core.git 
+
+otherwise
+
+> git clone https://github.com/username/plfs-core.git
+
+3) Point your local repository at the upstream version:
+
+> git remote add upstream https://github.com/plfs/plfs-core.git
+
+4) Pull upstream branches into local namespace (but don't create local copies)
+
+>git pull upstream
+
+5) Create a local branch for major code changes and check it out
+
+>git branch foo
+>git checkout foo
+
+6) Do work and local commits, when ready push branch to your github
+
+>git add .
+>git commit -m "modified some files"
+>git push origin foo
+
+7) To contribute back to master, request a branch be created called foo
+on the issue tracker https://github.com/plfs/plfs-core/issues/new
+
+Title: Branch Create Request: foo
+Comment: Description of Branch
+
+From here a branch will be created from Trunk using the name you requested
+
+8) initiate a pull request to merge your branch into Trunk by going to 
+https://github.com/username/plfs-core in your browser and clicking 
+"Pull Request"
+select foo from both drop down boxes (base branch and head branch) add any
+comments, then hit submit
+
+9) A code reviewer will examine your code and either merge it, or return it
+with comments.
