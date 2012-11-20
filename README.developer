@@ -81,22 +81,32 @@ Regression testing a release
     master branch of plfs/plfs-core is now frozen. No new features may be
     committed; only bug-fixes can be committed. Code review will be used to
     enforce this.
-    2) Update plfs.spec. That is, make sure the files listed in the spec file
-    match what will be created via 'make install'. Make sure these changes are
-    checked in to plfs/plfs-core via the appropriate method.
-    3) If the procedure outlined in README.git has been followed, the
+    2) Verify that 'make dist' creates an acceptable tarball. Verify the
+    following:
+        1) The appropriate patches have been generated in /mpi_adio/patches.
+        Each directory should get a <MPI>-plfs.patch where <MPI> is ompi, 
+        mpich2, etc.
+        2) The following are in contrib/init.d: plfs.init, plfs.init.suse,
+        plfs.sysconfig.
+        3) PLFS can be built and used from the resulting tarball.
+    3) Update plfs.spec and verify an rpm can be built with it. This will
+    verify that all files listed in the spec file match what will be created
+    via 'make install'. Set "Version:" to <release> rather than <release>.rc1.
+    Make sure these changes are checked in to plfs/plfs-core via the
+    appropriate method.
+    4) If the procedure outlined in README.git has been followed, the
     committer will have a working repository with a remote defined as upstream
     that points to plfs/plfs-core. Upstream will be used directly in the
     following instructions, so ensure that upstream is sufficiently set up.
-    4) Update ChangeLog
-    5) Update VERSION to contain <release>.rc1 where <release> is a version
+    5) Update ChangeLog
+    6) Update VERSION to contain <release>.rc1 where <release> is a version
     number such as 2.3, for example.
-    6) Commit changes to the local repository.
-    7) Make an annotated git tag: git tag -a <release>.rc1
-    8) Push local commits to upstream: git push upstream master
-    9) Push <release>.rc1 tag to upstream: git push upstream <release>.rc1
-    10) Regression test <release>.rc1. If problems are found and fixed, iterate
-    through steps 4 through 9 to create rc2. Iterate as many times as needed
+    7) Commit changes to the local repository.
+    8) Make an annotated git tag: git tag -a <release>.rc1
+    9) Push local commits to upstream: git push upstream master
+    10) Push <release>.rc1 tag to upstream: git push upstream <release>.rc1
+    11) Regression test <release>.rc1. If problems are found and fixed, iterate
+    through steps 5 through 10 to create rc2. Iterate as many times as needed
     until the release passes all regression tests satisfactorily. Once all
     testing requirements have been satisfied, move on to the "Tag the release"
     section.

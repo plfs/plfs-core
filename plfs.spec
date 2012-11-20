@@ -3,7 +3,7 @@
 
 Name:		plfs
 Summary:	plfs - Parallel Log Structured File System
-Version:    2.2.3
+Version:    2.3
 Release:	%{_release}%{?dist}
 License:	LANS LLC
 Group:		System Environment/Filesystems
@@ -106,6 +106,7 @@ fi
 %{_bindir}/plfs_recover
 %{_bindir}/plfs_query
 %{_bindir}/plfs_version
+%{_bindir}/plfs_ls
 %{_libdir}/libplfs.a
 %{_libdir}/libplfs.la
 %{_libdir}/libplfs.so
@@ -126,6 +127,7 @@ fi
 %{_mandir}/man1/plfs_recover.1.gz
 %{_mandir}/man1/plfs_query.1.gz
 %{_mandir}/man1/plfs_version.1.gz
+%{_mandir}/man1/plfs_ls.1.gz
 %{_mandir}/man5/plfsrc.5.gz
 %{_mandir}/man3/is_plfs_file.3.gz
 %{_mandir}/man3/plfs.3.gz
