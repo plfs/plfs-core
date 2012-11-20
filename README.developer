@@ -106,7 +106,7 @@ Regression testing a release
     9) Push local commits to upstream: git push upstream master
     10) Push <release>.rc1 tag to upstream: git push upstream <release>.rc1
     11) Regression test <release>.rc1. If problems are found and fixed, iterate
-    through steps 4 through 9 to create rc2. Iterate as many times as needed
+    through steps 5 through 10 to create rc2. Iterate as many times as needed
     until the release passes all regression tests satisfactorily. Once all
     testing requirements have been satisfied, move on to the "Tag the release"
     section.
