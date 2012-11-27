@@ -42,6 +42,19 @@ through the PLFS API.
 and make sure everything is working, run the following:
 cat /path/to/mount/.plfsdebug
 
+NOTE: The plfs binary does not check the existence of backend directories;
+only the existence of the mount point directory is checked. Therefore it is
+possible to successfully run plfs even if plfs_check_config reports that there
+are missing backends. If plfs is started on a mount point that is missing
+backends, the mount point will not be usable. As soon as all of the backends
+are available, the plfs mount point will be usable (no restart is necessary).
+
+NOTE: Not checking for the existence of backend directories is
+done to make mounting plfs scalable on a large cluster. If plfs is configured
+to start at boot time and plfs checks backend directories when it is started,
+this could result in thousands or millions (or more) of stat calls to the
+underlying filesystem in a very short period of time.
+
 Several options can be passed to the plfs binary that are passed on to the FUSE
 system. Use the plfs binary's -o command line parameter. Use 'plfs -h' to see
 all options that can be passed. Some useful ones are:
