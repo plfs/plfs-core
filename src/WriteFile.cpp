@@ -30,6 +30,7 @@ WriteFile::WriteFile(string path, string hostname,
     this->write_count       = 0;
     this->index_buffer_mbs  = buffer_mbs;
     this->max_writers       = 0;
+    this->index_type        = COMPLEXPATTERN;
     pthread_mutex_init( &data_mux, NULL );
     pthread_mutex_init( &index_mux, NULL );
 }
@@ -45,6 +46,9 @@ void WriteFile::setSubdirPath (string p)
     this->subdir_path     = p;
 }
 
+
+// From here, we can know that a WriteFile has only a index
+// with it. 
 WriteFile::~WriteFile()
 {
     mlog(WF_DAPI, "Delete self %s", container_path.c_str() );
@@ -58,7 +62,8 @@ WriteFile::~WriteFile()
     pthread_mutex_destroy( &index_mux );
 }
 
-
+// sync file in the file system level. This has nothing
+// to do with the logical bufferes.
 int WriteFile::sync()
 {
     int ret = 0;
@@ -82,6 +87,7 @@ int WriteFile::sync()
     return ret;
 }
 
+// Flush a certain process's file, same as sync() 
 int WriteFile::sync( pid_t pid )
 {
     int ret=0;
@@ -108,6 +114,8 @@ int WriteFile::sync( pid_t pid )
 
 
 // returns -errno or number of writers
+// A writer is a process who writes data. This function is called
+// when WriteFile::write can not find file descriptor for a PID.
 int WriteFile::addWriter( pid_t pid, bool child )
 {
     int ret = 0;
@@ -205,6 +213,7 @@ struct OpenFd *WriteFile::getFd( pid_t pid ) {
     return ofd;
 }
 
+// Close a FD and clear some record
 int WriteFile::closeFd( int fd )
 {
     map<int,string>::iterator paths_itr;
@@ -219,6 +228,7 @@ int WriteFile::closeFd( int fd )
 }
 
 // returns -errno or number of writers
+// remove a writing process and clean up structures. 
 int
 WriteFile::removeWriter( pid_t pid )
 {
@@ -297,9 +307,9 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
             Util::MutexLock(   &index_mux , __FUNCTION__);
             index->addWrite( offset, ret, pid, begin, end );
             // TODO: why is 1024 a magic number?
-            int flush_count = 1024;
-            if (write_count%flush_count==0) {
-                ret = index->flush();
+            int flush_count = 102400;
+            if (index->getHostIndexSize() % flush_count==0) {
+                ret = index->flushHostIndexBuf();
                 // Check if the index has grown too large stop buffering
                 if(index->memoryFootprintMBs() > index_buffer_mbs) {
                     index->stopBuffering();
@@ -322,8 +332,17 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
 int WriteFile::openIndex( pid_t pid ) {
     int ret = 0;
     string index_path;
-    int fd = openIndexFile(subdir_path, hostname, pid, DROPPING_MODE,
-                           &index_path);
+    int fd;
+    
+    if ( index_type == SINGLEHOST ) {
+        fd = openIndexFile(subdir_path, hostname, pid, DROPPING_MODE,
+                           &index_path, SINGLEHOST);
+    } else if (index_type == COMPLEXPATTERN ) {
+        fd = openIndexFile(subdir_path, hostname, pid, DROPPING_MODE,
+                           &index_path, COMPLEXPATTERN);
+    }
+    //mlog(WF_WARN, "in %s, fd: %d\n", __FUNCTION__, fd);
+
     if ( fd < 0 ) {
         ret = -errno;
     } else {
@@ -331,6 +350,8 @@ int WriteFile::openIndex( pid_t pid ) {
         index = new Index(container_path, fd);
         Util::MutexUnlock(&index_mux, __FUNCTION__);
         mlog(WF_DAPI, "In open Index path is %s",index_path.c_str());
+        //mlog(WF_WARN, "container_path is %s", container_path.c_str());
+        //mlog(WF_WARN, "index_path is %s", index_path.c_str());
         index->index_path=index_path;
         if(index_buffer_mbs) {
             index->startBuffering();
@@ -339,6 +360,8 @@ int WriteFile::openIndex( pid_t pid ) {
     return ret;
 }
 
+// Something to do when closing a index file.
+// This is called at the destruction of WriteFile
 int WriteFile::closeIndex( )
 {
     int ret = 0;
@@ -351,6 +374,7 @@ int WriteFile::closeIndex( )
     return ret;
 }
 
+// Close all file of this WriteFile
 // returns 0 or -errno
 int WriteFile::Close()
 {
@@ -369,6 +393,8 @@ int WriteFile::Close()
     return ( failures ? -EIO : 0 );
 }
 
+// Entry: init---(del)---offset------------init+length
+// Entry: init------------init+length
 // returns 0 or -errno
 int WriteFile::truncate( off_t offset )
 {
@@ -382,6 +408,15 @@ int WriteFile::openIndexFile(string path, string host, pid_t p, mode_t m,
 {
     *index_path = Container::getIndexPath(path,host,p,createtime);
     return openFile(*index_path,m);
+}
+
+int WriteFile::openIndexFile(string path, string host, pid_t p, mode_t m,
+                             string *index_path, IndexEntryType indexType)
+{
+    *index_path = Container::getIndexPath(path, host, p, createtime, indexType);
+    //mlog(WF_WARN, "in %s. Path is %s.\n", __FUNCTION__, (*index_path).c_str());
+    return openFile(*index_path, m);
+    //return 0;
 }
 
 int WriteFile::openDataFile(string path, string host, pid_t p, mode_t m)
@@ -405,7 +440,12 @@ int WriteFile::openFile( string physicalpath, mode_t mode )
     umask(old_mode);
     return ( fd >= 0 ? fd : -errno );
 }
-
+// If a file is truncated, we close and reopen the index
+// file. and call index->resetPhysicalOffsets() to let
+// Index know the current file pointer of data files reset to 0
+// Then close and open data files. So the file pointers
+// are actually reset to the start.
+//
 // we call this after any calls to f_truncate
 // if fuse::f_truncate is used, we will have open handles that get messed up
 // in that case, we need to restore them

@@ -10,6 +10,7 @@
 #define DROPPINGPREFIX "dropping."
 #define DATAPREFIX     DROPPINGPREFIX"data."
 #define INDEXPREFIX    DROPPINGPREFIX"index."
+#define COMPLEXINDEXPREFIX    DROPPINGPREFIX"complexindex."
 #define TMPPREFIX      "tmp."
 #define METADIR        "meta"         // where to stash shortcut metadata
 #define VERSIONPREFIX  "version"      // where to stash the version info 

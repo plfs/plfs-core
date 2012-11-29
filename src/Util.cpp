@@ -922,3 +922,24 @@ int Util::Ftruncate(int fd, off_t offset)
     ret = ftruncate(fd, offset);
     EXIT_UTIL;
 }
+
+//put it here since I need to decide file type in Index class
+bool
+Util::istype(const string& dropping, const char *type)
+{
+    return (dropping.compare(0,strlen(type),type)==0);
+}
+
+string 
+Util::getFilenameFromPath(const string& path)
+{
+    string filename;
+    size_t lastslash = path.rfind('/');
+    if ( lastslash == path.npos ) {
+        filename = path;
+    } else {
+        filename = path.substr(lastslash+1, path.npos);
+    }
+    return filename;
+}
+

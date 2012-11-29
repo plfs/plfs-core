@@ -62,10 +62,15 @@ class Container
         static bool isContainer(const string& physical_path,mode_t *);
         static string getIndexPath( const string&, const string&,
                                     int pid,double);
+        static string getIndexPath( const string&, const string&,
+                                    int pid,double, IndexEntryType indexType);
         static string getDataPath(  const string&, const string&,
                                     int pid, double);
         static string getIndexHostPath(const string& path,
                                        const string& host,int pid,double ts);
+        static string getIndexHostPath(const string& path,
+                                       const string& host,int pid,double ts, 
+                                       IndexEntryType type);
         static int addMeta(off_t, size_t, const string&,const string&,uid_t,
                            double,int,size_t);
         static string fetchMeta( const string&, off_t *, size_t *,
