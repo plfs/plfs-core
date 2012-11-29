@@ -99,7 +99,7 @@ plfs.cpp \
 mlog_oss.cpp \
 XAttrs.cpp 
 idxanalyzer.cpp \
-patternanalyzer.cpp \
+patternanalyzer.cpp 
 
 libplfs_la_SOURCES = \
 $(headers) \
