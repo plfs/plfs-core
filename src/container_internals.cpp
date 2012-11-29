@@ -510,6 +510,19 @@ container_rename( const char *logical, const char *to )
     opb.bpath = old_canonical;
     opb.back = expansion_info.backend;
     bool isfile = Container::isContainer(&opb,&mode);
+   
+    // for dirs and containers, iterate over all backends and
+    // do a rename on each backend.  Symlinks do single rename
+    // potentially from one backend to another 
+    if (S_ISLNK(mode)) {
+        ret = Util::CopyFile( old_canonical.c_str(), opb.back->store,
+                              new_canonical.c_str(), npb.back->store);
+        if (ret != 0) {
+            PLFS_EXIT(ret);
+        }
+    }
+
+    
     // get the list of all possible entries for both src and dest
     vector<plfs_pathback> srcs, dsts;
     vector<plfs_pathback>::iterator itr;
