@@ -433,6 +433,7 @@ Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index, string path)
         random_shuffle(tasks.begin(),tasks.end());
         PlfsConf *pconf = get_plfs_conf();
         if ( tasks.size() == 1 || pconf->threadpool_size <= 1 ) {
+            mlog(CON_DCOMMON,"if ( tasks.size() == 1 || pconf->threadpool_size <= 1 ) ");
             while( ! tasks.empty() ) {
                 IndexerTask task = tasks.front();
                 tasks.pop_front();
@@ -443,6 +444,7 @@ Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index, string path)
             }
         } else {
             // here's where to do the threaded thing
+            mlog(CON_DCOMMON, "Go with threading");
             IndexerArgs args;
             args.index = index;
             args.tasks = &tasks;
