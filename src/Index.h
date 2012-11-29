@@ -10,6 +10,16 @@ using namespace std;
 
 #include "Util.h"
 #include "Metadata.h"
+#include "idxanalyzer.h"
+
+enum IndexEntryType {
+    SINGLEHOST = 0,  // HostEntry class
+    SIMPLEFORMULA = 1, // SimpleFormulaEntry class
+    COMPLEXPATTERN = 2, //IdxSigEntryList class 
+    UNKNOWNTYPE = 7, //IdxSigEntryList class 
+};
+
+
 
 // the LocalEntry (HostEntry) and the ContainerEntry should maybe be derived
 // from one another. there are two types of index files
@@ -25,43 +35,9 @@ class IndexFileInfo
         //bool operator<(IndexFileInfo d1);
         double timestamp;
         string hostname;
+        IndexEntryType type;
         pid_t  id;
 };
-
-// this is the class that represents the records that get written into the
-// index file for each host.
-class HostEntry
-{
-    public:
-        HostEntry();
-        HostEntry( off_t o, size_t s, pid_t p );
-        HostEntry( const HostEntry& copy );
-        bool overlap( const HostEntry& );
-        bool contains ( off_t ) const;
-        bool splittable ( off_t ) const;
-        bool abut   ( const HostEntry& );
-        off_t logical_tail( ) const;
-        bool follows(const HostEntry&);
-        bool preceeds(const HostEntry&);
-
-    protected:
-        off_t  logical_offset;
-        off_t  physical_offset;  // I tried so hard to not put this in here
-        // to save some bytes in the index entries
-        // on disk.  But truncate breaks it all.
-        // we assume that each write makes one entry
-        // in the data file and one entry in the index
-        // file.  But when we remove entries and
-        // rewrite the index, then we break this
-        // assumption.  blech.
-        size_t length;
-        double begin_timestamp;
-        double end_timestamp;
-        pid_t  id;      // needs to be last so no padding
-
-        friend class Index;
-};
-
 
 // this is the class that represents one record in the in-memory
 // data structure that is
@@ -97,6 +73,8 @@ typedef struct {
     int fd;
 } ChunkFile;
 
+class IdxSigEntryList;
+class IdxSignature;
 class Index : public Metadata
 {
     public:
@@ -113,7 +91,10 @@ class Index : public Metadata
         void addWrite( off_t offset, size_t bytes, pid_t, double, double );
 
         size_t memoryFootprintMBs();    // how much area the index is occupying
+        size_t indexMemSize();
 
+        void flushComplexIndexBuf();
+        int flushHostIndexBuf();
         int flush();
 
         off_t lastOffset( );
@@ -136,11 +117,15 @@ class Index : public Metadata
 
         int setChunkFd( pid_t chunk_id, int fd );
 
+        int globalComplexLookup( int *fd, off_t *chunk_off, size_t *length,
+                string& path, bool *hole, pid_t *chunk_id,
+                off_t logical );
         int globalLookup( int *fd, off_t *chunk_off, size_t *length,
-                          string& path, bool *hole, pid_t *chunk_id,
-                          off_t logical );
+                string& path, bool *hole, pid_t *chunk_id,
+                off_t logical );
 
         int insertGlobal( ContainerEntry * );
+        int insertGlobal( IdxSigEntry *g_entry);
         void merge( Index *other);
         void truncate( off_t offset );
         int rewriteIndex( int fd );
@@ -151,40 +136,73 @@ class Index : public Metadata
         int global_to_file(int fd);
         int global_from_stream(void *addr);
         int global_to_stream(void **buffer,size_t *length);
-        friend ostream& operator <<(ostream&,const Index&);
+        int global_to_stream( string &buf );
+        friend ostream& operator <<(ostream&, Index&); //TODO: make all my show() const
         // Added to get chunk path on write
         string index_path;
+        map<int, string> index_paths;
         void startBuffering();
         void stopBuffering();
         bool isBuffering();
-
+        int getHostIndexSize();
+        IndexEntryType type;  //TODO: figure out when to set this and when 
+                              //      can use it. Probably use getType() setType
+                              //      Shall I decide the type at the time creating
+                              //      object?
+        ContainerIdxSigEntryList global_con_index_list; //global pattern with complex pattern
     private:
         void init( string );
         int chunkFound( int *, off_t *, size_t *, off_t,
-                        string&, pid_t *, ContainerEntry * );
+                string&, pid_t *, ContainerEntry * );
+        int chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
+                off_t shift, string& path, pid_t *chunk_id,
+                IdxSigEntry *entry, int pos );
+        int chunkFound( int *fd, off_t *chunk_off, size_t *chunk_len,
+                        off_t shift, string& path, pid_t *chunk_id,
+                        off_t log, off_t len, off_t phy, pid_t newid );
+        int readComplexIndex( string hostindex );
         int cleanupReadIndex(int, void *, off_t, int, const char *,
-                             const char *);
+                const char *);
         void *mapIndex( string, int *, off_t * );
+        void resetFD( int fd, string indexpath );
         int handleOverlap( ContainerEntry& g_entry,
-                           pair< map<off_t,ContainerEntry>::iterator,
-                           bool > &insert_ret );
+                pair< map<off_t,ContainerEntry>::iterator,
+                bool > &insert_ret );
         map<off_t,ContainerEntry>::iterator insertGlobalEntryHint(
-            ContainerEntry *g_entry ,map<off_t,ContainerEntry>::iterator hint);
+                ContainerEntry *g_entry ,map<off_t,ContainerEntry>::iterator hint);
         pair<map<off_t,ContainerEntry>::iterator,bool> insertGlobalEntry(
-            ContainerEntry *g_entry);
+                ContainerEntry *g_entry);
+        void insertGlobalEntry( IdxSigEntry *g_entry);
         size_t splitEntry(ContainerEntry *,set<off_t> &,
-                          multimap<off_t,ContainerEntry> &);
+                multimap<off_t,ContainerEntry> &);
         void findSplits(ContainerEntry&,set<off_t> &);
         // where we buffer the host index (i.e. write)
         vector< HostEntry > hostIndex;
+        
+        //my own buffer. Complex pattern
+        //analysis is on this buffer.
+        IdxSigEntryList complexIndexBuf; //this is used to hold the
+                                         //recognized complex patterns
+        
+        map< off_t, int > global_complex_index_map; // map from logical offset to its
+                                                    // position in global_complex_index_list
+        IdxSigEntryList global_complex_index_list;
+       
+
+        IdxSignature complexIndexUtil;    //a tool class to analyze pattern
 
         // this is a global index made by aggregating multiple locals
         map< off_t, ContainerEntry > global_index;
+        map< off_t, ContainerEntry >::iterator global_index_last_hit;
+
 
         // this is a way to associate a integer with a local file
         // so that the aggregated index can just have an int to point
         // to a local file instead of putting the full string in there
         vector< ChunkFile >       chunk_map;
+
+        // keep index file descriptor here, one for each index entry type
+        map< IndexEntryType, int > fds;
 
         // need to remember the current offset position within each chunk
         map<pid_t,off_t> physical_offsets;
@@ -201,9 +219,69 @@ class Index : public Metadata
         pthread_mutex_t    fd_mux;   // to allow thread safety
 
         bool compress_contiguous; // set true for performance. 0 for tracing.
-
+        bool enable_hash_lookup;
 };
 
+
 #define MAP_ITR map<off_t,ContainerEntry>::iterator
+#define COMPLEXMAP_ITR map<off_t,int>::iterator
+// This is used in globalLookup()
+inline
+int Index::globalComplexLookup( int *fd, off_t *chunk_off, size_t *chunk_len,
+        string& path, bool *hole, pid_t *chunk_id,
+        off_t logical )
+{
+    *hole = false;
+    *chunk_id = (pid_t)-1;
+
+    /////////////////
+    // For debug
+    // Return an offset instantly
+    /*
+    if ( global_complex_index_list.list.size() == 0 
+         || logical >= 1048576) {
+        *fd = -1;
+        *chunk_len = 0;
+        return 0;
+    }
+    
+    IdxSigEntry entry = global_complex_index_list.list[0];
+    
+    *chunk_off = 0;
+    *chunk_len = 1;
+    *chunk_id = 0;
+    *fd = chunk_map[0].fd;
+    path = chunk_map[0].path;
+    return 0;
+    */
+
+    //////////////////////////////////////////
+    /////////// without hashtable  /////////////////////////
+    mlog(IDX_WARN, "%s", __FUNCTION__);
+    
+    off_t ooffset, olength, ophysical, onewchunkid;
+    
+    if ( global_con_index_list.lookup( logical,
+                                       ooffset,
+                                       olength,
+                                       ophysical,
+                                       onewchunkid) ) 
+    {
+        // Found it
+        //ostringstream oss;
+        //oss << "Lookup: off:" << ooffset << ", len:" << olength
+        //    << ", physical:" << ophysical << ", newid:" << onewchunkid ;
+        //mlog(IDX_WARN, "%s", oss.str().c_str());
+        return chunkFound( fd, chunk_off, chunk_len,
+                           logical - ooffset, path, chunk_id,
+                           ooffset, olength, ophysical, onewchunkid );
+    } else {
+        mlog(IDX_WARN, "%s in a hhhhole. or off the end of the file", __FUNCTION__);
+        *fd = -1;
+        *chunk_len = 0;
+        return 0;
+    }
+                                          
+}
 
 #endif

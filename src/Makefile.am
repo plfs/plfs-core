@@ -75,6 +75,8 @@ FlatFileFS.h \
 FlatFileFD.h \
 mlog_oss.h \
 XAttrs.h  \
+idxanalyzer.h \
+patternanalyzer.h \
 $(include_HEADERS) \
 $(dist_pkginclude_HEADERS)
 
@@ -96,6 +98,8 @@ container_internals.cpp \
 plfs.cpp \
 mlog_oss.cpp \
 XAttrs.cpp 
+idxanalyzer.cpp \
+patternanalyzer.cpp \
 
 libplfs_la_SOURCES = \
 $(headers) \
