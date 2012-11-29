@@ -421,6 +421,7 @@ Container::populateIndex(const string& path, Index *index,bool use_global)
 int
 Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index, string path)
 {
+    //mlog(CON_DCOMMON, "Entering %s", __FUNCTION__);
     int ret=0;
     if ( tasks.empty() ) {
         ret = 0;    // easy, 0 length file
