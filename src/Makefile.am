@@ -97,7 +97,7 @@ plfs_private.cpp \
 container_internals.cpp \
 plfs.cpp \
 mlog_oss.cpp \
-XAttrs.cpp 
+XAttrs.cpp \
 idxanalyzer.cpp \
 patternanalyzer.cpp 
 
