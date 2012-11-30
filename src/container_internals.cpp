@@ -80,7 +80,7 @@ plfs_dump_index_size()
 // returns 0 or -err
 int
 plfs_dump_index( FILE *fp, const char *logical, int compress, 
-        bool uniform_restart, pid_t uniform_restart_rank )
+        int uniform_restart, pid_t uniform_restart_rank )
 {
     PLFS_ENTER;
     Index index(path, expansion_info.backend);
