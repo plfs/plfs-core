@@ -409,11 +409,14 @@ Container::flattenIndex( const string& path, struct plfs_backend *canback,
  * @param canback the backend for the canonical container
  * @param index the index to load into
  * @param use_global set to false to disable global index file load attempt
+ * @param uniform_restart whether to only construct partial index
+ * @param uniform_rank if uniform restart, which index file to use
  * @return -err or 0
  */
 int
 Container::populateIndex(const string& path, struct plfs_backend *canback,
-                         Index *index,bool use_global)
+                         Index *index,bool use_global, bool uniform_restart,
+                         pid_t uniform_rank)
 {
     int ret = 0;
     // first try for the top-level global index
@@ -447,7 +450,7 @@ Container::populateIndex(const string& path, struct plfs_backend *canback,
     } else {    // oh well, do it the hard way
         mlog(CON_DCOMMON, "Building global flattened index for %s",
              path.c_str());
-        ret = aggregateIndices(path,canback,index);
+        ret = aggregateIndices(path,canback,index,uniform_restart,uniform_rank);
     }
     return ret;
 }
@@ -1010,11 +1013,13 @@ Container::collectContents(const string& physical,
  * @param path the bpath to the canonical container
  * @param canback the backend the canonical container resides on
  * @param index the index to load into
+ * @param uniform_restart whether to only construct partial index
+ * @param uniform_rank if uniform restart, which index file to use
  * @return 0 or -err
  */
 int
 Container::aggregateIndices(const string& path, struct plfs_backend *canback,
-                            Index *index)
+                    Index *index, bool uniform_restart, pid_t uniform_rank)
 {
     vector<plfs_pathback> files;
     int ret = collectIndices(path,canback,files,true);
@@ -1032,6 +1037,15 @@ Container::aggregateIndices(const string& path, struct plfs_backend *canback,
         size_t lastslash = itr->bpath.rfind('/');
         filename = itr->bpath.substr(lastslash+1,itr->bpath.npos);
         if (istype(filename,INDEXPREFIX)) {
+            if (uniform_restart) {
+                int writers_rank = getDroppingPid(filename);
+                mlog(CON_DAPI, 
+                    "Is %s written by %d is needed for restart by %d?\n",
+                    filename.c_str(),writers_rank,uniform_rank);
+                if (writers_rank != uniform_rank) {
+                    continue;   // doesn't match so skip this one
+                }
+            }
             task.path = itr->bpath;
             task.backend = itr->back;
             tasks.push_back(task);

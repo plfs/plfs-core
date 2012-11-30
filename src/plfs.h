@@ -34,6 +34,10 @@ typedef void *Plfs_dirp;
         int  buffer_index;  /* Buffer index yes/no                      */
         plfs_interface pinter;
         int  reopen;
+        /* A way to minimize the size of the in-memory index by only 
+           constructing a "global" index from one single on-disk index file */
+        int  uniform_restart_enable; 
+        pid_t  uniform_restart_rank;
     } Plfs_open_opt;
 
     typedef struct {
