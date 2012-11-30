@@ -103,7 +103,7 @@ typedef void *Plfs_dirp;
     void plfs_debug( const char *format, ... );
 
     int plfs_dump_index( FILE *fp, const char *path, 
-            int compress, bool uniform_restart, pid_t uniform_rank );
+            int compress, int uniform_restart, pid_t uniform_rank );
 
     // Bool sneaked in here
     int plfs_dump_config(int check_dirs, int make_dir);
