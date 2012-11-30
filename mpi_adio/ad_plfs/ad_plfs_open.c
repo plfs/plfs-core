@@ -301,6 +301,7 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     int parallel_index_read=1;
     static char myname[] = "ADIOI_PLFS_OPENHELPER";
     Plfs_open_opt open_opt;
+    memset(&open_opt,0,sizeof(Plfs_open_opt));
     MPI_Comm hostdir_comm;
     int hostdir_rank, write_mode;
     open_opt.reopen = 0;
