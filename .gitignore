@@ -44,3 +44,5 @@ tools/plfs_recover
 tools/plfs_version
 tools/plfs_ls
 a.out.dSYM*
+mpi_adio/patches/mpich2/*.patch
+mpi_adio/patches/openmpi/*.patch
