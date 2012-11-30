@@ -299,9 +299,10 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
 {
     int err = 0, disabl_broadcast=0, compress_flag=0,close_flatten=0;
     int parallel_index_read=1;
+    int uniform_restart=0;
     static char myname[] = "ADIOI_PLFS_OPENHELPER";
     Plfs_open_opt open_opt;
-    memset(&open_opt,0,sizeof(Plfs_open_opt));
+    memset(&open_opt, 0, sizeof(Plfs_open_opt));
     MPI_Comm hostdir_comm;
     int hostdir_rank, write_mode;
     open_opt.reopen = 0;
@@ -319,6 +320,8 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     if (fd->access_mode==ADIO_RDONLY) {
         disabl_broadcast = ad_plfs_hints(fd,rank,"plfs_disable_broadcast");
         parallel_index_read =!ad_plfs_hints(fd,rank,"plfs_disable_paropen");
+        uniform_restart=ad_plfs_hints(fd,rank,"plfs_enable_uniform_restart");
+        uniform_restart=1;
         plfs_debug("Disable_bcast:%d,compress_flag:%d,parindex:%d\n",
                    disabl_broadcast,compress_flag,parallel_index_read);
         // I took out the extra broadcasts at this point. ad_plfs_hints
@@ -328,8 +331,11 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
         disabl_broadcast = 1; // don't create an index unless we're in read mode
         compress_flag=0;
     }
-    // This is new code added to handle the parallel_index_read case
-    if( fd->access_mode==ADIO_RDONLY && parallel_index_read) {
+    if (fd->access_mode == ADIO_RDONLY && uniform_restart){
+        open_opt.uniform_restart_enable = 1;
+        open_opt.uniform_restart_rank = rank;
+        err = plfs_open(pfd,fd->filename,amode,rank,perm,&open_opt);
+    }else if( fd->access_mode==ADIO_RDONLY && parallel_index_read) {
         void *global_index;
         // Function to start the parallel index read
         err = adplfs_par_index_read(fd,pfd,error_code,perm,amode,rank,
@@ -395,6 +401,7 @@ int adplfs_broadcast_index(Plfs_fd **pfd, ADIO_File fd,
     // [0] is index stream size [1] is compressed size
     unsigned long index_size[2]= {0};
     Plfs_open_opt open_opt;
+    memset(&open_opt, 0, sizeof(Plfs_open_opt));
     open_opt.pinter = PLFS_MPIIO;
     open_opt.index_stream=NULL;
     open_opt.buffer_index=0;
