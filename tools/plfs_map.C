@@ -12,7 +12,7 @@ int main (int argc, char **argv) {
     int i;
     char *target;
     bool found_target = false;
-    bool uniform_restart = false;
+    int uniform_restart = false;
     pid_t uniform_rank = 0;
     for (i = 1; i < argc; i++) {
         plfs_handle_version_arg(argc, argv[i]);
