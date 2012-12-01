@@ -16,12 +16,8 @@ void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code)
 {
     static char myname[] = "ADIOI_PLFS_SETINFO";
     char *value;
-    int flag, tmp_val = -1;
-    // The initial values make a difference.
-    int disable_broadcast = 0;
-    int flatten_close = 0;
-    int disable_parindex_read = 0;
-    int gen_error_code,rank;
+    int flag, tmp_val = -1, save_val = -1;
+
     MPI_Comm_rank( fd->comm, &rank );
     *error_code = MPI_SUCCESS;
     #ifdef ROMIO_CRAY
@@ -30,67 +26,49 @@ void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code)
        ADIOI_CRAY_getenv_mpiio_hints(&users_info, fd);
     #endif /* ROMIO_CRAY */
 
-    // these optimizations only make sense in container mode
+        // here's the way to check whether we're in container mode
+        // in case we want to error out if people try non-sensical hints
     if (plfs_get_filetype(fd->filename) != CONTAINER) {
-        disable_broadcast = 1;
-        flatten_close = 0;
-        disable_parindex_read = 1;
+        // not currently do any checking here
     }
+
+    // if the hint structure hasn't already been created
+    // however, if users_info==MPI_INFO_NULL, maybe we don't need to do this
     if ((fd->info) == MPI_INFO_NULL) {
-        /* This must be part of the open call. can set striping parameters
-         * if necessary.
-         */
         MPI_Info_create(&(fd->info));
-        if (users_info != MPI_INFO_NULL) {
-            value = (char *) ADIOI_Malloc((MPI_MAX_INFO_VAL+1)*sizeof(char));
-            /* plfs_disable_broadcast */
-            MPI_Info_get(users_info, "plfs_disable_broadcast", MPI_MAX_INFO_VAL,
-                         value, &flag);
+    }
+
+    /*
+     * For every plfs hint, go through and check whether every rank
+     * got the same value.  If not, abort.  Then copy the value from
+     * the incoming MPI_Info into the ADIO_File info.
+     */
+    if (users_info != MPI_INFO_NULL) {
+        static const char *phints[] = { 
+            "plfs_disable_broadcast",   /* don't have 0 broadcast to all */ 
+            "plfs_flatten_close",       /* create flattened index on close */
+            "plfs_disable_paropen",     /* don't do par_index_read */
+            "plfs_uniform_restart",     /* only read one index file each */ 
+            NULL    /* last must be NULL */
+        };
+
+        value = (char *) ADIOI_Malloc((MPI_MAX_INFO_VAL+1)*sizeof(char));
+        for(int i = 0; phints[i] != NULL; i++) {
+            MPI_Info_get(users_info, phints[i], MPI_MAX_INFO_VAL, value, &flag);
             if (flag) {
-                disable_broadcast = atoi(value);
-                tmp_val = disable_broadcast;
+                save_val = tmp_val = atoi(value);
                 MPI_Bcast(&tmp_val, 1, MPI_INT, 0, fd->comm);
-                if (tmp_val != disable_broadcast) {
-                    FPRINTF(stderr, "ADIOI_PLFS_SetInfo: "
-                            "the value for key \"plfs_disable_broadcast\" "
-                            "must be the same on all processes\n");
+                if (tmp_val != save_val) {  /* same for all? */
+                    FPRINTF(stderr, "%s: " "the value for key \"%s\" must be "
+                            "the same on all processes\n", myname, phints[i]);
                     MPI_Abort(MPI_COMM_WORLD, 1);
                 }
                 MPI_Info_set(fd->info, "plfs_disable_broadcast", value);
             }
-            /* flatten_close */
-            MPI_Info_get(users_info, "plfs_flatten_close", MPI_MAX_INFO_VAL,
-                         value, &flag);
-            if(flag) {
-                flatten_close = atoi(value);
-                tmp_val = flatten_close;
-                MPI_Bcast(&tmp_val,1,MPI_INT,0,fd->comm);
-                if (tmp_val != flatten_close) {
-                    FPRINTF(stderr, "ADIOI_PLFS_SetInfo: "
-                            "the value for key \"plfs_flatten_close\" "
-                            "must be the same on all processes\n");
-                    MPI_Abort(MPI_COMM_WORLD, 1);
-                }
-                MPI_Info_set(fd->info, "plfs_flatten_close", value);
-            }
-            /* Parallel Index Read  */
-            MPI_Info_get(users_info, "plfs_disable_paropen", MPI_MAX_INFO_VAL,
-                         value, &flag);
-            if(flag) {
-                disable_parindex_read = atoi(value);
-                tmp_val = disable_parindex_read;
-                MPI_Bcast(&tmp_val,1,MPI_INT,0,fd->comm);
-                if (tmp_val != disable_parindex_read) {
-                    FPRINTF(stderr, "ADIOI_PLFS_SetInfo: "
-                            "the value for key \"plfs_disable_paropen\" "
-                            "must be the same on all processes\n");
-                    MPI_Abort(MPI_COMM_WORLD, 1);
-                }
-                MPI_Info_set(fd->info, "plfs_disable_paropen", value);
-            }
-            ADIOI_Free(value);
         }
+        ADIOI_Free(value);
     }
+    
     #ifdef ROMIO_CRAY /* --BEGIN CRAY ADDITION-- */
         /* Calling the CRAY SetInfo() will add the Cray supported features:
          * - set the number of aggregators to the number of compute nodes

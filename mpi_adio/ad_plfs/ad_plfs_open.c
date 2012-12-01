@@ -297,6 +297,7 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
 int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
                 int amode,int rank)
 {
+    // XXXJB: Looks like compress_flag is not used at all anymore.  Clean?
     int err = 0, disabl_broadcast=0, compress_flag=0,close_flatten=0;
     int parallel_index_read=1;
     int uniform_restart=0;
@@ -321,9 +322,9 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
         disabl_broadcast = ad_plfs_hints(fd,rank,"plfs_disable_broadcast");
         parallel_index_read =!ad_plfs_hints(fd,rank,"plfs_disable_paropen");
         uniform_restart=ad_plfs_hints(fd,rank,"plfs_enable_uniform_restart");
-        uniform_restart=1;
-        plfs_debug("Disable_bcast:%d,compress_flag:%d,parindex:%d\n",
-                   disabl_broadcast,compress_flag,parallel_index_read);
+        plfs_debug(
+          "Disable_bcast:%d,compress_flag:%d,parindex:%d,uniform_restart:%d\n",
+          disabl_broadcast,compress_flag,parallel_index_read,uniform_restart);
         // I took out the extra broadcasts at this point. ad_plfs_hints
         // has code to make sure that all ranks have the same value
         // for the hint
