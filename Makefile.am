@@ -74,4 +74,3 @@ dist-hook:
 	scripts/make_ad_plfs_patch --mpi=mpich2 && \
 	cp -fv patches/mpich2/mpich2-plfs.patch ../$(distdir)/mpi_adio/patches/mpich2/ && \
 	cd ..
-

@@ -24,6 +24,14 @@ OpenFd {
     int writers;
 };
 
+
+enum WriteType {
+    SINGLE_HOST_WRITE,
+    SIMPLE_FORMULA_WRITE,
+};
+
+
+
 class WriteFile : public Metadata
 {
     public:
@@ -63,6 +71,8 @@ class WriteFile : public Metadata
     private:
         int openIndexFile( string path, string host, pid_t, mode_t
                            , string *index_path);
+        int openIndexFile( string path, string host, pid_t, mode_t
+                           , string *index_path, IndexEntryType indexType);
         int openDataFile(string path, string host, pid_t, mode_t );
         int openFile( string, mode_t mode );
         int Close( );
@@ -85,6 +95,9 @@ class WriteFile : public Metadata
         size_t max_writers;
         // Keeps track of writes for flush of index
         int write_count;
+        IndexEntryType index_type; //what type of index 
+                                   //is used when writing data
+                                   //TODO:should be controled by .plfsrc
 };
 
 #endif

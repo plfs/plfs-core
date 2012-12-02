@@ -118,6 +118,8 @@ class Util
                                          vector<string> &files,
                                          vector<string> &dirs,
                                          vector<string>&links);
+        static bool istype(const string& dropping, const char *type);
+        static string getFilenameFromPath(const string& path);
     private:
         static void addBytes( string, size_t );
         static string timeToString(      HASH_MAP<string,double>::iterator,
