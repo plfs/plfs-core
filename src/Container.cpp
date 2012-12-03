@@ -430,6 +430,7 @@ Container::populateIndex(const string& path, Index *index,bool use_global)
 int
 Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index, string path)
 {
+    //mlog(CON_DCOMMON, "Entering %s", __FUNCTION__);
     int ret=0;
     if ( tasks.empty() ) {
         ret = 0;    // easy, 0 length file
@@ -441,6 +442,7 @@ Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index, string path)
         random_shuffle(tasks.begin(),tasks.end());
         PlfsConf *pconf = get_plfs_conf();
         if ( tasks.size() == 1 || pconf->threadpool_size <= 1 ) {
+            mlog(CON_DCOMMON,"if ( tasks.size() == 1 || pconf->threadpool_size <= 1 ) ");
             while( ! tasks.empty() ) {
                 IndexerTask task = tasks.front();
                 tasks.pop_front();
@@ -451,6 +453,7 @@ Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index, string path)
             }
         } else {
             // here's where to do the threaded thing
+            mlog(CON_DCOMMON, "Go with threading");
             IndexerArgs args;
             args.index = index;
             args.tasks = &tasks;
@@ -544,6 +547,15 @@ Container::indices_from_subdir(string path, vector<IndexFileInfo> &indices)
         // ugh, this should be encapsulated.  if we ever change format
         // of index filename, this will break.
         Util::tokenize(itr->c_str(),".",tokens);
+        
+        if ( Util::istype(*itr, COMPLEXINDEXPREFIX) == true ) {
+            index_dropping.type = COMPLEXPATTERN;
+        } else if ( Util::istype(*itr, INDEXPREFIX) == true ) {
+            index_dropping.type = SINGLEHOST;
+        } else {
+            index_dropping.type = UNKNOWNTYPE;
+        }
+        
         str_time_stamp+=tokens[2];
         str_time_stamp+=".";
         str_time_stamp+=tokens[3];
@@ -586,7 +598,8 @@ Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
         // get Index Path doesn't work for because we use the hostname
         // for a hash to hostdir. We already have the hostdir
         string index_path = getIndexHostPath(path,current->hostname,
-                                             current->id,current->timestamp);
+                                             current->id,current->timestamp,
+                                             current->type);
         task.path = index_path;
         mlog(CON_DCOMMON, "Task push path %s",index_path.c_str());
         tasks.push_back(task);
@@ -759,6 +772,7 @@ Container::collectIndices(const string& physical, vector<string> &indices,
 {
     vector<string> filters;
     filters.push_back(INDEXPREFIX);
+    filters.push_back(COMPLEXINDEXPREFIX);
     filters.push_back(HOSTDIRPREFIX);
     return collectContents(physical,indices,NULL,NULL,filters,full_path);
 }
@@ -790,7 +804,7 @@ Container::collectContents(const string& physical,
     for(f_itr=filters.begin(); f_itr!=filters.end(); f_itr++) {
         rop.filter(*f_itr);
     }
-    mlog(CON_DAPI, "%s on %s", __FUNCTION__, physical.c_str());
+    mlog(CON_DAPI, "%s() on %s", __FUNCTION__, physical.c_str());
     ret = rop.op(physical.c_str(),DT_DIR);
     // now for each entry we found: descend into dirs, resolve metalinks and
     // then descend, save files.
@@ -830,23 +844,52 @@ Container::aggregateIndices(const string& path, Index *index)
 {
     vector<string> files;
     int ret = collectIndices(path,files,true);
+
+    /*
+    mlog(CON_DAPI, "------number of index file is %d", files.size());
+
+    vector<string>::iterator fiter;
+    for ( fiter = files.begin() ;
+          fiter != files.end() ;
+          fiter++ )
+    {
+        mlog(CON_WARN, "collected indices: %s", fiter->c_str()); 
+    }
+    */
+
     if (ret!=0) {
         return -errno;
     }
     IndexerTask task;
     deque<IndexerTask> tasks;
+    set<IndexEntryType> indextypes;
     mlog(CON_DAPI, "In %s", __FUNCTION__);
     // create the list of tasks.  A task is reading one index file.
     for(vector<string>::iterator itr=files.begin(); itr!=files.end(); itr++) {
         string filename; // find just the filename
         size_t lastslash = itr->rfind('/');
         filename = itr->substr(lastslash+1,itr->npos);
+        //mlog(CON_DCOMMON, "FFFile name is: %s.", filename.c_str());
         if (istype(filename,INDEXPREFIX)) {
+            indextypes.insert(SINGLEHOST);
             task.path = (*itr);
             tasks.push_back(task);
             mlog(CON_DCOMMON, "Ag indices path is %s",path.c_str());
+            mlog(CON_DCOMMON, "INDEX path is %s", task.path.c_str());
+        } else if (istype(filename,COMPLEXINDEXPREFIX)) {
+            indextypes.insert(COMPLEXPATTERN);
+            task.path = (*itr);
+            tasks.push_back(task);
+            mlog(CON_DCOMMON, "Ag indices path is %s",path.c_str());
+            mlog(CON_DCOMMON, "COMPLEX path is %s",task.path.c_str());
         }
     }
+
+    //mlog(CON_DAPI, "----Number of index types: %d", indextypes.size());
+    //assert(indextypes.size() == 1); //can only have one index type and only one
+    if (indextypes.size() != 1) 
+        return -1;
+    //mlog(CON_DCOMMON, "before calling indexTaskManager");
     ret=indexTaskManager(tasks,index,path);
     return ret;
 }
@@ -870,10 +913,53 @@ Container::getIndexHostPath(const string& path,const string& host,
 }
 
 string
+Container::getIndexHostPath(const string& path,const string& host,
+                            int pid, double ts, IndexEntryType type)
+{
+    ostringstream oss;
+    oss.setf(ios::fixed,ios::floatfield);
+    if ( type == SINGLEHOST ) {
+        oss << path << "/" << INDEXPREFIX;
+    } else if ( type == COMPLEXPATTERN ) {
+        oss << path << "/" << COMPLEXINDEXPREFIX;
+    } 
+    oss << ts << "." << host << "." << pid;
+    return oss.str();
+}
+
+string
 Container::getIndexPath(const string& path, const string& host, int pid,
                         double ts)
 {
     return getChunkPath( path, host, pid, INDEXPREFIX, ts );
+}
+
+string
+Container::getIndexPath(const string& path, const string& host, int pid,
+                        double ts, IndexEntryType indexType) 
+{
+    string p;
+    switch ( indexType ) {
+        case SINGLEHOST:
+            p = getChunkPath( path, host, pid, INDEXPREFIX, ts);
+            mlog(CON_WARN, "In %s: path is %s", 
+                    __FUNCTION__, p.c_str() );
+            return p;
+            break;
+        case SIMPLEFORMULA:
+            mlog(CON_ERR, "In %s: should not be here", __FUNCTION__);
+            exit(-1);
+        case COMPLEXPATTERN:
+            p = getChunkPath( path, host, pid, COMPLEXINDEXPREFIX, ts);
+            mlog(CON_WARN, "In %s: path is %s", 
+                    __FUNCTION__, p.c_str() );
+            return p;
+            break;
+        default:
+            mlog(CON_ERR, "In %s: should not be here", __FUNCTION__);
+            exit(-1);
+            break;
+    }
 }
 
 // this function takes a container path, a hostname, a pid, and a type and
@@ -951,10 +1037,22 @@ Container::hostdirFromChunk( string chunkpath, const char *type )
 string
 Container::chunkPathFromIndexPath( const string& hostindex, pid_t pid )
 {
-    string host      = hostFromChunk( hostindex, INDEXPREFIX);
-    string hostdir   = hostdirFromChunk( hostindex, INDEXPREFIX);
-    string timestamp = timestampFromChunk(hostindex,INDEXPREFIX);
-    string chunkpath = chunkPath(hostdir, DATAPREFIX, host, pid,timestamp);
+    string filename;
+    string chunkpath;
+
+    filename = Util::getFilenameFromPath(hostindex);
+    if ( istype(filename, COMPLEXINDEXPREFIX) ) {
+        string host      = hostFromChunk( hostindex, COMPLEXINDEXPREFIX);
+        string hostdir   = hostdirFromChunk( hostindex, COMPLEXINDEXPREFIX);
+        string timestamp = timestampFromChunk(hostindex, COMPLEXINDEXPREFIX);
+        chunkpath = chunkPath(hostdir, DATAPREFIX, host, pid,timestamp);
+    } else {
+        string host      = hostFromChunk( hostindex, INDEXPREFIX);
+        string hostdir   = hostdirFromChunk( hostindex, INDEXPREFIX);
+        string timestamp = timestampFromChunk(hostindex,INDEXPREFIX);
+        chunkpath = chunkPath(hostdir, DATAPREFIX, host, pid,timestamp);
+    }
+
     mlog(CON_DAPI, "%s: Returning %s from %s",__FUNCTION__,chunkpath.c_str(),
          hostindex.c_str());
     return chunkpath;
