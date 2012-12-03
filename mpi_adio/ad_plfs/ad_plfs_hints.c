@@ -63,7 +63,7 @@ void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code)
                             "the same on all processes\n", myname, phints[i]);
                     MPI_Abort(MPI_COMM_WORLD, 1);
                 }
-                MPI_Info_set(fd->info, "plfs_disable_broadcast", value);
+                MPI_Info_set(fd->info, phints[i], value);
             }
         }
         ADIOI_Free(value);
