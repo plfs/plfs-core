@@ -1040,7 +1040,7 @@ Container::aggregateIndices(const string& path, struct plfs_backend *canback,
             if (uniform_restart) {
                 int writers_rank = getDroppingPid(filename);
                 mlog(CON_DAPI, 
-                    "Is %s written by %d is needed for restart by %d?\n",
+                    "Is %s written by %d is needed for uniform restart by %d?\n",
                     filename.c_str(),writers_rank,uniform_rank);
                 if (writers_rank != uniform_rank) {
                     continue;   // doesn't match so skip this one

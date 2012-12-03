@@ -16,7 +16,8 @@ void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code)
 {
     static char myname[] = "ADIOI_PLFS_SETINFO";
     char *value;
-    int flag, tmp_val = -1, save_val = -1;
+    int flag, tmp_val = -1, save_val = -1;  
+    int rank, i, gen_error_code;
 
     MPI_Comm_rank( fd->comm, &rank );
     *error_code = MPI_SUCCESS;
@@ -53,8 +54,8 @@ void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code)
         };
 
         value = (char *) ADIOI_Malloc((MPI_MAX_INFO_VAL+1)*sizeof(char));
-        for(int i = 0; phints[i] != NULL; i++) {
-            MPI_Info_get(users_info, phints[i], MPI_MAX_INFO_VAL, value, &flag);
+        for(i = 0; phints[i] != NULL; i++) {
+            MPI_Info_get(users_info, (char *)phints[i], MPI_MAX_INFO_VAL, value, &flag);
             if (flag) {
                 save_val = tmp_val = atoi(value);
                 MPI_Bcast(&tmp_val, 1, MPI_INT, 0, fd->comm);
@@ -63,7 +64,8 @@ void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code)
                             "the same on all processes\n", myname, phints[i]);
                     MPI_Abort(MPI_COMM_WORLD, 1);
                 }
-                MPI_Info_set(fd->info, phints[i], value);
+                MPI_Info_set(fd->info, (char *)phints[i], value);
+                //fprintf(stderr, "rank %d: set %s -> %s\n",rank,phints[i],value);
             }
         }
         ADIOI_Free(value);

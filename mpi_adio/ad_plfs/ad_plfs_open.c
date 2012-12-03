@@ -321,7 +321,7 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     if (fd->access_mode==ADIO_RDONLY) {
         disabl_broadcast = ad_plfs_hints(fd,rank,"plfs_disable_broadcast");
         parallel_index_read =!ad_plfs_hints(fd,rank,"plfs_disable_paropen");
-        uniform_restart=ad_plfs_hints(fd,rank,"plfs_enable_uniform_restart");
+        uniform_restart=ad_plfs_hints(fd,rank,"plfs_uniform_restart");
         plfs_debug(
           "Disable_bcast:%d,compress_flag:%d,parindex:%d,uniform_restart:%d\n",
           disabl_broadcast,compress_flag,parallel_index_read,uniform_restart);
