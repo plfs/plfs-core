@@ -91,7 +91,7 @@ Regression testing a release
         3) PLFS can be built and used from the resulting tarball.
     3) Update plfs.spec and verify an rpm can be built with it. This will
     verify that all files listed in the spec file match what will be created
-    via 'make install'. Set "Version:" to <release> rather than <release>.rc1.
+    via 'make install'. Set "Version:" to <release> rather than <release>rc1.
     Make sure these changes are checked in to plfs/plfs-core via the
     appropriate method.
     4) If the procedure outlined in README.git has been followed, the
@@ -99,13 +99,13 @@ Regression testing a release
     that points to plfs/plfs-core. Upstream will be used directly in the
     following instructions, so ensure that upstream is sufficiently set up.
     5) Update ChangeLog
-    6) Update VERSION to contain <release>.rc1 where <release> is a version
+    6) Update VERSION to contain <release>rc1 where <release> is a version
     number such as 2.3, for example.
     7) Commit changes to the local repository.
-    8) Make an annotated git tag: git tag -a <release>.rc1
+    8) Make an annotated git tag: git tag -a <release>rc1
     9) Push local commits to upstream: git push upstream master
-    10) Push <release>.rc1 tag to upstream: git push upstream <release>.rc1
-    11) Regression test <release>.rc1. If problems are found and fixed, iterate
+    10) Push <release>rc1 tag to upstream: git push upstream <release>rc1
+    11) Regression test <release>rc1. If problems are found and fixed, iterate
     through steps 5 through 10 to create rc2. Iterate as many times as needed
     until the release passes all regression tests satisfactorily. Once all
     testing requirements have been satisfied, move on to the "Tag the release"
