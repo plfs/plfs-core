@@ -517,9 +517,10 @@ container_rename( const char *logical, const char *to )
     if (S_ISLNK(mode)) {
         ret = Util::CopyFile( old_canonical.c_str(), opb.back->store,
                               new_canonical.c_str(), npb.back->store);
-        if (ret != 0) {
-            PLFS_EXIT(ret);
+        if (ret == 0){
+            ret = container_unlink(logical);
         }
+        PLFS_EXIT(ret);
     }
 
     
