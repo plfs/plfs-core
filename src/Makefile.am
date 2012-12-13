@@ -97,7 +97,7 @@ ContainerFS.cpp \
 ContainerFD.cpp \
 FlatFileFD_FS.cpp \
 GlibIOStore.cpp \
-HDFSIOStore.cpp \ 
+HDFSIOStore.cpp \
 PVFSIOStore.cpp \
 IOStore.cpp \
 PosixIOStore.cpp \
