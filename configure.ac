@@ -197,6 +197,9 @@ AS_IF([test "x$plfs_build_adio_test" = "x1"],
       [AC_PKG_PLFS_MPI
        AC_PKG_PLFS_ROMIO])
 
+AC_PKG_PLFS_HDFS
+AC_PKG_PLFS_PVFS
+
 AC_OUTPUT([
 Makefile
 config/Makefile
