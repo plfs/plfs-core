@@ -6,6 +6,12 @@
 
 #include "PosixIOStore.h"
 #include "GlibIOStore.h"
+#ifdef USE_HDFS
+#include "HDFSIOStore.h"
+#endif
+#ifdef USE_PVFS
+#include "PVFSIOStore.h"
+#endif
 
 class PosixIOStore PosixIO;   /* shared for posix access */
 
@@ -34,6 +40,7 @@ class PosixIOStore PosixIO;   /* shared for posix access */
  */
 class IOStore *plfs_iostore_get(char *phys_path, char **prefixp,
                                 int *prelenp, char **bmpointp) {
+    class IOStore *rv;
 
     /* special handling for posix (allows shorthand) */
     if (phys_path[0] == '/' ||
@@ -55,11 +62,20 @@ class IOStore *plfs_iostore_get(char *phys_path, char **prefixp,
         return(new GlibIOStore());
     }
         
-    if (strncmp(phys_path, "hdfs:", sizeof("hdfs:")-1) == 0) {
-        /*
-         * return(new HDFSIOStore(phys_path, prelenp, bmpointp));
-         */
+#ifdef USE_HDFS
+    if (strncmp(phys_path, "hdfs://", sizeof("hdfs://")-1) == 0) {
+        rv = HDFSIOStore::HDFSIOStore_xnew(phys_path, prelenp, bmpointp);
+        return(rv);
     }
+#endif
+
+#ifdef USE_PVFS
+    if (strncmp(phys_path, "pvfs://", sizeof("pvfs://")-1) == 0) {
+        rv = PVFSIOStore::PVFSIOStore_xnew(phys_path, prelenp, bmpointp);
+        return(rv);
+    }
+#endif
+
     return(NULL);
 }
 

@@ -1,0 +1,47 @@
+#
+# API for HDFS wrappers
+#
+hdfsFS hdfsConnectAsUser(const char* host, tPort port, const char *user);
+hdfsFS hdfsConnect(const char* host, tPort port);
+int hdfsDisconnect(hdfsFS fs);
+#
+hdfsFile hdfsOpenFile(hdfsFS fs, const char* path, int flags,
+                      int bufferSize, short replication, tSize blocksize);
+int hdfsCloseFile(hdfsFS fs, hdfsFile file);
+#
+int hdfsExists(hdfsFS fs, const char *path);
+int hdfsSeek(hdfsFS fs, hdfsFile file, tOffset desiredPos); 
+tOffset hdfsTell(hdfsFS fs, hdfsFile file);
+tSize hdfsRead(hdfsFS fs, hdfsFile file, void* buffer, tSize length);
+tSize hdfsPread(hdfsFS fs, hdfsFile file, tOffset position,
+                    void* buffer, tSize length);
+tSize hdfsWrite(hdfsFS fs, hdfsFile file, const void* buffer,
+                    tSize length);
+int hdfsFlush(hdfsFS fs, hdfsFile file);
+int hdfsAvailable(hdfsFS fs, hdfsFile file);
+#
+int hdfsCopy(hdfsFS srcFS, const char* src, hdfsFS dstFS, const char* dst);
+int hdfsMove(hdfsFS srcFS, const char* src, hdfsFS dstFS, const char* dst);
+#
+int hdfsDelete(hdfsFS fs, const char* path, int recursive);
+int hdfsRename(hdfsFS fs, const char* oldPath, const char* newPath);
+#
+char* hdfsGetWorkingDirectory(hdfsFS fs, char *buffer, size_t bufferSize);
+int hdfsSetWorkingDirectory(hdfsFS fs, const char* path);
+int hdfsCreateDirectory(hdfsFS fs, const char* path);
+int hdfsSetReplication(hdfsFS fs, const char* path, int16_t replication);
+hdfsFileInfo *hdfsListDirectory(hdfsFS fs, const char* path,
+                                    int *numEntries);
+hdfsFileInfo *hdfsGetPathInfo(hdfsFS fs, const char* path);
+# XXX: add 'x' to first arg name to avoid c++ issue
+void hdfsFreeFileInfo(hdfsFileInfo *xhdfsFileInfo, int numEntries);
+char*** hdfsGetHosts(hdfsFS fs, const char* path, 
+            tOffset start, tOffset length);
+void hdfsFreeHosts(char ***blockHosts);
+tOffset hdfsGetDefaultBlockSize(hdfsFS fs);
+tOffset hdfsGetCapacity(hdfsFS fs);
+tOffset hdfsGetUsed(hdfsFS fs);
+int hdfsChown(hdfsFS fs, const char* path, const char *owner, 
+              const char *group);
+int hdfsChmod(hdfsFS fs, const char* path, short mode);
+int hdfsUtime(hdfsFS fs, const char* path, tTime mtime, tTime atime);
