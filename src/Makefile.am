@@ -78,6 +78,8 @@ XAttrs.h  \
 IOStore.h \
 PosixIOStore.h \
 GlibIOStore.h \
+HDFSIOStore.h \
+PVFSIOStore.h \
 $(include_HEADERS) \
 $(dist_pkginclude_HEADERS)
 
@@ -95,6 +97,8 @@ ContainerFS.cpp \
 ContainerFD.cpp \
 FlatFileFD_FS.cpp \
 GlibIOStore.cpp \
+HDFSIOStore.cpp \
+PVFSIOStore.cpp \
 IOStore.cpp \
 PosixIOStore.cpp \
 plfs_private.cpp \
