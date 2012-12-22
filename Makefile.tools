@@ -35,8 +35,8 @@ ${BIN}/autoconf:
 
 ${BIN}/automake: 
 	${BEGIN}; \
-	wget http://ftp.gnu.org/gnu/automake/automake-${AMVERS}.tar.bz2; \
-	tar xvfj automake-${AMVERS}.tar.bz2; \
+	wget http://ftp.gnu.org/gnu/automake/automake-${AMVERS}.tar.gz; \
+	tar xvfz automake-${AMVERS}.tar.gz; \
 	cd automake-${AMVERS}; \
 	${FINI}
 
