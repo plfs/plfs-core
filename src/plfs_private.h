@@ -138,6 +138,9 @@ typedef struct {
     int mlog_msgbuf_size;  /* number of bytes in mlog message buffer */
     int mlog_syslogfac;    /* syslog facility to use, if syslog enabled */
     char *mlog_setmasks;   /* initial non-default log level settings */
+
+    /* File to dump fuse errors to regardless of mlog configuration */
+    char *fuse_crash_log;
 } PlfsConf;
 
 PlfsConf *parse_conf(FILE *fp, string file, PlfsConf *pconf);

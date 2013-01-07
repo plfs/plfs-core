@@ -1101,6 +1101,7 @@ set_default_confs(PlfsConf *pconf)
     pconf->mlog_syslogfac = LOG_USER;
     pconf->mlog_setmasks = NULL;
     pconf->tmp_mnt = NULL;
+    pconf->fuse_crash_log = NULL;
 }
 
 
@@ -1177,6 +1178,12 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
         if (pconf->threadpool_size <=0) {
             pconf->err_msg = new string("illegal negative value");
         }
+    }else if (strcmp(key,"fuse_crash_log") == 0) {
+        pconf->fuse_crash_log = strdup(value);
+
+        if (pconf->fuse_crash_log == NULL) {
+            pconf->err_msg = new string("Unable to set fuse_crash_log");
+         }
     } else if (strcmp(key,"global_summary_dir")==0) {
         pconf->global_summary_dir = strdup(value);
         /* second copy gets chopped up by attach code */
