@@ -1,6 +1,9 @@
 #include "ContainerFS.h"
 #include "ContainerFD.h"
 #include "container_internals.h"
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 ContainerFileSystem containerfs;
 
