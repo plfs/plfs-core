@@ -8,6 +8,13 @@ set (plfs_VERSION_MINOR 3)
 #setup special modules
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "Modules/")
 
+#special headers
+include(CheckIncludeFiles)
+check_include_files ("sys/fsuid.h"        HAVE_SYS_FSUID_H)
+if (HAVE_SYS_FSUID_H)
+	add_definitions (-DHAVE_SYS_FSUID_H)
+endif (HAVE_SYS_FSUID_H)
+
 #setup includes
 include_directories (../src)
 include_directories (../tools)
@@ -31,20 +38,16 @@ SET_TARGET_PROPERTIES(plfs_lib
 #zlib
 find_package (ZLIB REQUIRED)
 if (ZLIB_FOUND)
-    #build fuse
     include_directories(${ZLIB_DIRECTORIES})
     add_definitions(${ZLIB_DEFINITIONS})
     target_link_libraries (plfs_lib ${ZLIB_LIBRARIES})
 endif (ZLIB_FOUND)
 
 #pthread
-find_package (THREADS REQUIRED)
-if (THREADS_FOUND)
-    #build fuse
-    include_directories(${THREADS_DIRECTORIES})
-    add_definitions(${THREADS_DEFINITIONS})
-    target_link_libraries (plfs_lib ${THREADS_LIBRARIES})
-endif (THREADS_FOUND)
+find_package (Threads REQUIRED)
+if (Threads_FOUND)
+    target_link_libraries (plfs_lib ${CMAKE_THREAD_LIBS_INIT})
+endif (Threads_FOUND)
     
 
 #fuse
@@ -54,7 +57,7 @@ if (FUSE_FOUND)
     AUX_SOURCE_DIRECTORY(../fuse plfs_fuse_dir)
     add_executable (plfs_fuse ${plfs_fuse_dir})
     add_definitions(${FUSE_DEFINITIONS})
-    include_directories (${FUSE_DIRECTORIES})
+    include_directories (${FUSE_INCLUDE_DIR})
     target_link_libraries (plfs_fuse ${FUSE_LIBRARIES})
     target_link_libraries (plfs_fuse plfs_lib)
     #change its name so that it create plfs executable
@@ -96,3 +99,4 @@ target_link_libraries (plfs_version plfs_lib)
 #set up targets for make install
 INSTALL_TARGETS(/bin dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls plfs_map plfs_query plfs_recover plfs_version)
 INSTALL_TARGETS(/lib plfs_lib)
+INSTALL_FILES(/include plfs.h)
