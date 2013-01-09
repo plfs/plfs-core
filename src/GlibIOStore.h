@@ -15,6 +15,7 @@ class GlibIOSHandle: public IOSHandle {
  public:
 
     GlibIOSHandle(string path);
+    ~GlibIOSHandle(){};
 
     int Open(int flags, mode_t mode);
     int Fstat(struct stat* buf);
@@ -38,6 +39,7 @@ class GlibIOSHandle: public IOSHandle {
 
 class GlibIOStore: public PosixIOStore {
 public:
+    ~GlibIOStore(){};
     IOSHandle *Open(const char *bpath, int flags, mode_t mode, int &ret);
 
 };

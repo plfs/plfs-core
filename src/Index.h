@@ -11,7 +11,7 @@ using namespace std;
 #include "Util.h"
 #include "Metadata.h"
 
-class PlfsMount;
+struct PlfsMount;
 
 // the LocalEntry (HostEntry) and the ContainerEntry should maybe be derived
 // from one another. there are two types of index files
