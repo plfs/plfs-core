@@ -65,6 +65,7 @@ class IOSHandle {
     friend int IOStore::Close(IOSHandle *handle);
     
  public:
+    virtual ~IOSHandle() {};
     virtual int Fstat(struct stat *sb)=0;
     virtual int Fsync(void)=0;
     virtual int Ftruncate(off_t length)=0;
@@ -87,6 +88,7 @@ class IOSDirHandle {
     friend int IOStore::Closedir(IOSDirHandle *handle);
     
 public:
+    virtual ~IOSDirHandle() {};
     virtual int Readdir_r(struct dirent *, struct dirent **)=0;
 };
 
@@ -110,7 +112,7 @@ inline int IOStore::Closedir(IOSDirHandle *handle) {
     return(rv);
 };
 
-class PlfsMount;
+struct PlfsMount;
 class IOStore *plfs_iostore_get(char *phys_path, char **prefixp,
                                 int *prelenp, char **bmpointp);
 int plfs_iostore_factory(PlfsMount *pmnt, struct plfs_backend *bend);

@@ -11,6 +11,7 @@ class PosixIOSHandle: public IOSHandle {
  public:
 
     PosixIOSHandle(int newfd, string newbpath);
+    ~PosixIOSHandle() {};
     
     int Fstat(struct stat* buf);
     int Fsync();
@@ -33,6 +34,7 @@ class PosixIOSHandle: public IOSHandle {
 class PosixIOSDirHandle: public IOSDirHandle {
  public:
     PosixIOSDirHandle(DIR *newdp, string newbpath);
+    ~PosixIOSDirHandle() {};
     int Readdir_r(struct dirent *dst, struct dirent **dret);
 
  private:
@@ -45,6 +47,7 @@ class PosixIOSDirHandle: public IOSDirHandle {
 
 class PosixIOStore: public IOStore {
 public:
+    ~PosixIOStore(){};
     int Access(const char *path, int amode);
     int Chmod(const char* path, mode_t mode);
     int Chown(const char *path, uid_t owner, gid_t group);
