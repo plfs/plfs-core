@@ -26,6 +26,7 @@
 #include <map>
 #include <iomanip>
 #include <iostream>
+#include <fstream>
 #include <sstream>
 #include "plfs_fuse.h"
 #include "fusexx.h"
@@ -1319,12 +1320,19 @@ int Plfs::f_rename( const char *path, const char *to )
 
 void Plfs::catch_exception( string func_id, exception& e)
 {
-    string sysmsg("Caught exception in function: ");
-    mlog(PLFS_ERR, "%s", sysmsg.c_str());
-    sysmsg = func_id;
-    mlog(PLFS_ERR, "%s", sysmsg.c_str());
-    sysmsg = e.what();
-    mlog(PLFS_ERR, "%s", sysmsg.c_str());
+    ofstream fuse_crash_log;
+    PlfsConf *pconf = get_plfs_conf();
+    char *fuse_crash_file = pconf->fuse_crash_log;
+    if (fuse_crash_file != NULL){
+        fuse_crash_log.open(fuse_crash_file, fstream::app);
+        string sysmsg("Caught exception in function: \n");
+        sysmsg += func_id + "\n";
+        sysmsg += e.what();
+        sysmsg += "\n\n";
+        fuse_crash_log << sysmsg;
+        fuse_crash_log.close();
+    }
+
     throw e;
 }
 
