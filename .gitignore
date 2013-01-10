@@ -28,16 +28,8 @@ CMakeFiles
 cmake_install.cmake
 
 #cmake inside build
-build/dcon
-build/findmesgbuf
+build/bin
+build/lib
+build/man
 build/install
-build/man/
-build/plfs
-build/plfs_check_config
-build/plfs_flatten_index
-build/plfs_ls
-build/plfs_map
-build/plfs_query
-build/plfs_recover
-build/plfs_version
 build/install_manifest.txt

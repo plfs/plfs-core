@@ -14,6 +14,10 @@ endif()
 #setup special modules
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "Modules/")
 
+#setup our output paths
+set(EXECUTABLE_OUTPUT_PATH "bin/")
+set(LIBRARY_OUTPUT_PATH "lib/")
+
 #special headers
 include(CheckIncludeFiles)
 check_include_files ("sys/fsuid.h" HAVE_SYS_FSUID_H)
