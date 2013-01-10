@@ -19,8 +19,23 @@ endif (HAVE_SYS_FSUID_H)
 #setup includes for building source
 set(PLFS_SOURCE_DIR  "../src")
 set(PLFS_TOOLS_DIR  "../tools")
+set(PLFS_MAN_DIR  "../man")
+
+#set includes for everything
 include_directories (${PLFS_SOURCE_DIR})
 include_directories (${PLFS_TOOLS_DIR})
+#IOStore stuff
+include_directories(${PLFS_SOURCE_DIR}/IOStore)
+include_directories(${PLFS_SOURCE_DIR}/IOStore/Glib)
+include_directories(${PLFS_SOURCE_DIR}/IOStore/Posix)
+#Logical FDFS stuff
+include_directories(${PLFS_SOURCE_DIR}/LogicalFS)
+include_directories(${PLFS_SOURCE_DIR}/LogicalFS/Container)
+include_directories(${PLFS_SOURCE_DIR}/LogicalFS/FlatFile)
+#Index
+include_directories(${PLFS_SOURCE_DIR}/Index)
+#Mlog
+include_directories(${PLFS_SOURCE_DIR}/Mlog)
 
 #setup environment variables
 #Required by fuse, we can add this to module if we want.
@@ -31,26 +46,34 @@ add_definitions (-D_FILE_OFFSET_BITS=64)
 #AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/iostores plfs_iostores_dir)
 
 add_library(plfs_lib
-            ${PLFS_SOURCE_DIR}/Container.cpp
-            ${PLFS_SOURCE_DIR}/FlatFileFD_FS.cpp
-            ${PLFS_SOURCE_DIR}/LogMessage.cpp
-            ${PLFS_SOURCE_DIR}/Util.cpp
-            ${PLFS_SOURCE_DIR}/mlog_oss.cpp
-            ${PLFS_SOURCE_DIR}/ContainerFD.cpp
-            ${PLFS_SOURCE_DIR}/GlibIOStore.cpp
-            ${PLFS_SOURCE_DIR}/OpenFile.cpp
-            ${PLFS_SOURCE_DIR}/WriteFile.cpp
             ${PLFS_SOURCE_DIR}/plfs.cpp
-            ${PLFS_SOURCE_DIR}/ContainerFS.cpp
-            ${PLFS_SOURCE_DIR}/IOStore.cpp
-            ${PLFS_SOURCE_DIR}/PosixIOStore.cpp
-            ${PLFS_SOURCE_DIR}/XAttrs.cpp
             ${PLFS_SOURCE_DIR}/plfs_private.cpp
+            ${PLFS_SOURCE_DIR}/Util.cpp
+            ${PLFS_SOURCE_DIR}/OpenFile.cpp
             ${PLFS_SOURCE_DIR}/FileOp.cpp
-            ${PLFS_SOURCE_DIR}/Index.cpp
+            ${PLFS_SOURCE_DIR}/XAttrs.cpp
             ${PLFS_SOURCE_DIR}/ThreadPool.cpp
-            ${PLFS_SOURCE_DIR}/container_internals.cpp
-            ${PLFS_SOURCE_DIR}/mlog.c
+            ${PLFS_SOURCE_DIR}/LogMessage.cpp
+
+            #Index
+            ${PLFS_SOURCE_DIR}/Index/Index.cpp
+            ${PLFS_SOURCE_DIR}/Index/WriteFile.cpp
+
+            #LogicalFS
+            ${PLFS_SOURCE_DIR}/LogicalFS/Container/ContainerFD.cpp
+            ${PLFS_SOURCE_DIR}/LogicalFS/Container/ContainerFS.cpp
+            ${PLFS_SOURCE_DIR}/LogicalFS/Container/Container.cpp
+            ${PLFS_SOURCE_DIR}/LogicalFS/Container/container_internals.cpp
+            ${PLFS_SOURCE_DIR}/LogicalFS/FlatFile/FlatFileFD_FS.cpp
+
+            #IOStore
+            ${PLFS_SOURCE_DIR}/IOStore/IOStore.cpp
+            ${PLFS_SOURCE_DIR}/Iostore/Posix/PosixIOStore.cpp
+            ${PLFS_SOURCE_DIR}/Iostore/Glib/GlibIOStore.cpp
+
+            #Mlog
+            ${PLFS_SOURCE_DIR}/Mlog/mlog.c
+            ${PLFS_SOURCE_DIR}/Mlog/mlog_oss.cpp
             )
 
 #change its name so that it creates libplfs.a
@@ -118,3 +141,13 @@ target_link_libraries (plfs_version plfs_lib)
 INSTALL(TARGETS dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls plfs_map plfs_query plfs_recover plfs_version DESTINATION bin)
 INSTALL(TARGETS plfs_lib DESTINATION lib)
 INSTALL(FILES "${PLFS_SOURCE_DIR}/plfs.h" DESTINATION include)
+
+#man pages
+FILE(GLOB man1 "${PLFS_MAN_DIR}/man1/*.1in")
+INSTALL(FILES ${man1} DESTINATION share/man/man1)
+FILE(GLOB man3 "${PLFS_MAN_DIR}/man3/*.3in")
+INSTALL(FILES ${man3} DESTINATION share/man/man3)
+FILE(GLOB man5 "${PLFS_MAN_DIR}/man5/*.5in")
+INSTALL(FILES ${man5} DESTINATION share/man/man5)
+FILE(GLOB man7 "${PLFS_MAN_DIR}/man7/*.7in")
+INSTALL(FILES ${man7} DESTINATION share/man/man7)
