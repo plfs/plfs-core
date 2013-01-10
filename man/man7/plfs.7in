@@ -1,5 +1,5 @@
-#COPYRIGHT#
-.TH PLFS 7 "#PACKAGE_STRING#" 
+${COPYRIGHT}
+.TH PLFS 7 "${PACKAGE_STRING}" 
 .SH NAME
 PLFS (Parallel Log Structured File System) \- General Information
 .SH SYNOPSIS
@@ -50,8 +50,8 @@ In order to use any of these interfaces, a configuration file must be
 present on the system. (see plfsrc(5)).
 
 .SH AUTHORS
-#AUTHORS#
+${AUTHORS}
 
 .SH SEE ALSO
-#SEEALSO# #SEEALSO3# #SEEALSO5#
+${SEEALSO} ${SEEALSO3} ${SEEALSO5}
 

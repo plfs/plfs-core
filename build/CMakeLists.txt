@@ -6,6 +6,11 @@ set (plfs_VERSION_MAJOR 2)
 set (plfs_VERSION_MINOR 3)
 #set (plfs_VERSION_PATCH 1)
 
+set (PACKAGE_STRING "PLFS ${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}")
+if (DEFINED plfs_VERSION_PATCH)
+    set (PACKAGE_STRING "${PACKAGE_STRING}.${plfs_VERSION_PATCH}")
+endif()
+
 #setup special modules
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "Modules/")
 
@@ -143,11 +148,13 @@ INSTALL(TARGETS plfs_lib DESTINATION lib)
 INSTALL(FILES "${PLFS_SOURCE_DIR}/plfs.h" DESTINATION include)
 
 #man pages
-FILE(GLOB man1 "${PLFS_MAN_DIR}/man1/*.1in")
+add_subdirectory("${PLFS_MAN_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/man")
+FILE(GLOB man1 man/man1/*.1)
+FILE(GLOB man3 man/man3/*.3)
+FILE(GLOB man5 man/man5/*.5)
+FILE(GLOB man7 man/man7/*.7)
 INSTALL(FILES ${man1} DESTINATION share/man/man1)
-FILE(GLOB man3 "${PLFS_MAN_DIR}/man3/*.3in")
 INSTALL(FILES ${man3} DESTINATION share/man/man3)
-FILE(GLOB man5 "${PLFS_MAN_DIR}/man5/*.5in")
 INSTALL(FILES ${man5} DESTINATION share/man/man5)
-FILE(GLOB man7 "${PLFS_MAN_DIR}/man7/*.7in")
 INSTALL(FILES ${man7} DESTINATION share/man/man7)
+
