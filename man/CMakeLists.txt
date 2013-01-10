@@ -3,12 +3,9 @@ cmake_minimum_required(VERSION 2.6)
 
 #setup definitions
 SET (AUTHORS  "PLFS is developed at Los Alamos National Laboratory and is")
-SET (AUTHORS "${AUTHORS} available under LANL LA-CC-08-104. It is hosted at")
-SET (AUTHORS "${AUTHORS}                                                                                                                                           
-.I http://sourceforge.net/projects/plfs")
-SET (AUTHORS "${AUTHORS} 
-and more information is available at")
-SET (AUTHORS "${AUTHORS} 
+SET (AUTHORS "${AUTHORS} available under LANL LA-CC-08-104. It is hosted at
+.I http://sourceforge.net/projects/plfs
+and more information is available at
 .I http://institute.lanl.gov/plfs")
  
  
@@ -102,54 +99,23 @@ SET (COPYRIGHT "./Copyright (c) 2009, Los Alamos National Security, LLC All righ
 #setup includes for building source
 #man pages
 #man1
-configure_file( "man1/plfs.1in" "man1/plfs.1")
-configure_file( "man1/plfs_check_config.1in" "man1/plfs_check_config.1")
-configure_file( "man1/plfs_ls.1in" "man1/plfs_ls.1")
-configure_file( "man1/plfs_query.1in" "man1/plfs_query.1")
-configure_file( "man1/plfs_version.1in" "man1/plfs_version.1")
-configure_file( "man1/plfs_flatten_index.1in" "man1/plfs_flatten_index.1")
-configure_file( "man1/plfs_map.1in" "man1/plfs_map.1")
-configure_file( "man1/plfs_recover.1in" "man1/plfs_recover.1")
+foreach (MAN1 plfs plfs_check_config plfs_ls plfs_query plfs_version
+              plfs_flatten_index plfs_map plfs_recover)
+    configure_file( "man1/${MAN1}.1in" "man1/${MAN1}.1")
+endforeach(MAN1)
 
 #man3
-configure_file( "man3/plfs.3in" "man3/plfs.3")
-configure_file( "man3/is_plfs_file.3in" "man3/is_plfs_file.3")                                                                                      
-configure_file( "man3/plfs_chown.3in" "man3/plfs_chown.3")
-configure_file( "man3/plfs_flatten_index.3in" "man3/plfs_flatten_index.3")
-configure_file( "man3/plfs_mode.3in" "man3/plfs_mode.3")
-configure_file( "man3/plfs_rename.3in" "man3/plfs_rename.3")
-configure_file( "man3/plfs_symlink.3in" "man3/plfs_symlink.3")
-configure_file( "man3/plfs_write.3in" "man3/plfs_write.3")
-configure_file( "man3/plfs_close.3in" "man3/plfs_close.3")
-configure_file( "man3/plfs_get_attr.3in" "man3/plfs_get_attr.3")
-configure_file( "man3/plfs_open.3in" "man3/plfs_open.3")
-configure_file( "man3/plfs_rmdir.3in" "man3/plfs_rmdir.3")
-configure_file( "man3/plfs_sync.3in" "man3/plfs_sync.3")
-configure_file( "man3/plfs_wtime.3in" "man3/plfs_wtime.3")
-configure_file( "man3/plfs.3in" "man3/plfs.3")
-configure_file( "man3/plfs_create.3in" "man3/plfs_create.3")
-configure_file( "man3/plfs_index_stream.3in" "man3/plfs_index_stream.3")
-configure_file( "man3/plfs_query.3in" "man3/plfs_query.3")
-configure_file( "man3/plfs_serious_error.3in" "man3/plfs_serious_error.3")
-configure_file( "man3/plfs_trunc.3in" "man3/plfs_trunc.3")
-configure_file( "man3/plfs_access.3in" "man3/plfs_access.3")
-configure_file( "man3/plfs_debug.3in" "man3/plfs_debug.3")
-configure_file( "man3/plfs_link.3in" "man3/plfs_link.3")
-configure_file( "man3/plfs_read.3in" "man3/plfs_read.3")
-configure_file( "man3/plfs_set_mpi.3in" "man3/plfs_set_mpi.3")
-configure_file( "man3/plfs_unlink.3in" "man3/plfs_unlink.3")
-configure_file( "man3/plfs_buildtime.3in" "man3/plfs_buildtime.3")
-configure_file( "man3/plfs_dump_config.3in" "man3/plfs_dump_config.3")
-configure_file( "man3/plfs_merge_indexes.3in" "man3/plfs_merge_indexes.3")
-configure_file( "man3/plfs_readdir.3in" "man3/plfs_readdir.3")
-configure_file( "man3/plfs_stats.3in" "man3/plfs_stats.3")
-configure_file( "man3/plfs_utime.3in" "man3/plfs_utime.3")
-configure_file( "man3/plfs_chmod.3in" "man3/plfs_chmod.3")
-configure_file( "man3/plfs_dump_index.3in" "man3/plfs_dump_index.3")
-configure_file( "man3/plfs_mkdir.3in" "man3/plfs_mkdir.3")
-configure_file( "man3/plfs_readlink.3in" "man3/plfs_readlink.3")
-configure_file( "man3/plfs_statvfs.3in" "man3/plfs_statvfs.3")
-configure_file( "man3/plfs_version.3in" "man3/plfs_version.3")
+foreach (MAN3 plfs is_plfs_file plfs_chown plfs_flatten_index plfs_mode
+              plfs_rename plfs_symlink plfs_write plfs_close plfs_get_attr
+              plfs_open plfs_rmdir plfs_sync plfs_wtime plfs_create
+              plfs_index_stream plfs_query plfs_serious_error plfs_trunc
+              plfs_access plfs_debug plfs_link plfs_read plfs_set_mpi
+              plfs_unlink plfs_buildtime plfs_dump_config plfs_merge_indexes
+              plfs_readdir plfs_stats plfs_utime plfs_chmod plfs_dump_index
+              plfs_mkdir plfs_readlink plfs_statvfs plfs_version)
+    configure_file( "man3/${MAN3}.3in" "man3/${MAN3}.3")
+endforeach(MAN3)
+
 #man5
 configure_file( "man5/plfsrc.5in" "man5/plfsrc.5")
 
