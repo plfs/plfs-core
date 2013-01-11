@@ -26,7 +26,7 @@ typedef void *Plfs_dirp;
     } plfs_interface;
 
     typedef enum {
-        CONTAINER, FLAT_FILE, PFT_UNKNOWN
+        CONTAINER, FLAT_FILE, SMALL_FILE, PFT_UNKNOWN
     } plfs_filetype;
 
     typedef struct {

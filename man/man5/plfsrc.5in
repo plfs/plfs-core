@@ -1,5 +1,5 @@
 #COPYRIGHT#
-.TH plfsrc 5 "#PACKAGE_STRING#" 
+.TH plfsrc 5 "#PACKAGE_STRING#"
 
 .SH NAME
 plfsrc \- the configuration file for PLFS (Parallel Log Structured File System)
@@ -14,9 +14,9 @@ new mount point and copy files over.  Additionally, please use the 'plfs_check_c
 
 You can think of this file as essentially mount options.  However, we use a
 configuration file because PLFS can be run without being mounted (e.g. using
-MPI-IO). 
+MPI-IO).
 installation after every edit to the plfsrc file.  PLFS searches for this file in $ENV{'PLFSRC'}, $HOME/.plfsrc,
-/etc/plfsrc in that order. 
+/etc/plfsrc in that order.
 
 .SH FILE FORMAT
 The file consists of one keyword argument pair per line.  Configuration options must be separated by whitespace,
@@ -27,11 +27,11 @@ Note that all keywords should be in lower-case.  The possible keywords and their
 include <file>
 .RS
 This includes <file> at the point of the include keyword; thereby allowing nested configuration files.
-This is 
+This is
 useful if you want to define global, consistent keyword definitions that can be used on different computers
 needing to mount the same file systems but with some differences.  For example, interactive nodes and compute
 nodes can share most of the values in an included shared configuration file but will independently define
-different values for threadpool_size. 
+different values for threadpool_size.
 .RE
 
 .B
@@ -82,7 +82,7 @@ lazy_stat
 .RS
 The lazy_stat flag, when it is set as 0 plfs will do slow stat(getattr).  This is only for querying the size of
 a file handle that is currently open for write.  Doing a non-lazy stat of this open file handle will be very
-slow but will give an accurate answer.  Doing a lazy-stat of an open file handle will be very fast but might be 
+slow but will give an accurate answer.  Doing a lazy-stat of an open file handle will be very fast but might be
 inaccurate.  However, it will show monotonically increasing sizes.
 
 Optional.  Default is 1.
@@ -108,7 +108,7 @@ Note this option must appear after the mount_point keyword and only applies to t
 follows.
 Be careful: the backends directive is IMMUTABLE.  Once a mount point
 is defined, the backends can NEVER be changed.  If multiple machines share a PLFS mount point, they must all
-define the same exact set of backends in the same exact ordering.  When multiple machines share a mount 
+define the same exact set of backends in the same exact ordering.  When multiple machines share a mount
 point, it is recommended to use the include directive to allow you to define a
 mount point and its backends in one file and then include it, making it impossible to have different configurations
 on different machines.
@@ -119,18 +119,19 @@ Required.
 .B
 workload
 .RS
-This tells PLFS whether a specific mount_point is intended for either shared
-file workloads (i.e. N-1) or file-per-proc workloads (i.e. N-N).  Possible
-values are either "shared_file" or "file_per_proc".  "n-1" can also be used in
-place of "shared_file" and "n-n" can also be used in
-place of "file_per_proc.  shared_file is intended
-for workloads where multiple writers write concurrently to a single file.  
+This tells PLFS whether a specific mount_point is intended for shared
+file workloads (i.e. N-1), file-per-proc workloads (i.e. N-N) or small files
+workloads (i.e. 1-N).  Possible values are "shared_file", "file_per_proc"
+or "small_file".  "n-1" can also be used in place of "shared_file",
+"n-n" can also be used in place of "file_per_proc" and "1-n" can alse be used
+in place of "small_file".  shared_file is intended
+for workloads where multiple writers write concurrently to a single file.
+small_file is intended for workloads where each writer will create and write
+to a lot of small files.
 Other workloads should use "file_per_proc" which should make a large metadata
-improvement for most metadata workloads so long as multiple backends are defined for the mount point.
-This is especially true if each backend is serviced by
+improvement for most metadata workloads so long as multiple backends are defined for the mount point.  This is especially true if each backend is serviced by
 a different metadata server so that the metadata workload can be balanced
 across multiple servers.
-
 Note this option must appear after the mount_point keyword and only applies to the mount_point command that it
 follows.
 
@@ -152,7 +153,7 @@ Optional.
 .B
 shadow_backends
 .RS
-This is an advanced directive and will not be used in typical installations.  This, along with canonical_backends, 
+This is an advanced directive and will not be used in typical installations.  This, along with canonical_backends,
 allows the user to specify that some set of backends are where canonical
 containers should be placed and some different set of backends are where
 shadows should be placed.  If these directives are used, then shadow subdirs
@@ -173,7 +174,7 @@ Optional.
 .B
 syncer_ip
 .RS
-This is an advanced directive and will not be used in typical installations.  
+This is an advanced directive and will not be used in typical installations.
 This is used in conjunction with shadow_backends and canonical_backends.  It
 is possible to use an RPC server to asynchronously copy data from shadow_backends
 into canonical_backends by specifying this value and by calling plfs_protect.
@@ -202,11 +203,11 @@ Optional.
 .B
 statfs
 .RS
-The path on which to resolve statfs calls received through FUSE.  Typically 
-this is not specified but may be used to avoid hanging on mounts when 
+The path on which to resolve statfs calls received through FUSE.  Typically
+this is not specified but may be used to avoid hanging on mounts when
 backend volumes are not available.  This is because FUSE calls statfs when it
 mounts and PLFS by default forwards that to one of the backends and this can
-then hang. 
+then hang.
 
 Note this option must appear after the mount_point keyword and only applies to the mount_point command that it
 follows.
@@ -224,7 +225,7 @@ not use this directive.
 Note the mount_point and backends may be specified multiple times in the same file.
 Note that some commands are global and some are unique to a specific mount point.
 This is to allow different backends declarations for each mount point for example.
-Indeed it is an error to share a backend in multiple backends.  
+Indeed it is an error to share a backend in multiple backends.
 .RE
 
 .B
@@ -240,10 +241,10 @@ Optional.  The default is WARN.
 .B
 mlog_setmasks
 .RS
-Resets the logging level for a subsystem (overwriting the default value).   
-Currently defined subsystems are: plfs_misc, internal, container, index, 
-writefile, fileops, utilities, store, FUSE, and MPI.  If the subsystem is 
-omitted, then it sets the log mask for all subsystems.  For example, 
+Resets the logging level for a subsystem (overwriting the default value).
+Currently defined subsystems are: plfs_misc, internal, container, index,
+writefile, fileops, utilities, store, FUSE, and MPI.  If the subsystem is
+omitted, then it sets the log mask for all subsystems.  For example,
 "INFO,index=DEBUG,container=DEBUG" sets the mask for all subsystems to
 INFO, and then sets index and container to DEBUG.
 
@@ -263,7 +264,7 @@ Optional.  The default value is CRIT.
 .B
 mlog_stderr
 .RS
-If set to 1, causes all logged messages to be printed to stderr, 
+If set to 1, causes all logged messages to be printed to stderr,
 irrespective of the value of mlog_stderrmask (e.g. for debugging).
 
 Optional.  The default value is 0.
@@ -319,10 +320,10 @@ Optional.  The default is 0.
 
 Note that the mount_point and backends may be specified multiple times in the same file.
 
-.br 
+.br
 A tool for checking the plfsrc file for correct syntax is included in the plfs distribution.  See
 .I plfs_check_config(1)
-for more details. 
+for more details.
 
 .SH EXAMPLE
 A configuration file might appear as follows:
