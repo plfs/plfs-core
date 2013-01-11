@@ -73,7 +73,25 @@ AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/FlatFile logicalfs_flatfile)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/Index index)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/Mlog mlog)
 
-add_library(plfs_lib
+OPTION (BUILD_STATC_LIBS "Build shared libraries." OFF)
+message ("-- BUILD_STATIC_LIBS ${BUILD_STATIC_LIBS}")
+if (BUILD_STATIC_LIBS)
+    set(PLFS_SHARED STATIC)
+else()
+    set(PLFS_SHARED SHARED)
+endif()
+
+OPTION (DISABLE_FUSE "Disable Fuse." OFF)
+message ("-- DISABLE_FUSE ${DISABLE_FUSE}")
+
+OPTION (DISABLE_MLOG "Disable Mlog." OFF)
+message ("-- DISABLE_MLOG ${DISABLE_MLOG}")
+
+OPTION (DISABLE_MLOG_MACRO_OPTS "Disable Macro Opts for MLOG." OFF)
+message ("-- DISABLE_MLOG_MACRO_OPTS ${DISABLE_MLOG_MACRO_OPTS}")
+
+
+add_library(plfs_lib ${PLFS_SHARED}
             ${plfs_src_dir}
             ${iostore}
             ${iostore_glib}
@@ -102,8 +120,8 @@ endif (Threads_FOUND)
     
 
 #fuse
-find_package(FUSE REQUIRED)
-if (FUSE_FOUND)
+find_package(FUSE)
+if (NOT DISABLE_FUSE AND FUSE_FOUND)
     #build fuse
     AUX_SOURCE_DIRECTORY(fuse plfs_fuse_dir)
     add_executable (plfs_fuse ${plfs_fuse_dir})
@@ -115,7 +133,7 @@ if (FUSE_FOUND)
     SET_TARGET_PROPERTIES(plfs_fuse PROPERTIES OUTPUT_NAME plfs)
     #set install dir
     INSTALL(TARGETS plfs_fuse DESTINATION bin)
-endif(FUSE_FOUND)
+endif()
 
 
 #helper tools
@@ -131,7 +149,7 @@ INSTALL(TARGETS plfs_lib DESTINATION lib)
 INSTALL(FILES "${PLFS_SOURCE_DIR}/plfs.h" DESTINATION include)
 
 #man pages
-add_subdirectory("${PLFS_MAN_DIR}" "${PLFS_BUILD_DIR}/man")
+add_subdirectory("${PLFS_MAN_DIR}" "${PLFS_BUILD_DIR}/share/man")
 
 FILE(GLOB man1 ${PLFS_BUILD_DIR}/man/man1/*.1)
 FILE(GLOB man3 ${PLFS_BUILD_DIR}/man/man3/*.3)
