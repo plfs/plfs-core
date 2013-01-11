@@ -71,6 +71,9 @@ if (DISABLE_MLOG_MACRO_OPTS)
     add_definitions (-DMLOG_NOMACRO_OPT)
 endif(DISABLE_MLOG_MACRO_OPTS)
 
+OPTION (DISABLE_STATIC_LIB "Disable Building Static Libs." OFF)
+message ("-- DISABLE_STATIC_LIB ${DISABLE_STATIC_LIB}")
+
 #create the plfs library
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR} plfs_src_dir)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/IOStore iostore)
@@ -89,15 +92,19 @@ SET(SRCDIR ${plfs_src_dir} ${iostore} ${iostore_glib} ${iostore_posix}
 
 #static and shared bot same name
 add_library(plfs_lib SHARED ${SRCDIR})
-add_library(plfs_lib_static STATIC ${SRCDIR})
-#make sure these build first, causes issues in 2.6
-#if not
-add_dependencies(plfs_lib plfs_lib_static)
-
-
-#change its name so that it creates libplfs
-SET_TARGET_PROPERTIES(plfs_lib_static PROPERTIES OUTPUT_NAME plfs)
 SET_TARGET_PROPERTIES(plfs_lib PROPERTIES OUTPUT_NAME plfs)
+
+if (NOT DISABLE_STATIC_LIB)
+    add_library(plfs_lib_static STATIC ${SRCDIR})
+    #make sure these build first, causes issues in 2.6
+    #if not
+    add_dependencies(plfs_lib plfs_lib_static)
+    INSTALL(TARGETS plfs_lib plfs_lib_static DESTINATION lib)
+    SET_TARGET_PROPERTIES(plfs_lib_static PROPERTIES OUTPUT_NAME plfs)
+else()
+    INSTALL(TARGETS plfs_lib DESTINATION lib)
+endif(NOT DISABLE_STATIC_LIB)
+
 
 #zlib
 find_package (ZLIB REQUIRED)
@@ -140,7 +147,6 @@ endforeach(PROG)
 INSTALL(TARGETS dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls 
                 plfs_map plfs_query plfs_recover plfs_version DESTINATION bin
 )
-INSTALL(TARGETS plfs_lib plfs_lib_static DESTINATION lib)
 INSTALL(FILES "${PLFS_SOURCE_DIR}/plfs.h" DESTINATION include)
 
 #man pages
