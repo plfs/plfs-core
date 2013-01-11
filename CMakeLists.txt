@@ -62,18 +62,7 @@ include_directories(${PLFS_SOURCE_DIR}/Mlog)
 #Required by fuse, we can add this to module if we want.
 add_definitions (-D_FILE_OFFSET_BITS=64)
 
-#create the plfs library
-AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR} plfs_src_dir)
-AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/IOStore iostore)
-AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/IOStore/Glib iostore_glib)
-AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/IOStore/Posix iostore_posix)
-AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS logicalfs)
-AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/Container logicalfs_container)
-AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/FlatFile logicalfs_flatfile)
-AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/Index index)
-AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/Mlog mlog)
-
-
+#set up extra options
 OPTION (DISABLE_FUSE "Disable Fuse." OFF)
 message ("-- DISABLE_FUSE ${DISABLE_FUSE}")
 
@@ -89,31 +78,28 @@ if (DISABLE_MLOG_MACRO_OPTS)
     add_definitions (-DMLOG_NOMACRO_OPT)
 endif(DISABLE_MLOG_MACRO_OPTS)
 
+#create the plfs library
+AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR} plfs_src_dir)
+AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/IOStore iostore)
+AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/IOStore/Glib iostore_glib)
+AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/IOStore/Posix iostore_posix)
+AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS logicalfs)
+AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/Container logicalfs_container)
+AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/FlatFile logicalfs_flatfile)
+AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/Index index)
+AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/Mlog mlog)
 
-add_library(plfs_lib SHARED
-            ${plfs_src_dir}
-            ${iostore}
-            ${iostore_glib}
-            ${iostore_posix}
-            ${logicalfs}
-            ${logicalfs_container}
-            ${logicalfs_flatfile}
-            ${index}
-            ${mlog}
-)
-add_library(plfs_lib_static STATIC
-            ${plfs_src_dir}
-            ${iostore}
-            ${iostore_glib}
-            ${iostore_posix}
-            ${logicalfs}
-            ${logicalfs_container}
-            ${logicalfs_flatfile}
-            ${index}
-            ${mlog}
+SET(SRCDIR ${plfs_src_dir} ${iostore} ${iostore_glib} ${iostore_posix}
+           ${logicalfs} ${logicalfs_container} ${logicalfs_flatfile}
+           ${index} ${mlog}
 )
 
-#change its name so that it creates libplfs.a
+#static and shared bot same name
+add_library(plfs_lib SHARED ${SRCDIR})
+add_library(plfs_lib_static STATIC ${SRCDIR})
+
+
+#change its name so that it creates libplfs
 SET_TARGET_PROPERTIES(plfs_lib_static PROPERTIES OUTPUT_NAME plfs)
 SET_TARGET_PROPERTIES(plfs_lib PROPERTIES OUTPUT_NAME plfs)
 
