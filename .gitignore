@@ -26,10 +26,5 @@ mpi_adio/patches/openmpi/*.patch
 CMakeCache.txt
 CMakeFiles
 cmake_install.cmake
-
-#cmake inside build
-build/bin
-build/lib
-build/man
-build/install
-build/install_manifest.txt
+build
+share
