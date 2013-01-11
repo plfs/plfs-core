@@ -141,7 +141,7 @@ INSTALL(TARGETS plfs_lib plfs_lib_static DESTINATION lib)
 INSTALL(FILES "${PLFS_SOURCE_DIR}/plfs.h" DESTINATION include)
 
 #man pages
-add_subdirectory("${PLFS_MAN_DIR}" "${PLFS_BUILD_DIR}/share/man")
+add_subdirectory("${PLFS_MAN_DIR}")
 
 FILE(GLOB man1 ${PLFS_BUILD_DIR}/share/man/man1/*.1)
 FILE(GLOB man3 ${PLFS_BUILD_DIR}/share/man/man3/*.3)

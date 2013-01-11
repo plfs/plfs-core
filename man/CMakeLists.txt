@@ -101,7 +101,7 @@ SET (COPYRIGHT "./Copyright (c) 2009, Los Alamos National Security, LLC All righ
 #man1
 foreach (MAN1 plfs plfs_check_config plfs_ls plfs_query plfs_version
               plfs_flatten_index plfs_map plfs_recover)
-    configure_file( "man1/${MAN1}.1in" "man1/${MAN1}.1")
+    configure_file( "man1/${MAN1}.1in" "${PLFS_BUILD_DIR}/share/man/man1/${MAN1}.1")
 endforeach(MAN1)
 
 #man3
@@ -113,11 +113,11 @@ foreach (MAN3 plfs is_plfs_file plfs_chown plfs_flatten_index plfs_mode
               plfs_unlink plfs_buildtime plfs_dump_config plfs_merge_indexes
               plfs_readdir plfs_stats plfs_utime plfs_chmod plfs_dump_index
               plfs_mkdir plfs_readlink plfs_statvfs plfs_version)
-    configure_file( "man3/${MAN3}.3in" "man3/${MAN3}.3")
+    configure_file( "man3/${MAN3}.3in" "${PLFS_BUILD_DIR}/share/man/man3/${MAN3}.3")
 endforeach(MAN3)
 
 #man5
-configure_file( "man5/plfsrc.5in" "man5/plfsrc.5")
+configure_file( "man5/plfsrc.5in" "${PLFS_BUILD_DIR}/share/man/man5/plfsrc.5")
 
 #man7
-configure_file( "man7/plfs.7in" "man7/plfs.7")   
+configure_file( "man7/plfs.7in" "${PLFS_BUILD_DIR}/share/man/man7/plfs.7")
