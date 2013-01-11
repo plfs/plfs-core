@@ -90,6 +90,9 @@ SET(SRCDIR ${plfs_src_dir} ${iostore} ${iostore_glib} ${iostore_posix}
 #static and shared bot same name
 add_library(plfs_lib SHARED ${SRCDIR})
 add_library(plfs_lib_static STATIC ${SRCDIR})
+#make sure these build first, causes issues in 2.6
+#if not
+add_dependencies(plfs_lib plfs_lib_static)
 
 
 #change its name so that it creates libplfs
