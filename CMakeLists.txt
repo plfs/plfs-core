@@ -7,8 +7,6 @@ project(plfs)
 set (plfs_VERSION_MAJOR 2)
 set (plfs_VERSION_MINOR 3)
 #set (plfs_VERSION_PATCH 1)
-
-#PLFS X.X.X?
 set (PACKAGE_STRING "PLFS ${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}")
 if (DEFINED plfs_VERSION_PATCH)
     set (PACKAGE_STRING "${PACKAGE_STRING}.${plfs_VERSION_PATCH}")
@@ -41,25 +39,20 @@ set(LIBRARY_OUTPUT_PATH "${PLFS_BUILD_DIR}/lib")
 #set includes for everything
 include_directories (${PLFS_SOURCE_DIR})
 include_directories (${PLFS_TOOLS_DIR})
-
 #IOStore stuff
 include_directories(${PLFS_SOURCE_DIR}/IOStore)
 include_directories(${PLFS_SOURCE_DIR}/IOStore/Glib)
 include_directories(${PLFS_SOURCE_DIR}/IOStore/Posix)
-
 #Logical FDFS stuff
 include_directories(${PLFS_SOURCE_DIR}/LogicalFS)
 include_directories(${PLFS_SOURCE_DIR}/LogicalFS/Container)
 include_directories(${PLFS_SOURCE_DIR}/LogicalFS/FlatFile)
-
 #Index
 include_directories(${PLFS_SOURCE_DIR}/Index)
-
 #Mlog
 include_directories(${PLFS_SOURCE_DIR}/Mlog)
 
-#setup environment variables
-#Required by fuse, we can add this to module if we want.
+#set up extra definitions
 add_definitions (-D_FILE_OFFSET_BITS=64)
 
 #set up extra options
@@ -118,7 +111,7 @@ endif (Threads_FOUND)
 
 #fuse
 find_package(FUSE)
-if (NOT DISABLE_FUSE AND FUSE_FOUND)
+if (FUSE_FOUND AND NOT DISABLE_FUSE)
     #build fuse
     AUX_SOURCE_DIRECTORY(fuse plfs_fuse_dir)
     add_executable (plfs_fuse ${plfs_fuse_dir})
@@ -130,7 +123,7 @@ if (NOT DISABLE_FUSE AND FUSE_FOUND)
     SET_TARGET_PROPERTIES(plfs_fuse PROPERTIES OUTPUT_NAME plfs)
     #set install dir
     INSTALL(TARGETS plfs_fuse DESTINATION sbin)
-endif()
+endif(FUSE_FOUND AND NOT DISABLE_FUSE)
 
 
 #helper tools
@@ -141,7 +134,9 @@ foreach (PROG dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls
 endforeach(PROG)
 
 #set up targets for make install
-INSTALL(TARGETS dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls plfs_map plfs_query plfs_recover plfs_version DESTINATION bin)
+INSTALL(TARGETS dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls 
+                plfs_map plfs_query plfs_recover plfs_version DESTINATION bin
+)
 INSTALL(TARGETS plfs_lib plfs_lib_static DESTINATION lib)
 INSTALL(FILES "${PLFS_SOURCE_DIR}/plfs.h" DESTINATION include)
 
