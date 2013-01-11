@@ -73,25 +73,35 @@ AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/FlatFile logicalfs_flatfile)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/Index index)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/Mlog mlog)
 
-OPTION (BUILD_STATIC_LIBS "Build shared libraries." OFF)
-message ("-- BUILD_STATIC_LIBS ${BUILD_STATIC_LIBS}")
-if (BUILD_STATIC_LIBS)
-    set(PLFS_SHARED STATIC)
-else()
-    set(PLFS_SHARED SHARED)
-endif()
 
 OPTION (DISABLE_FUSE "Disable Fuse." OFF)
 message ("-- DISABLE_FUSE ${DISABLE_FUSE}")
 
 OPTION (DISABLE_MLOG "Disable Mlog." OFF)
 message ("-- DISABLE_MLOG ${DISABLE_MLOG}")
+if (DISABLE_MLOG)
+    add_definitions (-DMLOG_NEVERLOG)
+endif(DISABLE_MLOG)
 
 OPTION (DISABLE_MLOG_MACRO_OPTS "Disable Macro Opts for MLOG." OFF)
 message ("-- DISABLE_MLOG_MACRO_OPTS ${DISABLE_MLOG_MACRO_OPTS}")
+if (DISABLE_MLOG_MACRO_OPTS)
+    add_definitions (-DMLOG_NOMACRO_OPT)
+endif(DISABLE_MLOG_MACRO_OPTS)
 
 
-add_library(plfs_lib ${PLFS_SHARED}
+add_library(plfs_lib SHARED
+            ${plfs_src_dir}
+            ${iostore}
+            ${iostore_glib}
+            ${iostore_posix}
+            ${logicalfs}
+            ${logicalfs_container}
+            ${logicalfs_flatfile}
+            ${index}
+            ${mlog}
+)
+add_library(plfs_lib_static STATIC
             ${plfs_src_dir}
             ${iostore}
             ${iostore_glib}
@@ -104,6 +114,7 @@ add_library(plfs_lib ${PLFS_SHARED}
 )
 
 #change its name so that it creates libplfs.a
+SET_TARGET_PROPERTIES(plfs_lib_static PROPERTIES OUTPUT_NAME plfs)
 SET_TARGET_PROPERTIES(plfs_lib PROPERTIES OUTPUT_NAME plfs)
 
 #zlib
@@ -132,7 +143,7 @@ if (NOT DISABLE_FUSE AND FUSE_FOUND)
     #change its name so that it create plfs executable
     SET_TARGET_PROPERTIES(plfs_fuse PROPERTIES OUTPUT_NAME plfs)
     #set install dir
-    INSTALL(TARGETS plfs_fuse DESTINATION bin)
+    INSTALL(TARGETS plfs_fuse DESTINATION sbin)
 endif()
 
 
@@ -145,16 +156,16 @@ endforeach(PROG)
 
 #set up targets for make install
 INSTALL(TARGETS dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls plfs_map plfs_query plfs_recover plfs_version DESTINATION bin)
-INSTALL(TARGETS plfs_lib DESTINATION lib)
+INSTALL(TARGETS plfs_lib plfs_lib_static DESTINATION lib)
 INSTALL(FILES "${PLFS_SOURCE_DIR}/plfs.h" DESTINATION include)
 
 #man pages
 add_subdirectory("${PLFS_MAN_DIR}" "${PLFS_BUILD_DIR}/share/man")
 
-FILE(GLOB man1 ${PLFS_BUILD_DIR}/man/man1/*.1)
-FILE(GLOB man3 ${PLFS_BUILD_DIR}/man/man3/*.3)
-FILE(GLOB man5 ${PLFS_BUILD_DIR}/man/man5/*.5)
-FILE(GLOB man7 ${PLFS_BUILD_DIR}/man/man7/*.7)
+FILE(GLOB man1 ${PLFS_BUILD_DIR}/share/man/man1/*.1)
+FILE(GLOB man3 ${PLFS_BUILD_DIR}/share/man/man3/*.3)
+FILE(GLOB man5 ${PLFS_BUILD_DIR}/share/man/man5/*.5)
+FILE(GLOB man7 ${PLFS_BUILD_DIR}/share/man/man7/*.7)
 INSTALL(FILES ${man1} DESTINATION share/man/man1)
 INSTALL(FILES ${man3} DESTINATION share/man/man3)
 INSTALL(FILES ${man5} DESTINATION share/man/man5)
