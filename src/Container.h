@@ -88,13 +88,21 @@ class Container
                                  struct timespec * );
         static int addOpenrecord( const string&, struct plfs_backend *,
                                   const string&, pid_t );
+        static int openTransaction( const string& path, struct plfs_backend *canback, 
+                                    int tid);
+        static int commitTransaction(const string& path, struct plfs_backend *canback, 
+                                     int tid);
+        static bool isCommitted(const string& path, struct plfs_backend *canback, 
+                                int tid);
         static int removeOpenrecord( const string&, struct plfs_backend *,
                                      const string&, pid_t );
-
+        static int abortTransaction(const string& path, struct plfs_backend *canback, 
+                                    int tid);
         static size_t getHostDirId( const string& );
         static string getHostDirPath( const string&,
                                       const string&, subdir_type );
         static string getMetaDirPath( const string& );
+        static string getTransDirPath( const string& );
         static string getVersionDir( const string& path );
         static string getAccessFilePath( const string& path );
         static string getCreatorFilePath( const string& path );
@@ -157,9 +165,9 @@ class Container
                                    vector<string> &filters,
                                    bool full_path);
         static int flattenIndex( const string&, struct plfs_backend *,Index * );
-        static int populateIndex(const string&,struct plfs_backend *,
+        static int populateIndex(const string&,int,struct plfs_backend *,
                                  Index *,bool use_cached_global);
-        static int aggregateIndices( const string&, struct plfs_backend *,
+        static int aggregateIndices( const string&,int,struct plfs_backend *,
                                      Index * );
         static int freeIndex( Index ** );
         static size_t hashValue( const char *str );
@@ -181,7 +189,7 @@ class Container
                                          int rank, int ranks_per_comm,
                                          string path, struct plfs_backend *b);
         static int indexTaskManager(deque<IndexerTask> &tasks,
-                                    Index *index,string path);
+                                    Index *index,string path, int tid);
         static int indices_from_subdir(string,PlfsMount *,
                                        struct plfs_backend *,
                                        struct plfs_backend **,
@@ -193,7 +201,7 @@ class Container
         static int createHelper( const string&, struct plfs_backend *,
                                  const string&,
                                  mode_t mode, int flags, int *extra_attempts,
-                                 pid_t,unsigned,
+                                 pid_t, unsigned,
                                  bool lazy_subdir);
         static int makeTopLevel(const string&, struct plfs_backend *,
                                 const string&, mode_t, pid_t,
@@ -204,7 +212,13 @@ class Container
                                  const string& host, int pid,
                                  const string& ts );
         static string getOpenrecord( const string&, const string&, pid_t );
+        static string getOpentrans( const string& path, int tid);
+        static string getCommittrans( const string& path, int tid);
+        static string getAborttrans( const string& path, int tid);
         static string getOpenHostsDir( const string&);
+        static string getOpenTransDir( const string& strPath );
+        static string getCommitTransDir( const string& strPath );
+        static string getAbortTransDir( const string& strPath );
         static int discoverOpenHosts( set<string> &, set<string> & );
         static string hostFromChunk( string datapath, const char *type );
         static string hostdirFromChunk( string chunkpath, const char *type );

@@ -63,6 +63,12 @@ HostEntry::contains( off_t offset ) const
     return(offset >= logical_offset && offset < logical_offset + (off_t)length);
 }
 
+bool
+HostEntry::trans( int tid ) const
+{
+    return(!tid || tid == this->tid);
+}
+
 // subtly different from contains: excludes the logical offset
 // (i.e. > instead of >=
 bool
@@ -278,6 +284,7 @@ ostream& operator <<(ostream& os,const ContainerEntry& entry)
         << begin_timestamp << " "
         << setw(16) << fixed << setprecision(16)
         << end_timestamp   << " "
+        << setw(10) << entry.tid << " "
         << setw(16)
         << entry.logical_tail() << " "
         << " [" << entry.id << "." << setw(10) << entry.physical_offset << "]";
@@ -295,7 +302,7 @@ ostream& operator <<(ostream& os,const Index& ndx )
     }
     map<off_t,ContainerEntry>::const_iterator itr;
     os << "# Entry Count: " << ndx.global_index.size() << endl;
-    os << "# ID Logical_offset Length Begin_timestamp End_timestamp "
+    os << "# ID Logical_offset Length Begin_timestamp End_timestamp Transaction_ID"
        << " Logical_tail ID.Chunk_offset " << endl;
     for(itr = ndx.global_index.begin(); itr != ndx.global_index.end(); itr++) {
         os << itr->second << endl;
@@ -573,7 +580,7 @@ Index::mapIndex( void **ibufp, string hostindex, IOSHandle **xfh,
 
 // this builds a global in-memory index from a physical host index dropping
 // return 0 for sucess, -err for failure
-int Index::readIndex( string hostindex, struct plfs_backend *hback )
+int Index::readIndex( string hostindex, struct plfs_backend *hback, int tid=-1 )
 {
     int rv;
     off_t length = (off_t)-1;
@@ -586,7 +593,6 @@ int Index::readIndex( string hostindex, struct plfs_backend *hback )
     mlog(IDX_DAPI, "%s", os.str().c_str() );
 
     rv = mapIndex(&maddr, hostindex, &rfh, &length, hback);
-
     if( rv < 0) {
         return cleanupReadIndex( rfh, maddr, length, rv, "mapIndex",
                                  hostindex.c_str(), hback );
@@ -628,7 +634,14 @@ int Index::readIndex( string hostindex, struct plfs_backend *hback )
     for( size_t i = 0; i < entries; i++ ) {
         ContainerEntry c_entry;
         HostEntry      h_entry = h_index[i];
-        //  too verbose
+
+        //Skip transactions and are greater than the given tid
+        if (tid >= 0 && (h_entry.tid > tid) || 
+            !Container::isCommitted(physical_path, hback, tid)) {
+            continue;
+        }
+
+        //  Too verbose
         //mlog(IDX_DCOMMON, "Checking chunk %s", chunkpath.c_str());
         // remember the mapping of a chunkpath to a chunkid
         // and set the initial offset
@@ -656,6 +669,7 @@ int Index::readIndex( string hostindex, struct plfs_backend *hback )
         c_entry.physical_offset   = h_entry.physical_offset;
         c_entry.begin_timestamp   = h_entry.begin_timestamp;
         c_entry.end_timestamp     = h_entry.end_timestamp;
+        c_entry.tid               = h_entry.tid;
         int ret = insertGlobal( &c_entry );
         if ( ret != 0 ) {
             /* caller should prob discard index if we fail here */
@@ -984,8 +998,12 @@ int Index::handleOverlap(ContainerEntry& incoming,
         if ( ! ret.second ) { // collision
             // check timestamps, if one already inserted
             // is older, remove it and insert this one
-            if ( ret.first->second.end_timestamp
-                    < chunks_itr->second.end_timestamp ) {
+            if ((!Container::isCommitted(physical_path, iobjback, ret.first->second.tid)  &&
+                  Container::isCommitted(physical_path, iobjback, chunks_itr->second.tid)) ||
+                 ret.first->second.tid <  chunks_itr->second.tid || 
+                 (ret.first->second.tid ==  chunks_itr->second.tid && 
+                  ret.first->second.end_timestamp
+                  < chunks_itr->second.end_timestamp)) {
                 winners.erase(ret.first);
                 winners.insert(make_pair(chunks_itr->first,chunks_itr->second));
             }
@@ -1294,7 +1312,7 @@ Index::memoryFootprintMBs()
 }
 
 void
-Index::addWrite( off_t offset, size_t length, pid_t pid,
+Index::addWrite( off_t offset, size_t length, pid_t pid, int tid,
                  double begin_timestamp, double end_timestamp )
 {
     Metadata::addWrite( offset, length );
@@ -1317,6 +1335,7 @@ Index::addWrite( off_t offset, size_t length, pid_t pid,
         entry.logical_offset = offset;
         entry.length         = length;
         entry.id             = pid;
+        entry.tid            = tid;
         entry.begin_timestamp = begin_timestamp;
         // valgrind complains about this line as well:
         // Address 0x97373bc is 20 bytes inside a block of size 40 alloc'd
@@ -1350,6 +1369,7 @@ Index::addWrite( off_t offset, size_t length, pid_t pid,
         c_entry.logical_offset    = offset;
         c_entry.length            = length;
         c_entry.id                = pid;
+        c_entry.tid               = tid;
         c_entry.original_chunk    = pid;
         c_entry.physical_offset   = poff;
         c_entry.begin_timestamp   = begin_timestamp;
@@ -1472,7 +1492,8 @@ Index::rewriteIndex( IOSHandle *rfh )
         begin_timestamp = itrd->second.begin_timestamp;
         end_timestamp   = itrd->second.end_timestamp;
         addWrite( itrd->second.logical_offset,itrd->second.length,
-                  itrd->second.original_chunk, begin_timestamp, end_timestamp );
+                  itrd->second.original_chunk, itrd->second.tid, 
+                  begin_timestamp, end_timestamp );
         /*
         ostringstream os;
         os << __FUNCTION__ << " added : " << itr->second;

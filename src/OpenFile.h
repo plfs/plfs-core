@@ -19,7 +19,11 @@ class Container_OpenFile : public Metadata
         void       setWriteFds( int, int, Index * );
         void       getWriteFds( int *, int *, Index ** );
         pid_t      getPid();
+        int        getTid();
         void       setPath( string path, struct plfs_backend *backend );
+	    void       setTid(int tid) {
+            this->tid = tid;
+        }
         const char *getPath() {
             return this->path.c_str();
         }
@@ -53,6 +57,7 @@ class Container_OpenFile : public Metadata
         Index     *index;
         pthread_mutex_t index_mux;
         pid_t     pid;
+	int       tid;
         mode_t    mode;
         string    path;
         struct plfs_backend *canback;

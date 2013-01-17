@@ -277,7 +277,7 @@ WriteFile::extend( off_t offset )
         return -ENOENT;
     }
     pid_t p = fhs.begin()->first;
-    index->addWrite( offset, 0, p, createtime, createtime );
+    index->addWrite( offset, 0, p, createtime, createtime, 0 );
     addWrite( offset, 0 );   // maintain metadata
     return 0;
 }
@@ -290,7 +290,7 @@ WriteFile::extend( off_t offset )
 //
 // returns bytes written or -err
 ssize_t
-WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
+WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid, unsigned tid)
 {
     int ret = 0;
     ssize_t written;
@@ -318,7 +318,7 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
         if ( ret >= 0 ) {
             write_count++;
             Util::MutexLock(   &index_mux , __FUNCTION__);
-            index->addWrite( offset, ret, pid, begin, end );
+            index->addWrite( offset, ret, pid, tid, begin, end );
             // TODO: why is 1024 a magic number?
             int flush_count = 1024;
             if (write_count%flush_count==0) {

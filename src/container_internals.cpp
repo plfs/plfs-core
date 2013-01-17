@@ -23,6 +23,7 @@
 #include <sstream>
 #include <stdlib.h>
 #include <ctype.h>
+#include <sys/time.h>
 
 using namespace std;
 
@@ -79,11 +80,11 @@ plfs_dump_index_size()
 
 // returns 0 or -err
 int
-plfs_dump_index( FILE *fp, const char *logical, int compress )
+plfs_dump_index( FILE *fp, int tid, const char *logical, int compress )
 {
     PLFS_ENTER;
     Index index(path, expansion_info.backend);
-    ret = Container::populateIndex(path,expansion_info.backend,&index,true);
+    ret = Container::populateIndex(path,tid,expansion_info.backend,&index,true);
     if ( ret == 0 ) {
         if (compress) {
             index.compress();
@@ -111,7 +112,7 @@ container_flatten_index(Container_OpenFile *pfd, const char *logical)
         index = new Index( path, expansion_info.backend );
         newly_created = true;
         // before we populate, need to blow away any old one
-        ret = Container::populateIndex(path,expansion_info.backend,index,false);
+        ret = Container::populateIndex(path,pfd->getTid(),expansion_info.backend,index,false);
         /* XXXCDC: why are we ignoring return value of populateIndex? */
     }
     if (is_plfs_file(logical,NULL)) {
@@ -945,13 +946,20 @@ plfs_reader(Container_OpenFile *pfd, char *buf, size_t size, off_t offset,
 
 // returns -err or bytes read
 ssize_t
-container_read( Container_OpenFile *pfd, char *buf, size_t size, off_t offset )
+container_read( Container_OpenFile *pfd, char *buf, size_t size, off_t offset)
 {
     bool new_index_created = false;
     Index *index = pfd->getIndex();
     ssize_t ret = 0;
     mlog(PLFS_DAPI, "Read request on %s at offset %ld for %ld bytes",
          pfd->getPath(),long(offset),long(size));
+
+    if (!Container::isCommitted(pfd->getPath(), pfd->getCanBack(), pfd->getTid())) {
+        mlog(PLFS_DAPI, "Read request aborted since the transaction id: %d has not been committed",
+             pfd->getTid());
+        PLFS_EXIT(-1);
+    }
+
     // possible that we opened the file as O_RDWR
     // if so, we may not have a persistent index
     // build an index now, but destroy it after this IO
@@ -961,7 +969,7 @@ container_read( Container_OpenFile *pfd, char *buf, size_t size, off_t offset )
         index = new Index(pfd->getPath(), pfd->getCanBack());
         if ( index ) {
             new_index_created = true;
-            ret = Container::populateIndex(pfd->getPath(),pfd->getCanBack(),
+            ret = Container::populateIndex(pfd->getPath(),pfd->getTid(),pfd->getCanBack(),
                                            index,false);
         } else {
             ret = -EIO;
@@ -989,6 +997,33 @@ container_read( Container_OpenFile *pfd, char *buf, size_t size, off_t offset )
         mlog(PLFS_DCOMMON, "%s %s freshly created index for %s",
              __FUNCTION__, delete_index?"removing":"caching", pfd->getPath());
     }
+    PLFS_EXIT(ret);
+}
+
+/* returns 0 on success and -1 on error */
+int
+container_commit(Container_OpenFile *pfd)
+{
+    int tid;
+    struct timeval tv;
+
+    if (pfd->getTid() == 0) {
+        PLFS_EXIT(0);
+    }
+
+    int ret = Container::commitTransaction(pfd->getPath(), pfd->getCanBack(), pfd->getTid());
+    if (ret < 0) {
+        PLFS_EXIT(ret);
+    }
+
+    ret = gettimeofday(&tv, NULL);
+    if (ret < 0) {
+        mlog(INT_DRARE, "%s failed to gettimeofday",
+             __FUNCTION__);
+        PLFS_EXIT(ret);
+    }
+
+    pfd->setTid(0);
     PLFS_EXIT(ret);
 }
 
@@ -1555,6 +1590,9 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
     Index     *index   = NULL;
     bool new_writefile = false;
     bool new_index     = false;
+    int tid = -1;
+    struct timeval tv;
+
     /*
     if ( pid == 0 && open_opt && open_opt->pinter == PLFS_MPIIO ) {
         // just one message per MPI open to make sure the version is right
@@ -1565,6 +1603,16 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
     if ( mode == 420 || mode == 416 ) {
         mode = 33152;
     }
+
+    ret = gettimeofday(&tv, NULL);
+    if (ret < 0) {
+        mlog(INT_DRARE, "%s failed to gettimeofday",
+             __FUNCTION__);
+    }
+    if (open_opt && open_opt->tid) {
+        tid = open_opt->tid;   
+    } 
+
     // make sure we're allowed to open this container
     // this breaks things when tar is trying to create new files
     // with --r--r--r bec we create it w/ that access and then
@@ -1632,7 +1680,7 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
                 //Convert the index stream to a global index
                 index->global_from_stream(open_opt->index_stream);
             } else {
-                ret = Container::populateIndex(path,expansion_info.backend,
+                ret = Container::populateIndex(path,tid,expansion_info.backend,
                                                index,true);
                 if ( ret != 0 ) {
                     mlog(INT_DRARE, "%s failed to create index on %s: %s",
@@ -1676,6 +1724,9 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
             if (add_meta) {
                 ret = Container::addOpenrecord(path, expansion_info.backend,
                                                Util::hostname(),pid);
+                if (ret == 0 && tid >= 0) {
+                    ret = Container::openTransaction(path, expansion_info.backend, tid);
+                }
             }
         }
         //cerr << __FUNCTION__ << " added open record for " << path << endl;
@@ -1699,8 +1750,11 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
         plfs_reference_count(*pfd);
         if (open_opt && open_opt->reopen==1) {
             (*pfd)->setReopen();
-        }
+        }    
+
+        (*pfd)->setTid(tid);
     }
+
     PLFS_EXIT(ret);
 }
 
@@ -1844,7 +1898,7 @@ container_write(Container_OpenFile *pfd, const char *buf, size_t size,
     int ret = 0;
     ssize_t written;
     WriteFile *wf = pfd->getWritefile();
-    ret = written = wf->write(buf, size, offset, pid);
+    ret = written = wf->write(buf, size, offset, pid, pfd->getTid());
     mlog(PLFS_DAPI, "%s: Wrote to %s, offset %ld, size %ld: ret %ld",
          __FUNCTION__, pfd->getPath(), (long)offset, (long)size, (long)ret);
     PLFS_EXIT( ret >= 0 ? written : ret );
@@ -2296,6 +2350,10 @@ container_close( Container_OpenFile *pfd, pid_t pid, uid_t uid, int open_flags,
                                              Util::hostname(),
                                              pfd->getPid());
             }
+            if (pfd->getTid() >= 0) {
+                Container::abortTransaction(pfd->getPath(), pfd->getCanBack(), pfd->getTid());
+            }
+
             // the pfd remembers the first pid added which happens to be the
             // one we used to create the open-record
             delete wf;

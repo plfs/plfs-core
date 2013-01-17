@@ -18,6 +18,7 @@ Container_OpenFile::Container_OpenFile(WriteFile *wf, Index *i, pid_t pi,
     this->mode      = m;
     this->ctime     = t.tv_sec;
     this->reopen    = false;
+    this->tid       = 0;
     pthread_mutex_init(&index_mux,NULL);
 }
 
@@ -58,4 +59,9 @@ Index *Container_OpenFile::getIndex( )
 pid_t Container_OpenFile::getPid()
 {
     return pid;
+}
+
+int Container_OpenFile::getTid()
+{
+    return tid;
 }

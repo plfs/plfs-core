@@ -111,6 +111,12 @@ Flat_fd::read(char *buf, size_t size, off_t offset)
     FLAT_EXIT(ret);
 }
 
+/* Transactions not supported */
+int
+Flat_fd::commit() {
+    FLAT_EXIT(0);
+}
+
 /* ret 0 or -err */
 ssize_t
 Flat_fd::write(const char *buf, size_t size, off_t offset, pid_t pid)

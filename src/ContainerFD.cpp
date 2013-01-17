@@ -35,6 +35,12 @@ Container_fd::read(char *buf, size_t size, off_t offset)
 }
 
 int
+Container_fd::commit()
+{
+    return container_commit(fd);
+}
+
+int
 Container_fd::rename(const char *path, struct plfs_backend *b) {
     return container_rename_open_file(fd,path,b);
 }

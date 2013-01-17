@@ -31,6 +31,8 @@ int container_query( Container_OpenFile *, size_t *writers,
 ssize_t container_read( Container_OpenFile *, char *buf, size_t size,
                         off_t offset );
 
+int container_commit(Container_OpenFile *);
+
 int container_readdir( const char *path, set<string> * );
 
 int container_readlink( const char *path, char *buf, size_t bufsize );

@@ -13,6 +13,10 @@
 #define TMPPREFIX      "tmp."
 #define METADIR        "meta"         // where to stash shortcut metadata
 #define XATTRSDIR      "xattrs"       // where to store xattrs
+#define TRANSDIR       "trans"        // where to store transactions
+#define OPENTRANS      "open"         // where to store opened transactions
+#define COMMITTRANS    "commit"       // where to store committed transactions
+#define ABORTTRANS     "abort"        // where to store aborted transactions
 #define VERSIONPREFIX  "version"      // where to stash the version info 
 // OPENHOSTDIR is now the same as METADIR
 //#define OPENHOSTDIR    "openhosts"    // where to stash whether file open

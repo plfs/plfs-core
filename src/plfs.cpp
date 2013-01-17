@@ -286,6 +286,14 @@ plfs_read(Plfs_fd *fd, char *buf, size_t size, off_t offset)
     return ret;
 }
 
+int
+plfs_commit(Plfs_fd *fd)
+{
+    assert( fd != NULL);
+    int ret = fd->commit();
+    return ret;
+}
+
 typedef struct {
     set<string> entries;
     set<string>::iterator itr;

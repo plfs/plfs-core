@@ -44,7 +44,7 @@ class WriteFile : public Metadata
         int truncate( off_t offset );
         int extend( off_t offset );
 
-        ssize_t write( const char *, size_t, off_t, pid_t );
+        ssize_t write( const char *, size_t, off_t, pid_t, unsigned );
 
         int sync( );
         int sync( pid_t pid );

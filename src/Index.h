@@ -40,6 +40,7 @@ class HostEntry
         HostEntry( const HostEntry& copy );
         bool overlap( const HostEntry& );
         bool contains ( off_t ) const;
+        bool trans ( int ) const;
         bool splittable ( off_t ) const;
         bool abut   ( const HostEntry& );
         off_t logical_tail( ) const;
@@ -60,7 +61,7 @@ class HostEntry
         double begin_timestamp;
         double end_timestamp;
         pid_t  id;      // needs to be last so no padding
-
+	int tid;
         friend class Index;
 };
 
@@ -107,13 +108,13 @@ class Index : public Metadata
         Index( string path, struct plfs_backend *, IOSHandle *fh );
         ~Index();
 
-        int readIndex( string hostindex, struct plfs_backend *iback );
+        int readIndex( string hostindex, struct plfs_backend *iback, int tid );
 
         void setPath( string );
 
         bool ispopulated( );
 
-        void addWrite( off_t offset, size_t bytes, pid_t, double, double );
+        void addWrite( off_t offset, size_t bytes, pid_t, int, double, double );
 
         size_t memoryFootprintMBs();    // how much area the index is occupying
 

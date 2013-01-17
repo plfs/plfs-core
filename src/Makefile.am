@@ -75,6 +75,7 @@ FlatFileFS.h \
 FlatFileFD.h \
 mlog_oss.h \
 XAttrs.h  \
+upc_map.h \
 IOStore.h \
 PosixIOStore.h \
 GlibIOStore.h \
@@ -101,7 +102,8 @@ plfs_private.cpp \
 container_internals.cpp \
 plfs.cpp \
 mlog_oss.cpp \
-XAttrs.cpp 
+XAttrs.cpp \
+upc_map.cpp
 
 libplfs_la_SOURCES = \
 $(headers) \

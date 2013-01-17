@@ -34,6 +34,7 @@ typedef void *Plfs_dirp;
         int  buffer_index;  /* Buffer index yes/no                      */
         plfs_interface pinter;
         int  reopen;
+        int tid;
     } Plfs_open_opt;
 
     typedef struct {
@@ -98,7 +99,7 @@ typedef void *Plfs_dirp;
 
     void plfs_debug( const char *format, ... );
 
-    int plfs_dump_index( FILE *fp, const char *path, int compress );
+    int plfs_dump_index( FILE *fp, int tid, const char *path, int compress );
 
     // Bool sneaked in here
     int plfs_dump_config(int check_dirs, int make_dir);
@@ -121,7 +122,7 @@ typedef void *Plfs_dirp;
     int plfs_getxattr(Plfs_fd *fd, void *value, const char *key, size_t len); 
 
     /* Set the exteded attribute */ 
-    int plfs_setxattr(Plfs_fd *fd, const void *value, const char *key);
+    int plfs_setxattr(Plfs_fd *fd, const void *value, const char *key, size_t len);
 
     /* Index stream related functions */
     int plfs_index_stream(Plfs_fd **pfd, char **buffer);
@@ -168,6 +169,9 @@ typedef void *Plfs_dirp;
                     size_t *bytes_written, int *lazy_stat);
 
     ssize_t plfs_read( Plfs_fd *, char *buf, size_t size, off_t offset );
+
+    /* commits the current transaction and starts a new one */
+    int plfs_commit(Plfs_fd *);
 
     /* plfs_readdir
      * the void * needs to be a pointer to a vector<string> but void * is

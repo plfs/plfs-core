@@ -350,7 +350,7 @@ indexer_thread( void *va )
         }
         // handle the task
         Index subindex(task.path, task.backend);
-        ret = subindex.readIndex(task.path, task.backend);
+        ret = subindex.readIndex(task.path, task.backend, 0);
         if ( ret != 0 ) {
             break;
         }
@@ -412,7 +412,7 @@ Container::flattenIndex( const string& path, struct plfs_backend *canback,
  * @return -err or 0
  */
 int
-Container::populateIndex(const string& path, struct plfs_backend *canback,
+Container::populateIndex(const string& path, int tid, struct plfs_backend *canback,
                          Index *index,bool use_global)
 {
     int ret = 0;
@@ -447,13 +447,13 @@ Container::populateIndex(const string& path, struct plfs_backend *canback,
     } else {    // oh well, do it the hard way
         mlog(CON_DCOMMON, "Building global flattened index for %s",
              path.c_str());
-        ret = aggregateIndices(path,canback,index);
+        ret = aggregateIndices(path,tid,canback,index);
     }
     return ret;
 }
 
 int
-Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index, string path)
+Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index, string path, int tid)
 {
     int ret=0;
     if ( tasks.empty() ) {
@@ -469,7 +469,7 @@ Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index, string path)
             while( ! tasks.empty() ) {
                 IndexerTask task = tasks.front();
                 tasks.pop_front();
-                ret = index->readIndex(task.path, task.backend);
+                ret = index->readIndex(task.path, task.backend, tid);
                 if ( ret != 0 ) {
                     break;
                 }
@@ -674,7 +674,7 @@ Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
         tasks.push_back(task);
     }
     mlog(CON_DCOMMON, "Par agg indices path %s",path.c_str());
-    indexTaskManager(tasks,&index,path);
+    indexTaskManager(tasks,&index,path, 0);
     return index;
 }
 
@@ -1013,7 +1013,7 @@ Container::collectContents(const string& physical,
  * @return 0 or -err
  */
 int
-Container::aggregateIndices(const string& path, struct plfs_backend *canback,
+Container::aggregateIndices(const string& path, int tid, struct plfs_backend *canback,
                             Index *index)
 {
     vector<plfs_pathback> files;
@@ -1038,7 +1038,7 @@ Container::aggregateIndices(const string& path, struct plfs_backend *canback,
             mlog(CON_DCOMMON, "Ag indices path is %s",path.c_str());
         }
     }
-    ret=indexTaskManager(tasks,index,path);
+    ret=indexTaskManager(tasks,index,path,tid);
     return ret;
 }
 
@@ -1284,11 +1284,49 @@ Container::getMetaDirPath( const string& strPath )
     return metadir;
 }
 
+// this returns the path to the transdir
+// don't ever assume that this exists bec it's possible
+// that it doesn't yet
+// strPath is a physical path to canonical container
+string
+Container::getTransDirPath( const string& strPath )
+{
+    string transdir( strPath + "/" + TRANSDIR );
+    return transdir;
+}
+
 // open hosts and meta dir currently share a name
 string
 Container::getOpenHostsDir( const string& path )
 {
     return getMetaDirPath(path);
+}
+
+// opened transaction dir
+string
+Container::getOpenTransDir( const string& strPath )
+{
+
+    string opentransdir( strPath + "/" + TRANSDIR + "/" + OPENTRANS);
+    return opentransdir;
+}
+
+// committed transaction dir
+string
+Container::getCommitTransDir( const string& strPath )
+{
+
+    string committransdir( strPath + "/" + TRANSDIR + "/" + COMMITTRANS);
+    return committransdir;
+}
+
+// aborted transaction dir
+string
+Container::getAbortTransDir( const string& strPath )
+{
+
+    string aborttransdir( strPath + "/" + TRANSDIR + "/" + ABORTTRANS);
+    return aborttransdir;
 }
 
 // simple function to see if a dropping is a particular type such as OPENPREFIX
@@ -1328,6 +1366,65 @@ Container::getOpenrecord( const string& path, const string& host, pid_t pid)
     return retstring;
 }
 
+string
+Container::getOpentrans( const string& path, int tid)
+{
+    ostringstream oss;
+    oss << getOpenTransDir( path ) << "/" << tid;
+    mlog(CON_DAPI, "created open transaction record path %s", oss.str().c_str() );
+    string retstring = oss.str(); // suppress valgrind complaint
+    return retstring;
+}
+
+string
+Container::getCommittrans( const string& path, int tid)
+{
+    ostringstream oss;
+    oss << getCommitTransDir( path ) << "/" << tid;
+    mlog(CON_DAPI, "created open transaction record path %s", oss.str().c_str() );
+    string retstring = oss.str(); // suppress valgrind complaint
+    return retstring;
+}
+
+string
+Container::getAborttrans( const string& path, int tid)
+{
+    ostringstream oss;
+    oss << getAbortTransDir( path ) << "/" << tid;
+    mlog(CON_DAPI, "created aborted transaction record %s", oss.str().c_str() );
+    string retstring = oss.str(); // suppress valgrind complaint
+    return retstring;
+}
+
+/**
+ * Container::openTransaction: opens or creates a transaction in the 
+ * trans/open directory
+ *
+ * @param path the bpath to the canonical container
+ * @param canback the backend the canonical container resides on
+ * @param tid the transaction id to open
+ * @return 0 on success otherwise -err
+ */
+int
+Container::openTransaction( const string& path, struct plfs_backend *canback, 
+                          int tid)
+{
+    string opentrans = getOpentrans( path, tid );
+    int ret = Util::MakeFile( opentrans.c_str(), DROPPING_MODE,
+                              canback->store );
+    if (ret == -ENOENT || ret == -ENOTDIR) {
+        makeSubdir( getOpenTransDir(path), CONTAINER_MODE, canback );
+        ret = Util::MakeFile(opentrans.c_str(), DROPPING_MODE, canback->store);
+    }
+    if ( ret < 0 ) {
+        mlog(CON_INFO, "Couldn't make opentrans %s: %s",
+             opentrans.c_str(), strerror( -ret ) );
+        return(ret);
+    }
+   
+    return ret;
+}
+
 /**
  * Container::addOpenrecord: add an open record dropping.  if it fails
  * because the openhostdir isn't there, try and create.
@@ -1352,7 +1449,103 @@ Container::addOpenrecord( const string& path, struct plfs_backend *canback,
     if ( ret < 0 ) {
         mlog(CON_INFO, "Couldn't make openrecord %s: %s",
              openrecord.c_str(), strerror( -ret ) );
+        return(ret);
     }
+
+    ret = makeSubdir(getTransDirPath(path), CONTAINER_MODE, canback);
+    if (ret < 0) {
+        mlog(CON_INFO, "Couldn't make transaction dir for openrecord %s: %s",
+             openrecord.c_str(), strerror( -ret ) );
+    }
+
+    return ret;
+}
+
+/**
+ * Container::commitTransaction: commits a transaction
+ *
+ * @param path the bpath to the canonical container
+ * @param canback the backend the canonical container resides on
+ * @param tid the tid of the transaction
+ * @return 0 on success otherwise -err
+ */
+
+int 
+Container::commitTransaction(const string& path, struct plfs_backend *canback, 
+                             int tid) {
+    string opentrans = getOpentrans( path, tid );
+    string committrans = getCommittrans( path, tid );
+    
+    int ret = -1;
+    if (!Util::exists( opentrans.c_str(), canback->store )) {
+        mlog(CON_INFO, "Couldn't commit transaction since: %s does not exist: %s",
+             opentrans.c_str(), strerror( ret ) );
+        return(ret);
+    }
+
+    ret = Util::MakeFile(committrans.c_str(), DROPPING_MODE, canback->store);
+    if (ret == -ENOENT || ret == -ENOTDIR) {
+        makeSubdir( getCommitTransDir(path), CONTAINER_MODE, canback );
+        ret = Util::MakeFile(committrans.c_str(), DROPPING_MODE, canback->store);
+    }
+    if ( ret < 0 ) {
+        mlog(CON_INFO, "Couldn't make committrans %s: %s",
+             committrans.c_str(), strerror( -ret ) );
+        return(ret);
+    }
+   
+    ret = unlink(opentrans.c_str());
+    if ( ret < 0) {
+        mlog(CON_INFO, "Couldn't delete opentrans %s: %s",
+             opentrans.c_str(), strerror( -ret ) );
+        return(ret);
+    }
+
+    return ret;
+}
+
+bool 
+Container::isCommitted(const string& path, struct plfs_backend *canback, 
+                       int tid) {
+
+    if (tid < 0) {
+        return false;
+    }
+
+    string committrans = getCommittrans( path, tid );    
+    bool ret = false;
+    if (Util::exists( committrans.c_str(), canback->store )) {
+        ret = true;
+    }
+
+    return ret;
+}
+
+int 
+Container::abortTransaction(const string& path, struct plfs_backend *canback, 
+                             int tid) {
+    string opentrans = getOpentrans( path, tid );
+    string aborttrans = getAborttrans( path, tid );
+
+    int ret = Util::MakeFile( aborttrans.c_str(), DROPPING_MODE,
+                              canback->store );
+    if (ret == -ENOENT || ret == -ENOTDIR) {
+        makeSubdir( getAbortTransDir(path), CONTAINER_MODE, canback );
+        ret = Util::MakeFile(aborttrans.c_str(), DROPPING_MODE, canback->store);
+    }
+    if ( ret < 0 ) {
+        mlog(CON_INFO, "Couldn't make aborttrans %s: %s",
+             opentrans.c_str(), strerror( -ret ) );
+        return(ret);
+    }
+   
+    ret = unlink(opentrans.c_str());
+    if ( ret < 0) {
+        mlog(CON_INFO, "Couldn't delete opentrans %s: %s",
+             opentrans.c_str(), strerror( -ret ) );
+        return(ret);
+    }
+
     return ret;
 }
 
@@ -1512,7 +1705,7 @@ Container::getattr( const string& path, struct plfs_backend *canback,
             stbuf->st_mtime = max(dropping_st.st_mtime, stbuf->st_mtime);
             mlog(CON_DCOMMON, "Getting stat info from index dropping");
             Index index(path, dropping.back);
-            index.readIndex(dropping.bpath, dropping.back);
+            index.readIndex(dropping.bpath, dropping.back, 0);
             stbuf->st_blocks += bytesToBlocks( index.totalBytes() );
             stbuf->st_size   = max(stbuf->st_size, index.lastOffset());
         }
@@ -1660,6 +1853,10 @@ Container::makeTopLevel( const string& expanded_path,
             if (rv < 0) {
                 return(rv);
             }
+            rv = makeSubdir(getTransDirPath(expanded_path), mode, canback);
+            if (rv < 0) {
+                return(rv);
+            }
             if (getOpenHostsDir(expanded_path)!=getMetaDirPath(expanded_path)) {
                 // as of 2.0, the openhostsdir and the metadir are the same dir
                 if ((rv = makeSubdir( getOpenHostsDir(expanded_path), mode,
@@ -1667,6 +1864,7 @@ Container::makeTopLevel( const string& expanded_path,
                     return(rv);
                 }
             }
+	  
             // go ahead and make our subdir here now (good for both N-1 & N-N):
             // unless we are in lazy_subdir mode which probably means that
             // user has explicitly set canonical_backends and shadow_backends
@@ -2262,7 +2460,7 @@ Container::Truncate( const string& path, off_t offset,
         Index index( indexfile, indexback, NULL );
         mlog(CON_DCOMMON, "%s new idx %p %s", __FUNCTION__,
              &index,indexfile.c_str());
-        ret = index.readIndex(indexfile, indexback);
+        ret = index.readIndex(indexfile, indexback, 0);
         if ( ret == 0 ) {
             if ( index.lastOffset() > offset ) {
                 mlog(CON_DCOMMON, "%s %p at %ld",__FUNCTION__,&index,
