@@ -164,7 +164,7 @@ string Util::toString( )
 {
     ostringstream oss;
     string output;
-    off_t  total_ops  = 0;
+    off_t  tops  = 0;
     off_t  total_errs = 0;
     double total_time = 0.0;
     HASH_MAP<string,double>::iterator itr;
@@ -175,13 +175,13 @@ string Util::toString( )
         count  = counters.find( itr->first );
         err = errors.find( itr->first );
         output += timeToString( itr, err, count, &total_errs,
-                                &total_ops, &total_time );
+                                &tops, &total_time );
         if ( ( kitr = kbytes.find(itr->first) ) != kbytes.end() ) {
             output += bandwidthToString( itr, kitr );
         }
         output += "\n";
     }
-    oss << "Util Total Ops " << total_ops << " Errs "
+    oss << "Util Total Ops " << tops << " Errs "
         << total_errs << " in "
         << std::setprecision(2) << std::fixed << total_time << "s\n";
     output += oss.str();
@@ -204,7 +204,7 @@ string Util::timeToString( HASH_MAP<string,double>::iterator itr,
                            HASH_MAP<string,off_t>::iterator eitr,
                            HASH_MAP<string,off_t>::iterator citr,
                            off_t *total_errs,
-                           off_t *total_ops,
+                           off_t *tops,
                            double *total_time )
 {
     double value    = itr->second;
@@ -213,7 +213,7 @@ string Util::timeToString( HASH_MAP<string,double>::iterator itr,
     double avg      = (double) count / value;
     ostringstream oss;
     *total_errs += errs;
-    *total_ops  += count;
+    *tops  += count;
     *total_time += value;
     oss << setw(12) << itr->first << ": " << setw(8) << count << " ops, "
         << setw(8) << errs << " errs, "
