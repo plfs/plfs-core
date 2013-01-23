@@ -316,7 +316,9 @@ plfs_file_operation(const char *logical, FileOp& op)
 {
     PLFS_ENTER;
     vector<plfs_pathback> files, dirs, links;
+    string accessfile;
     struct plfs_pathback pb;
+
     // first go through and find the set of physical files and dirs
     // that need to be operated on
     // if it's a PLFS file, then maybe we just operate on
@@ -334,7 +336,8 @@ plfs_file_operation(const char *logical, FileOp& op)
             ret = 0;    // ret was one from is_plfs_file
         } else {
             // everything
-            is_container=true;
+            is_container = true;
+            accessfile = Container::getAccessFilePath(path);
             ret = plfs_collect_from_containers(logical,files,dirs,links);
         }
     } else if (S_ISDIR(mode)) { // need to iterate across dirs
@@ -351,6 +354,16 @@ plfs_file_operation(const char *logical, FileOp& op)
     // other ops, order doesn't matter.
     vector<plfs_pathback>::reverse_iterator ritr;
     for(ritr = files.rbegin(); ritr != files.rend() && ret == 0; ++ritr) {
+        // In container mode, we want to special treat accessfile deletion,
+        // because once accessfile deleted, the top directory will no longer
+        // be viewed as a container. Defer accessfile deletion until last moment
+        // so that if anything fails in the middle, the container information
+        // remains.
+        if (is_container && accessfile == ritr->bpath) {
+            mlog(INT_DCOMMON, "%s skipping accessfile %s",
+                              __FUNCTION__, ritr->bpath.c_str());
+            continue;
+        }
         mlog(INT_DCOMMON, "%s on %s",__FUNCTION__,ritr->bpath.c_str());
         ret = op.op(ritr->bpath.c_str(),DT_REG,ritr->back->store); 
     }
@@ -358,8 +371,21 @@ plfs_file_operation(const char *logical, FileOp& op)
         op.op(ritr->bpath.c_str(),DT_LNK,ritr->back->store);
     }
     for(ritr = dirs.rbegin(); ritr != dirs.rend() && ret == 0; ++ritr) {
+        if (is_container && ritr->bpath == path) {
+            mlog(INT_DCOMMON, "%s skipping canonical top directory%s",
+                              __FUNCTION__, path.c_str());
+            continue;
+        }
         ret = op.op(ritr->bpath.c_str(),is_container?DT_CONTAINER:DT_DIR,
                     ritr->back->store);
+    }
+    if (is_container) {
+        mlog(INT_DCOMMON, "%s processing access file and canonical top dir",
+                          __FUNCTION__);
+        ret = op.op(accessfile.c_str(),DT_REG,expansion_info.backend->store);
+        if (ret == 0)
+            ret = op.op(path.c_str(),DT_CONTAINER,
+                        expansion_info.backend->store);
     }
     mlog(INT_DAPI, "%s: ret %d", __FUNCTION__,ret);
     PLFS_EXIT(ret);
