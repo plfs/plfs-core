@@ -7,10 +7,12 @@
 #include "mlog.h"
 #include "LogMessage.h"
 #include "IOStore.h"
+#include "ThreadPool.h"
 
 // why is these included???!!!????
 #include "FlatFileFS.h"
 #include "ContainerFS.h"
+#include "SmallFileFS.h"
 #include <assert.h>
 #include <stdlib.h>
 
@@ -379,6 +381,9 @@ plfs_dump_config(int check_dirs, int make_dir)
          << "Num Hostdirs: " << pconf->num_hostdirs << endl
          << "Threadpool size: " << pconf->threadpool_size << endl
          << "Write index buffer size (mbs): " << pconf->buffer_mbs << endl
+         << "Read index buffer size (mbs): " << pconf->read_buffer_mbs << endl
+         << "Max cached smallfile containers: "
+         << pconf->max_smallfile_containers << endl
          << "Num Mountpoints: " << pconf->mnt_pts.size() << endl
          << "Lazy Stat: " << (int)pconf->lazy_stat << endl;
     if (pconf->global_summary_dir) {
@@ -401,6 +406,7 @@ plfs_dump_config(int check_dirs, int make_dir)
         cout << "\tExpected Workload "
              << (pmnt->file_type == CONTAINER ? "shared_file (N-1)"
                  : pmnt->file_type == FLAT_FILE ? "file_per_proc (N-N)"
+                 : pmnt->file_type == SMALL_FILE ? "small_file (1-N)"
                  : "UNKNOWN.  WTF.  email plfs-devel@lists.sourceforge.net")
              << endl;
         if (check_dirs && plfs_attach(pmnt) != 0) {
@@ -435,6 +441,7 @@ plfs_dump_config(int check_dirs, int make_dir)
                                    pmnt->statfs->c_str(),ret,make_dir);
             }
         }
+        cout << "\tMax writers: " << pmnt->max_writers << endl;
         cout << "\tChecksum: " << pmnt->checksum << endl;
     }
     return ret;
@@ -1071,6 +1078,7 @@ set_default_mount(PlfsMount *pmnt)
     pmnt->statfs_io.store = NULL;
     pmnt->file_type = CONTAINER;
     pmnt->fs_ptr = &containerfs;
+    pmnt->max_writers = 4;
     pmnt->checksum = (unsigned)-1;
     pmnt->backspec = pmnt->canspec = pmnt->shadowspec = NULL;
     pmnt->attached = pmnt->nback = pmnt->ncanback = pmnt->nshadowback = 0;
@@ -1087,6 +1095,7 @@ set_default_confs(PlfsConf *pconf)
     pconf->lazy_stat = 1;
     pconf->err_msg = NULL;
     pconf->buffer_mbs = 64;
+    pconf->read_buffer_mbs = 64;
     pconf->global_summary_dir = NULL;
     pconf->global_sum_io.prefix = NULL;
     pconf->global_sum_io.store = NULL;
@@ -1102,6 +1111,7 @@ set_default_confs(PlfsConf *pconf)
     pconf->mlog_setmasks = NULL;
     pconf->tmp_mnt = NULL;
     pconf->fuse_crash_log = NULL;
+    pconf->max_smallfile_containers = 32;
 }
 
 
@@ -1150,6 +1160,23 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
     int v;
     if(strcmp(key,"index_buffer_mbs")==0) {
         pconf->buffer_mbs = atoi(value);
+        if (pconf->buffer_mbs <0) {
+            pconf->err_msg = new string("illegal negative value");
+        }
+    } else if(strcmp(key,"read_buffer_mbs") == 0) {
+        pconf->read_buffer_mbs = atoi(value);
+        if (pconf->read_buffer_mbs <= 0) {
+            pconf->err_msg = new string("illegal negative value");
+        }
+    } else if(strcmp(key,"max_writers") == 0) {
+        if( !*pmntp ) {
+            pconf->err_msg = new string("No mount point yet declared");
+            return;
+        }
+        (*pmntp)->max_writers = atoi(value);
+        if ((*pmntp)->max_writers < 0) {
+            pconf->err_msg = new string("illegal negative value");
+        }
     } else if(strcmp(key,"workload")==0) {
         if( !*pmntp ) {
             pconf->err_msg = new string("No mount point yet declared");
@@ -1161,6 +1188,9 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
         } else if (strcmp(value,"shared_file")==0||strcmp(value,"n-1")==0) {
             (*pmntp)->file_type = CONTAINER;
             (*pmntp)->fs_ptr = &containerfs;
+        } else if (strcmp(value, "small_file")==0||strcmp(value,"1-n")==0) {
+            (*pmntp)->file_type = SMALL_FILE;
+            (*pmntp)->fs_ptr =new SmallFileFS(pconf->max_smallfile_containers);
         } else {
             pconf->err_msg = new string("unknown workload type");
             return;
@@ -1184,6 +1214,11 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
         if (pconf->fuse_crash_log == NULL) {
             pconf->err_msg = new string("Unable to set fuse_crash_log");
          }
+    } else if(strcmp(key,"max_smallfile_containers")==0) {
+        pconf->max_smallfile_containers = atoi(value);
+        if (pconf->max_smallfile_containers <= 0) {
+            pconf->err_msg = new string("illegal negative value");
+        }
     } else if (strcmp(key,"global_summary_dir")==0) {
         pconf->global_summary_dir = strdup(value);
         /* second copy gets chopped up by attach code */
@@ -1683,4 +1718,3 @@ plfs_phys_backlookup(const char *phys, PlfsMount *pmnt,
 
     return(rv);
 }
-
