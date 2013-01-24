@@ -10,6 +10,7 @@ using namespace std;
 
 #include "Util.h"
 #include "Metadata.h"
+#include "PLFSIndex.h"
 
 class PlfsMount;
 
@@ -100,7 +101,7 @@ typedef struct {
     IOSHandle *fh;           /* NULL if not currently open */
 } ChunkFile;
 
-class Index : public Metadata
+class Index : public Metadata, public PLFSIndex
 {
     public:
         Index( string, struct plfs_backend * );

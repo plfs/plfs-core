@@ -57,6 +57,7 @@ README.mlog
 
 SUBDIRS = \
 config \
+src/smallfile \
 src \
 fuse \
 scripts \
