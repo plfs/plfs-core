@@ -19,6 +19,8 @@ extern "C"
 typedef void *Plfs_fd;
 #endif
 
+typedef void *Plfs_dirp;
+
     typedef enum {
         PLFS_API, PLFS_POSIX, PLFS_MPIIO
     } plfs_interface;
@@ -49,8 +51,8 @@ typedef void *Plfs_fd;
        All PLFS functions are either approximations of POSIX file IO calls or
        utility functions.
 
-       Most PLFS functions return 0 or -errno, except write and read which
-       return the number of bytes or -errno
+       Most PLFS functions return 0 or -err, except write and read which
+       return the number of bytes or -err
 
        Many of the utility functions are shared by the ADIO and the FUSE layers
        of PLFS.  Typical applications should try to use those layers.  However,
@@ -170,8 +172,20 @@ typedef void *Plfs_fd;
     /* plfs_readdir
      * the void * needs to be a pointer to a vector<string> but void * is
      * used here so it compiles with C code
+     * this is the version of readdir that C++ codes can use
+     * this version does not call plfs_opendir / plfs_closedir
+     * see plfs_opendir_c/plfs_readdir_c/plfs_closedir_c for C codes
      */
     int plfs_readdir( const char *path, void * );
+
+    /* this is the way that C programs do a plfs readdir 
+     * dname is the buffer that the caller provides into which we write
+     * the name of each entry, plfs_readdir_c returns 0 or success 
+     * EOD is indicated with a zero-length dname
+     */
+    int plfs_opendir_c( const char *path, Plfs_dirp **plfs_dir );
+    int plfs_readdir_c(Plfs_dirp *, char *dname, size_t bufsz);
+    int plfs_closedir_c( Plfs_dirp *plfs_dir ); 
 
     int plfs_readlink( const char *path, char *buf, size_t bufsize );
 
@@ -222,17 +236,21 @@ typedef void *Plfs_fd;
     plfs_filetype plfs_get_filetype(const char *path);
 
     // parindex read functions
+    int plfs_num_host_dirs(int *cnt, char *targ, void *vio, char *bm);
     int plfs_partition_hostdir(void *entries, int rank,
                                int group_size,char **buffer);
-    int plfs_hostdir_zero_rddir(void **entries,const char *path,int rank);
+    int plfs_hostdir_zero_rddir(void **entries,const char *path,int rank,
+                                void *pmount, void *pback);
     int plfs_hostdir_rddir(void **index_stream,char *targets,
-                           int rank,char *top_level);
+                           int rank,char *top_level, void *pmount,
+                           void *pback);
     int plfs_parindex_read(int rank, int ranks_per_comm,void *index_files,
                            void **index_stream,char *top_level);
     int plfs_parindexread_merge(const char *path,char *index_streams,
                                 int *index_sizes, int procs,
                                 void **index_stream);
-    int plfs_expand_path(const char *logical,char **physical);
+    int plfs_expand_path(const char *logical,char **physical,
+                         void **pmountp, void **pbackp);
 
 #ifdef __cplusplus
 }

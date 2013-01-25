@@ -452,6 +452,9 @@ static void vmlog(int flags, const char *fmt, va_list ap)
     int resid;
     char *m1, *m2;
     int m1len, m2len, ncpy;
+    //since we ignore any potential errors in MLOG let's always re-set 
+    //errno to its orginal value
+    int save_errno = errno;
     struct mlog_mbhead *mb;
     /*
      * make sure the mlog is open
@@ -476,6 +479,7 @@ static void vmlog(int flags, const char *fmt, va_list ap)
     msk = mlog_xst.mlog_facs[fac].fac_mask;
     if (lvl >= MLOG_INFO) {   /* normal mlog message */
         if (lvl < msk) {
+            errno = save_errno;
             return;    /* skip it */
         }
         if (mst.stderr_mask != 0 && lvl >= mst.stderr_mask) {
@@ -489,6 +493,7 @@ static void vmlog(int flags, const char *fmt, va_list ap)
          * test.
          */
         if ((lvl & msk) == 0) { /* do we want this type of debug msg? */
+            errno = save_errno;
             return;    /* no! */
         }
         if ((lvl & mst.stderr_mask) != 0) {  /* same thing for stderr_mask */
@@ -531,6 +536,7 @@ static void vmlog(int flags, const char *fmt, va_list ap)
         mlog_unlock();      /* drop lock, this is the only early exit */
         fprintf(stderr, "mlog: header overflowed %zd byte buffer (%d)\n",
                 sizeof(b), hlen + 1);
+        errno = save_errno;
         return;
     }
     /*
@@ -656,6 +662,7 @@ static void vmlog(int flags, const char *fmt, va_list ap)
     /*
      * done!
      */
+    errno = save_errno;
     return;
 }
 
@@ -853,7 +860,7 @@ error:
 int mlog_reopen(char *logfile)
 {
     int rv;
-    char *oldpid, *dup;
+    char *oldpid, *sdup;
     if (!mlog_xst.tag) {
         return(-1);    /* log wasn't open in the first place */
     }
@@ -894,8 +901,8 @@ int mlog_reopen(char *logfile)
          * different from what was there before, so we need to malloc a
          * new mst.logfile.
          */
-        dup = strdup(logfile);
-        if (dup == NULL) {
+        sdup = strdup(logfile);
+        if (sdup == NULL) {
             fprintf(stderr, "mlog_reopen: out of memory - strdup(%s)\n",
                     logfile);
             /* XXX: what else can we do? */
@@ -905,7 +912,7 @@ int mlog_reopen(char *logfile)
         if (mst.logfile) {
             free(mst.logfile);    /* dump the old one, if present */
         }
-        mst.logfile = dup;        /* install the new one */
+        mst.logfile = sdup;       /* install the new one */
     }
     if (mst.logfile) {
         mst.logfd = open(mst.logfile, O_RDWR|O_APPEND|O_CREAT, 0666);

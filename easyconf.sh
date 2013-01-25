@@ -33,7 +33,8 @@ if [[ "$PLFS_WANT_DEBUG_FLAGS" != "" && "$PLFS_WANT_DEBUG_FLAGS" != "0" ]]; then
 fi
 
 if [[ "$PLFS_WANT_ALL_DEBUG" != "" && "$PLFS_WANT_ALL_DEBUG" != "0" ]]; then
-    conf_cmd_str=$conf_cmd_str" --enable-all-debug-flags"
+    echo "Using deprecated environment variable for $0"
+    #conf_cmd_str=$conf_cmd_str" --enable-all-debug-flags"
 fi
 
 if [[ "$PLFS_WANT_PLFS_DEBUG" != "" && "$PLFS_WANT_PLFS_DEBUG" != "0" ]]; then
