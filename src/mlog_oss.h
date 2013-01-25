@@ -19,8 +19,8 @@ namespace mss {
             bool getNoLog();
             
             template <typename T>
-            void insert(T in) {
-                oss << in;
+            void insert(T xin) {
+                oss << xin;
             } 
             
             void insert_os(const std::ostream& in);

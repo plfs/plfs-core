@@ -17,7 +17,7 @@ C_COMPILE_SHL   = $(CC_SHL) $(DEFS) $(INCLUDES) $(CFLAGS) $(CPPFLAGS)
 
 @VPATH@
 
-AD_PLFS_OBJECTS = ad_plfs.o ad_plfs_close.o ad_plfs_delete.o ad_plfs_fcntl.o ad_plfs_flush.o ad_plfs_hints.o ad_plfs_open.o ad_plfs_read.o ad_plfs_resize.o ad_plfs_write.o
+AD_PLFS_OBJECTS = ad_plfs.o ad_plfs_close.o ad_plfs_delete.o ad_plfs_fcntl.o ad_plfs_features.o ad_plfs_flush.o ad_plfs_hints.o ad_plfs_open.o ad_plfs_read.o ad_plfs_resize.o ad_plfs_write.o
 
 
 default: $(LIBNAME)

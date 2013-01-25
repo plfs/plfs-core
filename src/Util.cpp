@@ -3,7 +3,6 @@
 #endif
 
 #include <stdlib.h>
-#include <errno.h>
 #include "COPYRIGHT.h"
 #include <string>
 #include <fstream>
@@ -30,6 +29,8 @@
 #include <stdarg.h>
 using namespace std;
 
+#include "plfs_private.h"
+#include "IOStore.h"
 #include "FileOp.h"
 #include "Util.h"
 #include "LogMessage.h"
@@ -45,7 +46,7 @@ using namespace std;
 
 #define O_CONCURRENT_WRITE                         020000000000
 
-// TODO.  Some functions in here return -errno.  Probably none of them
+// TODO.  Some functions in here return -err.  Probably none of them
 // should
 
 // shoot.  I just realized.  All this close timing stuff is not thread safe.
@@ -153,15 +154,6 @@ Util::SeriousError( string msg, pid_t pid )
     }
 }
 
-void
-Util::OpenError(const char *file, const char *func, int line, int Err, pid_t p)
-{
-    ostringstream oss;
-    oss << "open() error seen at " << file << ":" << func << ":" << line << ": "
-        << strerror(Err);
-    //SeriousError(oss.str(), p);
-}
-
 // initialize static variables
 HASH_MAP<string, double> utimers;
 HASH_MAP<string, off_t>  kbytes;
@@ -250,34 +242,48 @@ void Util::addBytes( string function, size_t size )
 // just reads through a directory and returns all descendants
 // useful for gathering the contents of a container
 int
-Util::traverseDirectoryTree(const char *path, vector<string> &files,
-                            vector<string> &dirs, vector<string> &links)
+Util::traverseDirectoryTree(const char *path, struct plfs_backend *back,
+                            vector<plfs_pathback> &files,
+                            vector<plfs_pathback> &dirs,
+                            vector<plfs_pathback> &links)
 {
     ENTER_PATH;
     mlog(UT_DAPI, "%s on %s", __FUNCTION__, path);
+    struct plfs_pathback pb;
     map<string,unsigned char> entries;
     map<string,unsigned char>::iterator itr;
     ReaddirOp rop(&entries,NULL,true,true);
     string resolved;
-    ret = rop.op(path,DT_DIR);
+    ret = rop.op(path,DT_DIR, back->store);
     if (ret==-ENOENT) {
         return 0;    // no shadow or canonical on this backend: np.
     }
     if (ret!=0) {
         return ret;    // some other error is a problem
     }
-    dirs.push_back(path); // save the top dir
+    pb.bpath = path;
+    pb.back = back;
+    dirs.push_back(pb); // save the top dir
     for(itr = entries.begin(); itr != entries.end() && ret==0; itr++) {
         if (itr->second == DT_DIR) {
-            ret = traverseDirectoryTree(itr->first.c_str(),files,dirs,links);
+            ret = traverseDirectoryTree(itr->first.c_str(),back,
+                                        files,dirs,links);
         } else if (itr->second == DT_LNK) {
-            links.push_back(itr->first);
-            ret = Container::resolveMetalink(itr->first, resolved);
+            struct plfs_backend *metaback;
+            pb.bpath = itr->first;
+            pb.back = back;
+            links.push_back(pb);
+            //XXX: would be more efficient if we had mount point too
+            ret = Container::resolveMetalink(itr->first, back, NULL,
+                                             resolved, &metaback);
             if (ret == 0) {
-                ret = traverseDirectoryTree(resolved.c_str(),files,dirs,links);
+                ret = traverseDirectoryTree(resolved.c_str(), metaback,
+                                            files,dirs,links);
             }
         } else {
-            files.push_back(itr->first);
+            pb.bpath = itr->first;
+            pb.back = back;
+            files.push_back(pb);
         }
     }
     EXIT_UTIL;
@@ -316,43 +322,6 @@ void Util::addTime( string function, double elapsed, bool error )
     pthread_mutex_unlock( &time_mux );
 }
 
-int Util::Utime( const char *path, const struct utimbuf *buf )
-{
-    ENTER_PATH;
-    ret = utime( path, buf );
-    EXIT_UTIL;
-}
-
-int Util::Unlink( const char *path )
-{
-    ENTER_PATH;
-    ret = unlink( path );
-    EXIT_UTIL;
-}
-
-
-int Util::Access( const char *path, int mode )
-{
-    ENTER_PATH;
-    ret = access( path, mode );
-    EXIT_UTIL;
-}
-
-int Util::Mknod( const char *path, mode_t mode, dev_t dev )
-{
-    ENTER_PATH;
-    ret = mknod( path, mode, dev );
-    EXIT_UTIL;
-}
-
-int Util::Truncate( const char *path, off_t length )
-{
-    ENTER_PATH;
-    ret = truncate( path, length );
-    EXIT_UTIL;
-}
-
-
 int Util::MutexLock(  pthread_mutex_t *mux , const char *where )
 {
     ENTER_MUX;
@@ -375,53 +344,21 @@ int Util::MutexUnlock( pthread_mutex_t *mux, const char *where )
     EXIT_UTIL;
 }
 
-ssize_t Util::Pread( int fd, void *buf, size_t size, off_t off )
-{
-    ENTER_IO;
-    ret = pread( fd, buf, size, off );
-    EXIT_IO;
-}
-
-ssize_t Util::Pwrite( int fd, const void *buf, size_t size, off_t off )
-{
-    ENTER_IO;
-    ret = pwrite( fd, buf, size, off );
-    EXIT_IO;
-}
-
-int Util::Rmdir( const char *path )
-{
-    ENTER_PATH;
-    ret = rmdir( path );
-    EXIT_UTIL;
-}
-
-int Util::Lstat( const char *path, struct stat *st )
-{
-    ENTER_PATH;
-    ret = lstat( path, st );
-    EXIT_UTIL;
-}
-
-int Util::Rename( const char *path, const char *to )
-{
-    ENTER_PATH;
-    ret = rename( path, to );
-    EXIT_UTIL;
-}
-
 // Use most popular used read+write to copy file,
-// as mmap/sendfile/splice may fail on some system.
-int Util::CopyFile( const char *path, const char *to )
+// as map/sendfile/splice may fail on some system.
+// returns 0 or -err
+int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
+                    IOStore *toios)
 {
     ENTER_PATH;
-    int fd_from, fd_to, buf_size;
+    IOSHandle *fh_from, *fh_to;
+    int buf_size;
     ssize_t read_len, write_len, copy_len;
     char *buf = NULL, *ptr;
     struct stat sbuf;
     mode_t stored_mode;
-    ret = Lstat(path, &sbuf);
-    if (ret) {
+    ret = pathios->Lstat(path, &sbuf);
+    if (ret < 0) {
         goto out;
     }
     ret = -1;
@@ -430,23 +367,23 @@ int Util::CopyFile( const char *path, const char *to )
         if (!buf) {
             goto out;
         }
-        read_len = Readlink(path, buf, PATH_MAX);
+        read_len = pathios->Readlink(path, buf, PATH_MAX);
         if (read_len < 0) {
             goto out;
         }
         buf[read_len] = 0;
-        ret = Symlink(buf, to);
+        ret = toios->Symlink(buf, to);
         goto out;
     }
-    fd_from = Open(path, O_RDONLY);
-    if (fd_from<0) {
+    fh_from = pathios->Open(path, O_RDONLY, ret);
+    if (fh_from == NULL) {
         goto out;
     }
     stored_mode = umask(0);
-    fd_to = Open(to, O_WRONLY | O_CREAT, sbuf.st_mode);
+    fh_to = toios->Open(to, O_WRONLY | O_CREAT, sbuf.st_mode, ret);
     umask(stored_mode);
-    if (fd_to<0) {
-        Close(fd_from);
+    if (fh_to == NULL) {
+        pathios->Close(fh_from);
         goto out;
     }
     if (!sbuf.st_size) {
@@ -459,15 +396,17 @@ int Util::CopyFile( const char *path, const char *to )
         goto done;
     }
     copy_len = 0;
-    while ((read_len = Read(fd_from, buf, buf_size)) != 0) {
-        if ((read_len==-1)&&(errno!=EINTR)) {
+    while ((read_len = fh_from->Read(buf, buf_size)) != 0) {
+        if (read_len < 0 && read_len != -EINTR) {
             break;
-        } else if (read_len>0) {
+        }
+        if (read_len>0) {
             ptr = buf;
-            while ((write_len = Write(fd_to, ptr, read_len)) != 0) {
-                if ((write_len==-1)&&(errno!=EINTR)) {
+            while ((write_len = fh_to->Write(ptr, read_len)) != 0) {
+                if (write_len < 0 && write_len != -EINTR) {
                     goto done;
-                } else if (write_len==read_len) {
+                }
+                if (write_len==read_len) {
                     copy_len += write_len;
                     break;
                 } else if(write_len>0) {
@@ -481,14 +420,14 @@ int Util::CopyFile( const char *path, const char *to )
     if (copy_len==sbuf.st_size) {
         ret = 0;
     }
-    if (ret)
+    if (ret < 0)
         mlog(UT_DCOMMON, "Util::CopyFile, copy from %s to %s, ret: %d, %s",
-             path, to, ret, strerror(errno));
+             path, to, ret, strerror(-ret));
 done:
-    Close(fd_from);
-    Close(fd_to);
-    if (ret) {
-        Unlink(to);    // revert our change, delete the file created.
+    pathios->Close(fh_from);
+    toios->Close(fh_to);
+    if (ret < 0) {
+        toios->Unlink(to);    // revert our change, delete the file created.
     }
 out:
     if (buf) {
@@ -497,64 +436,22 @@ out:
     EXIT_UTIL;
 }
 
-ssize_t Util::Readlink(const char *link, char *buf, size_t bufsize)
-{
-    ENTER_IO;
-    ret = readlink(link,buf,bufsize);
-    EXIT_UTIL;
-}
-
-int Util::Link( const char *path, const char *to )
-{
-    ENTER_PATH;
-    ret = link( path, to );
-    EXIT_UTIL;
-}
-
-int Util::Symlink( const char *path, const char *to )
+/**
+ * Util::MakeFile: create a zero length file (like creat, but closes file)
+ *
+ * @param path path to create the file on in backend
+ * @param mode mode for the create
+ * @param store the store to create the file on
+ * @return 0 or -err
+ */
+int Util::MakeFile( const char *path, mode_t mode, IOStore *store )
 {
     ENTER_PATH;
-    ret = symlink( path, to );
-    EXIT_UTIL;
-}
-
-ssize_t Util::Read( int fd, void *buf, size_t size)
-{
-    ENTER_IO;
-    ret = read( fd, buf, size );
-    EXIT_IO;
-}
-
-ssize_t Util::Write( int fd, const void *buf, size_t size)
-{
-    ENTER_IO;
-    ret = write( fd, buf, size );
-    EXIT_IO;
-}
-
-int Util::Close( int fd )
-{
-    ENTER_UTIL;
-    ret = close( fd );
-    EXIT_UTIL;
-}
-
-int Util::Creat( const char *path, mode_t mode )
-{
-    ENTER_PATH;
-    ret = creat( path, mode );
-    if ( ret > 0 ) {
-        ret = close( ret );
-    } else {
-        ret = -errno;
-    }
-    EXIT_UTIL;
-}
-
-int Util::Statvfs( const char *path, struct statvfs *stbuf )
-{
-    ENTER_PATH;
-    ret = statvfs(path,stbuf);
+    IOSHandle *hand;
+    hand = store->Creat( path, mode, ret );
+    if ( hand != NULL) {
+        ret = store->Close( hand );
+    } // else, err was already set in ret
     EXIT_UTIL;
 }
 
@@ -563,86 +460,12 @@ char *Util::Strdup(const char *s1)
     return strdup(s1);
 }
 
-
-// returns 0 if success, 1 if end of dir, -errno if error
-int Util::Readdir(DIR *dir, struct dirent **de)
-{
-    ENTER_UTIL;
-    errno = 0;
-    *de = NULL;
-    *de = readdir(dir);
-    if (*de) {
-        ret = 0;
-    } else if (errno == 0) {
-        ret = 1;
-    } else {
-        ret = -errno;
-    }
-    mlog(UT_DCOMMON, "readdir returned %p (ret %d, errno %d)", *de, ret, errno);
-    EXIT_UTIL;
-}
-
-// returns 0 or -errno
-int Util::Opendir( const char *path, DIR **dp )
-{
-    ENTER_PATH;
-    *dp = opendir( path );
-    ret = ( *dp == NULL ? -errno : 0 );
-    EXIT_UTIL;
-}
-
-int Util::Closedir( DIR *dp )
-{
-    ENTER_UTIL;
-    ret = closedir( dp );
-    EXIT_UTIL;
-}
-
-int Util::Munmap(void *addr,size_t len)
-{
-    ENTER_UTIL;
-    ret = munmap(addr,len);
-    EXIT_UTIL;
-}
-
-int Util::Mmap( size_t len, int fildes, void **retaddr)
-{
-    ENTER_UTIL;
-    int prot  = PROT_READ;
-    int flags = MAP_PRIVATE|MAP_NOCACHE;
-    *retaddr = mmap( NULL, len, prot, flags, fildes, 0 );
-    ret = ( *retaddr == (void *)NULL || *retaddr == (void *)-1 ? -1 : 0 );
-    EXIT_UTIL;
-}
-
-int Util::Lseek( int fildes, off_t offset, int whence, off_t *result )
-{
-    ENTER_UTIL;
-    *result = lseek( fildes, offset, whence );
-    ret = (int)*result;
-    EXIT_UTIL;
-}
-
-int Util::Open( const char *path, int flags )
-{
-    ENTER_PATH;
-    ret = open( path, flags );
-    EXIT_UTIL;
-}
-
-int Util::Open( const char *path, int flags, mode_t mode )
-{
-    ENTER_PATH;
-    ret = open( path, flags, mode );
-    EXIT_UTIL;
-}
-
-bool Util::exists( const char *path )
+bool Util::exists( const char *path, IOStore *store )
 {
     ENTER_PATH;
     bool exists = false;
     struct stat buf;
-    if (Util::Lstat(path, &buf) == 0) {
+    if (store->Lstat(path, &buf) == 0) {
         exists = true;
     }
     ret = exists;
@@ -654,61 +477,26 @@ bool Util::isDirectory( struct stat *buf )
     return (S_ISDIR(buf->st_mode) && !S_ISLNK(buf->st_mode));
 }
 
-bool Util::isDirectory( const char *path )
+bool Util::isDirectory( const char *path, IOStore *store)
 {
     ENTER_PATH;
     bool exists = false;
     struct stat buf;
-    if ( Util::Lstat( path, &buf ) == 0 ) {
+    if ( store->Lstat( path, &buf ) == 0 ) {
         exists = isDirectory( &buf );
     }
     ret = exists;
     EXIT_UTIL;
 }
 
-int Util::Chown( const char *path, uid_t uid, gid_t gid )
-{
-    ENTER_PATH;
-    ret = chown( path, uid, gid );
-    EXIT_UTIL;
-}
-
-int Util::Lchown( const char *path, uid_t uid, gid_t gid )
-{
-    ENTER_PATH;
-    ret = lchown( path, uid, gid );
-    EXIT_UTIL;
-}
-
-int Util::Chmod( const char *path, int flags )
-{
-    ENTER_PATH;
-    ret = chmod( path, flags );
-    EXIT_UTIL;
-}
-
-int Util::Mkdir( const char *path, mode_t mode )
-{
-    ENTER_PATH;
-    ret = mkdir( path, mode );
-    EXIT_UTIL;
-}
-
-int Util::Filesize(const char *path)
+int Util::Filesize(const char *path, IOStore *store)
 {
     ENTER_PATH;
     struct stat stbuf;
-    ret = Stat(path,&stbuf);
+    ret = store->Stat(path,&stbuf);
     if (ret==0) {
         ret = (int)stbuf.st_size;
     }
-    EXIT_UTIL;
-}
-
-int Util::Fsync( int fd)
-{
-    ENTER_UTIL;
-    ret = fsync( fd );
     EXIT_UTIL;
 }
 
@@ -720,13 +508,13 @@ double Util::getTime( )
     struct timeval time;
     if ( gettimeofday( &time, NULL ) != 0 ) {
         mlog(UT_CRIT, "WTF: %s failed: %s",
-             __FUNCTION__, strerror(errno));
+             __FUNCTION__, strerror(errno)); /* error# ok */
     }
     return (double)time.tv_sec + time.tv_usec/1.e6;
 }
 
-// returns n or returns -1
-ssize_t Util::Writen( int fd, const void *vptr, size_t n )
+// returns n or returns -err
+ssize_t Util::Writen(const void *vptr, size_t n, IOSHandle *hand)
 {
     ENTER_UTIL;
     size_t      nleft;
@@ -736,11 +524,9 @@ ssize_t Util::Writen( int fd, const void *vptr, size_t n )
     nleft = n;
     ret   = n;
     while (nleft > 0) {
-        if ( (nwritten = Util::Write(fd, ptr, nleft)) <= 0) {
-            if (errno == EINTR) {
-                nwritten = 0;    /* and call write() again */
-            } else {
-                ret = -1;           /* error */
+        if ( (nwritten = hand->Write(ptr, nleft)) <= 0) {
+            if (nwritten < 0 && nwritten != -EINTR) {
+                ret = nwritten;   /* error! */
                 break;
             }
         }
@@ -868,9 +654,9 @@ int Util::Setfsgid( gid_t g )
 {
     ENTER_UTIL;
 #ifndef __APPLE__
-    errno = 0;
+    errno = 0;     /* error# ok, but is this necessary? */
     ret = setfsgid( g );
-    mlog(UT_DCOMMON, "Set gid %d: %s", g, strerror(errno) );
+    mlog(UT_DCOMMON, "Set gid %d: %s", g, strerror(errno) ); /* error# ok */
 #endif
     EXIT_UTIL;
 }
@@ -879,17 +665,11 @@ int Util::Setfsuid( uid_t u )
 {
     ENTER_UTIL;
 #ifndef __APPLE__
-    errno = 0;
+    errno = 0;     /* error# ok, but is this necessary? */
     ret = setfsuid( u );
-    mlog(UT_DCOMMON, "Set uid %d: %s", u, strerror(errno) );
+    mlog(UT_DCOMMON, "Set uid %d: %s", u, strerror(errno) ); /* error# ok */
 #endif
     EXIT_UTIL;
-}
-
-// a utility for turning return values into 0 or -ERRNO
-int Util::retValue( int res )
-{
-    return (res == 0 ? 0 : -errno);
 }
 
 char *Util::hostname()
@@ -901,25 +681,4 @@ char *Util::hostname()
     }
     init = true;
     return hname;
-}
-
-int Util::Stat(const char *path, struct stat *file_info)
-{
-    ENTER_PATH;
-    ret = stat( path , file_info );
-    EXIT_UTIL;
-}
-
-int Util::Fstat(int fd, struct stat *file_info)
-{
-    ENTER_UTIL;
-    ret = fstat(fd, file_info);
-    EXIT_UTIL;
-}
-
-int Util::Ftruncate(int fd, off_t offset)
-{
-    ENTER_UTIL;
-    ret = ftruncate(fd, offset);
-    EXIT_UTIL;
 }

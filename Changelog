@@ -1,3 +1,106 @@
+~~~ Version 2.3
+* IOStore
+Issue #120: IOStore is the virtual layer that acts as an interface to physical
+storage. It adds no new functionality in this release, but will be utilized in
+future releases. For a working example, look at the POSIX IOStore in src. 
+
+* File Descriptor Limitation
+Issue #114: There is a limit to the number of files that a process may have
+open at any given time. This limit is determined with this command:
+
+% limit descriptors
+descriptors 1024 
+
+Some systems will allow you to change your limit by specifying a new limit.
+% limit descriptors 2048
+% limit descriptors
+descriptors 2048 
+
+Other systems will require a privileged user to do this. On the large system
+at LANL, Cielo, the System Admins set the limit for a select user group on
+ci-mesh to a higher number so that serial inspection applications that need to
+open all files in a set could do so without error.
+
+To close this issue, we still need to implement a cache mechanism so that the
+PLFS library can live within any limit.
+
+* Correct plfsrc man pages
+Issue #121: Some of the descriptions of the plfsrc parameters in the man page
+were incorrect. For example, "statfs" did not explain that it must follow a
+"mount_point" directive and only modifies the "mount_point" directive that it
+follows. Parameter explanations were clarified and corrected.
+
+* Call "readdir" and all PLFS API Calls without FUSE Mount
+Issue #123: We need to be able to call "readdir" and all PLFS library API
+calls without requiring a FUSE mount to be present. The PLFS library was
+intended to be used by applications and not require an operating system file
+system mount to be active. Rather, the PLFS library can use the PLFSRC file to
+determine the validity and backend storage of a PLFS file system.
+
+# Data Sieving and O_RDWR in ad_plfs
+Issue #124: We never want data sieving turned on for PLFS. Data sieving
+requires O_RDWR, but O_RDWR badly affects PLFS performance. The ad_plfs suite
+of files was fixed for Cray's MPI and OpenMPI such that data sieving is
+always off and that it does not allow O_RDWR to be used to open a file.
+
+# Removal of weak symbols in ad_plfs.c
+Issue #134: Weak symbols are now surrounded by C directives. By default, users
+will not see them. Cray developers will be able to use them as the directives
+are Cray-specific.
+
+~~~ Version 2.2.3
+* Cleaned-up MPI/IO Patching Process
+Ticket #87 (from old Sourceforge.net repository): Cleaned-up files and added
+necessary logic to handle patching for MPICH2 and OpenMPI 1.4.x and 1.6.
+
+* Changing N-to-N Directory Permissions Broken
+Ticket #84: Ensured that the files under a directory had their ownership and
+permissions changed to match the directory that contains them.
+
+* Made mlog More Clear with Respect to Types
+Ticket #95: Made some changes to mlog and type casting to make it type-correct.
+
+* Fixed N-to-N Overwrite Pattern on N-to-1 Mount Point
+Ticket #96: N-to-N files were not reporting the correct size when they were
+overwritten using an N-to-1 mount point. They now report the correct sizes
+after each overwrite.
+
+* Fixed N-to-1 (Container Mode) Permission Bit Setup
+Ticket #97: PLFS represents a file in this mode as a combination of
+directories and files. The permissions on the directories, in particular,
+have to have certain bits set in order to allow the specified access to
+the underlying files that represent the PLFS file.
+
+* Fixed Makefile.am for OpenMPI 1.6.x Patch
+Ticket #98: 'make dist' didn't work for OpenMPI 1.6.x. We fixed
+the Makefile.am so that it does work.
+
+* Fixed Unlink with New Permission Scheme
+Ticket #99: After implementing the new permissions scheme for PLFS files,
+we fixed unlink so that it worked correctly.
+
+* Transferred Permissions Fixes to Parallel Operations Branch
+Ticket #100: We are working on making certain file operations parallel.
+That is in another branch. We wanted to make sure that all the permissions
+work was transferred to that branch so that the permissions work persists in
+future releases.
+
+* Fixed Rename in Container Mode
+Ticket #101: Renaming files in container mode was not working. It is now.
+
+* Fixed Handling of Truncation on File Creation
+Tickets #103, 104, and 107: There were some issues with files being incorrectly
+truncated when they were created. MPI and POSIX do things differently. It now
+behaves correctly for all cases.
+
+* Use plfs_access instead of lstat
+Ticket #106: In the MPI/IO interface we were using lstat. We are using
+plfs_access instead.
+
+* Correctly Handle Use of MPI_MODE_EXCL
+Ticket #108: Fixed the MPI/IO interface to correctly return an error when
+MPI_MODE_EXCL is used and the file exists.
+
 ~~~ Version 2.2.2
 * Ticket #86: Fixed an issue in ad_plfs/ad_plfs.c so that Open MPI v1.6 can be
 patched. Updated supporting patches and patching scripts to be able to work

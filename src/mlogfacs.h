@@ -51,7 +51,8 @@ static const char *mlog_facsarray[] = {
     "STO",           /* 8 */
     "FUSE",          /* 9 */
     "MPI",           /* 10 */
-    0,               /* 11 */
+    "POSIXIO",       /* 11 */
+    0,               /* 12 */
 };
 #endif /* MLOG_FACSARRAY || MLOG_AFACSARRAY */
 
@@ -68,7 +69,8 @@ static const char *mlog_lfacsarray[] = {
     "store",         /* 8 */
     "FUSE",          /* 9 */
     "MPI",           /* 10 */
-    0,               /* 11 */
+    "POSIXIO",       /* 11 */
+    0,               /* 12 */
 };
 #endif /* MLOG_LFACSARRAY || MLOG_LFACSARRAY */
 
@@ -85,6 +87,7 @@ static const char *mlog_lfacsarray[] = {
 #define MLOGFAC_STO       8 /* store */
 #define MLOGFAC_FUSE      9 /* FUSE */
 #define MLOGFAC_MPI      10 /* MPI */
+#define MLOGFAC_POSIXIO  11 /* POSIXIO */
 
 /*
  * plfs_misc MLOG levels
@@ -285,5 +288,25 @@ static const char *mlog_lfacsarray[] = {
 #define MPI_DCOMMON       MPI_DBG2
 #define MPI_DBG3         (10 | MLOG_DBG3)
 #define MPI_DRARE         MPI_DBG3
+
+/*
+ * POSIXIO MLOG levels
+ */
+#define POSIXIO_EMERG    (11 | MLOG_EMERG)
+#define POSIXIO_ALERT    (11 | MLOG_ALERT)
+#define POSIXIO_CRIT     (11 | MLOG_CRIT)
+#define POSIXIO_ERR      (11 | MLOG_ERR)
+#define POSIXIO_WARN     (11 | MLOG_WARN)
+#define POSIXIO_NOTE     (11 | MLOG_NOTE)
+#define POSIXIO_INFO     (11 | MLOG_INFO)
+#define POSIXIO_DBG      (11 | MLOG_DBG)
+#define POSIXIO_DBG0     (11 | MLOG_DBG0)
+#define POSIXIO_DAPI      POSIXIO_DBG0
+#define POSIXIO_DBG1     (11 | MLOG_DBG1)
+#define POSIXIO_DINTAPI   POSIXIO_DBG1
+#define POSIXIO_DBG2     (11 | MLOG_DBG2)
+#define POSIXIO_DCOMMON   POSIXIO_DBG2
+#define POSIXIO_DBG3     (11 | MLOG_DBG3)
+#define POSIXIO_DRARE     POSIXIO_DBG3
 
 #endif /* _MLOGFACS_H_ */
