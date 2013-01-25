@@ -598,6 +598,20 @@ container_rename( const char *logical, const char *to )
     opb.bpath = old_canonical;
     opb.back = expansion_info.backend;
     bool isfile = Container::isContainer(&opb,&mode);
+   
+    // for dirs and containers, iterate over all backends and
+    // do a rename on each backend.  Symlinks do single rename
+    // potentially from one backend to another 
+    if (S_ISLNK(mode)) {
+        ret = Util::CopyFile( old_canonical.c_str(), opb.back->store,
+                              new_canonical.c_str(), npb.back->store);
+        if (ret == 0){
+            ret = container_unlink(logical);
+        }
+        PLFS_EXIT(ret);
+    }
+
+    
     // get the list of all possible entries for both src and dest
     vector<plfs_pathback> srcs, dsts;
     vector<plfs_pathback>::iterator itr;
@@ -611,9 +625,16 @@ container_rename( const char *logical, const char *to )
     // now go through and rename all of them (ignore ENOENT)
     for(size_t i = 0; i < srcs.size(); i++) {
         int err;
-        /* XXX: check backend usage here? */
-        err = expansion_info.backend->store->Rename(srcs[i].bpath.c_str(),
-                                                    dsts[i].bpath.c_str());
+        struct plfs_backend *curback;
+
+        curback = srcs[i].back;
+        /*
+         * find_all_expansions should keep backends in sync between
+         * srcs[i] and dsts[i], but check anyway...
+         */
+        assert(curback == dsts[i].back);
+        err = curback->store->Rename(srcs[i].bpath.c_str(),
+                                     dsts[i].bpath.c_str());
         if (err == -ENOENT) {
             err = 0;    // a file might not be distributed on all
         }
@@ -624,7 +645,7 @@ container_rename( const char *logical, const char *to )
              srcs[i].bpath.c_str(),dsts[i].bpath.c_str(),err);
     }
     // if it's a file whose canonical location has moved, recover it
-    bool moved = (old_canonical_backend!=new_canonical_backend);
+    bool moved = (expansion_info.backend != exp_info.backend);
     if (moved && isfile) {
         // ok, old canonical is no longer a valid path bec we renamed it
         // we need to construct the new path to where the canonical contents are
@@ -632,7 +653,7 @@ container_rename( const char *logical, const char *to )
         // mount point off to and then append it to the old_canonical_backend
         string mnt_pt = exp_info.mnt_pt->mnt_pt;
         old_canonical = old_canonical_backend + "/" + &to[mnt_pt.length()];
-        //XXXCDC: CHECK THIS WRT IOSTORE
+        opb.bpath = old_canonical;
         ret = Container::transferCanonical(&opb,&npb,
                                            old_canonical_backend,
                                            new_canonical_backend,mode);

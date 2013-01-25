@@ -239,7 +239,7 @@ Container::isContainer( const struct plfs_pathback *physical_path,
             string accessfile = getAccessFilePath(physical_path->bpath);
             ret = physical_path->back->store->Lstat(accessfile.c_str(),
                                                     &buf);
-            if ( ret == 0 && mode ) {
+            if ( ret == 0) {
                 mlog(CON_DCOMMON, "%s %s is a container", __FUNCTION__,
                      physical_path->bpath.c_str());
                 // something weird here.  it should be: *mode = buf.st_mode;
@@ -2045,6 +2045,10 @@ Container::createHelper(const string& expanded_path,
     // check if someone is trying to overwrite a directory?
     if (!res && S_ISDIR(existing_mode)) {
         res = -EISDIR;
+        mlog(CON_INFO,
+            "Returning EISDIR: asked to write to directory %s\n",
+             expanded_path.c_str());
+        return res;
     }
     existing_container = res;
     //creat specifies that we truncate if the file exists

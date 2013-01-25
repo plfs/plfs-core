@@ -281,7 +281,7 @@ plfs_check_dir(string type, const char *prefix, IOStore *store, string bpath,
                type.c_str(), prefix, directory);
         return(-ENOENT);
     }
-    rv = store->Mkdir(directory, CONTAINER_MODE);
+    rv = mkdir_dash_p(bpath, false, store);
     if (rv < 0) {
         printf("Attempt to create directory %s%s failed (%s)\n",
                prefix, directory, strerror(-rv));
@@ -317,13 +317,14 @@ print_backends(PlfsMount *pmnt, int simple, bool check_dirs,
         printf("\tBackend: %s%s%s%s\n", bcks[lcv]->prefix,
                bcks[lcv]->bmpoint.c_str(), (can) ? " CANONICAL" : "",
                (shd) ? " SHADOW" : "");
+
+        if (check_dirs) {
+            ret = plfs_check_dir("backend", bcks[lcv]->prefix,
+                                 bcks[lcv]->store, bcks[lcv]->bmpoint,
+                                 ret, make_dir);
+        }
     }
 
-    if (check_dirs) {
-        ret = plfs_check_dir("backend", bcks[lcv]->prefix,
-                             bcks[lcv]->store, bcks[lcv]->bmpoint,
-                             ret, make_dir);
-    }
     return(ret);
 }
 
@@ -483,7 +484,6 @@ plfs_stats( void *vptr )
 // directories exist.  It's not particularly efficient since it starts
 // at the beginning and works up and many of the dirs probably already
 // do exist
-// currently this function is just used by plfs_recover
 // returns 0 or -err
 // if it sees EEXIST, it silently ignores it and returns 0
 int
@@ -1101,6 +1101,7 @@ set_default_confs(PlfsConf *pconf)
     pconf->mlog_syslogfac = LOG_USER;
     pconf->mlog_setmasks = NULL;
     pconf->tmp_mnt = NULL;
+    pconf->fuse_crash_log = NULL;
 }
 
 
@@ -1177,6 +1178,12 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
         if (pconf->threadpool_size <=0) {
             pconf->err_msg = new string("illegal negative value");
         }
+    }else if (strcmp(key,"fuse_crash_log") == 0) {
+        pconf->fuse_crash_log = strdup(value);
+
+        if (pconf->fuse_crash_log == NULL) {
+            pconf->err_msg = new string("Unable to set fuse_crash_log");
+         }
     } else if (strcmp(key,"global_summary_dir")==0) {
         pconf->global_summary_dir = strdup(value);
         /* second copy gets chopped up by attach code */
