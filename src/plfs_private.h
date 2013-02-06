@@ -164,6 +164,8 @@ int find_all_expansions(const char *logical,vector<plfs_pathback> &containers);
 // a helper function that expands %t, %p, %h in mlog file name
 string expand_macros(const char *target);
 
+string stripPrefixPath(string *path);
+void stripPrefixPath(const char *path, char *stripped_path);
 string expandPath(string logical, ExpansionInfo *exp_info,
                   expansionMethod hash_method, int which_backend, int depth);
 int mkdir_dash_p(const string& path, bool parent_only, IOStore *);

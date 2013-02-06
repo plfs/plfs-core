@@ -91,6 +91,26 @@ find_mount_point_using_tokens(PlfsConf *pconf,
     found = false;
     return NULL;
 }
+// These functions take a path and strips the adio prefix from it
+// they work if you pass in a char * or a string
+string
+stripPrefixPath(string path){
+    // rip off an adio prefix if passed
+    string adio_prefix("plfs:");
+    if (path.substr(0, adio_prefix.size()) == adio_prefix){
+        path = path.substr(adio_prefix.size());
+        mlog(INT_DCOMMON, "Ripping %s -> %s", adio_prefix.c_str(),path.c_str());
+    }
+    return path;
+}
+
+void
+stripPrefixPath(const char *path, char *stripped_path){
+    //a version for char * and c applications
+    string path_str(path);
+    path_str = stripPrefixPath(path_str);
+    strcpy(stripped_path, path_str.c_str());
+}
 
 // takes a logical path and returns a physical one
 // the expansionMethod controls whether it returns the canonical path or a
@@ -103,6 +123,7 @@ find_mount_point_using_tokens(PlfsConf *pconf,
 // but it currently does pretty much require that in order to read that all
 // backends are mounted (this is for scr-plfs-ssdn-emc project).  will need
 // to be relaxed.
+
 string
 expandPath(string logical, ExpansionInfo *exp_info,
            expansionMethod hash_method, int which_backend, int depth)
@@ -115,8 +136,6 @@ expandPath(string logical, ExpansionInfo *exp_info,
     exp_info->expanded = "UNINITIALIZED";
     // get our initial conf
     static PlfsConf *pconf = NULL;
-    static const char *adio_prefix = "plfs:";
-    static int prefix_length = -1;
     if (!pconf) {
         pconf = get_plfs_conf();
         if (!pconf) {
@@ -131,17 +150,7 @@ expandPath(string logical, ExpansionInfo *exp_info,
         exp_info->Errno = -EINVAL;
         return "INVALID";
     }
-    // rip off an adio prefix if passed.  Not sure how important this is
-    // and not sure how much overhead it adds nor efficiency of implementation
-    // am currently using C-style strncmp instead of C++ string stuff bec
-    // I coded this on plane w/out access to internet
-    if (prefix_length==-1) {
-        prefix_length = strlen(adio_prefix);
-    }
-    if (logical.compare(0,prefix_length,adio_prefix)==0) {
-        logical = logical.substr(prefix_length,logical.size());
-        mlog(INT_DCOMMON, "Ripping %s -> %s", adio_prefix,logical.c_str());
-    }
+    logical = stripPrefixPath(logical);
     // find the appropriate PlfsMount from the PlfsConf
     bool mnt_pt_found = false;
     vector<string> logical_tokens;

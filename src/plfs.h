@@ -69,16 +69,12 @@ typedef void *Plfs_dirp;
        plfs_open and the plfs_create must be unique on each node.
     */
 
-    /* is_plfs_file
-        returns int.  Also if mode_t * is not NULL, leaves it 0 if the path
-        doesn't exist, or if it does exist, it fills it in with S_IFDIR etc
-        This allows multiple possible return values: yes, it is a plfs file,
-        no: it is a directory
-        no: it is a normal flat file
-        no: it is a symbolic link
-        etc.
+    /* is_plfs_path
+       returns:
+       0         if the file/directory/symlink exists inside a plfs_mount
+       -EINVAL   if not
     */
-    int is_plfs_file( const char *path, mode_t * );
+    int is_plfs_path( const char *path);
 
     int plfs_access( const char *path, int mask );
 

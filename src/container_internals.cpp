@@ -94,7 +94,7 @@ container_flatten_index(Container_OpenFile *pfd, const char *logical)
         ret = Container::populateIndex(path,expansion_info.backend,index,false);
         /* XXXCDC: why are we ignoring return value of populateIndex? */
     }
-    if (is_plfs_file(logical,NULL)) {
+    if (is_container_file(logical,NULL)) {
         ret = Container::flattenIndex(path,expansion_info.backend,index);
     } else {
         ret = -EBADF; // not sure here.  Maybe return SUCCESS?
@@ -326,14 +326,14 @@ plfs_file_operation(const char *logical, FileOp& op)
     // if it's a directory, then we operate on all backend copies
     // else just operate on whatever it is (ENOENT, symlink)
     mode_t mode = 0;
-    ret = is_plfs_file(logical,&mode);
+    ret = is_container_file(logical,&mode);
     bool is_container = false; // differentiate btwn logical dir and container
     if (S_ISREG(mode)) { // it's a PLFS file
         if (op.onlyAccessFile()) {
             pb.bpath = Container::getAccessFilePath(path);
             pb.back = expansion_info.backend;
             files.push_back(pb);
-            ret = 0;    // ret was one from is_plfs_file
+            ret = 0;    // ret was one from is_container_file
         } else {
             // everything
             is_container = true;
@@ -403,7 +403,7 @@ container_chown( const char *logical, uid_t u, gid_t g )
 }
 
 int
-is_plfs_file( const char *logical, mode_t *mode )
+is_container_file( const char *logical, mode_t *mode )
 {
     PLFS_ENTER;
     struct plfs_pathback pb;
@@ -504,7 +504,7 @@ container_rename( const char *logical, const char *to )
     struct plfs_pathback npb;
     npb.bpath = new_canonical;
     npb.back = exp_info.backend;
-    if (is_plfs_file(to, NULL)) {
+    if (is_container_file(to, NULL)) {
         ret = container_unlink(to);
         if (ret!=0) {
             PLFS_EXIT(ret);
@@ -1507,7 +1507,7 @@ plfs_locate(const char *logical, void *files_ptr,
     PLFS_ENTER;
     // first, are we locating a PLFS file or a directory or a symlink?
     mode_t mode;
-    ret = is_plfs_file(logical,&mode);
+    ret = is_container_file(logical,&mode);
     // do plfs_locate on a plfs_file
     if (S_ISREG(mode)) { // it's a PLFS file
         vector<plfs_pathback> *files = (vector<plfs_pathback> *)files_ptr;
@@ -1712,7 +1712,7 @@ container_getattr(Container_OpenFile *of, const char *logical,
          path.c_str());
     memset(stbuf,0,sizeof(struct stat));    // zero fill the stat buffer
     mode_t mode = 0;
-    if ( ! is_plfs_file( logical, &mode ) ) {
+    if ( ! is_container_file( logical, &mode ) ) {
         // this is how a symlink is stat'd bec it doesn't look like a plfs file
         if ( mode == 0 ) {
             ret = -ENOENT;
@@ -1784,7 +1784,7 @@ plfs_file_version(const char *logical, const char **version)
     struct plfs_pathback pb;
     (void)ret; // suppress compiler warning
     mode_t mode;
-    if (!is_plfs_file(logical, &mode)) {
+    if (!is_container_file(logical, &mode)) {
         return -ENOENT;
     }
     pb.bpath = path;
@@ -1804,7 +1804,7 @@ container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
     mode_t mode = 0;
     struct stat stbuf;
     stbuf.st_size = 0;
-    if ( !of && ! is_plfs_file( logical, &mode ) ) {
+    if ( !of && ! is_container_file( logical, &mode ) ) {
         // this is weird, we expect only to operate on containers
         if ( mode == 0 ) {
             ret = -ENOENT;
