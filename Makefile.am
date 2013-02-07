@@ -41,6 +41,8 @@
 
 plfsetcdir = $(sysconfdir)/plfs
 
+include_HEADERS = config.h
+
 dist_plfsetc_DATA = \
 VERSION.LAYOUT \
 VERSION
@@ -66,6 +68,7 @@ tests \
 man \
 contrib \
 mpi_adio
+
 
 ACLOCAL_AMFLAGS = -I config
 

@@ -81,7 +81,7 @@ AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 # if so, build using am_silent_rules
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
-AM_CONFIG_HEADER([config.h])
+AC_CONFIG_HEADER([config.h])
 
 AH_TOP([
 /*

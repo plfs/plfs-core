@@ -92,6 +92,7 @@ plfs_is_mnt_ancestor(const char *path){
 //points to a valid plfs location without checking it's existence or
 //doing a stat. It's up to the application developer to then
 //use the path with the plfs api to determine the type of file, etc.
+//returns True (1) or False (0)
 int
 is_plfs_path(const char *path){
     debug_enter(__FUNCTION__,path);
@@ -101,9 +102,9 @@ is_plfs_path(const char *path){
     stripPrefixPath(path, stripped_path);
     LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
     if (logicalfs == NULL){
-        ret = -EINVAL;
-    }else{
         ret = 0;
+    }else{
+        ret = 1;
     }
     debug_exit(__FUNCTION__,path,ret);
     return ret;
