@@ -73,8 +73,8 @@ typedef void *Plfs_dirp;
 
     /* is_plfs_path
        returns:
-       0         if the file/directory/symlink exists inside a plfs_mount
-       -EINVAL   if not
+       1    if the file/directory/symlink exists inside a plfs_mount
+       0    if not
     */
     int is_plfs_path( const char *path);
 
