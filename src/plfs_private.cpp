@@ -717,6 +717,7 @@ setup_mlog(PlfsConf *pconf)
     /* shutdown early mlog config so we can replace with the real one ... */
     mlog_close();
     /* now we are ready to mlog_open ... */
+    
     if (mlog_open(plfs_mlogtag(NULL),
                   /* don't count the null at end of mlog_facsarray */
                   sizeof(mlog_facsarray)/sizeof(mlog_facsarray[0]) - 1,
@@ -767,6 +768,19 @@ setup_mlog(PlfsConf *pconf)
     /* XXXCDC: END LEVEL DEBUG */
 #endif
     return;
+}
+
+/**
+ * Finds and replaces a substring within a string, in place for speed
+ * used for parsing the config file
+ */
+void 
+find_replace(string& subject, const string& search, const string& replace) {
+    size_t pos = 0;
+    while((pos = subject.find(search, pos)) != string::npos) {
+         subject.replace(pos, search.length(), replace);
+         pos += replace.length();
+    }
 }
 
 /**
@@ -896,11 +910,10 @@ static int countchar(int c, char *str) {
  *
  * @param pconf the current config
  * @param pmnt the mount point to try and insert
- * @param file the cfg file we are currently reading
  * @return NULL on success, otherwise an error message string
  */
 string *
-insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt, char *file)
+insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt)
 {
     /*
      * two main mallocs here:
@@ -1043,8 +1056,8 @@ insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt, char *file)
     }
 
     /* finally, insert into list of global mount points */
-    mlog(INT_DCOMMON, "Inserting mount point %s as discovered in %s",
-         pmnt->mnt_pt.c_str(), file);
+    mlog(INT_DCOMMON, "Inserting mount point %s",
+         pmnt->mnt_pt.c_str());
     insert_ret = pconf->mnt_pts.insert(pair<string,PlfsMount *>(pmnt->mnt_pt,
                                                                 pmnt));
     if (!insert_ret.second) {
@@ -1135,6 +1148,179 @@ expand_macros(const char *target) {
 }
 
 /**
+ * 
+ * This templates define the mapping between a YAML::Node populated by
+ * keys/values from the config file to the PlfsConf structure
+ * 
+ */
+namespace YAML {
+   template<>
+   struct convert<PlfsConf> {
+       static bool decode(const Node& node, PlfsConf& pconf) {
+           if(node["global_params"]) {
+               set_default_confs(&pconf);
+               if(node["num_hostdirs"]) {
+                   pconf.num_hostdirs = min(node["num_hostdirs"].as<size_t>(),
+                                            (size_t)MAX_HOSTDIRS);
+               }
+               if(node["threadpool_size"]) pconf.threadpool_size = 
+                   max(node["threadpool_size"].as<size_t>(), (size_t)1);
+               if(node["lazy_stat"]) pconf.lazy_stat = 
+                   node["lazy_stat"].as<bool>();
+               if(node["index_buffer_mbs"]) pconf.buffer_mbs = 
+                   node["index_buffer_mbs"].as<size_t>();
+               if(node["global_summary_dir"]) {
+                   pconf.global_summary_dir = 
+                       strdup(node["global_summary_dir"].as<string>().c_str());
+                   pconf.global_sum_io.prefix = 
+                       strdup(node["global_summary_dir"].as<string>().c_str());
+               }
+               if(node["test_metalink"]) 
+                   pconf.test_metalink = node["test_metalink"].as<bool>();
+               if(node["mlog_stderr"]) {
+                   if (node["mlog_stderr"].as<bool>())
+                       pconf.mlog_flags |= MLOG_STDERR;
+                   else
+                       pconf.mlog_flags &= ~MLOG_STDERR;
+               }
+               if(node["mlog_ucon"]) {
+                   if (node["mlog_ucon"].as<bool>())
+                       pconf.mlog_flags |= (MLOG_UCON_ON|MLOG_UCON_ENV);
+                   else
+                       pconf.mlog_flags &= ~(MLOG_UCON_ON|MLOG_UCON_ENV);
+               }
+               if(node["mlog_syslog"]) {
+                   if (node["mlog_syslog"].as<bool>())
+                       pconf.mlog_flags |= MLOG_SYSLOG;
+                   else
+                       pconf.mlog_flags &= ~MLOG_SYSLOG;
+               }
+               if(node["mlog_defmask"]) {
+                   pconf.mlog_defmask = 
+                       mlog_str2pri(node["mlog_defmask"]. \
+                           as<string>().c_str());
+               }
+               if(node["mlog_stderrmask"]) {
+                   pconf.mlog_stderrmask = 
+                       mlog_str2pri(node["mlog_stderrmask"]. \
+                           as<string>().c_str());
+               }
+               if(node["mlog_file"]) {
+                   if(!(strchr(node["mlog_file"].as<string>().c_str(),
+                           '%') != NULL))
+                       pconf.mlog_file = 
+                           strdup(node["mlog_file"].as<string>().c_str());
+                   else {
+                       pconf.mlog_file_base = 
+                           strdup(node["mlog_file"].as<string>().c_str());
+                       pconf.mlog_file = 
+                           strdup(expand_macros(node["mlog_file"]. \
+                               as<string>().c_str()).c_str());
+                   }
+               }
+               if(node["mlog_msgbuf_size"]) pconf.mlog_msgbuf_size =
+                   node["mlog_msgbuf_size"].as<size_t>();
+               if(node["mlog_syslogfac"]) {
+                   pconf.mlog_syslogfac = 
+                       node["mlog_syslogfac"].as<string>().c_str()[5];
+               }
+               if(node["mlog_setmasks"]) {
+                   string temp = node["mlog_setmasks"].as<string>();
+                   find_replace(temp, " ", ",");
+                   pconf.mlog_setmasks = strdup(temp.c_str());
+               }
+               if(node["fuse_crash_log"]) pconf.fuse_crash_log = 
+                       strdup(node["fuse_crash_log"].as<string>().c_str());
+               return true;
+           }
+           else
+               return false;
+       }
+   };
+   
+   template<>
+   struct convert<PlfsMount> {
+       static bool decode(const Node& node, PlfsMount& pmntp) {
+           if (node["mount_point"]) {
+               set_default_mount(&pmntp);
+               pmntp.mnt_pt = node["mount_point"].as<string>();
+               Util::tokenize(pmntp.mnt_pt,"/",pmntp.mnt_tokens);
+               if(node["workload"]) {
+                   if(node["workload"].as<string>() == "file_per_proc" ||
+                           node["workload"].as<string>() == "n-n") {
+                       pmntp.file_type = FLAT_FILE;
+                       pmntp.fs_ptr = &flatfs;
+                   }
+                   else if(node["workload"].as<string>() == "shared_file" ||
+                           node["workload"].as<string>() == "n-1") {
+                       pmntp.file_type = CONTAINER;
+                       pmntp.fs_ptr = &containerfs;
+                   }
+                   else {
+                       mlog(MLOG_DBG, "Unknown workload type");
+                   }
+               }
+               if(node["statfs"]) {
+                   pmntp.statfs = new string(node["statfs"].as<string>());
+                   pmntp.statfs_io.prefix = 
+                       strdup(node["statfs"].as<string>().c_str());
+               }
+               if(node["backends"]) {
+                   string backspec;
+                   string canspec;
+                   string shadowspec;
+                   for(unsigned i = 0; i < node["backends"].size(); i++) {
+                       if(node["backends"][i]["type"]) {
+                           if(node["backends"][i]["type"].as<string>() == 
+                                   "canonical") {
+                               if (!canspec.empty())
+                                   canspec.append(",");
+                               canspec.append(node["backends"][i]["location"]. \
+                                       as<string>());
+                           }
+                           else if(node["backends"][i]["type"].as<string>() == 
+                                   "shadow") {
+                               if (!shadowspec.empty())
+                                   shadowspec.append(",");
+                               shadowspec.append(node["backends"][i]["location"]. \
+                                       as<string>());
+                           }
+                           else {
+                               mlog(MLOG_DBG, "Unknown backend type");
+                           }
+                       }
+                       else {
+                           if (!backspec.empty())
+                               backspec.append(",");
+                           backspec.append(node["backends"][i]["location"]. \
+                                   as<string>());
+                       }
+                   }
+                   if (!backspec.empty()) {
+                       pmntp.backspec = strdup(backspec.c_str());
+                       pmntp.checksum = 
+                           (unsigned)Container::hashValue(backspec.c_str());
+                   }
+                   if (!canspec.empty())
+                       pmntp.canspec = strdup(canspec.c_str());
+                   if (!shadowspec.empty())
+                       pmntp.shadowspec = strdup(shadowspec.c_str());
+               }
+               if(node["syncer_ip"]) {
+                   pmntp.syncer_ip = 
+                           new string(node["syncer_ip"].as<string>());
+                   mlog(MLOG_DBG, "Discovered syncer_ip %s\n",
+                       pmntp.syncer_ip->c_str());
+               }
+               return true;
+           }
+           return false;
+       }
+   };
+}
+
+
+/**
  * parse_conf_keyval: parse a single conf key/value entry.  void, but will
  * set pconf->err_msg on error.
  *
@@ -1170,7 +1356,7 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
         if ( include == NULL ) {
             pconf->err_msg = new string("open include file failed");
         } else {
-            pconf = parse_conf(include, value, pconf);  // recurse
+//            pconf = parse_conf(include, value, pconf);  // recurse
             fclose(include);
         }
     } else if(strcmp(key,"threadpool_size")==0) {
@@ -1213,8 +1399,8 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
     } else if (strcmp(key,"mount_point")==0) {
         // clear and save the previous one
         if (*pmntp) {
-            pconf->err_msg = insert_mount_point(pconf,*pmntp,
-                                                file);
+//            pconf->err_msg = insert_mount_point(pconf,*pmntp,
+//                                                file);
             if(pconf->err_msg) {
                 return;
             }
@@ -1393,7 +1579,7 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
 }
 
 PlfsConf *
-parse_conf(FILE *fp, string file, PlfsConf *pconf)
+parse_conf(YAML::Node cnode, string file, PlfsConf *pconf)
 {
     bool top_of_stack = (pconf==NULL); // this recurses.  Remember who is top.
     pair<set<string>::iterator, bool> insert_ret;
@@ -1408,29 +1594,47 @@ parse_conf(FILE *fp, string file, PlfsConf *pconf)
         pconf->err_msg = new string("include file included more than once");
         return pconf;
     }
-    char input[8192];
-    char key[8192];
-    char value[8192];
-    int line = 0;
-    while(fgets(input,8192,fp)) {
-        line++;
-        if (input[0]=='\n' || input[0] == '\r' || input[0]=='#') {
-            continue;
+    
+    // only special case here is include
+    // if any includes, recurse
+    // probably get rid of parse_conf_keyval entirely
+    for (unsigned i = 0; i < cnode.size(); i++) {
+        if (cnode[i]["include"]) {
+            string inc_file = cnode[i]["include"].as<string>();
+            YAML::Node inc_node;
+            try {
+                inc_node = YAML::LoadFile(inc_file);
+            }
+            catch (exception& e) {
+                pconf->err_msg = new string("Include file not found.");
+            }
+            if (!inc_node)
+                pconf = parse_conf(inc_node, inc_file, pconf);
         }
-        sscanf(input, "%s %s\n", key, value);
-        mlog(MLOG_DBG, "Read %s %s (%d)", key, value,line);
-        parse_conf_keyval(pconf, &pconf->tmp_mnt, (char *)file.c_str(),
-                          key, value);
-        if (pconf->err_msg) {
-            break;
+        else if (cnode[i]["global_params"]) {
+            try { *pconf = cnode[i].as<PlfsConf>(); }
+            catch (exception &e) {
+                pconf->err_msg = 
+                    new string("Config parsing failure: %s", e.what());
+            }
+        }
+        else if (cnode[i]["mount_point"]) {
+            pconf->tmp_mnt = new PlfsMount;
+            set_default_mount(pconf->tmp_mnt);
+            try { *pconf->tmp_mnt = cnode[i].as<PlfsMount>(); }
+            catch (exception &e) {
+                pconf->err_msg = 
+                    new string("Config parsing failure: %s", e.what());
+            }
+            pconf->err_msg = insert_mount_point(pconf, pconf->tmp_mnt);
         }
     }
     mlog(MLOG_DBG, "Got EOF from parsing conf %s",file.c_str());
     // save the final mount point.  Make sure there is at least one.
     if (top_of_stack) {
         if (!pconf->err_msg && pconf->tmp_mnt) {
-            pconf->err_msg = insert_mount_point(
-                                 pconf,pconf->tmp_mnt,(char *)file.c_str());
+//            pconf->err_msg = insert_mount_point(
+//                                 pconf,pconf->tmp_mnt,(char *)file.c_str());
             pconf->tmp_mnt = NULL;
         }
         if (!pconf->err_msg && pconf->mnt_pts.size()<=0 && top_of_stack) {
@@ -1440,7 +1644,7 @@ parse_conf(FILE *fp, string file, PlfsConf *pconf)
     if(pconf->err_msg) {
         mlog(MLOG_DBG, "Error in the conf file: %s", pconf->err_msg->c_str());
         ostringstream error_msg;
-        error_msg << "Parse error in " << file << " line " << line << ": "
+        error_msg << "Parse error in " << file << ": "
                   << pconf->err_msg->c_str() << endl;
         delete pconf->err_msg;
         pconf->err_msg = new string(error_msg.str());
@@ -1499,12 +1703,15 @@ get_plfs_conf()
     // the C++ way to parse like this is istringstream (bleh)
     for( size_t i = 0; i < possible_files.size(); i++ ) {
         string file = possible_files[i];
-        FILE *fp = fopen(file.c_str(),"r");
-        if ( fp == NULL ) {
+        YAML::Node cnode;
+        try { 
+            cnode = YAML::LoadFile(file.c_str());
+        }
+        catch (exception& e) {
+            mlog(MLOG_DBG, "YAML load exception: %s", e.what());
             continue;
         }
-        PlfsConf *tmppconf = parse_conf(fp,file,NULL);
-        fclose(fp);
+        PlfsConf *tmppconf = parse_conf(cnode,file,NULL);
         if(tmppconf) {
             if(tmppconf->err_msg) {
                 pthread_mutex_unlock(&confmutex);

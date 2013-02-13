@@ -8,6 +8,7 @@
 #include "LogicalFS.h"
 #include "FileOp.h"
 #include "Container.h"
+#include "yaml-cpp/yaml.h"
 
 #include <map>
 #include <set>
@@ -130,7 +131,7 @@ typedef struct {
     PlfsMount *tmp_mnt; // just used during parsing
 
     /* mlog related settings, read from plfsrc, allow for cmd line override */
-    int mlog_flags;        /* mlog flag value to use (stderr,ucon,syslog) */
+    uint32_t mlog_flags;        /* mlog flag value to use (stderr,ucon,syslog) */
     int mlog_defmask;      /* default mlog logging level */
     int mlog_stderrmask;   /* force mlog to stderr if level >= to this value */
     char *mlog_file_base;  /* pre-expanded version of logfile, if needed */
@@ -143,7 +144,7 @@ typedef struct {
     char *fuse_crash_log;
 } PlfsConf;
 
-PlfsConf *parse_conf(FILE *fp, string file, PlfsConf *pconf);
+PlfsConf *parse_conf(YAML::Node cnode, string file, PlfsConf *pconf);
 
 /* get_plfs_conf
    get a pointer to a struct holding plfs configuration values

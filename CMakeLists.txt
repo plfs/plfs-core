@@ -117,7 +117,12 @@ find_package (Threads REQUIRED)
 if (Threads_FOUND)
     target_link_libraries (plfs_lib ${CMAKE_THREAD_LIBS_INIT})
 endif (Threads_FOUND)
-    
+
+#yaml-cpp
+find_package (YAMLCPP REQUIRED)
+if (YAMLCPP_FOUND)
+    target_link_libraries (plfs_lib ${YAMLCPP_LIBRARY})
+endif (YAMLCPP_FOUND)
 
 #fuse
 find_package(FUSE)
