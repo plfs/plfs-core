@@ -16,8 +16,7 @@
 
 #include <syslog.h>    /* for mlog init */
 
-static void parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
-                              char *key, char *value);
+static void parse_mlog_keyval(PlfsConf *pconf, char *key, char *value);
 
 
 // the expansion info doesn't include a string for the backend
@@ -577,6 +576,47 @@ plfs_init()
     return ret;
 }
 
+void
+set_default_mount(PlfsMount *pmnt)
+{
+    pmnt->statfs = pmnt->syncer_ip = NULL;
+    pmnt->statfs_io.prefix = NULL;
+    pmnt->statfs_io.store = NULL;
+    pmnt->file_type = CONTAINER;
+    pmnt->fs_ptr = &containerfs;
+    pmnt->checksum = (unsigned)-1;
+    pmnt->backspec = pmnt->canspec = pmnt->shadowspec = NULL;
+    pmnt->attached = pmnt->nback = pmnt->ncanback = pmnt->nshadowback = 0;
+    pmnt->backstore = NULL;
+    pmnt->backends = pmnt->canonical_backends = pmnt->shadow_backends = NULL;
+}
+
+void
+set_default_confs(PlfsConf *pconf)
+{
+    pconf->num_hostdirs = 32;
+    pconf->threadpool_size = 8;
+    pconf->direct_io = 0;
+    pconf->lazy_stat = 1;
+    pconf->err_msg = NULL;
+    pconf->buffer_mbs = 64;
+    pconf->global_summary_dir = NULL;
+    pconf->global_sum_io.prefix = NULL;
+    pconf->global_sum_io.store = NULL;
+    pconf->test_metalink = 0;
+    /* default mlog settings */
+    pconf->mlog_flags = MLOG_LOGPID;
+    pconf->mlog_defmask = MLOG_WARN;
+    pconf->mlog_stderrmask = MLOG_CRIT;
+    pconf->mlog_file_base = NULL;
+    pconf->mlog_file = NULL;
+    pconf->mlog_msgbuf_size = 4096;
+    pconf->mlog_syslogfac = LOG_USER;
+    pconf->mlog_setmasks = NULL;
+    pconf->tmp_mnt = NULL;
+    pconf->fuse_crash_log = NULL;
+}
+
 /**
  * plfs_mlogargs: manage mlog command line args (override plfsrc).
  *
@@ -665,6 +705,11 @@ setup_mlog(PlfsConf *pconf)
     char *ev, *p, **mav, *start;
     char tmpbuf[64];   /* must be larger than any envs in menvs[] */
     const char *level;
+    YAML::Node mlog_args;
+    PlfsConf temp_conf, default_conf; // to only override new mlog params
+    mlog_args["global_params"] = ""; // set this as a global_params node
+    set_default_confs(&default_conf);
+    
     /* read in any config from the environ */
     for (lcv = 0 ; menvs[lcv] != NULL ; lcv++) {
         ev = getenv(menvs[lcv]);
@@ -677,13 +722,7 @@ setup_mlog(PlfsConf *pconf)
                 *p = tolower(*p);
             }
         }
-        parse_conf_keyval(pconf, NULL, NULL, tmpbuf, ev);
-        if (pconf->err_msg) {
-            mlog(MLOG_WARN, "ignore env var %s: %s", menvs[lcv],
-                 pconf->err_msg->c_str());
-            delete pconf->err_msg;
-            pconf->err_msg = NULL;
-        }
+        mlog_args[tmpbuf] = ev;
     }
     /* recover command line arg key/value pairs, if any */
     mav = plfs_mlogargs(&mac, NULL);
@@ -693,31 +732,38 @@ setup_mlog(PlfsConf *pconf)
             if (start[0] == '-' && start[1] == '-') {
                 start += 2;    /* skip "--" */
             }
-            parse_conf_keyval(pconf, NULL, NULL, start, mav[lcv+1]);
-            if (pconf->err_msg) {
-                mlog(MLOG_WARN, "ignore cmd line %s flag: %s", start,
-                     pconf->err_msg->c_str());
-                delete pconf->err_msg;
-                pconf->err_msg = NULL;
-            }
+            mlog_args[start] = mav[lcv+1];
         }
     }
     /* simplified high-level env var config, part 1 (WHERE) */
     ev = getenv("PLFS_DEBUG_WHERE");
     if (ev) {
-        parse_conf_keyval(pconf, NULL, NULL, (char *)"mlog_file", ev);
-        if (pconf->err_msg) {
-            mlog(MLOG_WARN, "PLFS_DEBUG_WHERE error: %s",
-                 pconf->err_msg->c_str());
-            delete pconf->err_msg;
-            pconf->err_msg = NULL;
-        }
+        mlog_args["mlog_file"] = ev;
     }
+    // now we have a YAML::Node with the parameters we want to override
+    try { temp_conf = mlog_args.as<PlfsConf>(); }
+    catch(exception &e) {
+        mlog(MLOG_WARN, "mlog config parsing error: %s", e.what());
+    }
+    // now compare to the default config and update any that differ
+    // this is a bit messy/verbose...but is simple to change if need be
+    if (temp_conf.mlog_flags != default_conf.mlog_flags)
+        pconf->mlog_flags &= temp_conf.mlog_flags;
+    if (temp_conf.mlog_defmask != default_conf.mlog_defmask)
+        pconf->mlog_defmask = temp_conf.mlog_defmask;
+    if (temp_conf.mlog_file != NULL) {
+        pconf->mlog_file = strdup(temp_conf.mlog_file);
+        if (temp_conf.mlog_file_base)
+            pconf->mlog_file_base = strdup(temp_conf.mlog_file_base);
+    }
+    if (temp_conf.mlog_msgbuf_size != default_conf.mlog_msgbuf_size)
+        pconf->mlog_msgbuf_size = temp_conf.mlog_msgbuf_size;
+    if (temp_conf.mlog_syslogfac != default_conf.mlog_syslogfac)
+        pconf->mlog_syslogfac = temp_conf.mlog_syslogfac;
     /* end of part 1 of simplified high-level env var config */
     /* shutdown early mlog config so we can replace with the real one ... */
     mlog_close();
     /* now we are ready to mlog_open ... */
-    
     if (mlog_open(plfs_mlogtag(NULL),
                   /* don't count the null at end of mlog_facsarray */
                   sizeof(mlog_facsarray)/sizeof(mlog_facsarray[0]) - 1,
@@ -771,8 +817,12 @@ setup_mlog(PlfsConf *pconf)
 }
 
 /**
- * Finds and replaces a substring within a string, in place for speed
- * used for parsing the config file
+ * find_replace: finds and replaces all substrings within a string, 
+ * in place for speed...used for parsing the config file
+ *
+ * @param subject the string to search through
+ * @param search the string to find in subject
+ * @param replace the string to insert into subject
  */
 void 
 find_replace(string& subject, const string& search, const string& replace) {
@@ -1076,49 +1126,6 @@ insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt)
     return(error);
 }
 
-void
-set_default_mount(PlfsMount *pmnt)
-{
-    pmnt->statfs = pmnt->syncer_ip = NULL;
-    pmnt->statfs_io.prefix = NULL;
-    pmnt->statfs_io.store = NULL;
-    pmnt->file_type = CONTAINER;
-    pmnt->fs_ptr = &containerfs;
-    pmnt->checksum = (unsigned)-1;
-    pmnt->backspec = pmnt->canspec = pmnt->shadowspec = NULL;
-    pmnt->attached = pmnt->nback = pmnt->ncanback = pmnt->nshadowback = 0;
-    pmnt->backstore = NULL;
-    pmnt->backends = pmnt->canonical_backends = pmnt->shadow_backends = NULL;
-}
-
-void
-set_default_confs(PlfsConf *pconf)
-{
-    pconf->num_hostdirs = 32;
-    pconf->threadpool_size = 8;
-    pconf->direct_io = 0;
-    pconf->lazy_stat = 1;
-    pconf->err_msg = NULL;
-    pconf->buffer_mbs = 64;
-    pconf->global_summary_dir = NULL;
-    pconf->global_sum_io.prefix = NULL;
-    pconf->global_sum_io.store = NULL;
-    pconf->test_metalink = 0;
-    /* default mlog settings */
-    pconf->mlog_flags = MLOG_LOGPID;
-    pconf->mlog_defmask = MLOG_WARN;
-    pconf->mlog_stderrmask = MLOG_CRIT;
-    pconf->mlog_file_base = NULL;
-    pconf->mlog_file = NULL;
-    pconf->mlog_msgbuf_size = 4096;
-    pconf->mlog_syslogfac = LOG_USER;
-    pconf->mlog_setmasks = NULL;
-    pconf->tmp_mnt = NULL;
-    pconf->fuse_crash_log = NULL;
-}
-
-
-
 // a helper function that expands %t, %p, %h in mlog file name
 string
 expand_macros(const char *target) {
@@ -1149,8 +1156,11 @@ expand_macros(const char *target) {
 
 /**
  * 
- * This templates define the mapping between a YAML::Node populated by
- * keys/values from the config file to the PlfsConf structure
+ * These templates define the mapping between a YAML::Node populated by
+ * keys/values from the config file to the PlfsConf and PlfsMount structures
+ * 
+ * NOTE: The return of this is a new PlfsConf structure from scratch -
+ * if you set the return of this to an existing PlfsConf it will overwrite it
  * 
  */
 namespace YAML {
@@ -1199,11 +1209,15 @@ namespace YAML {
                    pconf.mlog_defmask = 
                        mlog_str2pri(node["mlog_defmask"]. \
                            as<string>().c_str());
+                   if(pconf.mlog_defmask < 0)
+                       pconf.err_msg = new string ("Bad mlog_defmask");
                }
                if(node["mlog_stderrmask"]) {
                    pconf.mlog_stderrmask = 
                        mlog_str2pri(node["mlog_stderrmask"]. \
                            as<string>().c_str());
+                   if(pconf.mlog_stderrmask < 0)
+                       pconf.err_msg = new string ("Bad mlog_stderrmask");
                }
                if(node["mlog_file"]) {
                    if(!(strchr(node["mlog_file"].as<string>().c_str(),
@@ -1218,11 +1232,44 @@ namespace YAML {
                                as<string>().c_str()).c_str());
                    }
                }
-               if(node["mlog_msgbuf_size"]) pconf.mlog_msgbuf_size =
+               if(node["mlog_msgbuf_size"]) {
+                   pconf.mlog_msgbuf_size =
                    node["mlog_msgbuf_size"].as<size_t>();
+                   if (pconf.mlog_msgbuf_size && pconf.mlog_msgbuf_size < 256)
+                       pconf.err_msg = new string("mlog_msgbuf_size too small");
+               }
                if(node["mlog_syslogfac"]) {
-                   pconf.mlog_syslogfac = 
-                       node["mlog_syslogfac"].as<string>().c_str()[5];
+                   int temp = 
+                       atoi(&node["mlog_syslogfac"].as<string>().c_str()[5]);
+                   switch (temp) {
+                   case 0:
+                       pconf.mlog_syslogfac = LOG_LOCAL0;
+                       break;
+                   case 1:
+                       pconf.mlog_syslogfac = LOG_LOCAL1;
+                       break;
+                   case 2:
+                       pconf.mlog_syslogfac = LOG_LOCAL2;
+                       break;
+                   case 3:
+                       pconf.mlog_syslogfac = LOG_LOCAL3;
+                       break;
+                   case 4:
+                       pconf.mlog_syslogfac = LOG_LOCAL4;
+                       break;
+                   case 5:
+                       pconf.mlog_syslogfac = LOG_LOCAL5;
+                       break;
+                   case 6:
+                       pconf.mlog_syslogfac = LOG_LOCAL6;
+                       break;
+                   case 7:
+                       pconf.mlog_syslogfac = LOG_LOCAL7;
+                       break;
+                   default:
+                       pconf.err_msg = 
+                           new string("bad mlog_syslogfac value");
+                   }
                }
                if(node["mlog_setmasks"]) {
                    string temp = node["mlog_setmasks"].as<string>();
@@ -1257,7 +1304,7 @@ namespace YAML {
                        pmntp.fs_ptr = &containerfs;
                    }
                    else {
-                       mlog(MLOG_DBG, "Unknown workload type");
+                       mlog(MLOG_ERR, "Unknown workload type");
                    }
                }
                if(node["statfs"]) {
@@ -1286,7 +1333,7 @@ namespace YAML {
                                        as<string>());
                            }
                            else {
-                               mlog(MLOG_DBG, "Unknown backend type");
+                               mlog(MLOG_ERR, "Unknown backend type");
                            }
                        }
                        else {
@@ -1319,265 +1366,6 @@ namespace YAML {
    };
 }
 
-
-/**
- * parse_conf_keyval: parse a single conf key/value entry.  void, but will
- * set pconf->err_msg on error.
- *
- * @param pconf the pconf we are loading into
- * @param pmntp pointer to current mount pointer
- * @param key the key value
- * @param value the value of the key
- */
-static void
-parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
-                  char *key, char *value)
-{
-    int v;
-    if(strcmp(key,"index_buffer_mbs")==0) {
-        pconf->buffer_mbs = atoi(value);
-    } else if(strcmp(key,"workload")==0) {
-        if( !*pmntp ) {
-            pconf->err_msg = new string("No mount point yet declared");
-            return;
-        }
-        if (strcmp(value,"file_per_proc")==0||strcmp(value,"n-n")==0) {
-            (*pmntp)->file_type = FLAT_FILE;
-            (*pmntp)->fs_ptr = &flatfs;
-        } else if (strcmp(value,"shared_file")==0||strcmp(value,"n-1")==0) {
-            (*pmntp)->file_type = CONTAINER;
-            (*pmntp)->fs_ptr = &containerfs;
-        } else {
-            pconf->err_msg = new string("unknown workload type");
-            return;
-        }
-    } else if(strcmp(key,"include")==0) {
-        FILE *include = fopen(value,"r");
-        if ( include == NULL ) {
-            pconf->err_msg = new string("open include file failed");
-        } else {
-//            pconf = parse_conf(include, value, pconf);  // recurse
-            fclose(include);
-        }
-    } else if(strcmp(key,"threadpool_size")==0) {
-        pconf->threadpool_size = atoi(value);
-        if (pconf->threadpool_size <=0) {
-            pconf->err_msg = new string("illegal negative value");
-        }
-    }else if (strcmp(key,"fuse_crash_log") == 0) {
-        pconf->fuse_crash_log = strdup(value);
-
-        if (pconf->fuse_crash_log == NULL) {
-            pconf->err_msg = new string("Unable to set fuse_crash_log");
-         }
-    } else if (strcmp(key,"global_summary_dir")==0) {
-        pconf->global_summary_dir = strdup(value);
-        /* second copy gets chopped up by attach code */
-        pconf->global_sum_io.prefix = strdup(value);
-        if (pconf->global_summary_dir == NULL ||
-            pconf->global_sum_io.prefix == NULL) {
-            pconf->err_msg = new string("unable to malloc global_summary_dir");
-        }
-    } else if (strcmp(key,"test_metalink")==0) {
-        pconf->test_metalink = atoi(value);
-        if (pconf->test_metalink) {
-            fprintf(stderr,"WARNING: Running in testing mode with"
-                    " test_metalink.  If this is a production installation"
-                    " or if performance is important, pls edit %s to"
-                    " remove the test_metalink directive\n", file);
-        }
-    } else if (strcmp(key,"num_hostdirs")==0) {
-        pconf->num_hostdirs = atoi(value);
-        if (pconf->num_hostdirs <= 0) {
-            pconf->err_msg = new string("illegal negative value");
-        }
-        if (pconf->num_hostdirs > MAX_HOSTDIRS) {
-            pconf->num_hostdirs = MAX_HOSTDIRS;
-        }
-    } else if (strcmp(key,"lazy_stat")==0) {
-        pconf->lazy_stat = atoi(value)==0 ? 0 : 1;
-    } else if (strcmp(key,"mount_point")==0) {
-        // clear and save the previous one
-        if (*pmntp) {
-//            pconf->err_msg = insert_mount_point(pconf,*pmntp,
-//                                                file);
-            if(pconf->err_msg) {
-                return;
-            }
-            *pmntp = NULL;
-        }
-        // now set up the beginnings of the first one
-        *pmntp = new PlfsMount;
-        set_default_mount(*pmntp);
-        (*pmntp)->mnt_pt = value;
-        Util::tokenize((*pmntp)->mnt_pt,"/",
-                       (*pmntp)->mnt_tokens);
-    } else if (strcmp(key,"statfs")==0) {
-        if( !*pmntp ) {
-            pconf->err_msg = new string("No mount point yet declared");
-        }
-        (*pmntp)->statfs = new string(value);
-        (*pmntp)->statfs_io.prefix = strdup(value);
-        if ( (*pmntp)->statfs_io.prefix == NULL) {
-            pconf->err_msg = new string("Unable to malloc statfs");
-        }
-    } else if (strcmp(key,"backends")==0) {
-        if( !*pmntp ) {
-            pconf->err_msg = new string("No mount point yet declared");
-        } else {
-            (*pmntp)->backspec = strdup(value); /* XXX (old val?) */
-            if ((*pmntp)->backspec == NULL) {
-                pconf->err_msg = new string("unable to malloc backends");
-            } else {
-                (*pmntp)->checksum = (unsigned)Container::hashValue(value);
-            }
-        }
-    } else if (strcmp(key, "canonical_backends") == 0) {
-        if( !*pmntp ) {
-            pconf->err_msg = new string("No mount point yet declared");
-        } else {
-            (*pmntp)->canspec = strdup(value); /* XXX (old val?) */
-            if ((*pmntp)->canspec == NULL) {
-                pconf->err_msg = new string("unable to malloc can backends");
-            } 
-        }
-    } else if (strcmp(key, "shadow_backends") == 0) {
-        if( !*pmntp ) {
-            pconf->err_msg = new string("No mount point yet declared");
-        } else {
-            (*pmntp)->shadowspec = strdup(value); /* XXX (old val?) */
-            if ((*pmntp)->shadowspec == NULL) {
-                pconf->err_msg = new string("malloc shadow backends failed");
-            } 
-        }
-    } else if (strcmp(key, "syncer_ip") == 0) {
-        if( !*pmntp ) {
-            pconf->err_msg = new string("No mount point yet declared");
-        } else {
-            (*pmntp)->syncer_ip = new string(value);
-            mlog(MLOG_DBG, "Discovered syncer_ip %s\n",
-                 (*pmntp)->syncer_ip->c_str());
-        }
-    } else if (strcmp(key, "mlog_stderr") == 0) {
-        v = atoi(value);
-        if (v) {
-            pconf->mlog_flags |= MLOG_STDERR;
-        } else {
-            pconf->mlog_flags &= ~MLOG_STDERR;
-        }
-    } else if (strcmp(key, "mlog_ucon") == 0) {
-        v = atoi(value);
-        if (v) {
-            pconf->mlog_flags |= (MLOG_UCON_ON|MLOG_UCON_ENV);
-        } else {
-            pconf->mlog_flags &= ~(MLOG_UCON_ON|MLOG_UCON_ENV);
-        }
-    } else if (strcmp(key, "mlog_syslog") == 0) {
-        v = atoi(value);
-        if (v) {
-            pconf->mlog_flags |= MLOG_SYSLOG;
-        } else {
-            pconf->mlog_flags &= ~MLOG_SYSLOG;
-        }
-    } else if (strcmp(key, "mlog_defmask") == 0) {
-        pconf->mlog_defmask = mlog_str2pri(value);
-        if (pconf->mlog_defmask < 0) {
-            pconf->err_msg = new string("Bad mlog_defmask value");
-        }
-    } else if (strcmp(key, "mlog_stderrmask") == 0) {
-        pconf->mlog_stderrmask = mlog_str2pri(value);
-        if (pconf->mlog_stderrmask < 0) {
-            pconf->err_msg = new string("Bad mlog_stderrmask value");
-        }
-    } else if (strcmp(key, "mlog_file") == 0) {
-        v = (strchr(value, '%') != NULL);  /* expansion required? */
-        if (!v) {
-            /* mlog_file_base remains NULL */
-            pconf->mlog_file = strdup(value);
-        } else {
-            /* save value for expanding when calling mlog_reopen() */
-            pconf->mlog_file_base = strdup(value);
-            if (pconf->mlog_file_base != NULL) {
-                pconf->mlog_file = strdup(expand_macros(value).c_str());
-            }
-        }
-        if (pconf->mlog_file == NULL) {
-            /*
-             * XXX: strdup fails, new will too, and we don't handle
-             * exceptions... so we'll assert here.
-             */
-            if (pconf->mlog_file_base != NULL) {
-                free(pconf->mlog_file_base);
-                pconf->mlog_file_base = NULL;
-            }
-            pconf->err_msg = new string("Unable to malloc mlog_file");
-        }
-    } else if (strcmp(key, "mlog_msgbuf_size") == 0) {
-        pconf->mlog_msgbuf_size = atoi(value);
-        /*
-         * 0 means disable it.  negative non-zero values or very
-         * small positive numbers don't make sense, so disallow.
-         */
-        if (pconf->mlog_msgbuf_size < 0 ||
-                (pconf->mlog_msgbuf_size > 0 &&
-                 pconf->mlog_msgbuf_size < 256)) {
-            pconf->err_msg = new string("Bad mlog_msgbuf_size");
-        }
-    } else if (strcmp(key, "mlog_syslogfac") == 0) {
-        if (strncmp(value, "LOCAL", 5) != 0) {
-            pconf->err_msg = new string("mlog_syslogfac must be LOCALn");
-            return;
-        }
-        v = atoi(&value[5]);
-        switch (v) {
-        case 0:
-            v = LOG_LOCAL0;
-            break;
-        case 1:
-            v = LOG_LOCAL1;
-            break;
-        case 2:
-            v = LOG_LOCAL2;
-            break;
-        case 3:
-            v = LOG_LOCAL3;
-            break;
-        case 4:
-            v = LOG_LOCAL4;
-            break;
-        case 5:
-            v = LOG_LOCAL5;
-            break;
-        case 6:
-            v = LOG_LOCAL6;
-            break;
-        case 7:
-            v = LOG_LOCAL7;
-            break;
-        default:
-            v = -1;
-        }
-        if (v == -1) {
-            pconf->err_msg = new string("bad mlog_syslogfac value");
-            return;
-        }
-        pconf->mlog_syslogfac = v;
-    } else if (strcmp(key, "mlog_setmasks") == 0) {
-        pconf->mlog_setmasks = strdup(value);
-        if (pconf->mlog_setmasks == NULL) {
-            /*
-             * XXX: strdup fails, new will too, and we don't handle
-             * exceptions... so we'll assert here.
-             */
-            pconf->err_msg = new string("Unable to malloc mlog_setmasks");
-        }
-    } else {
-        ostringstream error_msg;
-        error_msg << "Unknown key " << key;
-        pconf->err_msg = new string(error_msg.str());
-    }
-}
-
 PlfsConf *
 parse_conf(YAML::Node cnode, string file, PlfsConf *pconf)
 {
@@ -1586,7 +1374,6 @@ parse_conf(YAML::Node cnode, string file, PlfsConf *pconf)
     if (!pconf) {
         pconf = new PlfsConf; /* XXX: and if new/malloc fails? */
         set_default_confs(pconf);
-        pconf->file = file;
     }
     insert_ret = pconf->files.insert(file);
     mlog(MLOG_DBG, "Parsing %s", file.c_str());
@@ -1594,7 +1381,6 @@ parse_conf(YAML::Node cnode, string file, PlfsConf *pconf)
         pconf->err_msg = new string("include file included more than once");
         return pconf;
     }
-    
     // only special case here is include
     // if any includes, recurse
     // probably get rid of parse_conf_keyval entirely
@@ -1602,21 +1388,26 @@ parse_conf(YAML::Node cnode, string file, PlfsConf *pconf)
         if (cnode[i]["include"]) {
             string inc_file = cnode[i]["include"].as<string>();
             YAML::Node inc_node;
-            try {
-                inc_node = YAML::LoadFile(inc_file);
-            }
+            try { inc_node = YAML::LoadFile(inc_file); }
             catch (exception& e) {
                 pconf->err_msg = new string("Include file not found.");
+                break;
             }
-            if (!inc_node)
+            if (!pconf->err_msg)
                 pconf = parse_conf(inc_node, inc_file, pconf);
         }
         else if (cnode[i]["global_params"]) {
+            PlfsConf temp_conf = *pconf; // save current mount params
             try { *pconf = cnode[i].as<PlfsConf>(); }
             catch (exception &e) {
                 pconf->err_msg = 
-                    new string("Config parsing failure: %s", e.what());
+                    new string("global_params parsing failure: %s", e.what());
+                break;
             }
+            // now restore saved parameters to pconf
+            pconf->files = temp_conf.files;
+            pconf->backends = temp_conf.backends;
+            pconf->mnt_pts = temp_conf.mnt_pts;
         }
         else if (cnode[i]["mount_point"]) {
             pconf->tmp_mnt = new PlfsMount;
@@ -1624,22 +1415,25 @@ parse_conf(YAML::Node cnode, string file, PlfsConf *pconf)
             try { *pconf->tmp_mnt = cnode[i].as<PlfsMount>(); }
             catch (exception &e) {
                 pconf->err_msg = 
-                    new string("Config parsing failure: %s", e.what());
+                    new string("mount_point parsing failure: %s", e.what());
+                break;
             }
             pconf->err_msg = insert_mount_point(pconf, pconf->tmp_mnt);
         }
+        else {
+            ostringstream error;
+            error << "Unknown config parameter: " << cnode[i] << endl;
+            pconf->err_msg = 
+                    new string(error.str());
+            break;
+        }
     }
     mlog(MLOG_DBG, "Got EOF from parsing conf %s",file.c_str());
-    // save the final mount point.  Make sure there is at least one.
     if (top_of_stack) {
-        if (!pconf->err_msg && pconf->tmp_mnt) {
-//            pconf->err_msg = insert_mount_point(
-//                                 pconf,pconf->tmp_mnt,(char *)file.c_str());
-            pconf->tmp_mnt = NULL;
-        }
         if (!pconf->err_msg && pconf->mnt_pts.size()<=0 && top_of_stack) {
             pconf->err_msg = new string("No mount points defined.");
         }
+        pconf->file = file; // restore top-level plfsrc
     }
     if(pconf->err_msg) {
         mlog(MLOG_DBG, "Error in the conf file: %s", pconf->err_msg->c_str());
