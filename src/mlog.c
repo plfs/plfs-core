@@ -675,7 +675,7 @@ static void vmlog(int flags, const char *fmt, va_list ap)
  * for more user-friendly programs.  returns -1 (an invalid pri) on error.
  * does not access mlog global state.
  */
-int mlog_str2pri(char *pstr)
+int mlog_str2pri(const char *pstr)
 {
     char ptmp[8];
     int lcv;

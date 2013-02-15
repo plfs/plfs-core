@@ -6,7 +6,7 @@ mss::mlog_oss::mlog_oss() {
 
 mss::mlog_oss::mlog_oss(int lvl) {
     if (MLOG_NEVERLOG == 0 &&
-            mlog_filter(level)) {
+            mlog_filter(lvl)) {
         noLog = false;
     } else {
         noLog = true;
