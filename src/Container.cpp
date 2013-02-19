@@ -1708,6 +1708,7 @@ Container::makeTopLevel( const string& expanded_path,
                     if ( rv != -EEXIST ) {
                         return(rv);
                     }
+                    // XXX: rv is never read before being reset...
                     rv = 0;    /* clear out EEXIST, it is ok */
                 }
             }
@@ -1867,7 +1868,6 @@ Container::makeHostDir(const ContainerPaths& paths,mode_t mode,
                 if (metalink_found) {
                     mlog(CON_DRARE, "Not able to create a canonical hostdir."
                         " Will use metalink %s\n", possible_metalink.c_str());
-                    ret = 0;
                     physical_hostdir = possible_metalink;
                     *phys_backp = possible_metaback;
                     // try to make the subdir and it's parent

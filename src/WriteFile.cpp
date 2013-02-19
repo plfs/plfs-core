@@ -293,7 +293,7 @@ ssize_t
 WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
 {
     int ret = 0;
-    ssize_t written;
+    ssize_t written = 0; // since it can be returned
     OpenFh *ofh = getFh( pid );
     if ( ofh == NULL ) {
         // we used to return -ENOENT here but we can get here legitimately
@@ -368,7 +368,7 @@ int WriteFile::closeIndex( )
     struct plfs_backend *ib;
     int ret = 0;
     Util::MutexLock(   &index_mux , __FUNCTION__);
-    ret = index->flush();
+    ret = index->flush(); // XXX: ret never read
     closefh = index->getFh(&ib);
     /* XXX: a bit odd that we close the index instead of the index itself */
     //XXXCDC:iostore via ib

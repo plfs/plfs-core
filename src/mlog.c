@@ -1335,11 +1335,9 @@ int mlog_mbcopy(char *buf, int offset, int len)
     }
     if (offset > 0 && b1l > 0) {
         if (offset > b1l) {
-            offset -= b1l;
             b1l = 0;
         } else {
             b1l -= offset;
-            offset = 0;
         }
     }
     got = b1l + b2l;                      /* total bytes in msg buf */
@@ -1355,12 +1353,10 @@ int mlog_mbcopy(char *buf, int offset, int len)
             skip = 0;
         }
         if (skip > b2l) {
-            skip -= b2l;
             b2l = 0;
         } else {
             b2l -= skip;
             b2 += skip;
-            skip = 0;
         }
     }
     bp = buf;

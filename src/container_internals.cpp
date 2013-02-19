@@ -104,7 +104,6 @@ container_flatten_index(Container_OpenFile *pfd, const char *logical)
     PLFS_ENTER;
     Index *index;
     bool newly_created = false;
-    ret = 0;
     if ( pfd && pfd->getIndex() ) {
         index = pfd->getIndex();
     } else {
@@ -1358,16 +1357,18 @@ initiate_async_transfer(const char *src, const char *srcprefix,
     memset(&space, ' ', 2);
     strcpy(programName, "SYNcer  ");
     mlog(INT_DCOMMON, "systemDataMove  0001\n");
-    command  = strcat(commandList, "ssh ");
+//    Never read, as below
+//    command  = strcat(commandList, "ssh ");
     command  = strcat(commandList, syncer_IP);
     mlog(INT_DCOMMON, "0B command=%s\n", command);
-    command  = strncat(commandList, space, 1);
-    command  = strcat(commandList, programName);
-    command  = strncat(commandList, space, 1);
-    command  = strcat(commandList, src);
-    command  = strncat(commandList, space, 1);
-    command  = strcat(commandList, dest_dir);
-    command  = strncat(commandList, space, 1);
+//    These values are never read, why do the work?
+//    command  = strncat(commandList, space, 1);
+//    command  = strcat(commandList, programName);
+//    command  = strncat(commandList, space, 1);
+//    command  = strcat(commandList, src);
+//    command  = strncat(commandList, space, 1);
+//    command  = strcat(commandList, dest_dir);
+//    command  = strncat(commandList, space, 1);
     double start_time,end_time;
     start_time=plfs_wtime();
     rc = system(commandList);
@@ -1733,8 +1734,8 @@ plfs_locate(const char *logical, void *files_ptr,
 {
     PLFS_ENTER;
     // first, are we locating a PLFS file or a directory or a symlink?
-    mode_t mode;
-    ret = is_plfs_file(logical,&mode);
+    mode_t mode = 0; // to avoid reading garbage on (S_ISREG(mode))
+    ret = is_plfs_file(logical,&mode); // XXX: ret is never read
     // do plfs_locate on a plfs_file
     if (S_ISREG(mode)) { // it's a PLFS file
         vector<plfs_pathback> *files = (vector<plfs_pathback> *)files_ptr;

@@ -82,7 +82,7 @@ int Access( const string& path, IOStore *store, int mask )
             open_mode = O_WRONLY;
             mode_set=true;
         } else if(checkMask(mask,F_OK)) {
-            delete cstr;
+            free(cstr);
             return 0;   // we already know this
         }
         assert(mode_set);
@@ -93,7 +93,7 @@ int Access( const string& path, IOStore *store, int mask )
             store->Close(fh);
         } // else, ret was set already
     }
-    delete cstr;
+    free(cstr);
     return ret;
 }
 

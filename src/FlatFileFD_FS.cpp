@@ -45,7 +45,7 @@ int plfs_flatfile_operation(const char *logical, FileOp& op, IOStore *ios) {
     FLAT_ENTER;
     vector<plfs_pathback> dirs;
     mode_t mode = 0;
-    ret = is_plfs_file(logical, &mode);
+    ret = is_plfs_file(logical, &mode); // XXX: ret is never read
     //perform operation on ALL directories
     if (S_ISDIR(mode)){
 
@@ -397,8 +397,8 @@ int
 FlatFileSystem::rmdir(const char *logical)
 {
     FLAT_ENTER;
-    mode_t mode;
-    ret = FlatFileSystem::getmode(logical, &mode);
+    mode_t mode = 0; // silence compiler warning
+    ret = FlatFileSystem::getmode(logical, &mode); // XXX: ret never read
     UnlinkOp op;
     ret = plfs_iterate_backends(logical,op);
     if (ret==-ENOTEMPTY) {
