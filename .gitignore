@@ -1,4 +1,3 @@
-*Makefile
 *~
 *.o
 *.la
@@ -19,8 +18,7 @@ man/man7/*.7
 a.out.dSYM*
 
 #patches
-mpi_adio/patches/mpich2/*.patch
-mpi_adio/patches/openmpi/*.patch
+*ompi-plfs.patch
 
 #cmake
 CMakeCache.txt
