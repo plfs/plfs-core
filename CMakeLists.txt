@@ -51,6 +51,8 @@ include_directories(${PLFS_SOURCE_DIR}/LogicalFS/FlatFile)
 include_directories(${PLFS_SOURCE_DIR}/Index)
 #Mlog
 include_directories(${PLFS_SOURCE_DIR}/Mlog)
+#Small File
+include_directories(${PLFS_SOURCE_DIR}/smallfile)
 
 #set up extra definitions
 add_definitions (-D_FILE_OFFSET_BITS=64)
@@ -84,10 +86,12 @@ AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/Container logicalfs_container)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/FlatFile logicalfs_flatfile)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/Index index)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/Mlog mlog)
+AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/smallfile smallfile)
+
 
 SET(SRCDIR ${plfs_src_dir} ${iostore} ${iostore_glib} ${iostore_posix}
            ${logicalfs} ${logicalfs_container} ${logicalfs_flatfile}
-           ${index} ${mlog}
+           ${index} ${mlog} ${smallfile}
 )
 
 #static and shared bot same name
