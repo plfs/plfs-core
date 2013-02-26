@@ -6,11 +6,15 @@ project(plfs)
 #set project number X.X.X?
 set (plfs_VERSION_MAJOR 2)
 set (plfs_VERSION_MINOR 3)
-#set (plfs_VERSION_PATCH 1)
+set (plfs_VERSION_PATCH 0)
 set (PACKAGE_STRING "PLFS ${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}")
 if (DEFINED plfs_VERSION_PATCH)
-    set (PACKAGE_STRING "${PACKAGE_STRING}.${plfs_VERSION_PATCH}")
+    #if it's 0 don't print it
+    if (plfs_VERSION_PATCH)
+        set (PACKAGE_STRING "${PACKAGE_STRING}.${plfs_VERSION_PATCH}")
+    endif()
 endif()
+
 
 #setup special modules
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/Modules/")
@@ -36,6 +40,13 @@ set(PLFS_BUILD_DIR "${CMAKE_BINARY_DIR}")
 set(EXECUTABLE_OUTPUT_PATH "${PLFS_BUILD_DIR}/bin")
 set(LIBRARY_OUTPUT_PATH "${PLFS_BUILD_DIR}/lib")
 
+configure_file (
+    "${PLFS_SOURCE_DIR}/config.h.in"
+    "${PROJECT_BINARY_DIR}/config.h"
+)
+
+#grab the config
+include_directories (${PROJECT_BINARY_DIR})
 #set includes for everything
 include_directories (${PLFS_SOURCE_DIR})
 include_directories (${PLFS_TOOLS_DIR})
@@ -121,6 +132,10 @@ find_package (Threads REQUIRED)
 if (Threads_FOUND)
     target_link_libraries (plfs_lib ${CMAKE_THREAD_LIBS_INIT})
 endif (Threads_FOUND)
+
+#statvfs
+check_include_files(sys/statvfs.h HAVE_SYS_STATVFS_H)
+
     
 
 #fuse
@@ -151,7 +166,7 @@ endforeach(PROG)
 INSTALL(TARGETS dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls 
                 plfs_map plfs_query plfs_recover plfs_version DESTINATION bin
 )
-INSTALL(FILES "${PLFS_SOURCE_DIR}/plfs.h" DESTINATION include)
+INSTALL(FILES "${PLFS_SOURCE_DIR}/plfs.h ${PLFS_SOURCE_DIR}/config.h" DESTINATION include)
 
 #man pages
 add_subdirectory("${PLFS_MAN_DIR}")

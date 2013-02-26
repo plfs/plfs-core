@@ -14,8 +14,8 @@ int main (int argc, char **argv) {
         }
     }
     // print version that was used to build this
-    printf("PLFS library:\n\t%s (SVN %s, Built %s)\n", 
-            plfs_tag(), plfs_version(), plfs_buildtime());
+    printf("PLFS library:\n\t%s (Built %s)\n", 
+            plfs_version(), plfs_buildtime());
 
     // check version of a particular file
     if (argc>=2 && argv[1]) {

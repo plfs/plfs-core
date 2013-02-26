@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <utime.h>
 
+#include "config.h"
 #ifdef HAVE_SYS_STATVFS_H
 #include <sys/statvfs.h>
 #endif
@@ -217,8 +218,6 @@ typedef void *Plfs_dirp;
     int plfs_unlink( const char *path );
 
     int plfs_utime( const char *path, struct utimbuf *ut );
-
-    const char *plfs_tag();
 
     const char *plfs_version();
 

@@ -15,6 +15,7 @@
 #include "SmallFileFS.h"
 #include <assert.h>
 #include <stdlib.h>
+#include "config.h"
 
 #include <syslog.h>    /* for mlog init */
 
@@ -1569,13 +1570,7 @@ get_plfs_conf()
 const char *
 plfs_version( )
 {
-    return STR(SVN_VERSION);
-}
-
-const char *
-plfs_tag()
-{
-    return STR(TAG_VERSION);
+    return STR(plfs_package_string);
 }
 
 const char *
