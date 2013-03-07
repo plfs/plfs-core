@@ -270,9 +270,19 @@ FlatFileSystem::rename( const char *logical, const char *to )
     FLAT_ENTER;
     EXPAND_TARGET;
     struct stat stbuf;
+    mode_t mode;
     ret = flatback->store->Lstat(old_canonical.c_str(), &stbuf);
     if (ret < 0) {
         goto out;
+    }
+
+    // Call unlink here because it does a check to determine whether a 
+    // a directory is empty or not.  If the directory is not empty this
+    // function will not proceed because rename does not work on 
+    // a non-empty destination 
+    ret = FlatFileSystem::unlink(to);
+    if (ret == -ENOTEMPTY) {
+       goto out;
     }
     if (S_ISREG(stbuf.st_mode) || S_ISLNK(stbuf.st_mode)) {
         ret = flatback->store->Rename(old_canonical.c_str(),
@@ -288,6 +298,7 @@ FlatFileSystem::rename( const char *logical, const char *to )
             mlog(PLFS_DCOMMON, "Cross-device rename, CopyFile+Unlink ret: %d",
                  ret); 
         }
+
     } else if (S_ISDIR(stbuf.st_mode)) {
         vector<plfs_pathback> srcs, dsts;
         if ((ret = find_all_expansions(logical,srcs)) != 0) {
@@ -305,6 +316,7 @@ FlatFileSystem::rename( const char *logical, const char *to )
             if (err == -ENOENT) {
                 err = 0;    // might not be distributed on all
             }
+           
             if (err != 0) {
                 ret = err;    // keep trying but save the error
             }
@@ -359,7 +371,18 @@ FlatFileSystem::unlink( const char *logical )
 {
     FLAT_ENTER;
     UnlinkOp op;
+    mode_t mode;
+
+    ret = FlatFileSystem::getmode(logical, &mode);
     ret = plfs_flatfile_operation(logical,op,flatback->store);
+
+    // if the directory is not empty, need to restore backends to their 
+    // previous state
+    if (ret == -ENOTEMPTY){
+      CreateOp cop(mode);
+      cop.ignoreErrno(-EEXIST);
+      plfs_iterate_backends(logical,cop);
+    }
     FLAT_EXIT(ret);
 }
 
