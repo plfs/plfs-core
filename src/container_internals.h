@@ -60,5 +60,7 @@ int container_utime( const char *path, struct utimbuf *ut );
 ssize_t container_write( Container_OpenFile *, const char *, size_t, off_t,
                          pid_t );
 
+int container_prepare_writer( WriteFile *, pid_t, mode_t, const string& );
+
 int container_flatten_index(Container_OpenFile *fd, const char *logical);
 #endif

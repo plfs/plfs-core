@@ -398,6 +398,9 @@ plfs_dump_config(int check_dirs, int make_dir)
     if (pconf->test_metalink) {
         cout << "Test metalink: TRUE" << endl;
     }
+    if (pconf->lazy_droppings) {
+        cout << "Lazy droppings: TRUE" << endl;
+    }
     map<string,PlfsMount *>::iterator itr;
     for(itr=pconf->mnt_pts.begin(); itr!=pconf->mnt_pts.end(); itr++) {
         PlfsMount *pmnt = itr->second;
@@ -1100,6 +1103,7 @@ set_default_confs(PlfsConf *pconf)
     pconf->global_sum_io.prefix = NULL;
     pconf->global_sum_io.store = NULL;
     pconf->test_metalink = 0;
+    pconf->lazy_droppings = 1;
     /* default mlog settings */
     pconf->mlog_flags = MLOG_LOGPID;
     pconf->mlog_defmask = MLOG_WARN;
@@ -1235,6 +1239,8 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
                     " or if performance is important, pls edit %s to"
                     " remove the test_metalink directive\n", file);
         }
+    } else if (strcmp(key,"lazy_droppings")==0) {
+        pconf->lazy_droppings = atoi(value)==0 ? 0 : 1;
     } else if (strcmp(key,"num_hostdirs")==0) {
         pconf->num_hostdirs = atoi(value);
         if (pconf->num_hostdirs <= 0) {

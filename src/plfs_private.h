@@ -125,6 +125,7 @@ typedef struct {
     bool direct_io; // a flag FUSE needs.  Sorry ADIO and API for the wasted bit
     bool test_metalink; // for developers only
     bool lazy_stat;
+    bool lazy_droppings; // defer index/data droppings creation until first write
     string *err_msg;
 
     char *global_summary_dir;

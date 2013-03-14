@@ -19,6 +19,7 @@ using namespace std;
 #include "Util.h"
 #include "ThreadPool.h"
 #include "mlog_oss.h"
+#include "container_internals.h"
 
 #define BLKSIZE 512
 
@@ -1753,6 +1754,12 @@ Container::makeDropping(const string& path, struct plfs_backend *b)
     int ret = makeDroppingReal( path, b, DROPPING_MODE );
     umask(save_umask);
     return ret;
+}
+int
+Container::prepareWriter(WriteFile *wf, pid_t pid, mode_t mode,
+                         const string& logical)
+{
+    return container_prepare_writer(wf, pid, mode, logical);
 }
 // returns 0 or -err
 int
