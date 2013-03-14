@@ -59,11 +59,14 @@ plfs_dump_index_size()
 
 // returns 0 or -err
 int
-plfs_dump_index( FILE *fp, const char *logical, int compress )
+plfs_dump_index( FILE *fp, const char *logical, int compress, 
+        int uniform_restart, pid_t uniform_restart_rank )
 {
     PLFS_ENTER;
     Index index(path, expansion_info.backend);
-    ret = Container::populateIndex(path,expansion_info.backend,&index,true);
+    ret = Container::populateIndex(
+            path,expansion_info.backend,&index,true,uniform_restart,
+            uniform_restart_rank);
     if ( ret == 0 ) {
         if (compress) {
             index.compress();
@@ -91,7 +94,8 @@ container_flatten_index(Container_OpenFile *pfd, const char *logical)
         index = new Index( path, expansion_info.backend );
         newly_created = true;
         // before we populate, need to blow away any old one
-        ret = Container::populateIndex(path,expansion_info.backend,index,false);
+        ret = Container::populateIndex(path,expansion_info.backend,
+                index,false,false,0);
         /* XXXCDC: why are we ignoring return value of populateIndex? */
     }
     if (is_container_file(logical,NULL)) {
@@ -734,9 +738,13 @@ container_read( Container_OpenFile *pfd, char *buf, size_t size, off_t offset )
     if (index == NULL) {
         index = new Index(pfd->getPath(), pfd->getCanBack());
         if ( index ) {
+            // if they tried to do uniform restart, it will only work at open
+            // uniform restart doesn't currently work with O_RDWR
+            // to make it work, we'll have to store the uniform restart info
+            // into the Container_OpenFile
             new_index_created = true;
             ret = Container::populateIndex(pfd->getPath(),pfd->getCanBack(),
-                                           index,false);
+                                           index,false,false,0);
         } else {
             ret = -EIO;
         }
@@ -1407,7 +1415,9 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
                 index->global_from_stream(open_opt->index_stream);
             } else {
                 ret = Container::populateIndex(path,expansion_info.backend,
-                                               index,true);
+                   index,true,
+                   open_opt ? open_opt->uniform_restart_enable : 0,
+                   open_opt ? open_opt->uniform_restart_rank : 0 );
                 if ( ret != 0 ) {
                     mlog(INT_DRARE, "%s failed to create index on %s: %s",
                          __FUNCTION__, path.c_str(), strerror(-ret));

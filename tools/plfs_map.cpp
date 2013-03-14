@@ -12,10 +12,17 @@ int main (int argc, char **argv) {
     int i;
     char *target;
     bool found_target = false;
+    int uniform_restart = false;
+    pid_t uniform_rank = 0;
     for (i = 1; i < argc; i++) {
         plfs_handle_version_arg(argc, argv[i]);
         if (strcmp(argv[i], "-nc") == 0) {
             // silently ignore deprecated argument
+        } else if (strcmp(argv[i], "--uniform") == 0) {
+            i++;
+            uniform_restart = true;
+            uniform_rank = (pid_t)atoi(argv[i]);
+            printf("# Building map for only rank %d\n", uniform_rank);
         } else if (!found_target) {
             target = argv[i];
             found_target = true;
@@ -30,7 +37,7 @@ int main (int argc, char **argv) {
         exit(1);
     }
 
-    int ret = plfs_dump_index(stderr,target,0);
+    int ret = plfs_dump_index(stderr,target,0,uniform_restart,uniform_rank);
     if ( ret != 0 ) {
         fprintf(stderr, "Error: %s is not in a PLFS mountpoint"
                " configured with 'workload n-1'\n", target);

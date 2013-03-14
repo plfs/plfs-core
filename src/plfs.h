@@ -36,6 +36,10 @@ typedef void *Plfs_dirp;
         int  buffer_index;  /* Buffer index yes/no                      */
         plfs_interface pinter;
         int  reopen;
+        /* A way to minimize the size of the in-memory index by only 
+           constructing a "global" index from one single on-disk index file */
+        int  uniform_restart_enable; 
+        pid_t  uniform_restart_rank;
     } Plfs_open_opt;
 
     typedef struct {
@@ -96,7 +100,8 @@ typedef void *Plfs_dirp;
 
     void plfs_debug( const char *format, ... );
 
-    int plfs_dump_index( FILE *fp, const char *path, int compress );
+    int plfs_dump_index( FILE *fp, const char *path, 
+            int compress, int uniform_restart, pid_t uniform_rank );
 
     // Bool sneaked in here
     int plfs_dump_config(int check_dirs, int make_dir);
