@@ -7,6 +7,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <utime.h>
+
+#include "config.h"
 #ifdef HAVE_SYS_STATVFS_H
 #include <sys/statvfs.h>
 #endif
@@ -26,7 +28,7 @@ typedef void *Plfs_dirp;
     } plfs_interface;
 
     typedef enum {
-        CONTAINER, FLAT_FILE, PFT_UNKNOWN
+        CONTAINER, FLAT_FILE, SMALL_FILE, PFT_UNKNOWN
     } plfs_filetype;
 
     typedef struct {
@@ -34,6 +36,10 @@ typedef void *Plfs_dirp;
         int  buffer_index;  /* Buffer index yes/no                      */
         plfs_interface pinter;
         int  reopen;
+        /* A way to minimize the size of the in-memory index by only 
+           constructing a "global" index from one single on-disk index file */
+        int  uniform_restart_enable; 
+        pid_t  uniform_restart_rank;
     } Plfs_open_opt;
 
     typedef struct {
@@ -69,16 +75,12 @@ typedef void *Plfs_dirp;
        plfs_open and the plfs_create must be unique on each node.
     */
 
-    /* is_plfs_file
-        returns int.  Also if mode_t * is not NULL, leaves it 0 if the path
-        doesn't exist, or if it does exist, it fills it in with S_IFDIR etc
-        This allows multiple possible return values: yes, it is a plfs file,
-        no: it is a directory
-        no: it is a normal flat file
-        no: it is a symbolic link
-        etc.
+    /* is_plfs_path
+       returns:
+       1    if the file/directory/symlink exists inside a plfs_mount
+       0    if not
     */
-    int is_plfs_file( const char *path, mode_t * );
+    int is_plfs_path( const char *path);
 
     int plfs_access( const char *path, int mask );
 
@@ -98,7 +100,8 @@ typedef void *Plfs_dirp;
 
     void plfs_debug( const char *format, ... );
 
-    int plfs_dump_index( FILE *fp, const char *path, int compress );
+    int plfs_dump_index( FILE *fp, const char *path, 
+            int compress, int uniform_restart, pid_t uniform_rank );
 
     // Bool sneaked in here
     int plfs_dump_config(int check_dirs, int make_dir);
@@ -220,8 +223,6 @@ typedef void *Plfs_dirp;
     int plfs_unlink( const char *path );
 
     int plfs_utime( const char *path, struct utimbuf *ut );
-
-    const char *plfs_tag();
 
     const char *plfs_version();
 

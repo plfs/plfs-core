@@ -44,8 +44,15 @@ Flat_fd::~Flat_fd()
 int plfs_flatfile_operation(const char *logical, FileOp& op, IOStore *ios) {
     FLAT_ENTER;
     vector<plfs_pathback> dirs;
+    struct stat st;
     mode_t mode = 0;
-    ret = is_plfs_file(logical, &mode);
+    ret = plfs_getattr(NULL, logical, &st, 0);
+    if (ret != 0){
+        mode = 0;
+    }
+    else{
+        mode = st.st_mode;
+    }
     //perform operation on ALL directories
     if (S_ISDIR(mode)){
 
@@ -60,7 +67,7 @@ int plfs_flatfile_operation(const char *logical, FileOp& op, IOStore *ios) {
         ret = op.op(path.c_str(), DT_REG, ios);
     }
     //symlink
-    else{
+    else if (S_ISLNK(mode)){
         ret = op.op(path.c_str(), DT_LNK, ios);
     }
     FLAT_EXIT(ret);

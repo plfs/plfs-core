@@ -6,11 +6,17 @@ project(plfs)
 #set project number X.X.X?
 set (plfs_VERSION_MAJOR 2)
 set (plfs_VERSION_MINOR 3)
-#set (plfs_VERSION_PATCH 1)
+set (plfs_VERSION_PATCH 0)
 set (PACKAGE_STRING "PLFS ${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}")
+set (plfs_VERSION_FULL "${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}")
 if (DEFINED plfs_VERSION_PATCH)
-    set (PACKAGE_STRING "${PACKAGE_STRING}.${plfs_VERSION_PATCH}")
+    #if it's 0 don't print it
+    if (plfs_VERSION_PATCH)
+        set (PACKAGE_STRING "${PACKAGE_STRING}.${plfs_VERSION_PATCH}")
+        set (plfs_VERSION_FULL "${plfs_VERSION_FULL}.${plfs_VERSION_PATCH}")
+    endif()
 endif()
+
 
 #setup special modules
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/Modules/")
@@ -36,6 +42,13 @@ set(PLFS_BUILD_DIR "${CMAKE_BINARY_DIR}")
 set(EXECUTABLE_OUTPUT_PATH "${PLFS_BUILD_DIR}/bin")
 set(LIBRARY_OUTPUT_PATH "${PLFS_BUILD_DIR}/lib")
 
+configure_file (
+    "${PLFS_SOURCE_DIR}/config.h.in"
+    "${PROJECT_BINARY_DIR}/config.h"
+)
+
+#grab the config
+include_directories (${PROJECT_BINARY_DIR})
 #set includes for everything
 include_directories (${PLFS_SOURCE_DIR})
 include_directories (${PLFS_TOOLS_DIR})
@@ -51,6 +64,8 @@ include_directories(${PLFS_SOURCE_DIR}/LogicalFS/FlatFile)
 include_directories(${PLFS_SOURCE_DIR}/Index)
 #Mlog
 include_directories(${PLFS_SOURCE_DIR}/Mlog)
+#Small File
+include_directories(${PLFS_SOURCE_DIR}/smallfile)
 
 #set up extra definitions
 add_definitions (-D_FILE_OFFSET_BITS=64)
@@ -84,10 +99,12 @@ AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/Container logicalfs_container)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/FlatFile logicalfs_flatfile)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/Index index)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/Mlog mlog)
+AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/smallfile smallfile)
+
 
 SET(SRCDIR ${plfs_src_dir} ${iostore} ${iostore_glib} ${iostore_posix}
            ${logicalfs} ${logicalfs_container} ${logicalfs_flatfile}
-           ${index} ${mlog}
+           ${index} ${mlog} ${smallfile}
 )
 
 #static and shared bot same name
@@ -99,10 +116,13 @@ if (NOT DISABLE_STATIC_LIB)
     #make sure these build first, causes issues in 2.6
     #if not
     add_dependencies(plfs_lib plfs_lib_static)
-    INSTALL(TARGETS plfs_lib plfs_lib_static DESTINATION lib)
+    INSTALL(TARGETS plfs_lib  plfs_lib_static
+                LIBRARY DESTINATION lib
+                ARCHIVE DESTINATION lib)
     SET_TARGET_PROPERTIES(plfs_lib_static PROPERTIES OUTPUT_NAME plfs)
 else()
-    INSTALL(TARGETS plfs_lib DESTINATION lib)
+    INSTALL(TARGETS plfs_lib
+                LIBRARY DESTINATION lib)
 endif(NOT DISABLE_STATIC_LIB)
 
 
@@ -117,6 +137,10 @@ find_package (Threads REQUIRED)
 if (Threads_FOUND)
     target_link_libraries (plfs_lib ${CMAKE_THREAD_LIBS_INIT})
 endif (Threads_FOUND)
+
+#statvfs
+check_include_files(sys/statvfs.h HAVE_SYS_STATVFS_H)
+
     
 
 #fuse
@@ -132,7 +156,7 @@ if (FUSE_FOUND AND NOT DISABLE_FUSE)
     #change its name so that it create plfs executable
     SET_TARGET_PROPERTIES(plfs_fuse PROPERTIES OUTPUT_NAME plfs)
     #set install dir
-    INSTALL(TARGETS plfs_fuse DESTINATION sbin)
+    INSTALL(PROGRAMS plfs_fuse DESTINATION sbin)
 endif(FUSE_FOUND AND NOT DISABLE_FUSE)
 
 
@@ -144,10 +168,10 @@ foreach (PROG dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls
 endforeach(PROG)
 
 #set up targets for make install
-INSTALL(TARGETS dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls 
+INSTALL(PROGRAMS dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls 
                 plfs_map plfs_query plfs_recover plfs_version DESTINATION bin
 )
-INSTALL(FILES "${PLFS_SOURCE_DIR}/plfs.h" DESTINATION include)
+INSTALL(FILES "${PLFS_SOURCE_DIR}/plfs.h ${PLFS_SOURCE_DIR}/config.h" DESTINATION include)
 
 #man pages
 add_subdirectory("${PLFS_MAN_DIR}")
@@ -164,3 +188,17 @@ INSTALL(FILES ${man7} DESTINATION share/man/man7)
 #build patches
 execute_process(COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR}/mpi_adio/scripts COMMAND ./make_ad_plfs_patch)
 execute_process(COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR}/mpi_adio/scripts COMMAND ./make_ad_plfs_patch --mpi=mpich2)
+
+#if we ever move to cmake 2.8 this would be a cool feature.
+#set up rpm build process
+#set(CPACK_PACKAGE_VERSION ${plfs_VERSION_FULL})
+#set(CPACK_GENERATOR "RPM")
+#set(CPACK_PACKAGE_NAME "plfs")
+#set(CPACK_PACKAGE_RELEASE 1)
+#set(CPACK_PACKAGE_CONTACT "Aaron Torres")
+#set(CPACK_PACKAGE_VENDOR "Los Alamos National Laboratory")
+#set(CPACK_PACKAGING_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
+#set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CPACK_PACKAGE_RELEASE}.${CMAKE_SYSTEM_PROCESSOR}")
+#configure_file("${CMAKE_CURRENT_SOURCE_DIR}/plfs.spec.in" "${CMAKE_CURRENT_BINARY_DIR}/plfs.spec" @ONLY IMMEDIATE)
+#set(CPACK_RPM_USER_BINARY_SPECFILE "${CMAKE_CURRENT_BINARY_DIR}/plfs.spec")
+#include(CPack)
