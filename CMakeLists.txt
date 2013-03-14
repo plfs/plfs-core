@@ -122,6 +122,7 @@ endif (Threads_FOUND)
 find_package (YAMLCPP REQUIRED)
 if (YAMLCPP_FOUND)
     target_link_libraries (plfs_lib ${YAMLCPP_LIBRARY})
+    include_directories (${YAMLCPP_INCLUDE_DIR})
 endif (YAMLCPP_FOUND)
 
 #fuse

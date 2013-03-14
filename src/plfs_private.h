@@ -131,7 +131,7 @@ typedef struct {
     PlfsMount *tmp_mnt; // just used during parsing
 
     /* mlog related settings, read from plfsrc, allow for cmd line override */
-    uint32_t mlog_flags;        /* mlog flag value to use (stderr,ucon,syslog) */
+    int mlog_flags;        /* mlog flag value to use (stderr,ucon,syslog) */
     int mlog_defmask;      /* default mlog logging level */
     int mlog_stderrmask;   /* force mlog to stderr if level >= to this value */
     char *mlog_file_base;  /* pre-expanded version of logfile, if needed */
