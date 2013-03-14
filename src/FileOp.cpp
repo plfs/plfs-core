@@ -181,6 +181,29 @@ UnlinkOp::do_op(const char *path, unsigned char isfile, IOStore *store)
     }
 }
 
+int
+UnlinkOp::op_r(const char *path, unsigned char isfile, IOStore *store, bool d)
+{
+    if (isfile==DT_REG || isfile==DT_LNK) {
+        return store->Unlink(path);
+    } else if (isfile==DT_DIR||isfile==DT_CONTAINER) {
+        map<string, unsigned char> names;
+        map<string, unsigned char>::iterator itr;
+        ReaddirOp readdirop(&names, NULL, true, true);
+        int ret = 0;
+
+        readdirop.op(path, isfile, store);
+        for (itr = names.begin(); itr != names.end(); itr++) {
+            ret = op_r(itr->first.c_str(), itr->second, store, true);
+            if (ret) return ret;
+        }
+        if (d) ret = store->Rmdir(path);
+        return ret;
+    } else {
+        return -ENOSYS;
+    }
+}
+
 CreateOp::CreateOp(mode_t newm)
 {
     this->m = newm;

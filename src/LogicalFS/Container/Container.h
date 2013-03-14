@@ -158,9 +158,11 @@ class Container
                                    bool full_path);
         static int flattenIndex( const string&, struct plfs_backend *,Index * );
         static int populateIndex(const string&,struct plfs_backend *,
-                                 Index *,bool use_cached_global);
+                                 Index *,bool use_cached_global,
+                                 bool uniform_restart, pid_t uniform_rank);
         static int aggregateIndices( const string&, struct plfs_backend *,
-                                     Index * );
+                                 Index *,
+                                 bool uniform_restart, pid_t uniform_rank);
         static int freeIndex( Index ** );
         static size_t hashValue( const char *str );
         static blkcnt_t bytesToBlocks( size_t total_bytes );

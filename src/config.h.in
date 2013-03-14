@@ -1,0 +1,6 @@
+#define plfs_VERSION_MAJOR @plfs_VERSION_MAJOR@
+#define plfs_VERSION_MINOR @plfs_VERSION_MINOR@
+#define plfs_VERSION_PATCH @plfs_VERSION_PATCH@
+#define plfs_package_string "@PACKAGE_STRING@"
+
+#cmakedefine HAVE_SYS_STATVFS_H
