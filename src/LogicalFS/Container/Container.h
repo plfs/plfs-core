@@ -18,6 +18,7 @@
 #include <map>
 #include <deque>
 
+#include "WriteFile.h"
 
 using namespace std;
 
@@ -113,6 +114,8 @@ class Container
         static mode_t subdirMode(  mode_t );
 
 
+        static int prepareWriter(WriteFile *wf, pid_t pid, mode_t mode,
+                                 const string& logical);
         static int makeHostDir(const string& path, struct plfs_backend *b,
                                const string& host,
                                mode_t mode, parentStatus);

@@ -188,12 +188,11 @@ container_create( const char *logical, mode_t mode, int flags, pid_t pid )
 // into the canonical_container
 // returns number of current writers sharing the WriteFile * or -err
 int
-addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
-          string logical )
+addPrepareWriter( WriteFile *wf, pid_t pid, mode_t mode,
+                  const string& logical, bool for_open, bool defer_open )
 {
-    int ret = -ENOENT;  // be pessimistic
-    int writers = 0;
-    struct plfs_backend *newback;
+    int ret, writers;
+
     // might have to loop 3 times
     // first discover that the subdir doesn't exist
     // try to create it and try again
@@ -202,14 +201,18 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
     // but that might fail if our sibling hasn't created where it resolves yet
     // so help our sibling create it, and then finally try the third time.
     for( int attempts = 0; attempts < 2; attempts++ ) {
-        // ok, the WriteFile *wf has a container path in it which is
-        // path to canonical.  It attempts to open a file in a subdir
+        // for defer_open , wf->addWriter() only increases writer ref counts,
+        // since it doesn't actually do anything until it gets asked to write
+        // for the first time at which point it actually then attempts to
+        // O_CREAT its required data and index logs
+        // for !defer_open, the WriteFile *wf has a container path in it
+        // which is path to canonical.  It attempts to open a file in a subdir
         // at that path.  If it fails, it should be bec there is no
         // subdir in the canonical. [If it fails for any other reason, something
         // is badly broken somewhere.]
         // When it fails, create the hostdir.  It might be a metalink in
         // which case change the container path in the WriteFile to shadow path
-        writers = ret = wf->addWriter( pid, false );
+        ret = wf->addWriter( pid, for_open, defer_open, writers );
         if ( ret != -ENOENT ) {
             break;    // everything except ENOENT leaves
         }
@@ -228,6 +231,7 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
         if (ret!=0) {
             PLFS_EXIT(ret);
         }
+        struct plfs_backend *newback;
         ret=Container::makeHostDir(paths, mode, PARENT_ABSENT,
                                    physical_hostdir, &newback, use_metalink);
         if ( ret==0 ) {
@@ -250,6 +254,20 @@ addWriter(WriteFile *wf, pid_t pid, const char *path, mode_t mode,
         ret = writers;
     }
     PLFS_EXIT(ret);
+}
+
+int
+container_prepare_writer( WriteFile *wf, pid_t pid, mode_t mode,
+                          const string& logical )
+{
+    return addPrepareWriter( wf, pid, mode, logical, false, false );
+}
+
+int
+openAddWriter( WriteFile *wf, pid_t pid, mode_t mode, string logical,
+               bool defer_open )
+{
+    return addPrepareWriter( wf, pid, mode, logical, true, defer_open );
 }
 
 int
@@ -484,6 +502,9 @@ container_rename_open_file(Container_OpenFile *of, const char *logical,
 {
     PLFS_ENTER;
     of->setPath(path.c_str(),b);
+    WriteFile *wf = of->getWritefile();
+    if ( wf )
+        wf->setLogical(logical);
     PLFS_EXIT(ret);
 }
 
@@ -1381,19 +1402,20 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
                 indx_sz = get_plfs_conf()->buffer_mbs;
             }
             /*
-             * wf starts with the canonical backend.   the addWriter()
+             * wf starts with the canonical backend.   the openAddWriter()
              * call below may change it (e.g. to a shadow backend).
              */
             wf = new WriteFile(path, Util::hostname(), mode,
-                               indx_sz, expansion_info.backend);
+                               indx_sz, pid, logical, expansion_info.backend);
             new_writefile = true;
         }
-        ret = addWriter(wf, pid, path.c_str(), mode,logical);
+        bool defer_open = get_plfs_conf()->lazy_droppings;
+        ret = openAddWriter(wf, pid, mode, logical, defer_open );
         mlog(INT_DCOMMON, "%s added writer: %d", __FUNCTION__, ret );
         if ( ret > 0 ) {
             ret = 0;    // add writer returns # of current writers
         }
-        if ( ret == 0 && new_writefile ) {
+        if ( ret == 0 && new_writefile && !defer_open ) {
             ret = wf->openIndex( pid );
         }
         if ( ret != 0 && wf ) {
