@@ -451,9 +451,11 @@ plfs_dump_config(int check_dirs, int make_dir)
                                    pmnt->statfs->c_str(),ret,make_dir);
             }
         }
-        cout << "\tMax writers: " << pmnt->max_writers << endl;
-        cout << "\tMax cached smallfile containers: " 
-            << pmnt->max_smallfile_containers << endl;
+        if (pmnt->file_type == SMALL_FILE) {
+            cout << "\tMax writers: " << pmnt->max_writers << endl;
+            cout << "\tMax cached smallfile containers: " 
+                << pmnt->max_smallfile_containers << endl;
+        }
         cout << "\tChecksum: " << pmnt->checksum << endl;
     }
     return ret;
@@ -622,6 +624,7 @@ set_default_confs(PlfsConf *pconf)
     pconf->lazy_stat = 1;
     pconf->err_msg = NULL;
     pconf->buffer_mbs = 64;
+    pconf->read_buffer_mbs = 64;
     pconf->global_summary_dir = NULL;
     pconf->global_sum_io.prefix = NULL;
     pconf->global_sum_io.store = NULL;
