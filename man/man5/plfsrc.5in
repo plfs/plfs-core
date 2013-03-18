@@ -1,5 +1,5 @@
-#COPYRIGHT#
-.TH plfsrc 5 "#PACKAGE_STRING#" 
+${COPYRIGHT}
+.TH plfsrc 5 "${PACKAGE_STRING}" 
 
 .SH NAME
 plfsrc \- the configuration file for PLFS (Parallel Log Structured File System)
@@ -419,8 +419,7 @@ The per user file options will override options in the system wide file.
 Options in files cannot be combined, only one file will be used.
 
 .SH AUTHORS
-#AUTHORS#
+${AUTHORS}
 
 .SH SEE ALSO
-#SEEALSO5#
-
+${SEEALSO5}

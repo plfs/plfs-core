@@ -9,6 +9,7 @@
 #include "FileOp.h"
 #include "Container.h"
 #include "yaml-cpp/yaml.h"
+#include "PLFSIndex.h"
 
 #include <map>
 #include <set>
@@ -67,6 +68,8 @@ typedef struct PlfsMount {
     vector<string> mnt_tokens;
     plfs_filetype file_type;
     LogicalFileSystem *fs_ptr;
+    unsigned max_writers;
+    unsigned max_smallfile_containers; /* max cached smallfile containers */
     unsigned checksum;
 
     /* backend filesystem info */
@@ -119,10 +122,12 @@ typedef struct {
     size_t num_hostdirs;
     size_t threadpool_size;
     size_t buffer_mbs;  // how many mbs to buffer for write indexing
+    size_t read_buffer_mbs; // how many mbs to buffer for metadata reading
     map<string,PlfsMount *> mnt_pts;
     bool direct_io; // a flag FUSE needs.  Sorry ADIO and API for the wasted bit
     bool test_metalink; // for developers only
     bool lazy_stat;
+    bool lazy_droppings; // defer index/data droppings creation until first write
     string *err_msg;
 
     char *global_summary_dir;
@@ -161,6 +166,8 @@ int find_all_expansions(const char *logical,vector<plfs_pathback> &containers);
 // a helper function that expands %t, %p, %h in mlog file name
 string expand_macros(const char *target);
 
+string stripPrefixPath(string *path);
+void stripPrefixPath(const char *path, char *stripped_path);
 string expandPath(string logical, ExpansionInfo *exp_info,
                   expansionMethod hash_method, int which_backend, int depth);
 int mkdir_dash_p(const string& path, bool parent_only, IOStore *);

@@ -38,10 +38,10 @@ PlfsUnit::createTest() {
     CPPUNIT_ASSERT_EQUAL(0, ret);
     ret = plfs_create(pathname2, 0666, 0, 0);
     CPPUNIT_ASSERT_EQUAL(0, ret);
-    ret = plfs_create(pathname1, 0666, O_EXCL, pid);
-    CPPUNIT_ASSERT_EQUAL(0, ret); // O_EXCL is not supported.
-    ret = plfs_create(pathname1, 0666, O_EXCL, 0);
-    CPPUNIT_ASSERT_EQUAL(0, ret); // O_EXCL is not supported.
+    // ret = plfs_create(pathname1, 0666, O_EXCL, pid);
+    // CPPUNIT_ASSERT_EQUAL(0, ret); // O_EXCL is not supported.
+    // ret = plfs_create(pathname1, 0666, O_EXCL, 0);
+    // CPPUNIT_ASSERT_EQUAL(0, ret); // O_EXCL is not supported.
     ret = plfs_unlink(pathname1);
     CPPUNIT_ASSERT_EQUAL(0, ret);
     ret = plfs_unlink(pathname2);

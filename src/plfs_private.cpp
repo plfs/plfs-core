@@ -7,12 +7,15 @@
 #include "mlog.h"
 #include "LogMessage.h"
 #include "IOStore.h"
+#include "ThreadPool.h"
 
 // why is these included???!!!????
 #include "FlatFileFS.h"
 #include "ContainerFS.h"
+#include "SmallFileFS.h"
 #include <assert.h>
 #include <stdlib.h>
+#include "config.h"
 
 #include <syslog.h>    /* for mlog init */
 
@@ -88,6 +91,26 @@ find_mount_point_using_tokens(PlfsConf *pconf,
     found = false;
     return NULL;
 }
+// These functions take a path and strips the adio prefix from it
+// they work if you pass in a char * or a string
+string
+stripPrefixPath(string path){
+    // rip off an adio prefix if passed
+    string adio_prefix("plfs:");
+    if (path.substr(0, adio_prefix.size()) == adio_prefix){
+        path = path.substr(adio_prefix.size());
+        mlog(INT_DCOMMON, "Ripping %s -> %s", adio_prefix.c_str(),path.c_str());
+    }
+    return path;
+}
+
+void
+stripPrefixPath(const char *path, char *stripped_path){
+    //a version for char * and c applications
+    string path_str(path);
+    path_str = stripPrefixPath(path_str);
+    strcpy(stripped_path, path_str.c_str());
+}
 
 // takes a logical path and returns a physical one
 // the expansionMethod controls whether it returns the canonical path or a
@@ -100,6 +123,7 @@ find_mount_point_using_tokens(PlfsConf *pconf,
 // but it currently does pretty much require that in order to read that all
 // backends are mounted (this is for scr-plfs-ssdn-emc project).  will need
 // to be relaxed.
+
 string
 expandPath(string logical, ExpansionInfo *exp_info,
            expansionMethod hash_method, int which_backend, int depth)
@@ -112,8 +136,6 @@ expandPath(string logical, ExpansionInfo *exp_info,
     exp_info->expanded = "UNINITIALIZED";
     // get our initial conf
     static PlfsConf *pconf = NULL;
-    static const char *adio_prefix = "plfs:";
-    static int prefix_length = -1;
     if (!pconf) {
         pconf = get_plfs_conf();
         if (!pconf) {
@@ -128,17 +150,7 @@ expandPath(string logical, ExpansionInfo *exp_info,
         exp_info->Errno = -EINVAL;
         return "INVALID";
     }
-    // rip off an adio prefix if passed.  Not sure how important this is
-    // and not sure how much overhead it adds nor efficiency of implementation
-    // am currently using C-style strncmp instead of C++ string stuff bec
-    // I coded this on plane w/out access to internet
-    if (prefix_length==-1) {
-        prefix_length = strlen(adio_prefix);
-    }
-    if (logical.compare(0,prefix_length,adio_prefix)==0) {
-        logical = logical.substr(prefix_length,logical.size());
-        mlog(INT_DCOMMON, "Ripping %s -> %s", adio_prefix,logical.c_str());
-    }
+    logical = stripPrefixPath(logical);
     // find the appropriate PlfsMount from the PlfsConf
     bool mnt_pt_found = false;
     vector<string> logical_tokens;
@@ -378,6 +390,7 @@ plfs_dump_config(int check_dirs, int make_dir)
          << "Num Hostdirs: " << pconf->num_hostdirs << endl
          << "Threadpool size: " << pconf->threadpool_size << endl
          << "Write index buffer size (mbs): " << pconf->buffer_mbs << endl
+         << "Read index buffer size (mbs): " << pconf->read_buffer_mbs << endl
          << "Num Mountpoints: " << pconf->mnt_pts.size() << endl
          << "Lazy Stat: " << (int)pconf->lazy_stat << endl;
     if (pconf->global_summary_dir) {
@@ -392,6 +405,9 @@ plfs_dump_config(int check_dirs, int make_dir)
     if (pconf->test_metalink) {
         cout << "Test metalink: TRUE" << endl;
     }
+    if (pconf->lazy_droppings) {
+        cout << "Lazy droppings: TRUE" << endl;
+    }
     map<string,PlfsMount *>::iterator itr;
     for(itr=pconf->mnt_pts.begin(); itr!=pconf->mnt_pts.end(); itr++) {
         PlfsMount *pmnt = itr->second;
@@ -400,6 +416,7 @@ plfs_dump_config(int check_dirs, int make_dir)
         cout << "\tExpected Workload "
              << (pmnt->file_type == CONTAINER ? "shared_file (N-1)"
                  : pmnt->file_type == FLAT_FILE ? "file_per_proc (N-N)"
+                 : pmnt->file_type == SMALL_FILE ? "small_file (1-N)"
                  : "UNKNOWN.  WTF.  email plfs-devel@lists.sourceforge.net")
              << endl;
         if (check_dirs && plfs_attach(pmnt) != 0) {
@@ -434,6 +451,9 @@ plfs_dump_config(int check_dirs, int make_dir)
                                    pmnt->statfs->c_str(),ret,make_dir);
             }
         }
+        cout << "\tMax writers: " << pmnt->max_writers << endl;
+        cout << "\tMax cached smallfile containers: " 
+            << pmnt->max_smallfile_containers << endl;
         cout << "\tChecksum: " << pmnt->checksum << endl;
     }
     return ret;
@@ -584,6 +604,8 @@ set_default_mount(PlfsMount *pmnt)
     pmnt->statfs_io.store = NULL;
     pmnt->file_type = CONTAINER;
     pmnt->fs_ptr = &containerfs;
+    pmnt->max_writers = 4;
+    pmnt->max_smallfile_containers = 32;
     pmnt->checksum = (unsigned)-1;
     pmnt->backspec = pmnt->canspec = pmnt->shadowspec = NULL;
     pmnt->attached = pmnt->nback = pmnt->ncanback = pmnt->nshadowback = 0;
@@ -1179,6 +1201,8 @@ namespace YAML {
                    node["lazy_stat"].as<bool>();
                if(node["index_buffer_mbs"]) pconf.buffer_mbs = 
                    node["index_buffer_mbs"].as<size_t>();
+               if(node["read_buffer_mbs"]) pconf.read_buffer_mbs =
+                   node["read_buffer_mbs"].as<size_t>();
                if(node["global_summary_dir"]) {
                    pconf.global_summary_dir = 
                        strdup(node["global_summary_dir"].as<string>().c_str());
@@ -1292,6 +1316,12 @@ namespace YAML {
                set_default_mount(&pmntp);
                pmntp.mnt_pt = node["mount_point"].as<string>();
                Util::tokenize(pmntp.mnt_pt,"/",pmntp.mnt_tokens);
+               if(node["max_smallfile_containers"]) {
+                   pmntp.max_smallfile_containers =
+                       node["max_smallfile_containers"].as<size_t>();
+                   if(pmntp.max_smallfile_containers <= 0)
+                       mlog(MLOG_ERR, "Illegal value:max_smallfile_containers");
+               }
                if(node["workload"]) {
                    if(node["workload"].as<string>() == "file_per_proc" ||
                            node["workload"].as<string>() == "n-n") {
@@ -1303,9 +1333,20 @@ namespace YAML {
                        pmntp.file_type = CONTAINER;
                        pmntp.fs_ptr = &containerfs;
                    }
+                   else if(node["workload"].as<string>() == "small_file" ||
+                           node["workload"].as<string>() == "1-n") {
+                       pmntp.file_type = SMALL_FILE;
+                       pmntp.fs_ptr = new SmallFileFS(pmntp.max_smallfile_containers);
+                   }
                    else {
                        mlog(MLOG_ERR, "Unknown workload type");
                    }
+               }
+               if(node["max_writers"]) {
+                   pmntp.max_writers =
+                       node["max_writers"].as<size_t>();
+                   if(pmntp.max_writers < 0)
+                       mlog(MLOG_ERR, "Illegal value:max_writers");
                }
                if(node["statfs"]) {
                    pmntp.statfs = new string(node["statfs"].as<string>());
@@ -1526,13 +1567,7 @@ get_plfs_conf()
 const char *
 plfs_version( )
 {
-    return STR(SVN_VERSION);
-}
-
-const char *
-plfs_tag()
-{
-    return STR(TAG_VERSION);
+    return STR(plfs_package_string);
 }
 
 const char *
@@ -1684,4 +1719,3 @@ plfs_phys_backlookup(const char *phys, PlfsMount *pmnt,
 
     return(rv);
 }
-

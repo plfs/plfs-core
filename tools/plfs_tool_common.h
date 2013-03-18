@@ -18,10 +18,8 @@ void plfs_handle_version_arg(int argc, char * arg) {
         std::string arg_str(arg);
         if (arg_str.compare("-version") == 0) {
             std::cout << "PLFS library:\n\t"
-                << plfs_tag()
-                << "(SVN"
                 << plfs_version()
-                <<", Built"
+                << "(Built"
                 << plfs_buildtime()
                 << ")"
                 << std::endl;
