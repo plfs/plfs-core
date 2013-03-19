@@ -282,7 +282,7 @@ FlatFileSystem::rename( const char *logical, const char *to )
     // a non-empty destination 
     ret = FlatFileSystem::unlink(to);
     if (ret == -ENOTEMPTY) {
-       goto out;
+        goto out;
     }
     if (S_ISREG(stbuf.st_mode) || S_ISLNK(stbuf.st_mode)) {
         ret = flatback->store->Rename(old_canonical.c_str(),
@@ -379,9 +379,9 @@ FlatFileSystem::unlink( const char *logical )
     // if the directory is not empty, need to restore backends to their 
     // previous state
     if (ret == -ENOTEMPTY){
-      CreateOp cop(mode);
-      cop.ignoreErrno(-EEXIST);
-      plfs_iterate_backends(logical,cop);
+        CreateOp cop(mode);
+        cop.ignoreErrno(-EEXIST);
+        plfs_iterate_backends(logical,cop);
     }
     FLAT_EXIT(ret);
 }
