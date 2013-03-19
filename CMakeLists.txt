@@ -163,7 +163,7 @@ if (FUSE_FOUND AND NOT DISABLE_FUSE)
     #change its name so that it create plfs executable
     SET_TARGET_PROPERTIES(plfs_fuse PROPERTIES OUTPUT_NAME plfs)
     #set install dir
-    INSTALL(PROGRAMS ${PLFS_BUILD_DIR}/bin/plfs DESTINATION sbin)
+    INSTALL(PROGRAMS ${EXECUTABLE_OUTPUT_PATH}/plfs DESTINATION sbin)
 endif(FUSE_FOUND AND NOT DISABLE_FUSE)
 
 
@@ -172,14 +172,13 @@ foreach (PROG dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls
               plfs_map plfs_query plfs_recover plfs_version)
     add_executable(${PROG} ${PLFS_TOOLS_DIR}/${PROG})
     target_link_libraries (${PROG} plfs_lib)
+    LIST(APPEND binaries ${EXECUTABLE_OUTPUT_PATH}/${PROG})
 endforeach(PROG)
 
 #set up targets for make install
-FILE(GLOB binaries ${PLFS_BUILD_DIR}/bin/plfs_*)
-LIST(APPEND binaries ${PLFS_BUILD_DIR}/bin/dcon)
-LIST(APPEND binaries ${PLFS_BUILD_DIR}/bin/findmesgbuf)
 INSTALL(PROGRAMS ${binaries} DESTINATION bin)
 LIST(APPEND headers ${PLFS_SOURCE_DIR}/plfs.h)
+LIST(APPEND headers ${PLFS_BUILD_DIR}/config.h)
 INSTALL(FILES ${headers} DESTINATION include)
 
 #man pages
