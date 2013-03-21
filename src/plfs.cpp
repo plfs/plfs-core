@@ -229,7 +229,7 @@ plfs_link(const char *path, const char *to)
     int ret = 0;
     char stripped_path[PATH_MAX];
     stripPrefixPath(path, stripped_path);
-    char *stripped_to;
+    char stripped_to[PATH_MAX];
     stripPrefixPath(to, stripped_to);
     LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_to);
     if (logicalfs == NULL) {
@@ -428,9 +428,9 @@ plfs_rename(const char *from, const char *to)
     int ret = 0;
     ostringstream oss;
     oss << from << " -> " << to;
-    char *stripped_from;
+    char stripped_from[PATH_MAX];
     stripPrefixPath(from, stripped_from);
-    char *stripped_to;
+    char stripped_to[PATH_MAX];
     stripPrefixPath(to, stripped_to);
 
     debug_enter(__FUNCTION__,oss.str());
@@ -485,9 +485,9 @@ plfs_symlink(const char *from, const char *to)
     ostringstream oss;
     oss << from << " -> " << to;
 
-    char *stripped_from;
+    char stripped_from[PATH_MAX];
     stripPrefixPath(from, stripped_from);
-    char *stripped_to;
+    char stripped_to[PATH_MAX];
     stripPrefixPath(to, stripped_to);
 
     debug_enter(__FUNCTION__,oss.str());
