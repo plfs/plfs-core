@@ -163,7 +163,7 @@ if (FUSE_FOUND AND NOT DISABLE_FUSE)
     #change its name so that it create plfs executable
     SET_TARGET_PROPERTIES(plfs_fuse PROPERTIES OUTPUT_NAME plfs)
     #set install dir
-    INSTALL(PROGRAMS ${EXECUTABLE_OUTPUT_PATH}/plfs DESTINATION sbin)
+    INSTALL(PROGRAMS ${EXECUTABLE_OUTPUT_PATH}/plfs_fuse DESTINATION sbin)
 endif(FUSE_FOUND AND NOT DISABLE_FUSE)
 
 

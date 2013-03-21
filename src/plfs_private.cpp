@@ -1307,8 +1307,9 @@ namespace YAML {
                        strdup(node["fuse_crash_log"].as<string>().c_str());
                return true;
            }
-           else
-               return false;
+           pconf.err_msg = 
+               new string("decode global_params called on unknown node");
+           return false;
        }
    };
    
@@ -1405,6 +1406,7 @@ namespace YAML {
                }
                return true;
            }
+           mlog(MLOG_ERR, "Decode mount called on non-mount node\n");
            return false;
        }
    };
