@@ -76,4 +76,18 @@ plfsunit_CXXFLAGS = \
 
 plfsunit_LDFLAGS = \
 	@CPPUNIT_LIBS@ -lplfs -L../src -lpthread
+
+sources += smallfileunit.h smallfileunit.cpp
+
+noinst_PROGRAMS += smallfileunit
+
+smallfileunit_SOURCES = \
+smallfileunit.h smallfileunit.cpp unitmain.cpp
+
+smallfileunit_CXXFLAGS = \
+        -I../src -I../src/smallfile -D_FILE_OFFSET_BITS=64 @CPPUNIT_CFLAGS@
+
+smallfileunit_LDFLAGS = \
+	@CPPUNIT_LIBS@ -L../src -lplfs -lpthread
+
 endif
