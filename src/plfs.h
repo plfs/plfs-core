@@ -8,7 +8,6 @@
 #include <sys/types.h>
 #include <utime.h>
 
-#include "config.h"
 #ifdef HAVE_SYS_STATVFS_H
 #include <sys/statvfs.h>
 #endif
