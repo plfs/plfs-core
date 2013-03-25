@@ -1,10 +1,6 @@
 #ifndef _UTIL_H_
 #define _UTIL_H_
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include "COPYRIGHT.h"
 #include <sys/types.h>
 #include <sys/stat.h>
