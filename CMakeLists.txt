@@ -42,10 +42,14 @@ set(PLFS_BUILD_DIR "${CMAKE_BINARY_DIR}")
 set(EXECUTABLE_OUTPUT_PATH "${PLFS_BUILD_DIR}/bin")
 set(LIBRARY_OUTPUT_PATH "${PLFS_BUILD_DIR}/lib")
 
-configure_file (
-    "${PLFS_SOURCE_DIR}/config.h.in"
-    "${PROJECT_BINARY_DIR}/config.h"
-)
+#grab the config
+include_directories (${PROJECT_BINARY_DIR})
+#set includes for everything
+include_directories (${PLFS_SOURCE_DIR})
+include_directories (${PLFS_TOOLS_DIR})
+#IOStore stuff
+include_directories(${PLFS_SOURCE_DIR}/IOStore)
+include_directories(${PLFS_SOURCE_DIR}/IOStore/Glib)
 
 #grab the config
 include_directories (${PROJECT_BINARY_DIR})
@@ -58,14 +62,17 @@ include_directories(${PLFS_SOURCE_DIR}/IOStore/Glib)
 include_directories(${PLFS_SOURCE_DIR}/IOStore/Posix)
 #Logical FDFS stuff
 include_directories(${PLFS_SOURCE_DIR}/LogicalFS)
+#Logical Container
 include_directories(${PLFS_SOURCE_DIR}/LogicalFS/Container)
+include_directories(${PLFS_SOURCE_DIR}/LogicalFS/Container/Index)
+#Logical Flatfile
 include_directories(${PLFS_SOURCE_DIR}/LogicalFS/FlatFile)
-#Index
-include_directories(${PLFS_SOURCE_DIR}/Index)
+#Logical Smallfile
+include_directories(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile)
+include_directories(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile/smallfile)
 #Mlog
 include_directories(${PLFS_SOURCE_DIR}/Mlog)
 #Small File
-include_directories(${PLFS_SOURCE_DIR}/smallfile)
 
 #set up extra definitions
 add_definitions (-D_FILE_OFFSET_BITS=64)
@@ -96,15 +103,16 @@ AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/IOStore/Glib iostore_glib)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/IOStore/Posix iostore_posix)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS logicalfs)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/Container logicalfs_container)
+AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/Container/Index container_index)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/FlatFile logicalfs_flatfile)
-AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/Index index)
+AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile logicalfs_smallfile)
+AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile/smallfile smallfile)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/Mlog mlog)
-AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/smallfile smallfile)
 
 
 SET(SRCDIR ${plfs_src_dir} ${iostore} ${iostore_glib} ${iostore_posix}
-           ${logicalfs} ${logicalfs_container} ${logicalfs_flatfile}
-           ${index} ${mlog} ${smallfile}
+           ${logicalfs} ${logicalfs_container} ${container_index} ${logicalfs_flatfile}
+           ${logicalfs_smallfile} ${smallfile} ${mlog}
 )
 
 #static and shared bot same name
@@ -140,6 +148,14 @@ endif (Threads_FOUND)
 
 #statvfs
 check_include_files(sys/statvfs.h HAVE_SYS_STATVFS_H)
+if (HAVE_SYS_STATVFS_H)
+set (STATVFS "#include <sys/statvfs.h>")
+endif (HAVE_SYS_STATVFS_H)
+configure_file (
+    "${PLFS_SOURCE_DIR}/plfs.h.in"
+    "${PROJECT_BINARY_DIR}/plfs.h"
+)
+
 
     
 
@@ -171,7 +187,7 @@ endforeach(PROG)
 INSTALL(TARGETS dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls
                 plfs_map plfs_query plfs_recover plfs_version DESTINATION bin
 )
-INSTALL(FILES "${PLFS_SOURCE_DIR}/plfs.h" "${PLFS_BUILD_DIR}/config.h" DESTINATION include)
+INSTALL(FILES "${PLFS_BUILD_DIR}/plfs.h" "${PLFS_BUILD_DIR}/config.h" DESTINATION include)
 
 #man pages
 add_subdirectory("${PLFS_MAN_DIR}")

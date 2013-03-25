@@ -466,7 +466,6 @@ int WriteFile::truncate( off_t offset )
     Metadata::truncate( offset );
     // we may be the first writer...
     if ( index == NULL ) {
-        OpenFh *ofh;
         ret = prepareForWrite();
         if ( ret < 0 ) {
             return ret;
