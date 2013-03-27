@@ -195,7 +195,7 @@ endforeach(PROG)
 INSTALL(TARGETS dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls
                 plfs_map plfs_query plfs_recover plfs_version DESTINATION bin
 )
-INSTALL(FILES "${PLFS_BUILD_DIR}/plfs.h" "${PLFS_BUILD_DIR}/config.h" DESTINATION include)
+INSTALL(FILES "${PLFS_BUILD_DIR}/plfs.h" DESTINATION include)
 
 #man pages
 add_subdirectory("${PLFS_MAN_DIR}")
