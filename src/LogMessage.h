@@ -5,6 +5,7 @@
 #include <iostream>
 #include <sstream>
 #include <iomanip>
+#include <unistd.h>
 using namespace std;
 
 class LogMessage : public ostringstream
