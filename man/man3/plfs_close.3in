@@ -5,7 +5,7 @@ plfs_close
 .SH SYNTAX
 #include <plfs.h>
 .PP
-int plfs_close( Plfs_fd *pfd, pid_t p, int open_flags ,Plfs_close_opt *close_opt);
+int plfs_close( Plfs_fd *, pid_t, uid_t, int open_flags, Plfs_close_opt *close_opt);
 
 .SH DESCRIPTION
 Close a file descriptor.  See close(2) for more information.  If multiple

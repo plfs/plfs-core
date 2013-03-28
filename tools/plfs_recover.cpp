@@ -3,7 +3,7 @@
 #include <errno.h>
 
 #include "plfs_tool_common.h"
-#include "plfs.h"
+#include "container_internals.h"
 #include "COPYRIGHT.h"
 
 int main (int argc, char **argv) {
@@ -13,7 +13,7 @@ int main (int argc, char **argv) {
         fprintf(stderr, "Usage: %s [filename | -version]\n", argv[0]);
         exit(-1);
     }
-    int ret = plfs_recover(target);
+    int ret = container_recover(target);
     switch(ret) {
         case 0:
             printf("Successfully recovered %s\n",target);

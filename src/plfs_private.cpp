@@ -460,6 +460,18 @@ plfs_dump_config(int check_dirs, int make_dir)
     return ret;
 }
 
+
+/*
+ * This function gets the hostname on which the application is running.
+ */
+
+char
+*plfs_gethostname()
+{
+      return Util::hostname();
+}
+
+
 double
 plfs_wtime()
 {
@@ -1584,6 +1596,24 @@ plfs_buildtime( )
 {
     return __DATE__;
 }
+
+int
+plfs_expand_path(const char *logical,char **physical, void **pmountp, void **pbackp) {
+  PLFS_ENTER;
+  (void)ret; // suppress compiler warning
+
+  *physical = Util::Strdup(path.c_str());
+
+  if (pmountp) {
+    *pmountp = expansion_info.mnt_pt;
+  }
+
+  if (pbackp) {
+    *pbackp = expansion_info.backend;
+  }
+  return 0;
+}
+
 
 uid_t
 plfs_getuid()
