@@ -871,7 +871,7 @@ Container::createMetalink(struct plfs_backend *canback,
         struct plfs_backend *mlback;
         if (readMetalink(oss.str(), canback, NULL, sz, &mlback) == 0) {
             ostringstream tmp;
-            tmp << sz << mlback->bmpoint;
+            tmp << sz << mlback->prefix << mlback->bmpoint;
             if (strcmp(tmp.str().c_str(), shadow.str().c_str()) == 0) {
                 mlog(CON_DCOMMON, "same metalink already created");
                 ret = 0;
