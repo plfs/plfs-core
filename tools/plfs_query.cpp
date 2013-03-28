@@ -13,6 +13,7 @@ using namespace std;
 
 #include "plfs.h"
 #include "plfs_private.h"
+#include "container_internals.h"
 #include "COPYRIGHT.h"
 #include "plfs_tool_common.h"
 
@@ -149,9 +150,9 @@ main (int argc, char **argv) {
     vector<plfs_pathback> files;
     vector<plfs_pathback> dirs;
     vector<string> metalinks;
-    //Use the plfs_locate fucntion to determine if this is a
+    //Use the container_locate fucntion to determine if this is a
     //plfs file.
-    int ret = plfs_locate(target,
+    int ret = container_locate(target,
             (void*)&files,
             (void*)&dirs,
             (void*)&metalinks);
