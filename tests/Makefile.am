@@ -88,6 +88,6 @@ smallfileunit_CXXFLAGS = \
         -I../src -I../src/smallfile -D_FILE_OFFSET_BITS=64 @CPPUNIT_CFLAGS@
 
 smallfileunit_LDFLAGS = \
-	@CPPUNIT_LIBS@ -L../src -lplfs -lpthread
+	-L../src @CPPUNIT_LIBS@ -lplfs -lpthread
 
 endif
