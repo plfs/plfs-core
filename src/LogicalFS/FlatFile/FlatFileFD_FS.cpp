@@ -6,6 +6,7 @@
 #include "Util.h"
 #include "plfs_private.h"
 #include "plfs.h"
+#include "mlog.h"
 
 #include "FileOp.h"
 

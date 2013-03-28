@@ -926,11 +926,13 @@ int Plfs::f_open(const char *path, struct fuse_file_info *fi)
     // we can safely add more writers to an already open file
     // bec FUSE checks f_access before allowing an f_open
     if ( ret != 0 ) {
-        ostringstream oss;
-        oss << __FUNCTION__ << ": failed open on " << path << ": "
-            << strerror(-ret) << endl;
-        plfs_serious_error(oss.str().c_str(),fuse_get_context()->pid);
-        cerr << "Calling plfs_serious_error" << endl;
+        //ostringstream oss;
+        //oss << __FUNCTION__ << ": failed open on " << path << ": "
+        //    << strerror(-ret) << endl;
+        mlog( FUSE_CRIT, "%s: failed open on %s; err: %s; pid: %d", 
+            __FUNCTION__, path, strerror( -ret ), fuse_get_context()->pid );
+        //plfs_serious_error(oss.str().c_str(),fuse_get_context()->pid);
+        cerr << "Calling mlog with a FUSE_CRIT error" << endl;
     }
     FUSE_PLFS_EXIT;
 }

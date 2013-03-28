@@ -9,6 +9,8 @@ int plfs_readdir( const char *path, void * );
 
 .SH DESCRIPTION
 Read a directory.  The void * must be a pointer to a C++ STL vector<string>.
+This is the version that C++ codes can use. It does not call plfs_opendir
+or plfs_closedir. See plfs_opendir_c/plfs_readdir_c/plfs_closedir_c for C codes.
 
 .SH INPUT PARAMETERS
 .TP 1i

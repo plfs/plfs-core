@@ -142,6 +142,19 @@ extern "C" {   /* __BEGIN_DECLS */
         return( (lvl & mask) == 0 ? 0 : 1);
     }
 
+    /* XXXCDC: BEGIN TMP */
+
+    /*
+     * This is here temporarily because some of the code still calls the old
+     * plfs_debug. This routine now tranforms the plfs_debug call into an
+     * mlog call.
+     */
+
+    void plfs_debug(const char *fmt, ...);
+
+    /* XXXCDC: END TMP */
+
+
     /**
      * mlog: multilog a message... generic wrapper for the the core vmlog
      * function.  note that a log line cannot be larger than MLOG_TBSZ (4096)

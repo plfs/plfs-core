@@ -4,7 +4,11 @@
 #include <iostream>
 
 #include "plfs_tool_common.h"
-#include "plfs.h"
+/*
+ * Include the following if container_dump_index_size is ever needed
+#include "container_internals.h"
+ */
+#include "plfs_private.h"
 #include "COPYRIGHT.h"
 int main (int argc, char **argv) {
     bool make_dir = false;
@@ -18,6 +22,6 @@ int main (int argc, char **argv) {
     int ret = plfs_dump_config(true, make_dir);
     if ( ret == 0 ) std::cout << "SUCCESS" << std::endl;
     else            std::cout << "ERROR" << std::endl;
-    //plfs_dump_index_size();
+    //container_dump_index_size();
     exit( ret );
 }

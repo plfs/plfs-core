@@ -28,13 +28,13 @@ print sys.argv[0]
 print sys.argv[1]
 
 # This is ugly.  Redirect stdout and use a temporary file to capture 
-# plfs_dump_index output.
+# container_dump_index output.
 # Would have liked to use StringIO here but it segfaults, something with 
 # the interface can't treat a StingIO as a File *
 old_stdout = sys.stdout
 mytmpfile = tempfile.TemporaryFile()
 sys.stdout = mytmpfile 
-retvar = interfacedumpindexfp.plfs_dump_index(sys.stdout,sys.argv[1],0)
+retvar = interfacedumpindexfp.container_dump_index(sys.stdout,sys.argv[1],0)
 sys.stdout.flush()
 sys.stdout = old_stdout
 if(retvar!=0):

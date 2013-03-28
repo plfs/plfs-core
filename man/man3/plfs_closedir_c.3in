@@ -1,0 +1,27 @@
+${COPYRIGHT}
+.TH plfs_closedir_c 3 "${PACKAGE_STRING}" 
+.SH NAME
+plfs_closedir_c 
+.SH SYNTAX
+#include <plfs.h>
+.PP
+int plfs_closedir_c( Plfs_dirp *plfs_dir );
+
+.SH DESCRIPTION
+This is the C program interface to closing a directory.
+
+.SH INPUT PARAMETERS
+.TP 1i
+plfs_dir
+the pointer to the opened directory that will be closed.
+
+
+.SH RETURN VALUES
+Returns 0 for success or -errno.
+
+.SH AUTHORS
+${AUTHORS}
+
+.SH SEE ALSO
+${SEEALSO3}
+

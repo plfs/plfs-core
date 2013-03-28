@@ -1,0 +1,38 @@
+${COPYRIGHT}
+.TH plfs_readdir_c 3 "${PACKAGE_STRING}" 
+.SH NAME
+plfs_readdir_c 
+.SH SYNTAX
+#include <plfs.h>
+.PP
+int plfs_readdir_c( Plfs_dirp *, char *dname, size_t bufsize );
+
+.SH DESCRIPTION
+This is the C program interface to plfs_readdir, read a directory.
+.I
+dname
+is the buffer that the caller provides into which we write the name of
+each entry in the directory.
+
+.SH INPUT PARAMETERS
+.TP 1i
+Plfs_dirp
+the pointer to the opened PLFS directory. Open with plfs_opendir_c.
+.TP 1i
+dname
+the buffer that is filled with the name of each directory entry.
+.TP li
+bufsize
+the size of dname.
+
+
+.SH RETURN VALUES
+Returns 0 for success or -errno. EOD (End of Data), e.g. no more
+entries, is indicated with a zero-length dname and a return value of 0.
+
+.SH AUTHORS
+${AUTHORS}
+
+.SH SEE ALSO
+${SEEALSO3}
+

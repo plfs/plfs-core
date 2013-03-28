@@ -64,7 +64,7 @@ typedef struct PlfsMount {
     string mnt_pt;  // the logical mount point
     string *statfs; // where to resolve statfs calls
     struct plfs_backend statfs_io;  /* for statfs */
-    string *syncer_ip; // where to send commands within plfs_protect
+    string *syncer_ip; // where to send commands within container_protect
     vector<string> mnt_tokens;
     plfs_filetype file_type;
     LogicalFileSystem *fs_ptr;
@@ -203,4 +203,45 @@ int plfs_setfsgid(gid_t);
 
 int plfs_phys_backlookup(const char *phys, PlfsMount *pmnt,
                          struct plfs_backend **backout, string *bpathout);
+
+/*
+ * This function returns the time that PLFS was built.
+ */
+const char *plfs_buildtime();
+
+/*
+ * This function writes out the PLFS configuration. It retunrns 0 if
+ * successful, -errno otherwise.
+ */
+
+int plfs_dump_config(int check_dirs, int make_dir);
+
+int plfs_expand_path(const char *logical,char **physical, void **pmountp, void **pbackp);
+
+/*
+ * This function gets the hostname on which the application is running.
+ */
+
+char *plfs_gethostname();
+
+/*
+ * This funtion to get stats back from plfs operations the void * needs
+ * to be a pointer to an STL string but void * is used here so it
+ * compiles with C code.
+ */
+
+void plfs_stats( void *vptr );
+
+/*
+ * This function returns the PLFS version that is built.
+ */
+
+const char *plfs_version();
+
+/*
+ * Returns a timestamp similar to MPI_Wtime().
+ */
+
+double plfs_wtime();
+
 #endif

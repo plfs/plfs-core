@@ -310,7 +310,7 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     // get a hostdir comm to use to serialize write a bit
     write_mode = (fd->access_mode==ADIO_RDONLY?0:1);
     if (write_mode) {
-        size_t color = plfs_gethostdir_id(plfs_gethostname());
+        size_t color = container_gethostdir_id(plfs_gethostname());
         err = MPI_Comm_split(fd->comm,color,rank,&hostdir_comm);
         if(err!=MPI_SUCCESS) {
             return err;
@@ -417,7 +417,7 @@ int adplfs_broadcast_index(Plfs_fd **pfd, ADIO_File fd,
     // rank 0 turns the index into a stream, broadcasts its size, then it
     if(rank==0) {
         plfs_debug("In broadcast index with compress_flag:%d\n",compress_flag);
-        index_size[0] = index_size[1] = plfs_index_stream(pfd,&index_stream);
+        index_size[0] = index_size[1] = container_index_stream(pfd,&index_stream);
         if(index_size[0]<0) {
             MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
         }
@@ -511,7 +511,7 @@ int adplfs_par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
         // Find out how many hostdirs we currently have
         // and save info in a bitmap
         // XXX: why is bitmap global?
-        (void)plfs_num_host_dirs(&num_host_dir, filename, pback, bitmap);
+        (void)container_num_host_dirs(&num_host_dir, filename, pback, bitmap);
         plfs_debug("Num of hostdirs calculated is |%d|\n",num_host_dir);
     }
     // Bcast usage brought down by the MPI_Comm_split
@@ -585,7 +585,7 @@ void adplfs_read_and_merge(ADIO_File fd,int rank,
      * this results in a merged index stream (index_stream of index_sz
      * bytes).
      */
-    index_sz=plfs_hostdir_rddir(&index_stream,targets,
+    index_sz=container_hostdir_rddir(&index_stream,targets,
                                 rank,filename,pmount,pback);
     // Make sure it was malloced
     check_stream(index_sz,rank);
@@ -617,9 +617,9 @@ void adplfs_read_and_merge(ADIO_File fd,int rank,
      * now each rank has collected the index info from the other ranks
      * in memory (index_streams).   all that is left to do is construct
      * a global index by merging all the ranks data into a single index
-     * using plfs_parindexread_merge().
+     * using container_parindexread_merge().
      */
-    global_index_sz=plfs_parindexread_merge(filename,index_streams,
+    global_index_sz=container_parindexread_merge(filename,index_streams,
                                             index_sizes,np,global_index);
     check_stream(global_index_sz,rank);
     plfs_debug("Rank |%d| global size |%d|\n",rank,global_index_sz);
@@ -672,7 +672,7 @@ void adplfs_split_and_merge(ADIO_File fd,int rank,int extra_rank,
         subdir= adplfs_bitmap_to_dirname(bitmap,group_index,filename,0,np);
 
         // Hostdir zero reads the hostdir and converts into a list
-        buf_sz=plfs_hostdir_zero_rddir((void **)&index_files,subdir,rank,
+        buf_sz=container_hostdir_zero_rddir((void **)&index_files,subdir,rank,
                                        pmount, pback);
         check_stream(buf_sz,rank);
         free(subdir);
@@ -694,7 +694,7 @@ void adplfs_split_and_merge(ADIO_File fd,int rank,int extra_rank,
      * hostdir and rank).  the first entry of index_files contains
      * the physical path to the hostdir to read...
      */
-    buf_sz=plfs_parindex_read(new_rank,hc_sz,index_files,&index_stream,
+    buf_sz=container_parindex_read(new_rank,hc_sz,index_files,&index_stream,
                               filename);
     check_stream(buf_sz,rank);
     free(index_files);
@@ -729,7 +729,7 @@ void adplfs_split_and_merge(ADIO_File fd,int rank,int extra_rank,
          * the rank 0 for this hostdir merges the result of the
          * reads into a single index for this hostdir.
          */
-        hostdir_index_sz=plfs_parindexread_merge(filename,index_streams,
+        hostdir_index_sz=container_parindexread_merge(filename,index_streams,
                          index_sizes,hc_sz,&hostdir_index_stream);
         free(index_disp);
         free(index_sizes);
@@ -762,7 +762,7 @@ void adplfs_split_and_merge(ADIO_File fd,int rank,int extra_rank,
                       index_streams,index_sizes,index_disp,MPI_CHAR,
                       hostdir_zeros_comm);
         // Merge these streams into a single global index
-        global_index_sz=plfs_parindexread_merge(filename,index_streams,
+        global_index_sz=container_parindexread_merge(filename,index_streams,
                                                 index_sizes,hzc_size,
                                                 global_index);
         check_stream(global_index_sz,rank);
