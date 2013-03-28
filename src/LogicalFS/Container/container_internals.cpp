@@ -39,27 +39,26 @@ bool cache_index_on_rdwr = false;   // DO NOT change to true!!!!
 
 ssize_t plfs_reference_count( Container_OpenFile * );
 
-char *plfs_gethostname()
-{
-    return Util::hostname();
-}
-
-size_t plfs_gethostdir_id(char *hostname)
+size_t container_gethostdir_id(char *hostname)
 {
     return Container::getHostDirId(hostname);
 }
 
+/*
+ * Nothing was calling this function, so I deleted it.
+ *
 int
-plfs_dump_index_size()
+container_dump_index_size()
 {
     ContainerEntry e;
     cout << "An index entry is size " << sizeof(e) << endl;
     return (int)sizeof(e);
 }
+ */
 
 // returns 0 or -err
 int
-plfs_dump_index( FILE *fp, const char *logical, int compress, 
+container_dump_index( FILE *fp, const char *logical, int compress, 
         int uniform_restart, pid_t uniform_restart_rank )
 {
     PLFS_ENTER;
@@ -435,11 +434,19 @@ is_container_file( const char *logical, mode_t *mode )
     PLFS_EXIT(ret);
 }
 
+/*
+ * March 26, 2013:
+ * Nothing calls this, so I am commenting it out.
+ *
+ * If anyone ever wanted to use this, it is recommended that
+ * mlog() be used with some form of *_CRIT status.
+ *
 void
-plfs_serious_error(const char *msg,pid_t pid )
+container_serious_error(const char *msg,pid_t pid )
 {
     Util::SeriousError(msg,pid);
 }
+ */
 
 int
 container_chmod( const char *logical, mode_t mode )
@@ -658,7 +665,7 @@ container_rmdir( const char *logical )
 // TODO: this should be made specific to container.  any general code
 // should be moved out
 int
-plfs_recover(const char *logical)
+container_recover(const char *logical)
 {
     PLFS_ENTER;
     string canonical, former_backend, canonical_backend;
@@ -795,23 +802,6 @@ container_read( Container_OpenFile *pfd, char *buf, size_t size, off_t offset )
     PLFS_EXIT(ret);
 }
 
-// Here are all of the parindex read functions
-// TODO: should this call be in this function?
-int
-plfs_expand_path(const char *logical,char **physical, void **pmountp,
-                 void **pbackp)
-{
-    PLFS_ENTER;
-    (void)ret; // suppress compiler warning
-    *physical = Util::Strdup(path.c_str());
-    if (pmountp) {
-        *pmountp = expansion_info.mnt_pt;
-    }
-    if (pbackp) {
-        *pbackp = expansion_info.backend;
-    }
-    return 0;
-}
 
 // Function that reads in the hostdirs and sets the bitmap
 // this function still works even with metalink stuff
@@ -823,8 +813,9 @@ plfs_expand_path(const char *logical,char **physical, void **pmountp,
 // will have at least one hostdir
 // hmmm.  this function does a readdir.  be nice to move this into
 // library and use new readdirop class
+
 int
-plfs_num_host_dirs(int *hostdir_count,char *target, void *vback, char *bm)
+container_num_host_dirs(int *hostdir_count,char *target, void *vback, char *bm)
 {
     // Directory reading variables
     IOStore *store = ((plfs_backend *)vback)->store;
@@ -835,7 +826,8 @@ plfs_num_host_dirs(int *hostdir_count,char *target, void *vback, char *bm)
     // Open the directory and check value
     if ((dirp = store->Opendir(target,ret)) == NULL) {
         mlog(PLFS_DRARE, "Num hostdir opendir error on %s",target);
-        *hostdir_count = ret;  /* XXX  why? */
+        // XXX why?
+        *hostdir_count = ret;
         return *hostdir_count;
     }
     // Start reading the directory
@@ -878,7 +870,7 @@ plfs_num_host_dirs(int *hostdir_count,char *target, void *vback, char *bm)
 }
 
 /**
- * plfs_hostdir_rddir: function called from MPI open when #hostdirs>#procs.
+ * container_hostdir_rddir: function called from MPI open when #hostdirs>#procs.
  * this function is used under MPI (called only by adplfs_read_and_merge).
  *
  * @param index_stream buffer to place result in
@@ -890,7 +882,7 @@ plfs_num_host_dirs(int *hostdir_count,char *target, void *vback, char *bm)
  * @return # output bytes in index_stream or -err
  */
 int
-plfs_hostdir_rddir(void **index_stream,char *targets,int rank,
+container_hostdir_rddir(void **index_stream,char *targets,int rank,
                    char *top_level, void *pmount, void *pback)
 {
     PlfsMount *mnt = (PlfsMount *)pmount;
@@ -944,7 +936,7 @@ plfs_hostdir_rddir(void **index_stream,char *targets,int rank,
 }
 
 /**
- * plfs_hostdir_zero_rddir: called from MPI open when #procs>#subdirs,
+ * container_hostdir_zero_rddir: called from MPI open when #procs>#subdirs,
  * so there are a set of procs assigned to one subdir.  the comm has
  * been split so there is a rank 0 for each subdir.  each rank 0 calls
  * this to resolve the metalink and get the list of index files in
@@ -960,7 +952,7 @@ plfs_hostdir_rddir(void **index_stream,char *targets,int rank,
  * @return size of hostdir stream entries or -err
  */
 int
-plfs_hostdir_zero_rddir(void **entries,const char *path,int rank,
+container_hostdir_zero_rddir(void **entries,const char *path,int rank,
                         void *pmount, void *pback)
 {
     PlfsMount *mnt = (PlfsMount *)pmount;
@@ -981,7 +973,7 @@ plfs_hostdir_zero_rddir(void **entries,const char *path,int rank,
 }
 
 /**
- * plfs_parindex_read: called from MPI open's split and merge code path
+ * container_parindex_read: called from MPI open's split and merge code path
  * to read a set of index files in a hostdir on a single backend.
  *
  * @param rank our rank in the split MPI communicator
@@ -992,7 +984,7 @@ plfs_hostdir_zero_rddir(void **entries,const char *path,int rank,
  * @return size of index or error
  */
 int
-plfs_parindex_read(int rank,int ranks_per_comm,void *index_files,
+container_parindex_read(int rank,int ranks_per_comm,void *index_files,
                    void **index_stream,char *top_level)
 {
     size_t index_stream_sz;
@@ -1013,7 +1005,7 @@ plfs_parindex_read(int rank,int ranks_per_comm,void *index_files,
     rv = plfs_phys_backlookup(phys.c_str(), NULL, &backend, &bpath);
     if (rv != 0) {
         /* this shouldn't ever happen */
-        mlog(INT_CRIT, "plfs_parindex_read: %s: backlookup failed?",
+        mlog(INT_CRIT, "container_parindex_read: %s: backlookup failed?",
              phys.c_str());
         return(rv);
     }
@@ -1049,13 +1041,13 @@ plfs_parindex_read(int rank,int ranks_per_comm,void *index_files,
 
 // TODO: change name to container_*
 int
-plfs_merge_indexes(Plfs_fd **fd_in, char *index_streams,
+container_merge_indexes(Plfs_fd **fd_in, char *index_streams,
                    int *index_sizes, int procs)
 {
     Container_OpenFile **pfd = (Container_OpenFile **)fd_in;
     int count;
     Index *root_index;
-    mlog(INT_DAPI, "Entering plfs_merge_indexes");
+    mlog(INT_DAPI, "Entering container_merge_indexes");
     // Root has no real Index set it to the writefile index
     mlog(INT_DCOMMON, "Setting writefile index to pfd index");
     (*pfd)->setIndex((*pfd)->getWritefile()->getIndex());
@@ -1089,7 +1081,7 @@ plfs_merge_indexes(Plfs_fd **fd_in, char *index_streams,
  * index_stream: output goes here
  */
 int
-plfs_parindexread_merge(const char *path,char *index_streams,
+container_parindexread_merge(const char *path,char *index_streams,
                         int *index_sizes, int procs, void **index_stream)
 {
     int count;
@@ -1118,7 +1110,7 @@ plfs_parindexread_merge(const char *path,char *index_streams,
 // Can't directly access the FD struct in ADIO
 // TODO: change name to container_*
 int
-plfs_index_stream(Plfs_fd **fd_in, char **buffer)
+container_index_stream(Plfs_fd **fd_in, char **buffer)
 {
     Container_OpenFile **pfd = (Container_OpenFile **)fd_in;
     size_t length;
@@ -1131,10 +1123,10 @@ plfs_index_stream(Plfs_fd **fd_in, char **buffer)
         ret = (*pfd)->getWritefile()->getIndex()->global_to_stream(
                   (void **)buffer,&length);
     } else {
-        mlog(INT_DRARE, "Error in plfs_index_stream");
+        mlog(INT_DRARE, "Error in container_index_stream");
         return -1;
     }
-    mlog(INT_DAPI,"In plfs_index_stream global to stream has size %lu ret=%d",
+    mlog(INT_DAPI,"In container_index_stream global to stream has size %lu ret=%d",
          (unsigned long)length, ret);
     return length;
 }
@@ -1215,8 +1207,8 @@ plfs_trim(const char *logical, pid_t pid)
 {
     PLFS_ENTER;
     mlog(INT_DAPI, "%s on %s with %d\n",__FUNCTION__,logical,pid);
-    // this should be called after the plfs_protect is done
-    // currently it doesn't check to make sure that the plfs_protect
+    // this should be called after the container_protect is done
+    // currently it doesn't check to make sure that the container_protect
     // was successful
     // find all the paths
     // shadow is the current shadowed subdir
@@ -1296,7 +1288,7 @@ plfs_trim(const char *logical, pid_t pid)
 // 2) create a subdir in canonical
 // 3) call SYNCER to move each piece owned by this pid in this subdir
 int
-plfs_protect(const char *logical, pid_t pid)
+container_protect(const char *logical, pid_t pid)
 {
     PLFS_ENTER;
     // first make sure that syncer_ip is defined
@@ -1533,14 +1525,14 @@ container_symlink(const char *logical, const char *to)
 // TODO: should this be in this file?
 // TODO: should it be renamed to container_locate?
 int
-plfs_locate(const char *logical, void *files_ptr,
+container_locate(const char *logical, void *files_ptr,
             void *dirs_ptr, void *metalinks_ptr)
 {
     PLFS_ENTER;
     // first, are we locating a PLFS file or a directory or a symlink?
     mode_t mode;
     ret = is_container_file(logical,&mode);
-    // do plfs_locate on a plfs_file
+    // do container_locate on a plfs_file
     if (S_ISREG(mode)) { // it's a PLFS file
         vector<plfs_pathback> *files = (vector<plfs_pathback> *)files_ptr;
         vector<string> filters;
@@ -1549,7 +1541,7 @@ plfs_locate(const char *logical, void *files_ptr,
                                          (vector<plfs_pathback>*)dirs_ptr,
                                          (vector<string>*)metalinks_ptr,
                                          filters,true);
-        // do plfs_locate on a plfs directory
+        // do container_locate on a plfs directory
     } else if (S_ISDIR(mode)) {
         if (!dirs_ptr) {
             mlog(INT_ERR, "Asked to %s on %s which is a directory but not "
@@ -1560,7 +1552,7 @@ plfs_locate(const char *logical, void *files_ptr,
             vector<plfs_pathback> *dirs = (vector<plfs_pathback> *)dirs_ptr;
             ret = find_all_expansions(logical,*dirs);
         }
-        // do plfs_locate on a symlink
+        // do container_locate on a symlink
     } else if (S_ISLNK(mode)) {
         if (!metalinks_ptr) {
             mlog(INT_ERR, "Asked to %s on %s which is a symlink but not "
@@ -1808,9 +1800,8 @@ container_mode(const char *logical, mode_t *mode)
     PLFS_EXIT(ret);
 }
 
-// TODO: rename to container_file_version
 int
-plfs_file_version(const char *logical, const char **version)
+container_file_version(const char *logical, const char **version)
 {
     PLFS_ENTER;
     struct plfs_pathback pb;

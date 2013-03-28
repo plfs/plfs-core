@@ -1,11 +1,11 @@
 ${COPYRIGHT}
-.TH plfs_get_attr 3 "${PACKAGE_STRING}" 
+.TH plfs_getattr 3 "${PACKAGE_STRING}" 
 .SH NAME
-plfs_get_attr 
+plfs_getattr 
 .SH SYNTAX
 #include <plfs.h>
 .PP
-int plfs_getattr( Plfs_fd *, const char *path, struct stat *stbuf );
+int plfs_getattr( Plfs_fd *, const char *path, struct stat *st, int size_only );
 
 .SH DESCRIPTION
 This function returns metadata concerning a file specified by 
@@ -22,8 +22,11 @@ the file handle returned from plfs_open (can be NULL)
 path
 path of file to get attributes for
 .TP 1i
-stat
+st
 Structure of metadata information
+.TP 1i
+size_only
+Boolean telling whether or not the only attribute of interest is the file size.
 
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read

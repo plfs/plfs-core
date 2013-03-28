@@ -134,6 +134,15 @@ vector<string> &Util::tokenize(const string& str,const string& delimiters,
     return tokens;
 }
 
+/*
+ * March 26, 2013:
+ * Only plfs_serious_error calls this. And, nothing calls plfs_serious_error.
+ *
+ * So, I am commenting out both this and plfs_serious_error.
+ *
+ * If anyone ever wanted to use this, it is recommended that
+ * mlog() be used with some form of *_CRIT status.
+ *
 void
 Util::SeriousError( string msg, pid_t pid )
 {
@@ -149,6 +158,7 @@ Util::SeriousError( string msg, pid_t pid )
         fclose(debugfile);
     }
 }
+ */
 
 // initialize static variables
 HASH_MAP<string, double> utimers;

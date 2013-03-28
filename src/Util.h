@@ -69,7 +69,19 @@ class Util
         static vector<string> &tokenize(    const string& str,
                                             const string& delimiters,
                                             vector<string> &tokens);
-        static void SeriousError(string,pid_t);
+/*
+ * March 26, 2013:
+ * Only plfs_serious_error calls this. And, nothing calls plfs_serious_error.
+ * 
+ * So, I am commenting out both this and plfs_serious_error.
+ * 
+ * If anyone ever wanted to use this, it is recommended that
+ * mlog() be used with some form of *_CRIT status.
+ * 
+ *
+        static void SeriousError( string msg, pid_t pid );
+ */
+
         static bool exists( const char *, IOStore *);
         static bool isDirectory( struct stat *buf );
         static bool isDirectory( const char *, IOStore *);

@@ -62,7 +62,7 @@ struct ADIOI_Fns_struct ADIO_PLFS_operations = {
 int plfs_protect_all(const char *file, MPI_Comm comm) {
     int rank;
     MPI_Comm_rank(comm,&rank);
-    return plfs_protect(file,rank);
+    return container_protect(file,rank);
 }
 
 int ad_plfs_amode( int access_mode )
@@ -179,8 +179,8 @@ int plfs_getattr(Plfs_fd *fd, const char *path, struct stat *st, int size_only)
     return -1; /* never gets here */
 }
 
-size_t plfs_gethostdir_id(char *)  __attribute__ ((weak));
-size_t plfs_gethostdir_id(char *id)
+size_t container_gethostdir_id(char *)  __attribute__ ((weak));
+size_t container_gethostdir_id(char *id)
 {
     no_link_abort();
     return 1; /* never gets here */
@@ -193,35 +193,35 @@ char *plfs_gethostname()
     return NULL; /* never gets here */
 }
 
-int plfs_hostdir_rddir(void **index_stream,char *targets,
+int container_hostdir_rddir(void **index_stream,char *targets,
                        int rank,char * top_level, void *pmount,
                        void *pback)  __attribute__ ((weak));
-int plfs_hostdir_rddir(void **index_stream,char *targets,
+int container_hostdir_rddir(void **index_stream,char *targets,
                        int rank,char * top_level, void *pmount, void *pback)
 {
     no_link_abort();
     return -1; /* never gets here */
 }
 
-int plfs_hostdir_zero_rddir(void **entries,const char* path,int rank,
+int container_hostdir_zero_rddir(void **entries,const char* path,int rank,
                             void *pmount, void *pback)  __attribute__ ((weak));
-int plfs_hostdir_zero_rddir(void **entries,const char* path,int rank,
+int container_hostdir_zero_rddir(void **entries,const char* path,int rank,
                             void *pmount, void *pback)
 {
     no_link_abort();
     return -1; /* never gets here */
 }
 
-int plfs_index_stream(Plfs_fd **pfd, char ** buffer)  __attribute__ ((weak));
-int plfs_index_stream(Plfs_fd **pfd, char ** buffer)
+int container_index_stream(Plfs_fd **pfd, char ** buffer)  __attribute__ ((weak));
+int container_index_stream(Plfs_fd **pfd, char ** buffer)
 {
     no_link_abort();
     return -1; /* never gets here */
 }
 
-int plfs_merge_indexes(Plfs_fd **pfd, char *index_streams,
+int container_merge_indexes(Plfs_fd **pfd, char *index_streams,
                         int *index_sizes, int procs)  __attribute__ ((weak));
-int plfs_merge_indexes(Plfs_fd **pfd, char *index_streams,
+int container_merge_indexes(Plfs_fd **pfd, char *index_streams,
                         int *index_sizes, int procs)
 {
     no_link_abort();
@@ -244,18 +244,18 @@ int plfs_open( Plfs_fd **fd, const char *path,
     return -1; /* never gets here */
 }
 
-int plfs_parindex_read(int rank, int ranks_per_comm,void *index_files,
+int container_parindex_read(int rank, int ranks_per_comm,void *index_files,
         void **index_stream,char *top_level)  __attribute__ ((weak));
-int plfs_parindex_read(int rank, int ranks_per_comm,void *index_files,
+int container_parindex_read(int rank, int ranks_per_comm,void *index_files,
         void **index_stream,char *top_level)
 {
     no_link_abort();
     return -1; /* never gets here */
 }
 
-int plfs_parindexread_merge(const char *path,char *index_streams,
+int container_parindexread_merge(const char *path,char *index_streams,
     int *index_sizes, int procs, void **index_stream)  __attribute__ ((weak));
-int plfs_parindexread_merge(const char *path,char *index_streams,
+int container_parindexread_merge(const char *path,char *index_streams,
     int *index_sizes, int procs, void **index_stream)
 {
     no_link_abort();
@@ -301,9 +301,9 @@ ssize_t plfs_write( Plfs_fd *fd,
     return -1; /* never gets here */
 }
 
-int plfs_protect(const char *, pid_t)
+int container_protect(const char *, pid_t)
      __attribute__ ((weak));
-int plfs_protect(const char *path, pid_t pid)
+int container_protect(const char *path, pid_t pid)
 {
     no_link_abort();
     return -1; /* never gets here */

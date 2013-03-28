@@ -1,0 +1,29 @@
+${COPYRIGHT}
+.TH plfs_get_filetype 3 "${PACKAGE_STRING}" 
+.SH NAME
+plfs_get_filetype 
+.SH SYNTAX
+#include <plfs.h>
+.PP
+int plfs_get_filetype( const char *path );
+
+.SH DESCRIPTION
+This is needed for MPI/IO to know to avoid optimizations unless
+the file is a container type file (workload of shared_file or n-1).
+
+.SH INPUT PARAMETERS
+.TP 1i
+path
+the name of the file to check its type.
+
+
+.SH RETURN VALUES
+Returns one of the enumerations of plfs_filetype. These are:
+CONTAINER, FLAT_FILE, SMALL_FILE, and PFT_UNKNOWN.
+
+.SH AUTHORS
+${AUTHORS}
+
+.SH SEE ALSO
+${SEEALSO3}
+

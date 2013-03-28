@@ -18,6 +18,7 @@ using namespace std;
 #include "plfs_private.h"
 #include "Util.h"
 #include "ThreadPool.h"
+#include "mlog.h"
 #include "mlog_oss.h"
 #include "container_internals.h"
 

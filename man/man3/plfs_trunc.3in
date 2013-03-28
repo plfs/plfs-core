@@ -5,7 +5,7 @@ plfs_trunc
 .SH SYNTAX
 #include <plfs.h>
 .PP
-int plfs_trunc( Plfs_fd *, const char *path, off_t );
+int plfs_trunc( Plfs_fd *, const char *path, off_t, int open_file );
 
 .SH DESCRIPTION
 Truncate a file.  Cause the regular file named by path or referenced
@@ -25,6 +25,9 @@ path to file to truncate
 .TP 1i
 off_t
 bytes to truncate
+.TP li
+open_file
+Boolean telling whether or not the file is currently open
 
 .SH RETURN VALUES
 Most PLFS functions return 0 or -errno, except write and read

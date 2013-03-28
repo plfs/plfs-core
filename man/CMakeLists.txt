@@ -14,42 +14,36 @@ SET (SEEALSO1 "${SEEALSO1}, plfs_map(1),plfs_version(1)")
 
 SET (SEEALSO3 "plfs(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs(7)")
-SET (SEEALSO3 "${SEEALSO3}, is_plfs_file(3)")
+SET (SEEALSO3 "${SEEALSO3}, is_plfs_path(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_access(3)")
-SET (SEEALSO3 "${SEEALSO3}, plfs_buildtime(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_chmod(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_chown(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_close(3)")
+SET (SEEALSO3 "${SEEALSO3}, plfs_closedir_c(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_create(3)")
-SET (SEEALSO3 "${SEEALSO3}, plfs_debug(3)")
-SET (SEEALSO3 "${SEEALSO3}, plfs_dump_config(3)")
-SET (SEEALSO3 "${SEEALSO3}, plfs_dump_index(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_flatten_index(3)")
-SET (SEEALSO3 "${SEEALSO3}, plfs_get_attr(3)")
-SET (SEEALSO3 "${SEEALSO3}, plfs_index_stream(3)")
+SET (SEEALSO3 "${SEEALSO3}, plfs_getattr(3)")
+SET (SEEALSO3 "${SEEALSO3}, plfs_get_filetype(3)")
+SET (SEEALSO3 "${SEEALSO3}, plfs_getxattr(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_link(3)")
-SET (SEEALSO3 "${SEEALSO3}, plfs_merge_indexes(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_mkdir(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_mode(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_open(3)")
+SET (SEEALSO3 "${SEEALSO3}, plfs_opendir_c(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_query(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_read(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_readdir(3)")
+SET (SEEALSO3 "${SEEALSO3}, plfs_readdir_c(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_readlink(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_rename(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_rmdir(3)")
-SET (SEEALSO3 "${SEEALSO3}, plfs_serious_error(3)")
-SET (SEEALSO3 "${SEEALSO3}, plfs_set_mpi(3)")
-SET (SEEALSO3 "${SEEALSO3}, plfs_stats(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_statvfs(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_symlink(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_sync(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_trunc(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_unlink(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_utime(3)")
-SET (SEEALSO3 "${SEEALSO3}, plfs_version(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_write(3)")
-SET (SEEALSO3 "${SEEALSO3}, plfs_wtime(3)")
 #)
 
 
@@ -105,14 +99,13 @@ foreach (MAN1 plfs plfs_check_config plfs_ls plfs_query plfs_version
 endforeach(MAN1)
 
 #man3
-foreach (MAN3 plfs is_plfs_file plfs_chown plfs_flatten_index plfs_mode
-              plfs_rename plfs_symlink plfs_write plfs_close plfs_get_attr
-              plfs_open plfs_rmdir plfs_sync plfs_wtime plfs_create
-              plfs_index_stream plfs_query plfs_serious_error plfs_trunc
-              plfs_access plfs_debug plfs_link plfs_read plfs_set_mpi
-              plfs_unlink plfs_buildtime plfs_dump_config plfs_merge_indexes
-              plfs_readdir plfs_stats plfs_utime plfs_chmod plfs_dump_index
-              plfs_mkdir plfs_readlink plfs_statvfs plfs_version)
+foreach (MAN3 plfs is_plfs_path plfs_chown plfs_flatten_index plfs_mode
+              plfs_rename plfs_symlink plfs_write plfs_close plfs_getattr
+              plfs_getxattr plfs_open plfs_rmdir plfs_sync plfs_create
+              plfs_query plfs_trunc plfs_opendir_c plfs_readdir_c plfs_closedir_c
+              plfs_access plfs_link plfs_read plfs_unlink plfs_get_filetype
+              plfs_readdir plfs_utime plfs_chmod 
+              plfs_mkdir plfs_readlink plfs_statvfs )
     configure_file( "man3/${MAN3}.3in" "${PLFS_BUILD_DIR}/share/man/man3/${MAN3}.3")
 endforeach(MAN3)
 
