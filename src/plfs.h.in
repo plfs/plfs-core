@@ -8,10 +8,13 @@
 #include <sys/types.h>
 #include <utime.h>
 
-#include "config.h"
-#ifdef HAVE_SYS_STATVFS_H
-#include <sys/statvfs.h>
-#endif
+//cmake defined variables
+@STATVFS@
+#define plfs_VERSION_MAJOR @plfs_VERSION_MAJOR@
+#define plfs_VERSION_MINOR @plfs_VERSION_MINOR@
+#define plfs_VERSION_PATCH @plfs_VERSION_PATCH@
+#define plfs_package_string "@PACKAGE_STRING@"
+//end cmake defined variables
 
 #ifdef __cplusplus
 extern "C"
