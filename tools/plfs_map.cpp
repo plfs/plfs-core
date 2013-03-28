@@ -1,7 +1,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "plfs_tool_common.h"
-#include "plfs.h"
+#include "container_internals.h"
 #include "Container.h"
 
 void show_usage(char* app_name) {
@@ -37,7 +37,7 @@ int main (int argc, char **argv) {
         exit(1);
     }
 
-    int ret = plfs_dump_index(stderr,target,0,uniform_restart,uniform_rank);
+    int ret = container_dump_index(stderr,target,0,uniform_restart,uniform_rank);
     if ( ret != 0 ) {
         fprintf(stderr, "Error: %s is not in a PLFS mountpoint"
                " configured with 'workload n-1'\n", target);

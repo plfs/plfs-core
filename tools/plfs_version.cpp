@@ -4,6 +4,7 @@
 #include "plfs.h"
 #include "Util.h"
 #include "plfs_private.h"
+#include "container_internals.h"
 #include "Container.h"
 
 int main (int argc, char **argv) {
@@ -22,7 +23,7 @@ int main (int argc, char **argv) {
         if (strcmp(argv[1], "-version") != 0) { 
             printf("file: %s\n\t", argv[1]);
             const char *version;
-            int ret = plfs_file_version(argv[1], &version);
+            int ret = container_file_version(argv[1], &version);
             if ( ret != 0 ) {
                 printf("Error: %s\n", strerror(-ret));
                 printf("%s may not be on an n-1 mount point\n", argv[1]);

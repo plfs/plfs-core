@@ -91,7 +91,7 @@ int flatten_then_close(ADIO_File afd, Plfs_fd *fd,int rank,int amode,int procs,
     char *index_stream,*index_streams;
     double start_time,end_time;
     // Get the index stream from the local index
-    index_size=plfs_index_stream(&(fd),&index_stream);
+    index_size=container_index_stream(&(fd),&index_stream);
     // Malloc space to receive all of the index sizes
     // Do all procs need to do this? I think not
     if(!rank) {
@@ -158,7 +158,7 @@ int flatten_then_close(ADIO_File afd, Plfs_fd *fd,int rank,int amode,int procs,
     if(!rank && streams_malloc && !stop_buffer) {
         plfs_debug("About to merge indexes for %s\n",filename);
         start_time=MPI_Wtime();
-        plfs_merge_indexes(&(fd),index_streams,index_sizes,procs);
+        container_merge_indexes(&(fd),index_streams,index_sizes,procs);
         end_time=MPI_Wtime();
         plfs_debug("Finished merging indexes time:%.12f\n"
                    ,end_time-start_time);
@@ -187,7 +187,7 @@ int flatten_then_close(ADIO_File afd, Plfs_fd *fd,int rank,int amode,int procs,
     }
     // Everyone needs to free their index stream
     // Root doesn't really need to make this call
-    // Could take out the plfs_index_stream call for root
+    // Could take out the container_index_stream call for root
     // This is causing errors does the free to index streams clean this up?
     return err;
 }
