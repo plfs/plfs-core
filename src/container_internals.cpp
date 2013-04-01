@@ -504,14 +504,11 @@ container_rename( const char *logical, const char *to )
             PLFS_EXIT(ret);
         }
     }
-    // Call unlink here because it does a check to determine whether a 
-    // a directory is empty or not.  If the directory is not empty this
-    // function will not proceed because rename does not work on 
-    // a non-empty destination 
-    ret = container_unlink(to);
-    if (ret == -ENOTEMPTY) {
-        PLFS_EXIT(ret);
-    }
+    // get stat info for the possibility of having to rebuild dir
+    // after call to unlink
+    struct stat stbuf;
+    npb.back->store->Lstat(new_canonical.c_str(),&stbuf);
+    
     // now check whether it is a file of a directory we are renaming
     mode_t mode;
     struct plfs_pathback opb;
@@ -531,6 +528,16 @@ container_rename( const char *logical, const char *to )
         PLFS_EXIT(ret);
     }
 
+    // Call unlink here because it does a check to determine whether a 
+    // a directory is empty or not.  If the directory is not empty this
+    // function will not proceed because rename does not work on 
+    // a non-empty destination 
+    ret = container_unlink(to);
+    if (ret == -ENOTEMPTY) {
+        container_mkdir(to, stbuf.st_mode);
+        container_chown(to, stbuf.st_uid, stbuf.st_gid );
+        PLFS_EXIT(ret);
+    }
     
     // get the list of all possible entries for both src and dest
     vector<plfs_pathback> srcs, dsts;
