@@ -19,6 +19,7 @@ using namespace std;
 #include "Util.h"
 #include "ThreadPool.h"
 #include "mlog_oss.h"
+#include "container_internals.h"
 
 #define BLKSIZE 512
 
@@ -870,7 +871,7 @@ Container::createMetalink(struct plfs_backend *canback,
         struct plfs_backend *mlback;
         if (readMetalink(oss.str(), canback, NULL, sz, &mlback) == 0) {
             ostringstream tmp;
-            tmp << sz << mlback->bmpoint;
+            tmp << sz << mlback->prefix << mlback->bmpoint;
             if (strcmp(tmp.str().c_str(), shadow.str().c_str()) == 0) {
                 mlog(CON_DCOMMON, "same metalink already created");
                 ret = 0;
@@ -1753,6 +1754,12 @@ Container::makeDropping(const string& path, struct plfs_backend *b)
     int ret = makeDroppingReal( path, b, DROPPING_MODE );
     umask(save_umask);
     return ret;
+}
+int
+Container::prepareWriter(WriteFile *wf, pid_t pid, mode_t mode,
+                         const string& logical)
+{
+    return container_prepare_writer(wf, pid, mode, logical);
 }
 // returns 0 or -err
 int

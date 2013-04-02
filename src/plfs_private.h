@@ -8,6 +8,7 @@
 #include "LogicalFS.h"
 #include "FileOp.h"
 #include "Container.h"
+#include "PLFSIndex.h"
 
 #include <map>
 #include <set>
@@ -66,6 +67,7 @@ typedef struct PlfsMount {
     vector<string> mnt_tokens;
     plfs_filetype file_type;
     LogicalFileSystem *fs_ptr;
+    unsigned max_writers;
     unsigned checksum;
 
     /* backend filesystem info */
@@ -118,10 +120,12 @@ typedef struct {
     size_t num_hostdirs;
     size_t threadpool_size;
     size_t buffer_mbs;  // how many mbs to buffer for write indexing
+    size_t read_buffer_mbs; // how many mbs to buffer for metadata reading
     map<string,PlfsMount *> mnt_pts;
     bool direct_io; // a flag FUSE needs.  Sorry ADIO and API for the wasted bit
     bool test_metalink; // for developers only
     bool lazy_stat;
+    bool lazy_droppings; // defer index/data droppings creation until first write
     string *err_msg;
 
     char *global_summary_dir;
@@ -138,6 +142,10 @@ typedef struct {
     int mlog_msgbuf_size;  /* number of bytes in mlog message buffer */
     int mlog_syslogfac;    /* syslog facility to use, if syslog enabled */
     char *mlog_setmasks;   /* initial non-default log level settings */
+
+    /* File to dump fuse errors to regardless of mlog configuration */
+    char *fuse_crash_log;
+    int max_smallfile_containers; /* number of cached smallfile containers */
 } PlfsConf;
 
 PlfsConf *parse_conf(FILE *fp, string file, PlfsConf *pconf);
@@ -157,6 +165,8 @@ int find_all_expansions(const char *logical,vector<plfs_pathback> &containers);
 // a helper function that expands %t, %p, %h in mlog file name
 string expand_macros(const char *target);
 
+string stripPrefixPath(string *path);
+void stripPrefixPath(const char *path, char *stripped_path);
 string expandPath(string logical, ExpansionInfo *exp_info,
                   expansionMethod hash_method, int which_backend, int depth);
 int mkdir_dash_p(const string& path, bool parent_only, IOStore *);

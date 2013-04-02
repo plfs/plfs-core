@@ -18,7 +18,8 @@ int main (int argc, char* argv[])
 
     // set up mountpoint from command line arguments
     if (argc != 2) {
-	std::cout << "Usage: " << argv[0] << " /path/to/mount/" << std::endl;
+	std::cout << "Usage: " << argv[0] << " /path/to/test/directory/"
+                  << std::endl;
 	return 1;
     }
     plfsmountpoint = argv[1];

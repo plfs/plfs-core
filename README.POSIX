@@ -5,28 +5,35 @@ A secondary goal is to be as POSIX compliant as possible without sacrificing
 the primary goal.  There are several known cases where PLFS is intentionally
 not POSIX compliant in order to satisfy the primary goal:
 
-1) overlapped writes that occur from different open() calls are not defined.
+- overlapped writes that occur from different open() calls are not defined.
 in fact, different readers at different times might even get different values.
 if the same open() happens to do overwrites, this is handled correctly
 
-2) no hard links.  This is because hard links are not possible on directories
+- no hard links.  This is because hard links are not possible on directories
 and logical files in PLFS are "containers" and containers are built from
 physical directories.
 
-3) a user can't set their own file to be read-only on the user.  Therefore, a 
+- a user can't set their own file to be read-only on the user.  Therefore, a 
 user can always write their own files.
 
-4) REMOVED.  LEFT TO PRESERVE ORDERING. 
-
-5) if someone doesn't have read permissions on a file, but they have execute
+- if someone doesn't have read permissions on a file, but they have execute
 permissions on a directory, when they stat the file, it will always appear to
 be empty 
 
-6) In flat file mode, a user can't create a read-only file. A newly created
+- In flat file mode, a user can't create a read-only file. A newly created
 file can always be writen by its owner with the mode bit S_IWUSR set.
 
-7) in FUSE, rm -rf on a directory that contains files which are currently open
+- in FUSE, rm -rf on a directory that contains files which are currently open
 through FUSE will fail with ENOTEMPTY.  This is actually a FUSE problem since
 FUSE does a rename on open files into .fuse_hidden when the user tries to
 unlink them.  Then FUSE tries to rmdir the parent directory and PLFS refuses 
 since there is a .fuse_hidden file in it.
+
+- atime, ctime, and mtime are not always shown as updated in a PLFS FUSE mount
+point for a directory that has a file changed within it. This has to do with
+the number of backends associated with the mount point. If a file maps to a
+single backend, only the directory on that backend will have the proper times.
+However, stating the directory through FUSE may get times associated with a
+backend that doesn't have the file. Thus, the reported times may be off. It
+can be expensive to check every backend on a directory stat, so rather then
+fix this immediately, it has been documented it instead.
