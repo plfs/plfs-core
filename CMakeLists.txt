@@ -33,25 +33,14 @@ set(PLFS_SOURCE_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set(PLFS_TOOLS_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/tools")
 set(PLFS_MAN_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/man")
 
-#we can change this behavior to something like
-#always use build/ but this allows us to make into
-#multiple directories without installing
+#BUILD_DIR is where we build from
 set(PLFS_BUILD_DIR "${CMAKE_BINARY_DIR}")
 
 #setup our output paths
 set(EXECUTABLE_OUTPUT_PATH "${PLFS_BUILD_DIR}/bin")
 set(LIBRARY_OUTPUT_PATH "${PLFS_BUILD_DIR}/lib")
 
-#grab the config
-include_directories (${PROJECT_BINARY_DIR})
-#set includes for everything
-include_directories (${PLFS_SOURCE_DIR})
-include_directories (${PLFS_TOOLS_DIR})
-#IOStore stuff
-include_directories(${PLFS_SOURCE_DIR}/IOStore)
-include_directories(${PLFS_SOURCE_DIR}/IOStore/Glib)
-
-#grab the config
+#grab the plfs.h
 include_directories (${PROJECT_BINARY_DIR})
 #set includes for everything
 include_directories (${PLFS_SOURCE_DIR})
@@ -115,6 +104,8 @@ SET(SRCDIR ${plfs_src_dir} ${iostore} ${iostore_glib} ${iostore_posix}
            ${logicalfs_smallfile} ${smallfile} ${mlog}
 )
 
+#needed by the crays to link against the dynamic version
+set (CMAKE_EXE_LINKER_FLAGS "-dynamic")
 #static and shared bot same name
 add_library(plfs_lib SHARED ${SRCDIR})
 SET_TARGET_PROPERTIES(plfs_lib PROPERTIES OUTPUT_NAME plfs)
@@ -125,13 +116,16 @@ if (NOT DISABLE_STATIC_LIB)
     #if not
     add_dependencies(plfs_lib plfs_lib_static)
     INSTALL(TARGETS plfs_lib  plfs_lib_static
-                LIBRARY DESTINATION lib
-                ARCHIVE DESTINATION lib)
+            LIBRARY DESTINATION lib
+            ARCHIVE DESTINATION lib)
     SET_TARGET_PROPERTIES(plfs_lib_static PROPERTIES OUTPUT_NAME plfs)
 else()
     INSTALL(TARGETS plfs_lib
-                LIBRARY DESTINATION lib)
+            LIBRARY DESTINATION lib)
 endif(NOT DISABLE_STATIC_LIB)
+
+
+SET_TARGET_PROPERTIES(plfs_lib PROPERTIES OUTPUT_NAME plfs)
 
 
 #zlib
@@ -156,8 +150,6 @@ configure_file (
     "${PROJECT_BINARY_DIR}/plfs.h"
 )
 
-
-    
 
 #fuse
 find_package(FUSE)
