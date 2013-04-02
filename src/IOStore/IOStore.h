@@ -76,7 +76,6 @@ class IOSHandle {
     virtual int ReleaseDataBuf(void *buf, size_t length)=0;
     virtual off_t Size(void)=0;
     virtual ssize_t Write(const void *buf, size_t nbytes)=0;
-    virtual ~IOSHandle() {};
 };
 
 /**
@@ -91,7 +90,6 @@ class IOSDirHandle {
 public:
     virtual ~IOSDirHandle() {};
     virtual int Readdir_r(struct dirent *, struct dirent **)=0;
-    virtual ~IOSDirHandle() {};
 };
 
 /*
