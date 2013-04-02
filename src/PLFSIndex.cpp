@@ -85,7 +85,7 @@ find_read_tasks(PLFSIndex *index, list<ReadTask> *tasks, size_t size,
                 }
             }
             // remember this task
-            mlog(INT_DCOMMON, "%s", oss.str().c_str() );
+            oss.commit();
             tasks->push_back(task);
         }
         // when chunk_length is 0, that means EOF
@@ -148,7 +148,7 @@ perform_read_task( ReadTask *task, PLFSIndex *index )
     mss::mlog_oss oss(INT_DCOMMON);
     oss << "\t READ TASK: offset " << task->chunk_offset << " len "
         << task->length << " fh " << task->fh << ": ret " << ret;
-    mlog(INT_DCOMMON, "%s", oss.str().c_str() );
+    oss.commit();
     PLFS_EXIT(ret);
 }
 
