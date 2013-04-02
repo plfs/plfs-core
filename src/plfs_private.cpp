@@ -1184,23 +1184,26 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
 {
     int v;
     if(strcmp(key,"index_buffer_mbs")==0) {
-        pconf->buffer_mbs = atoi(value);
-        if (pconf->buffer_mbs <0) {
+        if (atoi(value) < 0) {
             pconf->err_msg = new string("illegal negative value");
+        } else {
+            pconf->buffer_mbs = atoi(value);
         }
     } else if(strcmp(key,"read_buffer_mbs") == 0) {
-        pconf->read_buffer_mbs = atoi(value);
-        if (pconf->read_buffer_mbs <= 0) {
+        if (atoi(value) <= 0) {
             pconf->err_msg = new string("illegal negative value");
+        } else {
+            pconf->read_buffer_mbs = atoi(value);
         }
     } else if(strcmp(key,"max_writers") == 0) {
         if( !*pmntp ) {
             pconf->err_msg = new string("No mount point yet declared");
             return;
         }
-        (*pmntp)->max_writers = atoi(value);
-        if ((*pmntp)->max_writers < 0) {
+        if (atoi(value) < 0) {
             pconf->err_msg = new string("illegal negative value");
+        } else {
+            (*pmntp)->max_writers = atoi(value);
         }
     } else if(strcmp(key,"workload")==0) {
         if( !*pmntp ) {
