@@ -65,6 +65,7 @@ mlog.h \
 OpenFile.h \
 plfs_private.h \
 ThreadPool.h \
+PLFSIndex.h \
 WriteFile.h \
 container_internals.h \
 ContainerFS.h \
@@ -73,6 +74,8 @@ LogicalFS.h \
 LogicalFD.h \
 FlatFileFS.h \
 FlatFileFD.h \
+SmallFileFS.h \
+SmallFileFD.h \
 mlog_oss.h \
 XAttrs.h  \
 IOStore.h \
@@ -91,6 +94,7 @@ Index.cpp \
 LogMessage.cpp \
 OpenFile.cpp \
 ThreadPool.cpp \
+PLFSIndex.cpp \
 WriteFile.cpp \
 mlog.c \
 ContainerFS.cpp \
@@ -101,6 +105,8 @@ HDFSIOStore.cpp \
 PVFSIOStore.cpp \
 IOStore.cpp \
 PosixIOStore.cpp \
+SmallFileFS.cpp \
+SmallFileFD.cpp \
 plfs_private.cpp \
 container_internals.cpp \
 plfs.cpp \
@@ -113,8 +119,11 @@ $(sources)
 
 libplfs_la_CXXFLAGS = \
 -D_FILE_OFFSET_BITS=64 \
-@PTHREAD_CFLAGS@ 
+-g @PTHREAD_CFLAGS@ \
+-I./smallfile
 
 libplfs_la_LDFLAGS = \
 @PTHREAD_LIBS@
 
+libplfs_la_LIBADD = \
+./smallfile/libsmallfile.la

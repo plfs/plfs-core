@@ -7,10 +7,12 @@
 #include "mlog.h"
 #include "LogMessage.h"
 #include "IOStore.h"
+#include "ThreadPool.h"
 
 // why is these included???!!!????
 #include "FlatFileFS.h"
 #include "ContainerFS.h"
+#include "SmallFileFS.h"
 #include <assert.h>
 #include <stdlib.h>
 
@@ -89,6 +91,26 @@ find_mount_point_using_tokens(PlfsConf *pconf,
     found = false;
     return NULL;
 }
+// These functions take a path and strips the adio prefix from it
+// they work if you pass in a char * or a string
+string
+stripPrefixPath(string path){
+    // rip off an adio prefix if passed
+    string adio_prefix("plfs:");
+    if (path.substr(0, adio_prefix.size()) == adio_prefix){
+        path = path.substr(adio_prefix.size());
+        mlog(INT_DCOMMON, "Ripping %s -> %s", adio_prefix.c_str(),path.c_str());
+    }
+    return path;
+}
+
+void
+stripPrefixPath(const char *path, char *stripped_path){
+    //a version for char * and c applications
+    string path_str(path);
+    path_str = stripPrefixPath(path_str);
+    strcpy(stripped_path, path_str.c_str());
+}
 
 // takes a logical path and returns a physical one
 // the expansionMethod controls whether it returns the canonical path or a
@@ -101,6 +123,7 @@ find_mount_point_using_tokens(PlfsConf *pconf,
 // but it currently does pretty much require that in order to read that all
 // backends are mounted (this is for scr-plfs-ssdn-emc project).  will need
 // to be relaxed.
+
 string
 expandPath(string logical, ExpansionInfo *exp_info,
            expansionMethod hash_method, int which_backend, int depth)
@@ -113,8 +136,6 @@ expandPath(string logical, ExpansionInfo *exp_info,
     exp_info->expanded = "UNINITIALIZED";
     // get our initial conf
     static PlfsConf *pconf = NULL;
-    static const char *adio_prefix = "plfs:";
-    static int prefix_length = -1;
     if (!pconf) {
         pconf = get_plfs_conf();
         if (!pconf) {
@@ -129,17 +150,7 @@ expandPath(string logical, ExpansionInfo *exp_info,
         exp_info->Errno = -EINVAL;
         return "INVALID";
     }
-    // rip off an adio prefix if passed.  Not sure how important this is
-    // and not sure how much overhead it adds nor efficiency of implementation
-    // am currently using C-style strncmp instead of C++ string stuff bec
-    // I coded this on plane w/out access to internet
-    if (prefix_length==-1) {
-        prefix_length = strlen(adio_prefix);
-    }
-    if (logical.compare(0,prefix_length,adio_prefix)==0) {
-        logical = logical.substr(prefix_length,logical.size());
-        mlog(INT_DCOMMON, "Ripping %s -> %s", adio_prefix,logical.c_str());
-    }
+    logical = stripPrefixPath(logical);
     // find the appropriate PlfsMount from the PlfsConf
     bool mnt_pt_found = false;
     vector<string> logical_tokens;
@@ -379,6 +390,9 @@ plfs_dump_config(int check_dirs, int make_dir)
          << "Num Hostdirs: " << pconf->num_hostdirs << endl
          << "Threadpool size: " << pconf->threadpool_size << endl
          << "Write index buffer size (mbs): " << pconf->buffer_mbs << endl
+         << "Read index buffer size (mbs): " << pconf->read_buffer_mbs << endl
+         << "Max cached smallfile containers: "
+         << pconf->max_smallfile_containers << endl
          << "Num Mountpoints: " << pconf->mnt_pts.size() << endl
          << "Lazy Stat: " << (int)pconf->lazy_stat << endl;
     if (pconf->global_summary_dir) {
@@ -393,6 +407,9 @@ plfs_dump_config(int check_dirs, int make_dir)
     if (pconf->test_metalink) {
         cout << "Test metalink: TRUE" << endl;
     }
+    if (pconf->lazy_droppings) {
+        cout << "Lazy droppings: TRUE" << endl;
+    }
     map<string,PlfsMount *>::iterator itr;
     for(itr=pconf->mnt_pts.begin(); itr!=pconf->mnt_pts.end(); itr++) {
         PlfsMount *pmnt = itr->second;
@@ -401,6 +418,7 @@ plfs_dump_config(int check_dirs, int make_dir)
         cout << "\tExpected Workload "
              << (pmnt->file_type == CONTAINER ? "shared_file (N-1)"
                  : pmnt->file_type == FLAT_FILE ? "file_per_proc (N-N)"
+                 : pmnt->file_type == SMALL_FILE ? "small_file (1-N)"
                  : "UNKNOWN.  WTF.  email plfs-devel@lists.sourceforge.net")
              << endl;
         if (check_dirs && plfs_attach(pmnt) != 0) {
@@ -435,6 +453,7 @@ plfs_dump_config(int check_dirs, int make_dir)
                                    pmnt->statfs->c_str(),ret,make_dir);
             }
         }
+        cout << "\tMax writers: " << pmnt->max_writers << endl;
         cout << "\tChecksum: " << pmnt->checksum << endl;
     }
     return ret;
@@ -1071,6 +1090,7 @@ set_default_mount(PlfsMount *pmnt)
     pmnt->statfs_io.store = NULL;
     pmnt->file_type = CONTAINER;
     pmnt->fs_ptr = &containerfs;
+    pmnt->max_writers = 4;
     pmnt->checksum = (unsigned)-1;
     pmnt->backspec = pmnt->canspec = pmnt->shadowspec = NULL;
     pmnt->attached = pmnt->nback = pmnt->ncanback = pmnt->nshadowback = 0;
@@ -1087,10 +1107,12 @@ set_default_confs(PlfsConf *pconf)
     pconf->lazy_stat = 1;
     pconf->err_msg = NULL;
     pconf->buffer_mbs = 64;
+    pconf->read_buffer_mbs = 64;
     pconf->global_summary_dir = NULL;
     pconf->global_sum_io.prefix = NULL;
     pconf->global_sum_io.store = NULL;
     pconf->test_metalink = 0;
+    pconf->lazy_droppings = 1;
     /* default mlog settings */
     pconf->mlog_flags = MLOG_LOGPID;
     pconf->mlog_defmask = MLOG_WARN;
@@ -1101,6 +1123,8 @@ set_default_confs(PlfsConf *pconf)
     pconf->mlog_syslogfac = LOG_USER;
     pconf->mlog_setmasks = NULL;
     pconf->tmp_mnt = NULL;
+    pconf->fuse_crash_log = NULL;
+    pconf->max_smallfile_containers = 32;
 }
 
 
@@ -1149,6 +1173,23 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
     int v;
     if(strcmp(key,"index_buffer_mbs")==0) {
         pconf->buffer_mbs = atoi(value);
+        if (pconf->buffer_mbs <0) {
+            pconf->err_msg = new string("illegal negative value");
+        }
+    } else if(strcmp(key,"read_buffer_mbs") == 0) {
+        pconf->read_buffer_mbs = atoi(value);
+        if (pconf->read_buffer_mbs <= 0) {
+            pconf->err_msg = new string("illegal negative value");
+        }
+    } else if(strcmp(key,"max_writers") == 0) {
+        if( !*pmntp ) {
+            pconf->err_msg = new string("No mount point yet declared");
+            return;
+        }
+        (*pmntp)->max_writers = atoi(value);
+        if ((*pmntp)->max_writers < 0) {
+            pconf->err_msg = new string("illegal negative value");
+        }
     } else if(strcmp(key,"workload")==0) {
         if( !*pmntp ) {
             pconf->err_msg = new string("No mount point yet declared");
@@ -1160,6 +1201,9 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
         } else if (strcmp(value,"shared_file")==0||strcmp(value,"n-1")==0) {
             (*pmntp)->file_type = CONTAINER;
             (*pmntp)->fs_ptr = &containerfs;
+        } else if (strcmp(value, "small_file")==0||strcmp(value,"1-n")==0) {
+            (*pmntp)->file_type = SMALL_FILE;
+            (*pmntp)->fs_ptr =new SmallFileFS(pconf->max_smallfile_containers);
         } else {
             pconf->err_msg = new string("unknown workload type");
             return;
@@ -1175,6 +1219,17 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
     } else if(strcmp(key,"threadpool_size")==0) {
         pconf->threadpool_size = atoi(value);
         if (pconf->threadpool_size <=0) {
+            pconf->err_msg = new string("illegal negative value");
+        }
+    }else if (strcmp(key,"fuse_crash_log") == 0) {
+        pconf->fuse_crash_log = strdup(value);
+
+        if (pconf->fuse_crash_log == NULL) {
+            pconf->err_msg = new string("Unable to set fuse_crash_log");
+         }
+    } else if(strcmp(key,"max_smallfile_containers")==0) {
+        pconf->max_smallfile_containers = atoi(value);
+        if (pconf->max_smallfile_containers <= 0) {
             pconf->err_msg = new string("illegal negative value");
         }
     } else if (strcmp(key,"global_summary_dir")==0) {
@@ -1193,6 +1248,8 @@ parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
                     " or if performance is important, pls edit %s to"
                     " remove the test_metalink directive\n", file);
         }
+    } else if (strcmp(key,"lazy_droppings")==0) {
+        pconf->lazy_droppings = atoi(value)==0 ? 0 : 1;
     } else if (strcmp(key,"num_hostdirs")==0) {
         pconf->num_hostdirs = atoi(value);
         if (pconf->num_hostdirs <= 0) {
@@ -1676,4 +1733,3 @@ plfs_phys_backlookup(const char *phys, PlfsMount *pmnt,
 
     return(rv);
 }
-
