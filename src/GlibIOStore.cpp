@@ -46,18 +46,22 @@ GlibIOSHandle::Close() {
 
 // helper function to convert flags for POSIX open
 // into restrict_mode as used in glib fopen
+/*
+ * Unlike the other values that can be specified in flags, the access mode
+ * values  O_RDONLY, O_WRONLY, and O_RDWR, do not specify individual bits.
+ * Rather, they define the low order two bits of flags,  and  are  defined
+ * respectively  as 0, 1, and 2.
+ */
 string
 flags_to_restrict_mode(int flags) {
-    if (flags & O_RDONLY) {
+    int access_mode = flags & 3;
+    if (access_mode == O_RDONLY) {
         return "r";
-    } else if (flags & O_WRONLY) {
+    } else if (access_mode == O_WRONLY) {
         return "w";
-    } else {
-        assert (flags & O_RDWR);
-        return "r+"; 
     }
-    assert(0);
-    return "";
+    assert (access_mode == O_RDWR);
+    return "r+";
 }
 
 int 
@@ -72,7 +76,7 @@ GlibIOSHandle::Open(int flags, mode_t mode) {
     // currently using fdopen following posix open
     // but might be better performance to just fopen
     // and then chmod
-    string restrict_mode = flags_to_restrict_mode(mode);
+    string restrict_mode = flags_to_restrict_mode(flags);
     this->fp = fdopen(fd,restrict_mode.c_str());
     rv = get_null_err(this->fp);
     if (rv < 0) {
