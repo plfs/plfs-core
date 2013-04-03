@@ -24,9 +24,9 @@ typedef long long int int64_t;
 #include <plfs.h>
 #include <plfs/plfs_internal.h>
 #include "adio.h"
-#include "plfs_private.h"
-#include "container_internals.h"
-#include "mlog.h"
+//#include "plfs_private.h"
+//#include "container_internals.h"
+//#include "mlog.h"
 
 
 void ADIOI_PLFS_Open(ADIO_File fd, int *error_code);
@@ -59,6 +59,24 @@ void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code);
 int  ADIOI_PLFS_Feature(ADIO_File fd, int flag);
 
 int plfs_protect_all(const char *file, MPI_Comm comm);
+
+/*
+// expose a few internals that we use for optimization
+extern size_t container_gethostdir_id(char *id);
+extern int container_num_host_dirs(int *hostdir_count,char *target, void *vback, char *bm);
+extern int container_hostdir_rddir(void **index_stream,char *targets,
+        int rank,char * top_level, void *pmount, void *pback);
+extern int container_hostdir_zero_rddir(void **entries,const char* path,int rank,
+        void *pmount, void *pback);
+extern int container_index_stream(Plfs_fd **pfd, char ** buffer);
+extern int container_merge_indexes(Plfs_fd **pfd, char *index_streams,
+        int *index_sizes, int procs);
+extern int container_parindex_read(int rank, int ranks_per_comm,void *index_files,
+        void **index_stream,char *top_level);
+extern int container_parindexread_merge(const char *path,char *index_streams,
+        int *index_sizes, int procs, void **index_stream);
+extern int container_protect(const char *path, pid_t pid);
+*/
 
 #define plfs_barrier(X,Y) \
     do { \
