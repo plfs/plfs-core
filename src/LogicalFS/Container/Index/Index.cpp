@@ -378,7 +378,7 @@ Index::~Index()
     os << __FUNCTION__ << ": " << this
        << " removing index on " << physical_path << ", "
        << chunk_map.size() << " chunks";
-    mlog(IDX_DAPI, "%s", os.str().c_str() );
+    os.commit();
     mlog(IDX_DCOMMON, "There are %lu chunks to close fds for",
          (unsigned long)chunk_map.size());
     /*
@@ -583,7 +583,7 @@ int Index::readIndex( string hostindex, struct plfs_backend *hback )
     mss::mlog_oss os(IDX_DAPI);
     os << __FUNCTION__ << ": " << this << " reading index on " <<
        physical_path;
-    mlog(IDX_DAPI, "%s", os.str().c_str() );
+    os.commit();
 
     rv = mapIndex(&maddr, hostindex, &rfh, &length, hback);
 
@@ -995,7 +995,7 @@ int Index::handleOverlap(ContainerEntry& incoming,
     for(cur=winners.begin(); cur!=winners.end(); cur++) {
         oss << cur->second;
     }
-    mlog(IDX_DCOMMON, "%s",oss.str().c_str());
+    oss.commit();
     // I've seen weird cases where when a file is continuously overwritten
     // slightly (like config.log), that it makes a huge mess of small little
     // chunks.  It'd be nice to compress winners before inserting into global
@@ -1038,7 +1038,7 @@ Index::insertGlobal( ContainerEntry *g_entry )
     if ( ret.second == false ) {
         ioss << "overlap1" <<endl<< *g_entry <<endl << 
                 ret.first->second << endl;
-        mlog(IDX_DCOMMON, "%s", ioss.str().c_str() );
+        ioss.commit();
         overlap  = true;
     }
     // also, need to check against prev and next for overlap
@@ -1050,20 +1050,20 @@ Index::insertGlobal( ContainerEntry *g_entry )
     if ( next != global_index.end() && g_entry->overlap( next->second ) ) {
         mss::mlog_oss oss(IDX_DCOMMON);
         oss << "overlap2 " << endl << *g_entry << endl <<next->second;
-        mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
+        oss.commit();
         overlap = true;
     }
     if (ret.first!=global_index.begin() && prev->second.overlap(*g_entry) ) {
         mss::mlog_oss oss(IDX_DCOMMON);
         oss << "overlap3 " << endl << *g_entry << endl <<prev->second;
-        mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
+        oss.commit();
         overlap = true;
     }
     if ( overlap ) {
         mss::mlog_oss oss(IDX_DCOMMON);
         oss << __FUNCTION__ << " of " << physical_path << " trying to insert "
             << "overlap at " << g_entry->logical_offset;
-        mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
+        oss.commit();
         //handleOverlap with entry length 0 is broken
         //not exactly sure why
         if (g_entry->length != 0){
@@ -1074,7 +1074,7 @@ Index::insertGlobal( ContainerEntry *g_entry )
         if (ret.first!=global_index.begin() && g_entry->follows(prev->second)) {
             ioss << "Merging index for " << *g_entry << " and " << prev->second
                 << endl;
-            mlog(IDX_DCOMMON, "%s", ioss.str().c_str());
+            ioss.commit();
             prev->second.length += g_entry->length;
             global_index.erase( ret.first );
         }
@@ -1201,7 +1201,7 @@ int Index::globalLookup( IOSHandle **xfh, off_t *chunk_off, size_t *chunk_len,
 {
     mss::mlog_oss os(IDX_DAPI);
     os << __FUNCTION__ << ": " << this << " using index.";
-    mlog(IDX_DAPI, "%s", os.str().c_str() );
+    os.commit();
     *hole = false;
     *chunkid = (pid_t)-1;
     //mlog(IDX_DCOMMON, "Look up %ld in %s",
@@ -1264,7 +1264,7 @@ int Index::globalLookup( IOSHandle **xfh, off_t *chunk_off, size_t *chunk_len,
     if ( logical < entry.logical_offset ) {
         mss::mlog_oss oss(IDX_DCOMMON);
         oss << "FOUND(4): " << logical << " is in a hole";
-        mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
+        oss.commit();
         off_t remaining_hole_size = entry.logical_offset - logical;
         *xfh = NULL;
         *chunk_len = remaining_hole_size;

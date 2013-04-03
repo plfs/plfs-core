@@ -1788,7 +1788,7 @@ container_getattr(Container_OpenFile *of, const char *logical,
     oss << __FUNCTION__ << " of " << path << "("
         << (of == NULL ? "closed" : "open")
         << ") size is " << stbuf->st_size;
-    mlog(PLFS_DAPI, "%s", oss.str().c_str());
+    oss.commit();
     PLFS_EXIT(ret);
 }
 
@@ -2035,7 +2035,7 @@ plfs_reference_count( Container_OpenFile *pfd )
         mss::mlog_oss oss(INT_DRARE);
         oss << __FUNCTION__ << " not equal counts: " << ref_count
             << " != " << pfd->incrementOpens(0) << endl;
-        mlog(INT_DRARE, "%s", oss.str().c_str() );
+        oss.commit();
         assert( ref_count == pfd->incrementOpens(0) );
     }
     return ref_count;
@@ -2122,7 +2122,7 @@ container_close( Container_OpenFile *pfd, pid_t pid, uid_t uid, int open_flags,
     if ( ret == 0 && ref_count == 0 ) {
         mss::mlog_oss oss(PLFS_DCOMMON);
         oss << __FUNCTION__ << " removing OpenFile " << pfd;
-        mlog(PLFS_DCOMMON, "%s", oss.str().c_str() );
+        oss.commit();
         delete pfd;
         pfd = NULL;
     }

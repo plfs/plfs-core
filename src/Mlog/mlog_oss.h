@@ -13,10 +13,12 @@ namespace mss {
             int level;
             bool noLog;
 
+
         public:
             mlog_oss();
             mlog_oss(int lvl);
             bool getNoLog();
+            bool commit();
             
             template <typename T>
             void insert(T xin) {
