@@ -533,7 +533,7 @@ container_rename( const char *logical, const char *to )
     // function will not proceed because rename does not work on 
     // a non-empty destination 
     ret = container_unlink(to);
-    if (ret == -ENOTEMPTY) {
+    if (ret == -ENOTEMPTY && S_ISDIR(stbuf.st_mode)) {
         container_mkdir(to, stbuf.st_mode);
         container_chown(to, stbuf.st_uid, stbuf.st_gid );
         PLFS_EXIT(ret);
