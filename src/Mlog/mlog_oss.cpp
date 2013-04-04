@@ -8,8 +8,19 @@ mss::mlog_oss::mlog_oss(int lvl) {
     if (MLOG_NEVERLOG == 0 &&
             mlog_filter(lvl)) {
         noLog = false;
+        this->level = lvl;
     } else {
         noLog = true;
+    }
+}
+
+bool
+mss::mlog_oss::commit() {
+    if (!noLog) {
+        mlog(level, "%s", oss.str().c_str());
+        return true;
+    } else {
+        return false;
     }
 }
 

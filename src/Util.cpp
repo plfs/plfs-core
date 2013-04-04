@@ -52,15 +52,14 @@ using namespace std;
 #ifndef UTIL_COLLECT_TIMES
 off_t total_ops = 0;
 #define ENTER_UTIL int ret = 0; total_ops++;
-#define ENTER_IO   ssize_t ret = 0;
+#define ENTER_IO   ssize_t ret = 0; total_ops++;
 #define EXIT_IO    return ret;
 #define EXIT_UTIL  return ret;
 #define ENTER_MUX  ENTER_UTIL;
 #define ENTER_PATH ENTER_UTIL;
 #else
-#define DEBUG_ENTER /* mlog(UT_DAPI, "Enter %s", __FUNCTION__ );*/
+#define DEBUG_ENTER mss::mlog_oss oss(UT_DAPI);
 #define DEBUG_EXIT  LogMessage lm1;                             \
-                        mss::mlog_oss oss(UT_DAPI);             \
                         oss << "Util::" << setw(13) << __FUNCTION__; \
                         if (path) oss << " on " << path << " ";     \
                         oss << setw(7) << " ret=" << setprecision(0) << ret    \
@@ -68,7 +67,7 @@ off_t total_ops = 0;
                             << end-begin << endl; \
                         lm1 << oss.str();                           \
                         lm1.flush();                                \
-                        mlog(UT_DAPI, "%s", oss.str().c_str());
+                        oss.commit();
 
 #define ENTER_MUX   LogMessage lm2;                             \
                         lm2 << "Util::" << setw(13) << __FUNCTION__ \
@@ -333,10 +332,10 @@ int Util::MutexLock(  pthread_mutex_t *mux , const char *where )
     ENTER_MUX;
     mss::mlog_oss os(UT_DAPI), os2(UT_DAPI);
     os << "Locking mutex " << mux << " from " << where;
-    mlog(UT_DAPI, "%s", os.str().c_str() );
+    os.commit();
     pthread_mutex_lock( mux );
     os2 << "Locked mutex " << mux << " from " << where;
-    mlog(UT_DAPI, "%s", os2.str().c_str() );
+    os2.commit();
     EXIT_UTIL;
 }
 
@@ -345,7 +344,7 @@ int Util::MutexUnlock( pthread_mutex_t *mux, const char *where )
     ENTER_MUX;
     mss::mlog_oss os(UT_DAPI);
     os << "Unlocking mutex " << mux << " from " << where;
-    mlog(UT_DAPI, "%s", os.str().c_str() );
+    os.commit();
     pthread_mutex_unlock( mux );
     EXIT_UTIL;
 }

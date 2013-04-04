@@ -205,7 +205,6 @@ class Index : public Metadata, public PLFSIndex
         map<pid_t,off_t> physical_offsets;
 
         bool   populated;
-        pid_t  mypid;
 
         string physical_path;
         IOSHandle *fh;

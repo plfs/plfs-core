@@ -5,6 +5,7 @@
 #include "LogicalFD.h"
 #include "XAttrs.h"
 #include <assert.h>
+#include "mlog_oss.h"
 
 void
 debug_enter(const char *func, string msg)
@@ -319,7 +320,7 @@ plfs_query(Plfs_fd *fd, size_t *writers, size_t *readers,
 ssize_t
 plfs_read(Plfs_fd *fd, char *buf, size_t size, off_t offset)
 {
-    ostringstream oss;
+    mss::mlog_oss oss;
     oss << fd->getPath() << " -> " <<offset << ", " << size;
     debug_enter(__FUNCTION__,oss.str());
     memset(buf, (int)'z', size);
@@ -426,7 +427,7 @@ int
 plfs_rename(const char *from, const char *to)
 {
     int ret = 0;
-    ostringstream oss;
+    mss::mlog_oss oss;
     oss << from << " -> " << to;
     char stripped_from[PATH_MAX];
     stripPrefixPath(from, stripped_from);
@@ -482,7 +483,7 @@ int
 plfs_symlink(const char *from, const char *to)
 {
     int ret = 0;
-    ostringstream oss;
+    mss::mlog_oss oss;
     oss << from << " -> " << to;
 
     char stripped_from[PATH_MAX];
@@ -581,7 +582,7 @@ ssize_t
 plfs_write(Plfs_fd *fd, const char *buf, size_t size,
            off_t offset, pid_t pid)
 {
-    ostringstream oss;
+    mss::mlog_oss oss(PLFS_DAPI);
     oss << fd->getPath() << " -> " <<offset << ", " << size;
     debug_enter(__FUNCTION__,oss.str());
     ssize_t wret = 0;

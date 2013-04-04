@@ -1477,7 +1477,7 @@ Container::getattr( const string& path, struct plfs_backend *canback,
         oss  << "Pulled meta " << last_offset << " " << total_bytes
              << ", " << time.tv_sec << "." << time.tv_nsec
              << " on host " << host;
-        mlog(CON_DCOMMON, "%s", oss.str().c_str() );
+        oss.commit();
         // oh, let's get rewrite correct.  if someone writes
         // a file, and they close it and then later they
         // open it again and write some more then we'll
@@ -1537,7 +1537,7 @@ Container::getattr( const string& path, struct plfs_backend *canback,
     oss  << "Examined " << chunks << " droppings:"
          << path << " total size " << stbuf->st_size <<  ", usage "
          << stbuf->st_blocks << " at " << stbuf->st_blksize;
-    mlog(CON_DCOMMON, "%s", oss.str().c_str() );
+    oss.commit();
     return ret;
 }
 
