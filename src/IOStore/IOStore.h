@@ -65,7 +65,6 @@ class IOSHandle {
     friend int IOStore::Close(IOSHandle *handle);
     
  public:
-    virtual ~IOSHandle() {};
     virtual int Fstat(struct stat *sb)=0;
     virtual int Fsync(void)=0;
     virtual int Ftruncate(off_t length)=0;
@@ -89,7 +88,6 @@ class IOSDirHandle {
     friend int IOStore::Closedir(IOSDirHandle *handle);
     
 public:
-    virtual ~IOSDirHandle() {};
     virtual int Readdir_r(struct dirent *, struct dirent **)=0;
     virtual ~IOSDirHandle() {};
 };
