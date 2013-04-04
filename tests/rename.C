@@ -48,6 +48,7 @@ main( int argc, char **argv ) {
     if ( ! target ) {
         Usage( prog, __LINE__ );
     }
+    free(prog);
 
     // open the file, rename it, write to it, close it
     FILE *fp = fopen( target, "w+" );
@@ -66,6 +67,7 @@ main( int argc, char **argv ) {
         }
         fread( buf, 4096, 1, cat ); 
         printf( "Read %s from %s\n", buf, cattarg );
+        free(cattarg);
         fclose(cat);
         memset( buf, 0, 4096 );
     }
@@ -90,6 +92,9 @@ main( int argc, char **argv ) {
     // now read the thing
     fread( buf, 100, 1, fp );
     printf( "Read %s from %s\n", buf, ( newtarg ? newtarg : target ) );
+
+    free(target);
+    free(newtarg);
 
     if ( strcmp( buf, "Hello world!\nGoodbye world!\n" ) != 0 ) {
         printf( "data integrity error (%s)\n", buf );

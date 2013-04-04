@@ -430,7 +430,7 @@ int WriteFile::closeIndex( )
     }
 
     Util::MutexLock(   &index_mux , __FUNCTION__);
-    ret = index->flush();
+    ret = index->flush(); // XXX: ret never read
     closefh = index->getFh(&ib);
     /* XXX: a bit odd that we close the index instead of the index itself */
     //XXXCDC:iostore via ib

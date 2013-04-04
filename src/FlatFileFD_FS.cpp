@@ -404,8 +404,8 @@ int
 FlatFileSystem::rmdir(const char *logical)
 {
     FLAT_ENTER;
-    mode_t mode;
-    ret = FlatFileSystem::getmode(logical, &mode);
+    mode_t mode = 0; // silence compiler warning
+    ret = FlatFileSystem::getmode(logical, &mode); // XXX: ret never read
     UnlinkOp op;
     ret = plfs_iterate_backends(logical,op);
     if (ret==-ENOTEMPTY) {

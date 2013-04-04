@@ -292,7 +292,7 @@ extern "C" {   /* __BEGIN_DECLS */
      * @param pstr the priority string
      * @return -1 (an invalid pri) on error.
      */
-    int mlog_str2pri(char *pstr);
+    int mlog_str2pri(const char *pstr);
 
     /**
      * mlog_reopen: reopen a multilog.  this will reopen the log file,
