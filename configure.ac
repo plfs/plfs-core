@@ -81,7 +81,7 @@ AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 # if so, build using am_silent_rules
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
-AC_CONFIG_HEADER([config.h])
+AC_CONFIG_HEADERS([config.h])
 
 AH_TOP([
 /*
@@ -140,6 +140,7 @@ AC_PROG_CXX
 AC_PROG_CPP
 AC_PROG_CXXCPP
 AM_PROG_CC_C_O
+m4_ifdef([AM_PROG_AR], [AM_PROG_AR])
 AC_PROG_LIBTOOL
 
 # now check for all the other stuff PLFS needs

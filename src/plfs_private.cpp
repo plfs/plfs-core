@@ -1687,7 +1687,7 @@ int
 plfs_phys_backlookup(const char *phys, PlfsMount *pmnt,
                      struct plfs_backend **backout, string *bpathout) {
     const char *prefix;
-    int prelen, rv;
+    int prelen, rv = 0;
     const char *bpath;
     PlfsConf *pconf;
     map<string,PlfsMount *>::iterator itr;
