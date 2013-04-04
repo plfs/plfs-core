@@ -170,6 +170,7 @@ class
     public:
         UnlinkOp() { }
         int do_op(const char *, unsigned char, IOStore *);
+        int op_r(const char *, unsigned char type, IOStore *s, bool top);
         const char *name() {
             return "UnlinkOp";
         }

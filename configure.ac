@@ -201,6 +201,7 @@ AS_IF([test "x$plfs_build_adio_test" = "x1"],
 AC_OUTPUT([
 Makefile
 config/Makefile
+src/smallfile/Makefile
 src/Makefile
 fuse/Makefile
 scripts/Makefile
