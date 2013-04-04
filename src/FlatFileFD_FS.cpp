@@ -309,6 +309,7 @@ FlatFileSystem::rename( const char *logical, const char *to )
         } else {
             RenameOp op(to);
             ret=plfs_flatfile_operation(logical,op,flatback->store);
+            mlog(PLFS_DCOMMON, "Dir rename return value : %d", ret);
         }
     } else {
         // special files such as character/block device file, socket file, fifo

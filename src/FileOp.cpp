@@ -362,9 +362,9 @@ RenameOp::RenameOp(const char *to)
 
     this->to = to;
     this->err = 0;
-    this->x = find_all_expansions(this->to, this->dsts);
+    this->ret_val = find_all_expansions(this->to, this->dsts);
     this->size = this->dsts.size();
-    this->cntr = this->size-1;
+    this->indx = this->size-1;
 }
 
 /* ret 0 or -err */
@@ -373,16 +373,20 @@ RenameOp::do_op(const char *path, unsigned char isfile, IOStore *store )
 {
     int ret;
 
-    ret = store->Rename(path, dsts[cntr].bpath.c_str());
-    if (ret == -ENOENT) {
-        ret = 0;    // might not be distributed on all
+    if (ret_val != 0 ) {
+        err = ret_val;
+    } else {
+        ret = store->Rename(path, dsts[indx].bpath.c_str());
+        if (ret == -ENOENT) {
+            ret = 0;    // might not be distributed on all
+        }
+        if (ret != 0) {
+            err = ret;
+        }
+        mlog(FOP_DCOMMON, "renamed %s to %s: %d",
+        path,to, err);
+        indx--;
     }
-    if (ret != 0) {
-        err = ret;
-    }
-    mlog(FOP_DCOMMON, "renamed %s to %s: %d",
-         path,to, err);
-    cntr--;
     return err;
 }
 

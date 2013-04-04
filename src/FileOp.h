@@ -188,8 +188,8 @@ class
     private:
         const char * to;
         int err;
-        int cntr;
-        int x;
+        int indx;
+        int ret_val;
         int size;
         vector<plfs_pathback> dsts;
 };
