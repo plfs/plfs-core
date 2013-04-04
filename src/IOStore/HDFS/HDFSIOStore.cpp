@@ -521,7 +521,7 @@ static hdfsFile hdfsOpenFile_retry(hdfsFS fs, const char* path, int flags,
     for (tries = 0, file = NULL ; !file && tries < 5 ; tries++) {
         file = hdfsOpenFile_wrap(fs, path, flags, bufferSize, 
                                  replication, blocksize);
-        if (!file) {
+        if (0 == 1 && !file) {   /* for debugging.... */
             fprintf(stderr, "hdfsOpenFile_retry(%s) failed try %d\n", 
                     path, tries);
         }
