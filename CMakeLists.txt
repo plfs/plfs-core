@@ -82,6 +82,12 @@ if (DISABLE_MLOG_MACRO_OPTS)
     add_definitions (-DMLOG_NOMACRO_OPT)
 endif(DISABLE_MLOG_MACRO_OPTS)
 
+OPTION (ENABLE_PLFS_STATS "Enable stats collection for plfs." OFF)
+message ("-- ENABLE_PLFS_STATS ${ENABLE_PLFS_STATS}")
+if (ENABLE_PLFS_STATS)
+    add_definitions(-DFUSE_COLLECT_TIMES -DUTIL_COLLECT_TIMES)
+endif(ENABLE_PLFS_STATS)
+
 OPTION (DISABLE_STATIC_LIB "Disable Building Static Libs." OFF)
 message ("-- DISABLE_STATIC_LIB ${DISABLE_STATIC_LIB}")
 
