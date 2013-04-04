@@ -85,11 +85,46 @@ endif(DISABLE_MLOG_MACRO_OPTS)
 OPTION (DISABLE_STATIC_LIB "Disable Building Static Libs." OFF)
 message ("-- DISABLE_STATIC_LIB ${DISABLE_STATIC_LIB}")
 
+OPTION (BUILD_HDFS "Build HDFS IOStore." OFF)
+message ("-- BUILD_HDFS ${BUILD_HDFS}")
+if (BUILD_HDFS)
+    find_package(JNI)
+    if (NOT JNI_FOUND)
+        message(FATAL_ERROR "JNI not found")
+    endif(NOT JNI_FOUND)
+    find_package(HDFS)
+    if (NOT HDFS_FOUND)
+        message(FATAL_ERROR "HDFS not found")
+    endif(NOT HDFS_FOUND)
+endif(BUILD_HDFS)
+
+OPTION (BUILD_PVFS "Build PVFS IOStore." OFF)
+message ("-- BUILD_PVFS ${BUILD_PVFS}")
+if (BUILD_PVFS)
+    find_package(PVFS)
+    if (NOT PVFS_FOUND)
+        message(FATAL_ERROR "PVFS not found")
+    endif(NOT PVFS_FOUND)
+endif(BUILD_PVFS)
+
 #create the plfs library
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR} plfs_src_dir)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/IOStore iostore)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/IOStore/Glib iostore_glib)
+if (BUILD_HDFS)
+add_definitions(-DUSE_HDFS)
+include_directories(${JNI_INCLUDE_DIRS})
+include_directories(${HDFS_INCLUDE_DIR})
+include_directories(${PLFS_SOURCE_DIR}/IOStore/HDFS)
+AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/IOStore/HDFS iostore_hdfs)
+endif(BUILD_HDFS)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/IOStore/Posix iostore_posix)
+if (BUILD_PVFS)
+add_definitions(-DUSE_PVFS)
+include_directories(${PVFS_INCLUDE_DIR})
+include_directories(${PLFS_SOURCE_DIR}/IOStore/PVFS)
+AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/IOStore/PVFS iostore_pvfs)
+endif(BUILD_PVFS)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS logicalfs)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/Container logicalfs_container)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/Container/Index container_index)
@@ -99,7 +134,8 @@ AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile/smallfile smallfile)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/Mlog mlog)
 
 
-SET(SRCDIR ${plfs_src_dir} ${iostore} ${iostore_glib} ${iostore_posix}
+SET(SRCDIR ${plfs_src_dir} ${iostore} ${iostore_glib} ${iostore_hdfs} 
+           ${iostore_posix} ${iostore_pvfs}
            ${logicalfs} ${logicalfs_container} ${container_index} ${logicalfs_flatfile}
            ${logicalfs_smallfile} ${smallfile} ${mlog}
 )
@@ -161,18 +197,31 @@ if (FUSE_FOUND AND NOT DISABLE_FUSE)
     include_directories (${FUSE_INCLUDE_DIR})
     target_link_libraries (plfs_fuse ${FUSE_LIBRARIES})
     target_link_libraries (plfs_fuse plfs_lib)
+    if (BUILD_HDFS)
+        target_link_libraries (plfs_fuse ${JAVA_JVM_LIBRARY})
+        target_link_libraries (plfs_fuse ${HDFS_LIBS})
+    endif(BUILD_HDFS)
+    if (BUILD_PVFS)
+        target_link_libraries (plfs_fuse ${PVFS_LIBRARIES})
+    endif(BUILD_PVFS)
     #change its name so that it create plfs executable
     SET_TARGET_PROPERTIES(plfs_fuse PROPERTIES OUTPUT_NAME plfs)
     #set install dir
     INSTALL(TARGETS plfs_fuse DESTINATION sbin)
 endif(FUSE_FOUND AND NOT DISABLE_FUSE)
 
-
 #helper tools
 foreach (PROG dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls
               plfs_map plfs_query plfs_recover plfs_version)
     add_executable(${PROG} ${PLFS_TOOLS_DIR}/${PROG})
     target_link_libraries (${PROG} plfs_lib)
+    if (BUILD_HDFS)
+        target_link_libraries (${PROG} ${JAVA_JVM_LIBRARY})
+        target_link_libraries (${PROG} ${HDFS_LIBS})
+    endif(BUILD_HDFS)
+    if (BUILD_PVFS)
+        target_link_libraries (${PROG} ${PVFS_LIBRARIES})
+    endif(BUILD_PVFS)
 endforeach(PROG)
 
 #set up targets for make install
