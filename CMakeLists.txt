@@ -105,6 +105,15 @@ if (BUILD_PVFS)
     if (NOT PVFS_FOUND)
         message(FATAL_ERROR "PVFS not found")
     endif(NOT PVFS_FOUND)
+    if (PVFS_NEEDSSL)
+        message("-- your PVFS needs openssl libs...")
+        find_package(OpenSSL)
+        if (NOT OPENSSL_FOUND)
+            message(FATAL_ERROR "cannot find OpenSSL lib!")
+        endif(NOT OPENSSL_FOUND)
+        # we must link with OPENSSL_LIBRARIES
+        SET(PVFS_LIBRARIES ${PVFS_LIBRARIES} ${OPENSSL_LIBRARIES})
+    endif(PVFS_NEEDSSL)
 endif(BUILD_PVFS)
 
 #create the plfs library

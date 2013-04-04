@@ -21,6 +21,7 @@
 #  include files and libraries are. The module sets the following variables:
 #
 #    PVFS_FOUND         - system has PVFS
+#    PVFS_NEEDSSL       - TRUE if we need to link with ssl too
 #    PVFS_INCLUDE_DIR   - the PVFS include directory
 #    PVFS_LIBRARIES     - the libraries needed to use PVFS
 #    PVFS_DEFINITIONS   - the compiler definitions, required for building with PVFS
@@ -32,6 +33,7 @@
 #------------------------------------------------------------------------------
 
 set(PVFS_FOUND TRUE)
+set(PVFS_NEEDSSL FALSE)
 
 # search for header
 
@@ -83,6 +85,15 @@ if (PVFS_FOUND)
     mark_as_advanced(PVFS_INCLUDE_DIR
                      PVFS_LIBRARIES
                      PVFS_DEFINITIONS)
+
+    # XXXCDC: ugh, pvfs will automatically pick up openssl if it finds it
+    # at compile time.  if it does, then we need to link to the crypto lib.
+    exec_program(nm ARGS "${PVFS_LIBRARIES} | grep -q BIO_read" 
+                 OUTPUT_VARIABLE PVFS_NM
+                 RETURN_VALUE PVFS_RET)
+    if (PVFS_RET EQUAL 0)
+        set(PVFS_NEEDSSL TRUE)
+    endif(PVFS_RET EQUAL 0)
 
 else (PVFS_FOUND)
 
