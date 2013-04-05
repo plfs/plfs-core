@@ -53,13 +53,9 @@
  * @return the cleaned result, NULL on errorx
  */
 static char *pvfsios_dedup_slash(const char *path) {
-#if 0
     int l, lcv, slash, c;
     char *rv, *outp;
-#endif
 
-    return(strdup(path));
-#if 0
     l = strlen(path)+1;
     rv = (char *)malloc(l);
     if (rv == NULL) {
@@ -80,7 +76,6 @@ static char *pvfsios_dedup_slash(const char *path) {
     }
 
     return(rv); 
-#endif
 }
 
 /**
@@ -1154,7 +1149,6 @@ int PVFSIOStore::Lstat(const char* path, struct stat* buf) {
     if (cpath) {
         nev = pvfsios_get_object(this->fsid, cpath, &ref, &creds,
                                  PVFS2_LOOKUP_LINK_NO_FOLLOW);
-        mlog(STO_CRIT, "GETO: %s = %d", cpath, nev);
         free(cpath);
     } else {
         nev = -ENOMEM;
@@ -1241,12 +1235,6 @@ PVFSIOStore::Open(const char *bpath, int flags, mode_t mode, int &ret) {
             ret = nev;
             goto error;
         }
-        mlog(STO_CRIT, "RETUN %d on %s", nev, cpath); /*FAIL -2 */
-#if 0
-        /* STO  CRIT RETUN -2 on /testplfs/2/p2/hostdir.0/dropping.data.1349959526.216348.p9ea1.28823
-         */
-#endif
-        /* XXXCDC: CHECK RETURN VALUE! */
         /* must free parent */
         memset(&attr, 0, sizeof(attr));
         attr.owner = creds.uid;
@@ -1257,9 +1245,7 @@ PVFSIOStore::Open(const char *bpath, int flags, mode_t mode, int &ret) {
         attr.mask = PVFS_ATTR_SYS_ALL_SETABLE;
         attr.dfile_count = 0;
         pev = PVFS_sys_create(node, ref, attr, &creds, NULL, &resp);
-        mlog(STO_CRIT, "FREE A0");
         free(parent);
-        mlog(STO_CRIT, "FREE A1");
         if (pev < 0) {
             /* pvfs2fuse says to do this w/ENOENT for now */
             if (pev == -PVFS_ENOENT) {
@@ -1305,15 +1291,11 @@ PVFSIOStore::Open(const char *bpath, int flags, mode_t mode, int &ret) {
         goto error;
     }
     
-    mlog(STO_CRIT, "FREEB0");
     free(cpath);
-    mlog(STO_CRIT, "FREEB1");
     return(hand);
 
  error:
-    mlog(STO_CRIT, "FREEC0");
     free(cpath);
-    mlog(STO_CRIT, "FREEC1");
     return(NULL);
 }
 
@@ -1409,7 +1391,6 @@ ssize_t PVFSIOStore::Readlink(const char *link, char *buf, size_t bufsize) {
     /* XXX: pvfs2fuse didn't release, memory leak? */
     PVFS_util_release_sys_attr(&resp.attr);  /* frees memory chained off ats */
 
-    mlog(CON_CRIT, "READML RETURN %d", nev);
     return(nev);
 }
 

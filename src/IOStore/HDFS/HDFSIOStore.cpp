@@ -451,16 +451,13 @@ class HDFSIOStore *HDFSIOStore::HDFSIOStore_xnew(char *phys_path,
  */
 int HDFSIOStore::HDFS_Check(class HDFSIOStore *hio) {
     int rv;
-mlog(STO_CRIT, "HDFS CHECK CALLED");
     if (hio->hfs == NULL &&
         (hio->hfs = hdfsConnect(hio->hdfs_host, hio->hdfs_port)) == NULL) {
         rv = get_err(-1);
-mlog(STO_CRIT, "HDFS CHECK FAILED!!");
         mlog(STO_ERR, "hdfs: connect(%s,%d) failed (%s)",
              hio->hdfs_host, hio->hdfs_port, strerror(-rv));
         return(rv);
     }
-mlog(STO_CRIT, "HDFS CHECK OK!! FS is %p", hio->hfs);
     return(0);
 }
 
@@ -480,12 +477,10 @@ int HDFSIOStore::HDFS_Probe() {
     hdfsFS tmpfs;
     int status;
 
-mlog(STO_CRIT, "HDFS PROBE CALLED");
     child = fork();
     if (child == 0) {
         /* note: don't wrap this connect/disconnect call */
         tmpfs = hdfsConnect(this->hdfs_host, this->hdfs_port);
-mlog(STO_CRIT, "HDFS PROBE CHILD GOT %p", tmpfs);
         if (tmpfs != NULL) {
             hdfsDisconnect(tmpfs);
         }
@@ -494,7 +489,6 @@ mlog(STO_CRIT, "HDFS PROBE CHILD GOT %p", tmpfs);
     status = -1;
     if (child != -1) 
         (void)waitpid(child, &status, 0);
-mlog(STO_CRIT, "HDFS PROBE PARENT GOT %d", status);
     if (status != 0) {
         mlog(STO_ERR, "HDFS_Probe(%s,%d): connect failed.",
              this->hdfs_host, this->hdfs_port);
@@ -527,7 +521,7 @@ static hdfsFile hdfsOpenFile_retry(hdfsFS fs, const char* path, int flags,
     for (tries = 0, file = NULL ; !file && tries < 5 ; tries++) {
         file = hdfsOpenFile_wrap(fs, path, flags, bufferSize, 
                                  replication, blocksize);
-        if (!file) {
+        if (0 == 1 && !file) {   /* for debugging.... */
             fprintf(stderr, "hdfsOpenFile_retry(%s) failed try %d\n", 
                     path, tries);
         }
@@ -626,7 +620,6 @@ int HDFSIOStore::Lchown(const char *path, uid_t owner, gid_t group)
  */
 int HDFSIOStore::Lstat(const char* path, struct stat* buf)
 {
-mlog(STO_CRIT, "YO IM IN Lstat");
     return(Stat(path, buf));
 }
 
@@ -791,11 +784,8 @@ int HDFSIOStore::Stat(const char* path, struct stat* buf)
     hdfsFileInfo *hdfsInfo;
 
     do_hdfs_check(this);
-mlog(STO_CRIT, "YO IM IN Plain Stat after check, fs is %p", this->hfs);
 
-mlog(STO_CRIT, "Now I'm before getpath nifo");
     hdfsInfo = hdfsGetPathInfo_wrap(this->hfs, path);
-mlog(STO_CRIT, "Now I'm after getpath nifo info %p", hdfsInfo);
     if (!hdfsInfo) {
         return(get_err(-1));
     }
@@ -804,33 +794,26 @@ mlog(STO_CRIT, "Now I'm after getpath nifo info %p", hdfsInfo);
      * look up the hadoop user/gid to see if we can convert it to a
      * valid uid/gid.   if lookup fails, return 0 (root) as a backup.
      */
-mlog(STO_CRIT, "point A");
-mlog(STO_CRIT, "owner group %s %s", hdfsInfo->mOwner, hdfsInfo->mGroup);
     if (getpwnam_r(hdfsInfo->mOwner, &passwd_s, pbuf, hst.pwbsize, &p) == 0 
                    && p != NULL) {
         buf->st_uid = p->pw_uid;
     } else {
         buf->st_uid = 0;
     }
-mlog(STO_CRIT, "point B");
     if (getgrnam_r(hdfsInfo->mGroup, &group_s, gbuf, hst.grbsize, &g) == 0
                    && g != NULL) {
-mlog(STO_CRIT, "point B1A %p", g);
         buf->st_gid = g->gr_gid;
     } else {
         buf->st_gid = 0;
     }
-mlog(STO_CRIT, "point B1");
 
     buf->st_dev = 0;     /* unused by fuse? */
     buf->st_ino = 0;     /* hdfs doesn't have inode numbers */
-mlog(STO_CRIT, "point B2");
 
     /*
      * We need the mode to be both the permissions and some additional
      * info, based on whether it's a directory of a file.
      */
-mlog(STO_CRIT, "point C");
     buf->st_mode = hdfsInfo->mPermissions;
     if (hdfsInfo->mKind == kObjectKindFile) {
         buf->st_mode |= S_IFREG;
@@ -839,7 +822,6 @@ mlog(STO_CRIT, "point C");
     }
 
     buf->st_rdev = 0;     /*  hopefully unused... */
-mlog(STO_CRIT, "point D");
     buf->st_size = hdfsInfo->mSize;
     buf->st_blksize = hdfsInfo->mBlockSize;
 
@@ -861,7 +843,6 @@ mlog(STO_CRIT, "point D");
     */
     buf->st_ctime = hdfsInfo->mLastMod;
 
-mlog(STO_CRIT, "point E");
     hdfsFreeFileInfo_wrap(hdfsInfo, 1);
     return(0);
 }
