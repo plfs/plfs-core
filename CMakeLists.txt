@@ -72,7 +72,10 @@ include_directories(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile)
 include_directories(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile/smallfile)
 #Mlog
 include_directories(${PLFS_SOURCE_DIR}/Mlog)
-#Small File
+#user defined search paths
+foreach(path ${CMAKE_INCLUDE_PATH})
+  include_directories(${path})
+endforeach()
 
 #set up extra definitions
 add_definitions (-D_FILE_OFFSET_BITS=64)
