@@ -53,6 +53,7 @@ main( int argc, char **argv ) {
     vector<string>::iterator itr;
     string path;
     Util::tokenize(target,"/",components);
+    free(target);
     int final_ret = 0; 
     for(itr=components.begin();itr!=components.end();itr++) {
         path += "/";
@@ -67,6 +68,6 @@ main( int argc, char **argv ) {
     if (final_ret!=0) {
         cerr << prog << " FAILURE: " << strerror(-final_ret) << endl;
     }
-
+    free(prog);
     return final_ret;
 }

@@ -86,7 +86,6 @@ container_flatten_index(Container_OpenFile *pfd, const char *logical)
     PLFS_ENTER;
     Index *index;
     bool newly_created = false;
-    ret = 0;
     if ( pfd && pfd->getIndex() ) {
         index = pfd->getIndex();
     } else {
@@ -1152,16 +1151,18 @@ initiate_async_transfer(const char *src, const char *srcprefix,
     memset(&space, ' ', 2);
     strcpy(programName, "SYNcer  ");
     mlog(INT_DCOMMON, "systemDataMove  0001\n");
-    command  = strcat(commandList, "ssh ");
+//    Never read, as below
+//    command  = strcat(commandList, "ssh ");
     command  = strcat(commandList, syncer_IP);
     mlog(INT_DCOMMON, "0B command=%s\n", command);
-    command  = strncat(commandList, space, 1);
-    command  = strcat(commandList, programName);
-    command  = strncat(commandList, space, 1);
-    command  = strcat(commandList, src);
-    command  = strncat(commandList, space, 1);
-    command  = strcat(commandList, dest_dir);
-    command  = strncat(commandList, space, 1);
+//    These values are never read, why do the work?
+//    command  = strncat(commandList, space, 1);
+//    command  = strcat(commandList, programName);
+//    command  = strncat(commandList, space, 1);
+//    command  = strcat(commandList, src);
+//    command  = strncat(commandList, space, 1);
+//    command  = strcat(commandList, dest_dir);
+//    command  = strncat(commandList, space, 1);
     double start_time,end_time;
     start_time=plfs_wtime();
     rc = system(commandList);
@@ -1530,7 +1531,7 @@ container_locate(const char *logical, void *files_ptr,
 {
     PLFS_ENTER;
     // first, are we locating a PLFS file or a directory or a symlink?
-    mode_t mode;
+    mode_t mode = 0;
     ret = is_container_file(logical,&mode);
     // do container_locate on a plfs_file
     if (S_ISREG(mode)) { // it's a PLFS file
@@ -1788,7 +1789,7 @@ container_getattr(Container_OpenFile *of, const char *logical,
     oss << __FUNCTION__ << " of " << path << "("
         << (of == NULL ? "closed" : "open")
         << ") size is " << stbuf->st_size;
-    mlog(PLFS_DAPI, "%s", oss.str().c_str());
+    oss.commit();
     PLFS_EXIT(ret);
 }
 
@@ -2035,7 +2036,7 @@ plfs_reference_count( Container_OpenFile *pfd )
         mss::mlog_oss oss(INT_DRARE);
         oss << __FUNCTION__ << " not equal counts: " << ref_count
             << " != " << pfd->incrementOpens(0) << endl;
-        mlog(INT_DRARE, "%s", oss.str().c_str() );
+        oss.commit();
         assert( ref_count == pfd->incrementOpens(0) );
     }
     return ref_count;
@@ -2122,7 +2123,7 @@ container_close( Container_OpenFile *pfd, pid_t pid, uid_t uid, int open_flags,
     if ( ret == 0 && ref_count == 0 ) {
         mss::mlog_oss oss(PLFS_DCOMMON);
         oss << __FUNCTION__ << " removing OpenFile " << pfd;
-        mlog(PLFS_DCOMMON, "%s", oss.str().c_str() );
+        oss.commit();
         delete pfd;
         pfd = NULL;
     }

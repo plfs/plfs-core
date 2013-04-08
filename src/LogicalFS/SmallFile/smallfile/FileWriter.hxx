@@ -25,7 +25,7 @@ private:
 public:
     FileWriter();
     ~FileWriter();
-    int open_file(const char *filename, struct IOStore *store);
+    int open_file(const char *filename, class IOStore *store);
     /**
      * Append some data to this file.
      *

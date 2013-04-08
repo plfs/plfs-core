@@ -64,12 +64,9 @@ int Access( const string& path, IOStore *store, int mask )
     IOSHandle *fh;
     bool mode_set=false;
 
-    //doing this to suppress a valgrind complaint
-    char *cstr = strdup(path.c_str());
+    mlog(FOP_DAPI, "%s Check existence of %s", __FUNCTION__, path.c_str());
 
-    mlog(FOP_DAPI, "%s Check existence of %s", __FUNCTION__, cstr);
-
-    ret = store->Access( cstr, F_OK );
+    ret = store->Access( path.c_str(), F_OK );
     if ( ret == 0 ) {
         // at this point, we know the file exists
         if(checkMask(mask,W_OK|R_OK)) {
@@ -82,18 +79,16 @@ int Access( const string& path, IOStore *store, int mask )
             open_mode = O_WRONLY;
             mode_set=true;
         } else if(checkMask(mask,F_OK)) {
-            delete cstr;
             return 0;   // we already know this
         }
         assert(mode_set);
         mlog(FOP_DCOMMON, "The file exists attempting open");
-        fh = store->Open(cstr,open_mode,ret);
-        mlog(FOP_DCOMMON, "Open %s: %s",cstr,ret==0?"Success":strerror(-ret));
+        fh = store->Open(path.c_str(),open_mode,ret);
+        mlog(FOP_DCOMMON, "Open %s: %s",path.c_str(),ret==0?"Success":strerror(-ret));
         if (fh != NULL) {
             store->Close(fh);
         } // else, ret was set already
     }
-    delete cstr;
     return ret;
 }
 

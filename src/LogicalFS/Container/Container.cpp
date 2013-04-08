@@ -875,7 +875,7 @@ Container::createMetalink(struct plfs_backend *canback,
         struct plfs_backend *mlback;
         if (readMetalink(oss.str(), canback, NULL, sz, &mlback) == 0) {
             ostringstream tmp;
-            tmp << sz << mlback->bmpoint;
+            tmp << sz << mlback->prefix << mlback->bmpoint;
             if (strcmp(tmp.str().c_str(), shadow.str().c_str()) == 0) {
                 mlog(CON_DCOMMON, "same metalink already created");
                 ret = 0;
@@ -1477,7 +1477,7 @@ Container::getattr( const string& path, struct plfs_backend *canback,
         oss  << "Pulled meta " << last_offset << " " << total_bytes
              << ", " << time.tv_sec << "." << time.tv_nsec
              << " on host " << host;
-        mlog(CON_DCOMMON, "%s", oss.str().c_str() );
+        oss.commit();
         // oh, let's get rewrite correct.  if someone writes
         // a file, and they close it and then later they
         // open it again and write some more then we'll
@@ -1537,7 +1537,7 @@ Container::getattr( const string& path, struct plfs_backend *canback,
     oss  << "Examined " << chunks << " droppings:"
          << path << " total size " << stbuf->st_size <<  ", usage "
          << stbuf->st_blocks << " at " << stbuf->st_blksize;
-    mlog(CON_DCOMMON, "%s", oss.str().c_str() );
+    oss.commit();
     return ret;
 }
 
@@ -1724,6 +1724,7 @@ Container::makeTopLevel( const string& expanded_path,
                     if ( rv != -EEXIST ) {
                         return(rv);
                     }
+                    // XXX: rv is never read before being reset...
                     rv = 0;    /* clear out EEXIST, it is ok */
                 }
             }
@@ -1889,7 +1890,6 @@ Container::makeHostDir(const ContainerPaths& paths,mode_t mode,
                 if (metalink_found) {
                     mlog(CON_DRARE, "Not able to create a canonical hostdir."
                         " Will use metalink %s\n", possible_metalink.c_str());
-                    ret = 0;
                     physical_hostdir = possible_metalink;
                     *phys_backp = possible_metaback;
                     // try to make the subdir and it's parent
