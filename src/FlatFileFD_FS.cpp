@@ -277,10 +277,14 @@ FlatFileSystem::rename( const char *logical, const char *to )
     FLAT_ENTER;
     EXPAND_TARGET;
     struct stat stbuf;
+    //struct stat stbuf_target;
+    mode_t mode;
     ret = flatback->store->Lstat(old_canonical.c_str(), &stbuf);
     if (ret < 0) {
         goto out;
     }
+   // ret = flatback->store->Lstat(new_canonical.c_str(), &stbuf_target);
+
     if (S_ISREG(stbuf.st_mode) || S_ISLNK(stbuf.st_mode)) {
         ret = flatback->store->Rename(old_canonical.c_str(),
                                       new_canonical.c_str());
@@ -295,28 +299,19 @@ FlatFileSystem::rename( const char *logical, const char *to )
             mlog(PLFS_DCOMMON, "Cross-device rename, CopyFile+Unlink ret: %d",
                  ret); 
         }
+    //
+    // If Directory, call unlink to remove target dirs and also check
+    // for directory not empty condition on one or more of the backends.  
+    // If unlink was successful on one of the backends and then a 
+    // directory not empty condition occurs, the dirs that were removed
+    // will be restored and -NOTEMPTY returned.
+    //
     } else if (S_ISDIR(stbuf.st_mode)) {
-        vector<plfs_pathback> srcs, dsts;
-        if ((ret = find_all_expansions(logical,srcs)) != 0) {
-            goto out;
-        }
-        if ((ret = find_all_expansions(to,dsts)) != 0) {
-            goto out;
-        }
-        assert(srcs.size()==dsts.size());
-        // now go through and rename all of them (ignore ENOENT)
-        for(size_t i = 0; i < srcs.size(); i++) {
-            int err;
-            err = flatback->store->Rename(srcs[i].bpath.c_str(),
-                                          dsts[i].bpath.c_str());
-            if (err == -ENOENT) {
-                err = 0;    // might not be distributed on all
-            }
-            if (err != 0) {
-                ret = err;    // keep trying but save the error
-            }
-            mlog(INT_DCOMMON, "rename %s to %s: %d",
-                 srcs[i].bpath.c_str(), dsts[i].bpath.c_str(), err);
+        ret = FlatFileSystem::unlink(to);
+        if (ret != -ENOTEMPTY) {
+            RenameOp op(to);
+            ret=plfs_flatfile_operation(logical,op,flatback->store);
+            mlog(PLFS_DCOMMON, "Dir rename return value : %d", ret);
         }
     } else {
         // special files such as character/block device file, socket file, fifo
@@ -366,8 +361,30 @@ FlatFileSystem::unlink( const char *logical )
 {
     FLAT_ENTER;
     UnlinkOp op;
+    mode_t mode;
+    struct stat stbuf;
+    int ret_val;
+
+    ret = FlatFileSystem::getmode(logical, &mode);
+    if (ret != 0 ) {
+        FLAT_EXIT(ret);
+    }
     ret = plfs_flatfile_operation(logical,op,flatback->store);
-    FLAT_EXIT(ret);
+    if (ret < 0) {
+        // if the directory is not empty, need to restore backends to their 
+        // previous state - recreate and correct ownership
+        if (ret == -ENOTEMPTY ){
+            CreateOp cop(mode);
+            cop.ignoreErrno(-EEXIST);
+            plfs_iterate_backends(logical,cop);
+            // Get uid and gid so that ownership may be restored
+            ret_val = flatback->store->Lstat(path.c_str(), &stbuf);
+            if (ret_val == 0) {
+                FlatFileSystem::chown(logical, stbuf.st_uid, stbuf.st_gid);
+            }
+        }
+    } 
+     FLAT_EXIT(ret);
 }
 
 int

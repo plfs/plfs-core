@@ -7,6 +7,7 @@
 #include "Container.h"
 #include "mlogfacs.h"
 #include "plfs.h"
+#include "plfs_private.h"
 
 /* returns 0 or -err */
 int
@@ -373,3 +374,37 @@ UtimeOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
 {
     return store->Utime(path,ut);
 }
+
+RenameOp::RenameOp(const char *to)
+{
+
+    this->to = to;
+    this->err = 0;
+    this->ret_val = find_all_expansions(this->to, this->dsts);
+    this->size = this->dsts.size();
+    this->indx = this->size-1;
+}
+
+/* ret 0 or -err */
+int
+RenameOp::do_op(const char *path, unsigned char isfile, IOStore *store )
+{
+    int ret;
+
+    if (ret_val != 0 ) {
+        err = ret_val;
+    } else {
+        ret = store->Rename(path, dsts[indx].bpath.c_str());
+        if (ret == -ENOENT) {
+            ret = 0;    // might not be distributed on all
+        }
+        if (ret != 0) {
+            err = ret;
+        }
+        mlog(FOP_DCOMMON, "renamed %s to %s: %d",
+        path,to, err);
+        indx--;
+    }
+    return err;
+}
+
