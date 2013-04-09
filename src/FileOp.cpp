@@ -7,6 +7,7 @@
 #include "Container.h"
 #include "mlogfacs.h"
 #include "plfs.h"
+#include "plfs_private.h"
 
 /* returns 0 or -err */
 int
@@ -64,12 +65,9 @@ int Access( const string& path, IOStore *store, int mask )
     IOSHandle *fh;
     bool mode_set=false;
 
-    //doing this to suppress a valgrind complaint
-    char *cstr = strdup(path.c_str());
+    mlog(FOP_DAPI, "%s Check existence of %s", __FUNCTION__, path.c_str());
 
-    mlog(FOP_DAPI, "%s Check existence of %s", __FUNCTION__, cstr);
-
-    ret = store->Access( cstr, F_OK );
+    ret = store->Access( path.c_str(), F_OK );
     if ( ret == 0 ) {
         // at this point, we know the file exists
         if(checkMask(mask,W_OK|R_OK)) {
@@ -82,18 +80,16 @@ int Access( const string& path, IOStore *store, int mask )
             open_mode = O_WRONLY;
             mode_set=true;
         } else if(checkMask(mask,F_OK)) {
-            delete cstr;
             return 0;   // we already know this
         }
         assert(mode_set);
         mlog(FOP_DCOMMON, "The file exists attempting open");
-        fh = store->Open(cstr,open_mode,ret);
-        mlog(FOP_DCOMMON, "Open %s: %s",cstr,ret==0?"Success":strerror(-ret));
+        fh = store->Open(path.c_str(),open_mode,ret);
+        mlog(FOP_DCOMMON, "Open %s: %s",path.c_str(),ret==0?"Success":strerror(-ret));
         if (fh != NULL) {
             store->Close(fh);
         } // else, ret was set already
     }
-    delete cstr;
     return ret;
 }
 
@@ -378,3 +374,37 @@ UtimeOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
 {
     return store->Utime(path,ut);
 }
+
+RenameOp::RenameOp(const char *to)
+{
+
+    this->to = to;
+    this->err = 0;
+    this->ret_val = find_all_expansions(this->to, this->dsts);
+    this->size = this->dsts.size();
+    this->indx = this->size-1;
+}
+
+/* ret 0 or -err */
+int
+RenameOp::do_op(const char *path, unsigned char isfile, IOStore *store )
+{
+    int ret;
+
+    if (ret_val != 0 ) {
+        err = ret_val;
+    } else {
+        ret = store->Rename(path, dsts[indx].bpath.c_str());
+        if (ret == -ENOENT) {
+            ret = 0;    // might not be distributed on all
+        }
+        if (ret != 0) {
+            err = ret;
+        }
+        mlog(FOP_DCOMMON, "renamed %s to %s: %d",
+        path,to, err);
+        indx--;
+    }
+    return err;
+}
+

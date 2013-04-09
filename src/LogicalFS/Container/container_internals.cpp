@@ -86,7 +86,6 @@ container_flatten_index(Container_OpenFile *pfd, const char *logical)
     PLFS_ENTER;
     Index *index;
     bool newly_created = false;
-    ret = 0;
     if ( pfd && pfd->getIndex() ) {
         index = pfd->getIndex();
     } else {
@@ -561,6 +560,14 @@ container_rename( const char *logical, const char *to )
         PLFS_EXIT(ret);
     }
 
+    // Call unlink here because it does a check to determine whether a 
+    // a directory is empty or not.  If the directory is not empty this
+    // function will not proceed because rename does not work on 
+    // a non-empty destination 
+    ret = container_unlink(to);
+    if (ret == -ENOTEMPTY ) {
+        PLFS_EXIT(ret);
+    }
     
     // get the list of all possible entries for both src and dest
     vector<plfs_pathback> srcs, dsts;
@@ -1152,16 +1159,18 @@ initiate_async_transfer(const char *src, const char *srcprefix,
     memset(&space, ' ', 2);
     strcpy(programName, "SYNcer  ");
     mlog(INT_DCOMMON, "systemDataMove  0001\n");
-    command  = strcat(commandList, "ssh ");
+//    Never read, as below
+//    command  = strcat(commandList, "ssh ");
     command  = strcat(commandList, syncer_IP);
     mlog(INT_DCOMMON, "0B command=%s\n", command);
-    command  = strncat(commandList, space, 1);
-    command  = strcat(commandList, programName);
-    command  = strncat(commandList, space, 1);
-    command  = strcat(commandList, src);
-    command  = strncat(commandList, space, 1);
-    command  = strcat(commandList, dest_dir);
-    command  = strncat(commandList, space, 1);
+//    These values are never read, why do the work?
+//    command  = strncat(commandList, space, 1);
+//    command  = strcat(commandList, programName);
+//    command  = strncat(commandList, space, 1);
+//    command  = strcat(commandList, src);
+//    command  = strncat(commandList, space, 1);
+//    command  = strcat(commandList, dest_dir);
+//    command  = strncat(commandList, space, 1);
     double start_time,end_time;
     start_time=plfs_wtime();
     rc = system(commandList);
@@ -1530,7 +1539,7 @@ container_locate(const char *logical, void *files_ptr,
 {
     PLFS_ENTER;
     // first, are we locating a PLFS file or a directory or a symlink?
-    mode_t mode;
+    mode_t mode = 0;
     ret = is_container_file(logical,&mode);
     // do container_locate on a plfs_file
     if (S_ISREG(mode)) { // it's a PLFS file
@@ -1971,12 +1980,33 @@ container_unlink( const char *logical )
 {
     PLFS_ENTER;
     UnlinkOp op;  // treats file and dirs appropriately
+
+    string unlink_canonical = path;
+    string unlink_canonical_backend = get_backend(expansion_info);
+    struct plfs_pathback unpb;
+    unpb.bpath = unlink_canonical;
+    unpb.back = expansion_info.backend;
+
+    struct stat stbuf;
+    if ( ret = unpb.back->store->Lstat(unlink_canonical.c_str(),&stbuf) != 0 ) {
+        PLFS_EXIT(ret);
+    }
+    mode_t mode = Container::getmode(unlink_canonical, expansion_info.backend);
     // ignore ENOENT since it is possible that the set of files can contain
     // duplicates
     // duplicates are possible bec a backend can be defined in both
     // shadow_backends and backends
+
     op.ignoreErrno(-ENOENT);
     ret = plfs_file_operation(logical,op);
+    // if the directory is not empty, need to restore backends to their 
+    // previous state
+    if (ret == -ENOTEMPTY) {
+        CreateOp cop(mode);
+        cop.ignoreErrno(-EEXIST);
+        plfs_iterate_backends(logical,cop);
+        container_chown(logical, stbuf.st_uid, stbuf.st_gid );
+    }
     PLFS_EXIT(ret);
 }
 

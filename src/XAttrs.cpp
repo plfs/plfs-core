@@ -28,7 +28,6 @@ string XAttr::getKey()
 
 XAttr::~XAttr() 
 {
-
 }
 
 XAttrs::XAttrs( string newpath, struct plfs_backend *newback ) 
@@ -88,6 +87,7 @@ XAttr *XAttrs::getXAttr(string key, size_t len)
     char* value = (char*) malloc (len);
     memcpy(value, &buf, len);
     XAttr *xattr = new XAttr(key, (const void*)value);
+    free(value);
     ret = this->canback->store->Close(fh);
     if (ret >= 0) {
         mlog(IDX_DAPI, "%s: Closed file: %s", __FUNCTION__,
