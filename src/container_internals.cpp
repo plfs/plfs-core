@@ -504,11 +504,6 @@ container_rename( const char *logical, const char *to )
             PLFS_EXIT(ret);
         }
     }
-    // get stat info for the possibility of having to rebuild dir
-    // after call to unlink
-    struct stat stbuf;
-    npb.back->store->Lstat(new_canonical.c_str(),&stbuf);
-    
     // now check whether it is a file of a directory we are renaming
     mode_t mode;
     struct plfs_pathback opb;
@@ -533,9 +528,7 @@ container_rename( const char *logical, const char *to )
     // function will not proceed because rename does not work on 
     // a non-empty destination 
     ret = container_unlink(to);
-    if (ret == -ENOTEMPTY && S_ISDIR(stbuf.st_mode)) {
-        container_mkdir(to, stbuf.st_mode);
-        container_chown(to, stbuf.st_uid, stbuf.st_gid );
+    if (ret == -ENOTEMPTY ) {
         PLFS_EXIT(ret);
     }
     
@@ -2190,11 +2183,23 @@ container_unlink( const char *logical )
 {
     PLFS_ENTER;
     UnlinkOp op;  // treats file and dirs appropriately
+
+    string unlink_canonical = path;
+    string unlink_canonical_backend = get_backend(expansion_info);
+    struct plfs_pathback unpb;
+    unpb.bpath = unlink_canonical;
+    unpb.back = expansion_info.backend;
+
+    struct stat stbuf;
+    if ( ret = unpb.back->store->Lstat(unlink_canonical.c_str(),&stbuf) != 0 ) {
+        PLFS_EXIT(ret);
+    }
+    mode_t mode = Container::getmode(unlink_canonical, expansion_info.backend);
     // ignore ENOENT since it is possible that the set of files can contain
     // duplicates
     // duplicates are possible bec a backend can be defined in both
     // shadow_backends and backends
-    mode_t mode = Container::getmode(path, expansion_info.backend);
+
     op.ignoreErrno(-ENOENT);
     ret = plfs_file_operation(logical,op);
     // if the directory is not empty, need to restore backends to their 
@@ -2203,6 +2208,7 @@ container_unlink( const char *logical )
         CreateOp cop(mode);
         cop.ignoreErrno(-EEXIST);
         plfs_iterate_backends(logical,cop);
+        container_chown(logical, stbuf.st_uid, stbuf.st_gid );
     }
     PLFS_EXIT(ret);
 }

@@ -270,13 +270,13 @@ FlatFileSystem::rename( const char *logical, const char *to )
     FLAT_ENTER;
     EXPAND_TARGET;
     struct stat stbuf;
-    struct stat stbuf_target;
+    //struct stat stbuf_target;
     mode_t mode;
     ret = flatback->store->Lstat(old_canonical.c_str(), &stbuf);
     if (ret < 0) {
         goto out;
     }
-    ret = flatback->store->Lstat(new_canonical.c_str(), &stbuf_target);
+   // ret = flatback->store->Lstat(new_canonical.c_str(), &stbuf_target);
 
     if (S_ISREG(stbuf.st_mode) || S_ISLNK(stbuf.st_mode)) {
         ret = flatback->store->Rename(old_canonical.c_str(),
@@ -299,14 +299,9 @@ FlatFileSystem::rename( const char *logical, const char *to )
     // directory not empty condition occurs, the dirs that were removed
     // will be restored and -NOTEMPTY returned.
     //
-
     } else if (S_ISDIR(stbuf.st_mode)) {
         ret = FlatFileSystem::unlink(to);
-        if (ret==-ENOTEMPTY) {
-            // Restore mode setting and owner settings
-            FlatFileSystem::mkdir(to, stbuf_target.st_mode);
-            FlatFileSystem::chown(to, stbuf_target.st_uid, stbuf_target.st_gid);
-        } else {
+        if (ret != -ENOTEMPTY) {
             RenameOp op(to);
             ret=plfs_flatfile_operation(logical,op,flatback->store);
             mlog(PLFS_DCOMMON, "Dir rename return value : %d", ret);
@@ -360,18 +355,29 @@ FlatFileSystem::unlink( const char *logical )
     FLAT_ENTER;
     UnlinkOp op;
     mode_t mode;
+    struct stat stbuf;
+    int ret_val;
 
     ret = FlatFileSystem::getmode(logical, &mode);
-    ret = plfs_flatfile_operation(logical,op,flatback->store);
-
-    // if the directory is not empty, need to restore backends to their 
-    // previous state
-    if (ret == -ENOTEMPTY){
-        CreateOp cop(mode);
-        cop.ignoreErrno(-EEXIST);
-        plfs_iterate_backends(logical,cop);
+    if (ret != 0 ) {
+        FLAT_EXIT(ret);
     }
-    FLAT_EXIT(ret);
+    ret = plfs_flatfile_operation(logical,op,flatback->store);
+    if (ret < 0) {
+        // if the directory is not empty, need to restore backends to their 
+        // previous state - recreate and correct ownership
+        if (ret == -ENOTEMPTY ){
+            CreateOp cop(mode);
+            cop.ignoreErrno(-EEXIST);
+            plfs_iterate_backends(logical,cop);
+            // Get uid and gid so that ownership may be restored
+            ret_val = flatback->store->Lstat(path.c_str(), &stbuf);
+            if (ret_val == 0) {
+                FlatFileSystem::chown(logical, stbuf.st_uid, stbuf.st_gid);
+            }
+        }
+    } 
+     FLAT_EXIT(ret);
 }
 
 int
