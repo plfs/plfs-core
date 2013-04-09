@@ -549,6 +549,14 @@ container_rename( const char *logical, const char *to )
         PLFS_EXIT(ret);
     }
 
+    // Call unlink here because it does a check to determine whether a 
+    // a directory is empty or not.  If the directory is not empty this
+    // function will not proceed because rename does not work on 
+    // a non-empty destination 
+    ret = container_unlink(to);
+    if (ret == -ENOTEMPTY ) {
+        PLFS_EXIT(ret);
+    }
     
     // get the list of all possible entries for both src and dest
     vector<plfs_pathback> srcs, dsts;
@@ -1971,12 +1979,33 @@ container_unlink( const char *logical )
 {
     PLFS_ENTER;
     UnlinkOp op;  // treats file and dirs appropriately
+
+    string unlink_canonical = path;
+    string unlink_canonical_backend = get_backend(expansion_info);
+    struct plfs_pathback unpb;
+    unpb.bpath = unlink_canonical;
+    unpb.back = expansion_info.backend;
+
+    struct stat stbuf;
+    if ( ret = unpb.back->store->Lstat(unlink_canonical.c_str(),&stbuf) != 0 ) {
+        PLFS_EXIT(ret);
+    }
+    mode_t mode = Container::getmode(unlink_canonical, expansion_info.backend);
     // ignore ENOENT since it is possible that the set of files can contain
     // duplicates
     // duplicates are possible bec a backend can be defined in both
     // shadow_backends and backends
+
     op.ignoreErrno(-ENOENT);
     ret = plfs_file_operation(logical,op);
+    // if the directory is not empty, need to restore backends to their 
+    // previous state
+    if (ret == -ENOTEMPTY) {
+        CreateOp cop(mode);
+        cop.ignoreErrno(-EEXIST);
+        plfs_iterate_backends(logical,cop);
+        container_chown(logical, stbuf.st_uid, stbuf.st_gid );
+    }
     PLFS_EXIT(ret);
 }
 
