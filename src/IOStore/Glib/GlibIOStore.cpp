@@ -83,7 +83,7 @@ GlibIOSHandle::Open(int flags, mode_t mode) {
         close(fd);    // cleanup
     } else {
         // successful here so set 64MB buff.  should come from plfsrc.
-        setvbuf(fp,NULL,_IONBF,64*1048576);
+        setvbuf(fp,NULL,_IOFBF,64*1048576);
     }
     return(rv);
 }
