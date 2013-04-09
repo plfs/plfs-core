@@ -40,7 +40,10 @@ GlibIOSHandle::GlibIOSHandle(string newpath) {
 int 
 GlibIOSHandle::Close() {
     int rv;
-    rv = fclose(this->fp);
+    rv = fflush(this->fp);
+    if (rv == 0) {
+        rv = fclose(this->fp);
+    }
     return(get_err(rv));
 }
 
