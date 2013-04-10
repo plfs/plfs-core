@@ -31,6 +31,7 @@ endif (HAVE_SYS_FSUID_H)
 #setup includes for building source
 set(PLFS_SOURCE_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set(PLFS_TOOLS_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/tools")
+set(PLFS_TESTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tests")
 set(PLFS_MAN_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/man")
 
 #BUILD_DIR is where we build from
@@ -271,6 +272,9 @@ foreach (SOURCE dcon.c findmesgbuf.c plfs_check_config.cpp plfs_ls.cpp
         target_link_libraries (${PROG} ${IOFSL_LIBRARIES})
     endif(BUILD_IOFSL)
 endforeach(SOURCE)
+
+#test tools
+add_subdirectory("${PLFS_TESTS_DIR}")
 
 #set up targets for make install
 INSTALL(TARGETS dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls
