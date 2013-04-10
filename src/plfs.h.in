@@ -185,6 +185,10 @@ typedef void *Plfs_dirp;
     // in container mode
     plfs_filetype plfs_get_filetype(const char *path);
 
+    // expose a few internals that we use for optimization
+    extern int plfs_expand_path(const char *logical,char **physical, void **pmountp, void **pbackp);
+    extern char *plfs_gethostname();
+
 #ifdef __cplusplus
 }
 #endif

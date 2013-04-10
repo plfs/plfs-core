@@ -24,9 +24,6 @@ typedef long long int int64_t;
 #include <plfs.h>
 #include <plfs/plfs_internal.h>
 #include "adio.h"
-#include "plfs_private.h"
-#include "container_internals.h"
-#include "mlog.h"
 
 
 void ADIOI_PLFS_Open(ADIO_File fd, int *error_code);
