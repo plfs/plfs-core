@@ -12,6 +12,9 @@
 #ifdef USE_PVFS
 #include "PVFSIOStore.h"
 #endif
+#ifdef USE_IOFSL
+#include "IOFSLIOStore.h"
+#endif
 
 class PosixIOStore PosixIO;   /* shared for posix access */
 
@@ -75,6 +78,14 @@ class IOStore *plfs_iostore_get(char *phys_path, char **prefixp,
         rv = PVFSIOStore::PVFSIOStore_xnew(phys_path, prelenp, bmpointp);
         return(rv);
      }
+#endif
+
+#ifdef USE_IOFSL
+    if (strncmp(phys_path, "iofsl:", sizeof("iofsl:")-1) == 0) {
+        *prelenp = sizeof("iofsl:")-1;
+        *bmpointp = phys_path + *prelenp;
+        return(new IOFSLIOStore());
+    }
 #endif
 
     return(NULL);

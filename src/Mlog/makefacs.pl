@@ -45,6 +45,7 @@
      "MPI"      => "MPI",
      "POSIXIO"  => "POSIXIO",
      "SMF"      => "small_file",
+     "FUSEIO"   => "FUSEIO",
 );
 
 @mloglvls = (
