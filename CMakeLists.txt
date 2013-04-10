@@ -254,9 +254,11 @@ elseif (NOT DISABLE_FUSE)
 endif(FUSE_FOUND AND NOT DISABLE_FUSE)
 
 #helper tools
-foreach (PROG dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls
-              plfs_map plfs_query plfs_recover plfs_version)
-    add_executable(${PROG} ${PLFS_TOOLS_DIR}/${PROG})
+foreach (SOURCE dcon.c findmesgbuf.c plfs_check_config.cpp plfs_ls.cpp
+	 plfs_flatten_index.cpp plfs_map.cpp plfs_query.cpp plfs_recover.cpp
+	 plfs_version.cpp)
+    get_filename_component(PROG ${SOURCE} NAME_WE)
+    add_executable(${PROG} ${PLFS_TOOLS_DIR}/${SOURCE})
     target_link_libraries (${PROG} plfs_lib)
     if (BUILD_HDFS)
         target_link_libraries (${PROG} ${JAVA_JVM_LIBRARY})
@@ -268,7 +270,7 @@ foreach (PROG dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls
     if (BUILD_IOFSL)
         target_link_libraries (${PROG} ${IOFSL_LIBRARIES})
     endif(BUILD_IOFSL)
-endforeach(PROG)
+endforeach(SOURCE)
 
 #set up targets for make install
 INSTALL(TARGETS dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls
