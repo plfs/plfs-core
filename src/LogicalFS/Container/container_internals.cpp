@@ -1988,7 +1988,7 @@ container_unlink( const char *logical )
     unpb.back = expansion_info.backend;
 
     struct stat stbuf;
-    if ( ret = unpb.back->store->Lstat(unlink_canonical.c_str(),&stbuf) != 0 ) {
+    if ( (ret = unpb.back->store->Lstat(unlink_canonical.c_str(),&stbuf)) != 0)  {
         PLFS_EXIT(ret);
     }
     mode_t mode = Container::getmode(unlink_canonical, expansion_info.backend);
