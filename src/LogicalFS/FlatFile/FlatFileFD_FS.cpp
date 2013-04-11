@@ -279,7 +279,6 @@ FlatFileSystem::rename( const char *logical, const char *to )
     EXPAND_TARGET;
     struct stat stbuf;
     //struct stat stbuf_target;
-    mode_t mode;
     ret = flatback->store->Lstat(old_canonical.c_str(), &stbuf);
     if (ret < 0) {
         goto out;
