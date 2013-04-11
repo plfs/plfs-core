@@ -31,6 +31,7 @@ endif (HAVE_SYS_FSUID_H)
 #setup includes for building source
 set(PLFS_SOURCE_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set(PLFS_TOOLS_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/tools")
+set(PLFS_TESTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tests")
 set(PLFS_MAN_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/man")
 
 #BUILD_DIR is where we build from
@@ -122,6 +123,21 @@ if (BUILD_PVFS)
     endif(PVFS_NEEDSSL)
 endif(BUILD_PVFS)
 
+OPTION (BUILD_IOFSL "Build IOFSL IOStore." OFF)
+message ("-- BUILD_IOFSL ${BUILD_IOFSL}")
+find_package(FUSE)
+if (BUILD_IOFSL)
+   find_package(IOFSL)
+   if (NOT IOFSL_FOUND)
+      message(FATAL_ERROR "IOFSL not found")
+   endif (NOT IOFSL_FOUND)
+   if (NOT FUSE_FOUND)
+      message(FATAL_ERROR "FUSE development headers not found")
+   endif (NOT FUSE_FOUND)
+   add_definitions(-DNDEBUG)
+   add_definitions(${FUSE_DEFINITIONS})
+endif (BUILD_IOFSL)
+
 #create the plfs library
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR} plfs_src_dir)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/IOStore iostore)
@@ -140,6 +156,14 @@ include_directories(${PVFS_INCLUDE_DIR})
 include_directories(${PLFS_SOURCE_DIR}/IOStore/PVFS)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/IOStore/PVFS iostore_pvfs)
 endif(BUILD_PVFS)
+if (BUILD_IOFSL)
+add_definitions(-DUSE_IOFSL)
+include_directories(${IOFSL_INCLUDE_DIR})
+include_directories(${PLFS_SOURCE_DIR}/IOStore/FUSE)
+include_directories(${PLFS_SOURCE_DIR}/IOStore/FUSE/IOFSL)
+AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/IOStore/FUSE iostore_fuse)
+AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/IOStore/FUSE/IOFSL iostore_iofsl)
+endif (BUILD_IOFSL)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS logicalfs)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/Container logicalfs_container)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/Container/Index container_index)
@@ -150,7 +174,7 @@ AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/Mlog mlog)
 
 
 SET(SRCDIR ${plfs_src_dir} ${iostore} ${iostore_glib} ${iostore_hdfs} 
-           ${iostore_posix} ${iostore_pvfs}
+           ${iostore_posix} ${iostore_pvfs} ${iostore_fuse} ${iostore_iofsl}
            ${logicalfs} ${logicalfs_container} ${container_index} ${logicalfs_flatfile}
            ${logicalfs_smallfile} ${smallfile} ${mlog}
 )
@@ -203,7 +227,6 @@ configure_file (
 
 
 #fuse
-find_package(FUSE)
 if (FUSE_FOUND AND NOT DISABLE_FUSE)
     message("-- FUSE found")
     #build fuse
@@ -220,6 +243,9 @@ if (FUSE_FOUND AND NOT DISABLE_FUSE)
     if (BUILD_PVFS)
         target_link_libraries (plfs_fuse ${PVFS_LIBRARIES})
     endif(BUILD_PVFS)
+    if (BUILD_IOFSL)
+        target_link_libraries (plfs_fuse ${IOFSL_LIBRARIES})
+    endif (BUILD_IOFSL)
     #change its name so that it create plfs executable
     SET_TARGET_PROPERTIES(plfs_fuse PROPERTIES OUTPUT_NAME plfs)
     #set install dir
@@ -229,9 +255,11 @@ elseif (NOT DISABLE_FUSE)
 endif(FUSE_FOUND AND NOT DISABLE_FUSE)
 
 #helper tools
-foreach (PROG dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls
-              plfs_map plfs_query plfs_recover plfs_version)
-    add_executable(${PROG} ${PLFS_TOOLS_DIR}/${PROG})
+foreach (SOURCE dcon.c findmesgbuf.c plfs_check_config.cpp plfs_ls.cpp
+	 plfs_flatten_index.cpp plfs_map.cpp plfs_query.cpp plfs_recover.cpp
+	 plfs_version.cpp)
+    get_filename_component(PROG ${SOURCE} NAME_WE)
+    add_executable(${PROG} ${PLFS_TOOLS_DIR}/${SOURCE})
     target_link_libraries (${PROG} plfs_lib)
     if (BUILD_HDFS)
         target_link_libraries (${PROG} ${JAVA_JVM_LIBRARY})
@@ -240,7 +268,13 @@ foreach (PROG dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls
     if (BUILD_PVFS)
         target_link_libraries (${PROG} ${PVFS_LIBRARIES})
     endif(BUILD_PVFS)
-endforeach(PROG)
+    if (BUILD_IOFSL)
+        target_link_libraries (${PROG} ${IOFSL_LIBRARIES})
+    endif(BUILD_IOFSL)
+endforeach(SOURCE)
+
+#test tools
+add_subdirectory("${PLFS_TESTS_DIR}")
 
 #set up targets for make install
 INSTALL(TARGETS dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls

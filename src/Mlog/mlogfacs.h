@@ -53,7 +53,8 @@ static const char *mlog_facsarray[] = {
     "MPI",           /* 10 */
     "POSIXIO",       /* 11 */
     "SMF",           /* 12 */
-    0,               /* 13 */
+    "FUSEIO",        /* 13 */
+    0,               /* 14 */
 };
 #endif /* MLOG_FACSARRAY || MLOG_AFACSARRAY */
 
@@ -72,7 +73,8 @@ static const char *mlog_lfacsarray[] = {
     "MPI",           /* 10 */
     "POSIXIO",       /* 11 */
     "small_file",    /* 12 */
-    0,               /* 13 */
+    "FUSEIO",        /* 13 */
+    0,               /* 14 */
 };
 #endif /* MLOG_LFACSARRAY || MLOG_LFACSARRAY */
 
@@ -91,6 +93,7 @@ static const char *mlog_lfacsarray[] = {
 #define MLOGFAC_MPI      10 /* MPI */
 #define MLOGFAC_POSIXIO  11 /* POSIXIO */
 #define MLOGFAC_SMF      12 /* small_file */
+#define MLOGFAC_FUSEIO   13 /* FUSEIO */
 
 /*
  * plfs_misc MLOG levels
@@ -331,5 +334,25 @@ static const char *mlog_lfacsarray[] = {
 #define SMF_DCOMMON       SMF_DBG2
 #define SMF_DBG3         (12 | MLOG_DBG3)
 #define SMF_DRARE         SMF_DBG3
+
+/*
+ * FUSEIO MLOG levels
+ */
+#define FUSEIO_EMERG     (13 | MLOG_EMERG)
+#define FUSEIO_ALERT     (13 | MLOG_ALERT)
+#define FUSEIO_CRIT      (13 | MLOG_CRIT)
+#define FUSEIO_ERR       (13 | MLOG_ERR)
+#define FUSEIO_WARN      (13 | MLOG_WARN)
+#define FUSEIO_NOTE      (13 | MLOG_NOTE)
+#define FUSEIO_INFO      (13 | MLOG_INFO)
+#define FUSEIO_DBG       (13 | MLOG_DBG)
+#define FUSEIO_DBG0      (13 | MLOG_DBG0)
+#define FUSEIO_DAPI       FUSEIO_DBG0
+#define FUSEIO_DBG1      (13 | MLOG_DBG1)
+#define FUSEIO_DINTAPI    FUSEIO_DBG1
+#define FUSEIO_DBG2      (13 | MLOG_DBG2)
+#define FUSEIO_DCOMMON    FUSEIO_DBG2
+#define FUSEIO_DBG3      (13 | MLOG_DBG3)
+#define FUSEIO_DRARE      FUSEIO_DBG3
 
 #endif /* _MLOGFACS_H_ */
