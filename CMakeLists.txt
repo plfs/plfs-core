@@ -215,6 +215,7 @@ configure_file (
 #fuse
 find_package(FUSE)
 if (FUSE_FOUND AND NOT DISABLE_FUSE)
+    message("-- FUSE found")
     #build fuse
     AUX_SOURCE_DIRECTORY(fuse plfs_fuse_dir)
     add_executable (plfs_fuse ${plfs_fuse_dir})
@@ -233,6 +234,8 @@ if (FUSE_FOUND AND NOT DISABLE_FUSE)
     SET_TARGET_PROPERTIES(plfs_fuse PROPERTIES OUTPUT_NAME plfs)
     #set install dir
     INSTALL(TARGETS plfs_fuse DESTINATION sbin)
+elseif (NOT DISABLE_FUSE)
+    message(FATAL_ERROR "FUSE not found and DISABLE_FUSE not specified")
 endif(FUSE_FOUND AND NOT DISABLE_FUSE)
 
 #helper tools
@@ -254,6 +257,10 @@ INSTALL(TARGETS dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls
                 plfs_map plfs_query plfs_recover plfs_version DESTINATION bin
 )
 INSTALL(FILES "${PLFS_BUILD_DIR}/plfs.h" DESTINATION include)
+INSTALL(FILES "${PLFS_SOURCE_DIR}/Mlog/mlogfacs.h"
+	      "${PLFS_SOURCE_DIR}/plfs_internal.h" 
+	      "${PLFS_SOURCE_DIR}/Util.h" 
+    	      "${PLFS_SOURCE_DIR}/COPYRIGHT.h" DESTINATION include/plfs)
 
 #man pages
 add_subdirectory("${PLFS_MAN_DIR}")
