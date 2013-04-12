@@ -618,3 +618,35 @@ int plfs_setxattr(Plfs_fd *fd, const void *value, const char *key, size_t len) {
     debug_exit(__FUNCTION__,fd->getPath(),ret);
     return ret;
 }
+
+int plfs_flush_writes(const char *path)
+{
+    debug_enter(__FUNCTION__,path);
+    int ret = 0;
+    char stripped_path[PATH_MAX];
+    stripPrefixPath(path, stripped_path);
+    LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
+    if (logicalfs == NULL) {
+        ret = -EINVAL;
+    } else {
+        ret = logicalfs->flush_writes(stripped_path);
+    }
+    debug_exit(__FUNCTION__,path,ret);
+    return ret;
+}
+
+int plfs_invalidate_read_cache(const char *path)
+{
+    debug_enter(__FUNCTION__,path);
+    int ret = 0;
+    char stripped_path[PATH_MAX];
+    stripPrefixPath(path, stripped_path);
+    LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
+    if (logicalfs == NULL) {
+        ret = -EINVAL;
+    } else {
+        ret = logicalfs->invalidate_cache(stripped_path);
+    }
+    debug_exit(__FUNCTION__,path,ret);
+    return ret;
+}
