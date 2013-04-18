@@ -12,6 +12,7 @@
 #define ADIO_UNLINK_AFTER_CLOSE -100
 #endif
 
+#ifndef ROMIO_OPENMPI_14x
 int ADIOI_PLFS_Feature(ADIO_File fd, int flag)
 {
 	switch(flag) {
@@ -30,4 +31,4 @@ int ADIOI_PLFS_Feature(ADIO_File fd, int flag)
 			break;
 	}
 }
-
+#endif
