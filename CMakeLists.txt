@@ -62,7 +62,10 @@ include_directories(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile)
 include_directories(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile/smallfile)
 #Mlog
 include_directories(${PLFS_SOURCE_DIR}/Mlog)
-#Small File
+#user defined search paths
+foreach(path ${CMAKE_INCLUDE_PATH})
+  include_directories(${path})
+endforeach()
 
 #set up extra definitions
 add_definitions (-D_FILE_OFFSET_BITS=64)
@@ -214,6 +217,13 @@ find_package (Threads REQUIRED)
 if (Threads_FOUND)
     target_link_libraries (plfs_lib ${CMAKE_THREAD_LIBS_INIT})
 endif (Threads_FOUND)
+
+#yaml-cpp
+find_package (YAMLCPP REQUIRED)
+if (YAMLCPP_FOUND)
+    target_link_libraries (plfs_lib ${YAMLCPP_LIBRARY})
+    include_directories (${YAMLCPP_INCLUDE_DIR})
+endif (YAMLCPP_FOUND)
 
 #statvfs
 check_include_files(sys/statvfs.h HAVE_SYS_STATVFS_H)

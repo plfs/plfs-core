@@ -8,6 +8,7 @@
 #include "LogicalFS.h"
 #include "FileOp.h"
 #include "Container.h"
+#include "yaml-cpp/yaml.h"
 #include "PLFSIndex.h"
 
 #include <map>
@@ -68,6 +69,7 @@ typedef struct PlfsMount {
     plfs_filetype file_type;
     LogicalFileSystem *fs_ptr;
     unsigned max_writers;
+    unsigned max_smallfile_containers; /* max cached smallfile containers */
     unsigned checksum;
 
     /* backend filesystem info */
@@ -145,10 +147,9 @@ typedef struct {
 
     /* File to dump fuse errors to regardless of mlog configuration */
     char *fuse_crash_log;
-    int max_smallfile_containers; /* number of cached smallfile containers */
 } PlfsConf;
 
-PlfsConf *parse_conf(FILE *fp, string file, PlfsConf *pconf);
+PlfsConf *parse_conf(YAML::Node cnode, string file, PlfsConf *pconf);
 
 /* get_plfs_conf
    get a pointer to a struct holding plfs configuration values

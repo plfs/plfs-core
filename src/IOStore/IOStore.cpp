@@ -59,8 +59,8 @@ class IOStore *plfs_iostore_get(char *phys_path, char **prefixp,
     *prefixp = phys_path;
 
     if (strncmp(phys_path, "glib:", sizeof("glib:")-1) == 0) {
-        *prelenp = sizeof("glib:")-1;
-        *bmpointp = phys_path + *prelenp;
+        *prelenp = 0;
+        *bmpointp = phys_path + (sizeof("glib:")-1);
         return(new GlibIOStore());
     }
         
