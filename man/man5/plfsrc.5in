@@ -301,17 +301,20 @@ Optional.
 .B
   workload: <value>
 .RS
-This tells PLFS whether a specific mount_point is intended for either shared
-file workloads (i.e. N-1) or file-per-proc workloads (i.e. N-N).  Possible
-values are either "shared_file" or "file_per_proc".  "n-1" can also be used in
-place of "shared_file" and "n-n" can also be used in place of "file_per_proc.  
-shared_file is intended for workloads where multiple writers write concurrently 
-to a single file.  
+This tells PLFS whether a specific mount_point is intended for shared
+file workloads (i.e. N-1), file-per-proc workloads (i.e. N-N) or small files
+workloads (i.e. 1-N).  Possible values are "shared_file", "file_per_proc"
+or "small_file".  "n-1" can also be used in place of "shared_file",
+"n-n" can also be used in place of "file_per_proc" and "1-n" can alse be used
+in place of "small_file".  shared_file is intended
+for workloads where multiple writers write concurrently to a single file.
+small_file is intended for workloads where each writer will create and write
+to a lot of small files.
 Other workloads should use "file_per_proc" which should make a large metadata
 improvement for most metadata workloads so long as multiple backends are 
-defined for the mount point. This is especially true if each backend is 
-serviced by a different metadata server so that the metadata workload can 
-be balanced across multiple servers.
+defined for the mount point.  This is especially true if each backend is serviced by
+a different metadata server so that the metadata workload can be balanced
+across multiple servers.
 
 Note this option must appear within mount_point structure and only applies 
 to the mount_point command that it follows.
@@ -326,7 +329,7 @@ This is an advanced directive and will not be used in typical installations.
 This is used in conjunction with shadow backends and canonical backends.  It
 is possible to use an RPC server to asynchronously copy data from 
 shadow backends into canonical backends by specifying this value and by 
-calling plfs_protect.
+calling container_protect.
 
 Note this option only applies to the canonical backends 
 and/or shadow backends definition that it follows.
