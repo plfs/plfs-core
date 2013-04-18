@@ -119,13 +119,15 @@ Required.
 .B
 workload
 .RS
-This tells PLFS whether a specific mount_point is intended for either shared
-file workloads (i.e. N-1) or file-per-proc workloads (i.e. N-N).  Possible
-values are either "shared_file" or "file_per_proc".  "n-1" can also be used in
-place of "shared_file" and "n-n" can also be used in
-place of "file_per_proc.  shared_file is intended
-for workloads where multiple writers write concurrently to a single file.  
-Other workloads should use "file_per_proc" which should make a large metadata
+This tells PLFS whether a specific mount_point is intended for shared
+file workloads (i.e. N-1), file-per-proc workloads (i.e. N-N) or small files
+workloads (i.e. 1-N).  Possible values are "shared_file", "file_per_proc"
+or "small_file".  "n-1" can also be used in place of "shared_file",
+"n-n" can also be used in place of "file_per_proc" and "1-n" can alse be used
+in place of "small_file".  shared_file is intended
+for workloads where multiple writers write concurrently to a single file.
+small_file is intended for workloads where each writer will create and write
+to a lot of small files. Other workloads should use "file_per_proc" which should make a large metadata
 improvement for most metadata workloads so long as multiple backends are defined for the mount point.
 This is especially true if each backend is serviced by
 a different metadata server so that the metadata workload can be balanced
