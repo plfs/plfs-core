@@ -172,6 +172,10 @@ typedef void *Plfs_dirp;
 
     int plfs_sync( Plfs_fd * );
 
+    int plfs_flush_writes( const char *dir );
+
+    int plfs_invalidate_read_cache( const char *dir );
+
     /* Plfs_fd can be NULL, but then path must be valid */
     int plfs_trunc( Plfs_fd *, const char *path, off_t, int open_file );
 
