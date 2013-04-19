@@ -47,6 +47,8 @@ class SmallFileFS : public LogicalFileSystem
         int rmdir(const char *path);
         int symlink(const char *path, const char *to);
         int statvfs(const char *path, struct statvfs *stbuf);
+        int flush_writes(const char *dir);
+        int invalidate_cache(const char *dir);
 };
 
 #endif

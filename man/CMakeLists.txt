@@ -22,9 +22,11 @@ SET (SEEALSO3 "${SEEALSO3}, plfs_close(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_closedir_c(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_create(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_flatten_index(3)")
+SET (SEEALSO3 "${SEEALSO3}, plfs_flush_writes(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_getattr(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_get_filetype(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_getxattr(3)")
+SET (SEEALSO3 "${SEEALSO3}, plfs_invalidate_read_cache(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_link(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_mkdir(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs_mode(3)")
@@ -105,7 +107,8 @@ foreach (MAN3 plfs is_plfs_path plfs_chown plfs_flatten_index plfs_mode
               plfs_query plfs_trunc plfs_opendir_c plfs_readdir_c plfs_closedir_c
               plfs_access plfs_link plfs_read plfs_unlink plfs_get_filetype
               plfs_readdir plfs_utime plfs_chmod 
-              plfs_mkdir plfs_readlink plfs_statvfs )
+              plfs_mkdir plfs_readlink plfs_statvfs
+              plfs_flush_writes plfs_invalidate_read_cache )
     configure_file( "man3/${MAN3}.3in" "${PLFS_BUILD_DIR}/share/man/man3/${MAN3}.3")
 endforeach(MAN3)
 

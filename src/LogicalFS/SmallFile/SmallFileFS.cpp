@@ -492,3 +492,36 @@ SmallFileFS::statvfs(const char *path, struct statvfs *stbuf)
     struct plfs_backend *backend = expinfo.pmount->backends[0];
     return backend->store->Statvfs(backend->bmpoint.c_str(), stbuf);
 }
+
+int
+SmallFileFS::invalidate_cache(const char *dir)
+{
+    PathExpandInfo expinfo;
+    ContainerPtr cached_container;
+    string fakename(dir);
+
+    fakename += "/fakename";
+    smallfile_expand_path(fakename.c_str(), expinfo);
+    cached_container = containers.lookup(expinfo.dirpath);
+    if (cached_container) {
+        cached_container->sync_writers(WRITER_SYNC_DATAFILE);
+        containers.erase(expinfo.dirpath);
+    }
+    return 0;
+}
+
+int
+SmallFileFS::flush_writes(const char *dir)
+{
+    PathExpandInfo expinfo;
+    ContainerPtr cached_container;
+    string fakename(dir);
+
+    fakename += "/fakename";
+    smallfile_expand_path(fakename.c_str(), expinfo);
+    cached_container = containers.lookup(expinfo.dirpath);
+    if (cached_container) {
+        cached_container->sync_writers(WRITER_SYNC_DATAFILE);
+    }
+    return 0;
+}
