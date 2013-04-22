@@ -1,0 +1,33 @@
+${COPYRIGHT}
+.TH plfs_flush_writes 3 "${PACKAGE_STRING}" 
+.SH NAME
+plfs_flush_writes
+.SH SYNTAX
+#include <plfs.h>
+.PP
+int plfs_flush_writes( const char *dir );
+
+.SH DESCRIPTION
+Flush all the buffers related to all the regular files in the given
+directory to the backends file systems.
+
+See
+.I plfs_invalidate_read_cache(3)
+for more information.
+
+Currently it is only useful for small file mode(workload 1-n), for
+other modes, it does nothing.
+
+.SH INPUT PARAMETERS
+.TP 1i
+dir
+path to the directory to be flushed.
+
+.SH RETURN VALUES
+0 on success, -errno otherwise.
+
+.SH AUTHORS
+${AUTHORS}
+
+.SH SEE ALSO
+${SEEALSO3}

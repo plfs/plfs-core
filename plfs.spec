@@ -138,9 +138,11 @@ fi
 %{_mandir}/man3/plfs_closedir_c.3.gz
 %{_mandir}/man3/plfs_create.3.gz
 %{_mandir}/man3/plfs_flatten_index.3.gz
+%{_mandir}/man3/plfs_flush_writes.3.gz
 %{_mandir}/man3/plfs_getattr.3.gz
 %{_mandir}/man3/plfs_get_filetype.3.gz
 %{_mandir}/man3/plfs_getxattr.3.gz
+%{_mandir}/man3/plfs_invalidate_read_cache.3.gz
 %{_mandir}/man3/plfs_link.3.gz
 %{_mandir}/man3/plfs_mkdir.3.gz
 %{_mandir}/man3/plfs_mode.3.gz
