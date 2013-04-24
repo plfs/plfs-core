@@ -123,7 +123,7 @@ Once regression testing is done and a new release is ready, do the following:
 Generate a tarball
     1) Make sure the local repository is set for <release> (use
     'git checkout <release>')
-    2) cmake -DCMAKE_RELEASE_TYPE=Release .
+    2) cmake .
     3) make dist # Creates plfs-<version>.tar.gz
     4) Upload the tarball to github.com
 
