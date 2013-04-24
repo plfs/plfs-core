@@ -17,6 +17,13 @@ if (DEFINED plfs_VERSION_PATCH)
     endif()
 endif()
 
+#setup "make dist"
+set(ARCHIVE_NAME
+    ${CMAKE_PROJECT_NAME}-${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR})
+add_custom_target(dist
+    COMMAND git archive --prefix=${ARCHIVE_NAME}/ HEAD
+        | bzip2 > ${CMAKE_BINARY_DIR}/${ARCHIVE_NAME}.tar.bz2
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 #setup special modules
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/Modules/")

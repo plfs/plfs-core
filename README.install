@@ -1,25 +1,20 @@
 0) All PLFS installations need a valid plfsrc file.  Please see plfsrc.example
    to create one in either $HOME/.plfsrc or in /etc/plfsrc.  Check it with
-   tools/plfs_check_config after building PLFS.  Please note that the
-   'map' directive has been deprecated and is not included in plfsrc's
-   since 2.0. Any old plfsrc's containing this directive need to be edited
-   beforing updating to 2.0 or above.
-
-0.0) If you are a building PLFS from a checkout of the code from sourceforge,
-   you will need to run ./autogen.sh to create the needed build files. The
-   following versions of autotools should be used:
-      m4:         1.4.16   (ftp://ftp.gnu.org/gnu/m4/)
-      autoconf:   2.68     (ftp://ftp.gnu.org/gnu/autoconf/)
-      automake:   1.11.3   (ftp://ftp.gnu.org/gnu/automake/)
-      libtool:    2.4.2    (ftp://ftp.gnu.org/gnu/libtool/)
-   Build them in the following order: m4, autoconf, automake, libtool.
+   tools/plfs_check_config after building PLFS. Please note that the plfsrc
+   file format has changed as of version 2.4. Any old plfsrc's not in the new
+   YAML format need to be edited to conform to the new standard before updating
+   to 2.4 or above.
 
 1) Build the PLFS library and supporting tools.
 
    0) In order to build the tools that work with fuse, you'll need to have fuse
       installed and have /dev/libfuse loaded.
-   1) ./configure
-      Please see ./configure --help for all of the options available.
+   1) cmake .
+      Please see cmake -LAH for all of the options available. If any headers
+      have been installed in non-standard locations you can set 
+      CMAKE_INCLUDE_PATH to make them discoverable when building.
+      If you want a release build run cmake with -DCMAKE_BUILD_TYPE=Release 
+      and if you want a debug build run with -DCMAKE_BUILD_TYPE=Debug
    2) make
    3) make install
       The default installation path is /usr/local.
