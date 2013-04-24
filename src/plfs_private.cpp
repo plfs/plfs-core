@@ -1561,7 +1561,7 @@ get_plfs_conf()
         catch (exception& e) {
             mlog(MLOG_ERR, "YAML load exception: %s", e.what());
             mlog(MLOG_ERR, ".plfsrc file that caused exception: %s", file.c_str());
-            break;
+            continue;
         }
         PlfsConf *tmppconf = parse_conf(cnode,file,NULL);
         if(tmppconf) {
