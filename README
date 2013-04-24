@@ -70,6 +70,8 @@ all options that can be passed. Some useful ones are:
 allow_other   : if mounting as root, this allows others to use plfs
 big_writes    : newer versions of fuse can break writes into 128K chunks 
 direct_io     : older versions can too, but then mmap doesn't work
+auto_cache    : if you are writing to PLFS through MPI-IO or PLFS-API and you want
+                to read from a PLFS FUSE, then use this flag
 
 Example:
 plfs -o big_writes,allow_other /path/to/mount
