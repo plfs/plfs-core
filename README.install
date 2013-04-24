@@ -15,6 +15,12 @@
       CMAKE_INCLUDE_PATH to make them discoverable when building.
       If you want a release build run cmake with -DCMAKE_BUILD_TYPE=Release 
       and if you want a debug build run with -DCMAKE_BUILD_TYPE=Debug
+      To install in a non-default location run cmake with 
+      -DCMAKE_INSTALL_PREFIX=/desired/install/path
+      Out of tree builds are recommended to keep the source tree clean. To
+      do an out of tree build create a build directory somewhere then run
+      cmake as usual but instead of "cmake [cmake flags] ." use
+      "cmake [cmake flags] /path/to/plfs/src" from within your build dir.
    2) make
    3) make install
       The default installation path is /usr/local.
@@ -22,7 +28,7 @@
       path, then /usr/local/bin and /usr/local/sbin need to be added to PATH.
       PLFS's lib directory can also be added to LD_LIBRARY_PATH. The default
       is /usr/local/lib.
-   5) check your plfsrc file with plfs_check_config (located in the tools
+   5) check your plfsrc file with plfs_check_config (located in the bin
       directory in the PLFS source tree after running make or in the
       installation directory's bin directory)
 
