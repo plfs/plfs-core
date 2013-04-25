@@ -330,21 +330,21 @@ void Util::addTime( string function, double elapsed, bool error )
 int Util::MutexLock(  pthread_mutex_t *mux , const char *where )
 {
     ENTER_MUX;
-    mss::mlog_oss os(UT_DAPI), os2(UT_DAPI);
-    os << "Locking mutex " << mux << " from " << where;
-    os.commit();
+//    mss::mlog_oss os(UT_DAPI), os2(UT_DAPI);
+//    os << "Locking mutex " << mux << " from " << where;
+//    os.commit();
     pthread_mutex_lock( mux );
-    os2 << "Locked mutex " << mux << " from " << where;
-    os2.commit();
+//    os2 << "Locked mutex " << mux << " from " << where;
+//    os2.commit();
     EXIT_UTIL;
 }
 
 int Util::MutexUnlock( pthread_mutex_t *mux, const char *where )
 {
     ENTER_MUX;
-    mss::mlog_oss os(UT_DAPI);
-    os << "Unlocking mutex " << mux << " from " << where;
-    os.commit();
+//    mss::mlog_oss os(UT_DAPI);
+//    os << "Unlocking mutex " << mux << " from " << where;
+//    os.commit();
     pthread_mutex_unlock( mux );
     EXIT_UTIL;
 }

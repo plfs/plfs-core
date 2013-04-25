@@ -190,7 +190,10 @@ SET(SRCDIR ${plfs_src_dir} ${iostore} ${iostore_glib} ${iostore_hdfs}
 )
 
 #needed by the crays to link against the dynamic version
-set (CMAKE_EXE_LINKER_FLAGS "-dynamic")
+set (CMAKE_EXE_LINKER_FLAGS "-dynamic -Wl,--enable-new-dtags")
+set (CMAKE_SHARED_LINKER_FLAGS "-dynamic -Wl,--enable-new-dtags")
+set (CMAKE_MODULE_LINKER_FLAGS "-dynamic -Wl,--enable-new-dtags")
+
 #static and shared bot same name
 add_library(plfs_lib SHARED ${SRCDIR})
 SET_TARGET_PROPERTIES(plfs_lib PROPERTIES OUTPUT_NAME plfs)
