@@ -63,7 +63,7 @@ FILE *logfp = 0;
 /*
  * local prototypes
  */
-static void safeputs(char *);
+static void safeputs(const char *);
 static int stringsplit(char *, int, char **);
 static void truncatelog(int);
 static void flushlog(int);
@@ -74,7 +74,7 @@ static void exitlog(int);
  *
  * @param s the null-terminated string to to output
  */
-static void safeputs(char *s) {
+static void safeputs(const char *s) {
     for (/*null*/; *s ; s++) {
         if (*s == '\n' || (*s >= ' ' && *s <= '~')) {
             if (logfp) {
@@ -206,7 +206,7 @@ static void exitlog(int ignore) {
  */
 int main(int argc, char **argv) {
     char *ipstr, *portstr;
-    static char *fmt = "dhtflm";
+    static const char *fmt = "dhtflm";
     char *logfile;
     int c, errflg, len;
     socklen_t slen;
@@ -216,7 +216,8 @@ int main(int argc, char **argv) {
 #define BIG (1024*1024)
     char bigbuf[BIG], tmpbuf[64];
     char *chunks[6];
-    char *f, *ptr;
+    const char *f;
+    char *ptr;
 
 
     errflg = 0;
