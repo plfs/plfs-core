@@ -3,6 +3,7 @@
 #include "GlibIOStore.h"
 #include "PosixIOStore.h"
 #include "Util.h"
+#include <cstdlib>
 
 /*
  * IOStore functions that return signed int should return 0 on success

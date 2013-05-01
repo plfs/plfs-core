@@ -133,6 +133,21 @@ vector<string> &Util::tokenize(const string& str,const string& delimiters,
     return tokens;
 }
 
+// fast tokenize for directory splitting on '/'
+vector<string> &Util::fast_tokenize(const char *str, vector<string> &tokens)
+{
+    do
+    {
+        const char *begin = str;
+        while(*str != '/' && *str)
+            str++;
+        if (*str != *begin)
+            tokens.push_back(std::string(begin, str));
+    } while (0 != *str++);
+    return tokens;
+}
+
+
 /*
  * March 26, 2013:
  * Only plfs_serious_error calls this. And, nothing calls plfs_serious_error.

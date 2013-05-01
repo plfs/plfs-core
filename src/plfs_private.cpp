@@ -51,7 +51,8 @@ find_mount_point(PlfsConf *pconf, const string& logical, bool& found)
 {
     mlog(INT_DAPI,"Searching for mount point matching %s", logical.c_str());
     vector<string> logical_tokens;
-    Util::tokenize(logical,"/",logical_tokens);
+    const char *str = logical.c_str();
+    Util::fast_tokenize(str,logical_tokens);
     return find_mount_point_using_tokens(pconf,logical_tokens,found);
 }
 
