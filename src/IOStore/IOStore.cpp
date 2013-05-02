@@ -42,7 +42,8 @@ class PosixIOStore PosixIO;   /* shared for posix access */
  * @return the new iostore, or NULL on error
  */
 class IOStore *plfs_iostore_get(char *phys_path, char **prefixp,
-                                int *prelenp, char **bmpointp) {
+                                int *prelenp, char **bmpointp, 
+                                PlfsMount *pmnt) {
 
     /* special handling for posix (allows shorthand) */
     if (phys_path[0] == '/' ||
@@ -61,7 +62,7 @@ class IOStore *plfs_iostore_get(char *phys_path, char **prefixp,
     if (strncmp(phys_path, "glib:", sizeof("glib:")-1) == 0) {
         *prelenp = 0;
         *bmpointp = phys_path + (sizeof("glib:")-1);
-        return(new GlibIOStore());
+        return(new GlibIOStore(pmnt->glib_buffer_mbs));
     }
         
 #ifdef USE_HDFS
@@ -107,7 +108,7 @@ int plfs_iostore_factory(PlfsMount *pmnt, struct plfs_backend *bend) {
     char *bmpoint;
     class IOStore *rv;
 
-    rv = plfs_iostore_get(bend->prefix, &prefix, &prefixlen, &bmpoint);
+    rv = plfs_iostore_get(bend->prefix, &prefix, &prefixlen, &bmpoint, pmnt);
 
     if (rv == NULL) {
         return(-1);

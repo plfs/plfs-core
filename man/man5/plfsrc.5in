@@ -290,7 +290,7 @@ will ALWAYS be created in shadow backends.  This can be used in instances where
 the canonical is desired to be on slow global storage devices and the data 
 pieces are desired to be on fast local storage devices.  In scenarios with 
 lots of different fast local mounts, different nodes will have different sets 
-of shadow_backends defined so that each node always writes to the fastest 
+of shadow backends defined so that each node always writes to the fastest 
 possible backend.  For reading, this will require that all locations are 
 visible everywhere.  For advanced development, the PLFS team has used this to 
 build "burst-buffer" systems.
@@ -350,6 +350,21 @@ Note this option must appear within the mount_point structure and only applies
 to the mount_point command that it follows.
 
 Optional.
+.RE
+
+.B
+  glib_buffer_mbs: <value>
+.RS
+This option sets the in-memory Glibc buffer size (in megabytes) when using a 
+glib:// backend store.  Larger values can improve performance on some systems
+when performing many small writes.  This amount of memory will be used per open 
+file per process so care should be taken when tuning this parameter when 
+opening many files at a time or on systems with many processes per node.
+
+Note this option must appear within the mount_point structure and only applies
+to the mount_point command that it follows.
+
+Optional. Default is 16.
 .RE
 
 .br 

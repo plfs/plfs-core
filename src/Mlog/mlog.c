@@ -364,7 +364,7 @@ static int mlog_setnfac(int n)
     }
     for (/*null*/ ; lcv < try ; lcv++) {           /* init the new */
             nfacs[lcv].fac_mask = mst.def_mask;
-            nfacs[lcv].fac_aname = (lcv == 0) ? default_fac0name : NULL;
+            nfacs[lcv].fac_aname = (lcv == 0) ? (char *)default_fac0name : NULL;
             nfacs[lcv].fac_lname = NULL;
         }
     /* install */

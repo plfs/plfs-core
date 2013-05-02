@@ -378,9 +378,14 @@ plfs_dump_config(int check_dirs, int make_dir)
         if (fakestore == NULL) {
             char *pp, *bmp, spec[2];
             int pl;
+            map<string,PlfsMount *>::iterator itr;
+            PlfsMount *pmnt;
+            itr = pconf->mnt_pts.begin();
+            /* note: get_plfs_conf() ensures there is at least 1 mnt */
+            pmnt = itr->second;
             spec[0] = '/';
             spec[1] = 0;
-            fakestore = plfs_iostore_get(spec, &pp, &pl, &bmp);
+            fakestore = plfs_iostore_get(spec, &pp, &pl, &bmp, pmnt);
         }
     }
 
@@ -439,7 +444,7 @@ plfs_dump_config(int check_dirs, int make_dir)
         }
 
         ret = print_backends(pmnt, simple, check_dirs_now, ret, make_dir);
-
+        cout << "\tGlib buffer size (mbs): " << pmnt->glib_buffer_mbs << endl;
         if(pmnt->syncer_ip) {
             cout << "\tSyncer IP: " << pmnt->syncer_ip->c_str() << endl;
         }
@@ -619,12 +624,14 @@ set_default_mount(PlfsMount *pmnt)
     pmnt->file_type = CONTAINER;
     pmnt->fs_ptr = &containerfs;
     pmnt->max_writers = 4;
+    pmnt->glib_buffer_mbs = 16;
     pmnt->max_smallfile_containers = 32;
     pmnt->checksum = (unsigned)-1;
     pmnt->backspec = pmnt->canspec = pmnt->shadowspec = NULL;
     pmnt->attached = pmnt->nback = pmnt->ncanback = pmnt->nshadowback = 0;
     pmnt->backstore = NULL;
     pmnt->backends = pmnt->canonical_backends = pmnt->shadow_backends = NULL;
+    pmnt->err_msg = NULL;
 }
 
 void
@@ -1207,17 +1214,26 @@ namespace YAML {
            if(node["global_params"]) {
                set_default_confs(&pconf);
                if(node["num_hostdirs"]) {
-                   pconf.num_hostdirs = min(node["num_hostdirs"].as<size_t>(),
-                                            (size_t)MAX_HOSTDIRS);
+                   pconf.num_hostdirs = min(
+                                         max(node["num_hostdirs"].as<int>(),1),
+                                           (int)MAX_HOSTDIRS);
                }
                if(node["threadpool_size"]) pconf.threadpool_size = 
-                   max(node["threadpool_size"].as<size_t>(), (size_t)1);
+                   max(node["threadpool_size"].as<int>(), 1);
                if(node["lazy_stat"]) pconf.lazy_stat = 
                    node["lazy_stat"].as<bool>();
-               if(node["index_buffer_mbs"]) pconf.buffer_mbs = 
-                   node["index_buffer_mbs"].as<size_t>();
-               if(node["read_buffer_mbs"]) pconf.read_buffer_mbs =
-                   node["read_buffer_mbs"].as<size_t>();
+               if(node["index_buffer_mbs"]) {
+                   pconf.buffer_mbs = node["index_buffer_mbs"].as<int>();
+                   if(node["index_buffer_mbs"].as<int>() < 0)
+                       pconf.err_msg = 
+                           new string ("Illegal value:index_buffer_mbs");
+               }
+               if(node["read_buffer_mbs"]) {
+                   pconf.read_buffer_mbs = node["read_buffer_mbs"].as<int>();
+                   if(node["read_buffer_mbs"].as<int>() < 0)
+                       pconf.err_msg =
+                           new string ("Illegal value:read_buffer_mbs");
+               }
                if(node["global_summary_dir"]) {
                    pconf.global_summary_dir = 
                        strdup(node["global_summary_dir"].as<string>().c_str());
@@ -1273,7 +1289,7 @@ namespace YAML {
                }
                if(node["mlog_msgbuf_size"]) {
                    pconf.mlog_msgbuf_size =
-                   node["mlog_msgbuf_size"].as<size_t>();
+                   node["mlog_msgbuf_size"].as<int>();
                    if (pconf.mlog_msgbuf_size && pconf.mlog_msgbuf_size < 256)
                        pconf.err_msg = new string("mlog_msgbuf_size too small");
                }
@@ -1334,9 +1350,10 @@ namespace YAML {
                Util::tokenize(pmntp.mnt_pt,"/",pmntp.mnt_tokens);
                if(node["max_smallfile_containers"]) {
                    pmntp.max_smallfile_containers =
-                       node["max_smallfile_containers"].as<size_t>();
-                   if(pmntp.max_smallfile_containers <= 0)
-                       mlog(MLOG_ERR, "Illegal value:max_smallfile_containers");
+                       node["max_smallfile_containers"].as<int>();
+                   if(node["max_smallfile_containers"].as<int>() <= 0)
+                       pmntp.err_msg = 
+                           new string("Illegal value:max_smallfile_containers");
                }
                if(node["workload"]) {
                    if(node["workload"].as<string>() == "file_per_proc" ||
@@ -1355,14 +1372,20 @@ namespace YAML {
                        pmntp.fs_ptr = new SmallFileFS(pmntp.max_smallfile_containers);
                    }
                    else {
-                       mlog(MLOG_ERR, "Unknown workload type");
+                       pmntp.err_msg = new string("Unknown workload type");
                    }
                }
                if(node["max_writers"]) {
                    pmntp.max_writers =
-                       node["max_writers"].as<size_t>();
-                   if(pmntp.max_writers < 0)
-                       mlog(MLOG_ERR, "Illegal value:max_writers");
+                       node["max_writers"].as<int>();
+                   if(node["max_writers"].as<int>() < 0)
+                       pmntp.err_msg = new string("Illegal value:max_writers");
+               }
+               if(node["glib_buffer_mbs"]) {
+                   pmntp.glib_buffer_mbs = 
+                       node["glib_buffer_mbs"].as<int>();
+                   if(node["glib_buffer_mbs"].as<int>() < 0)
+                       pmntp.err_msg = new string("Illegal value:glib_buffer_mbs");
                }
                if(node["statfs"]) {
                    pmntp.statfs = new string(node["statfs"].as<string>());
@@ -1390,7 +1413,7 @@ namespace YAML {
                                        as<string>());
                            }
                            else {
-                               mlog(MLOG_ERR, "Unknown backend type");
+                               pmntp.err_msg = new string("Unknown backend type");
                            }
                        }
                        else {
@@ -1418,7 +1441,7 @@ namespace YAML {
                }
                return true;
            }
-           mlog(MLOG_ERR, "Decode mount called on non-mount node\n");
+           pmntp.err_msg = new string("Decode mount called on non-mount node\n");
            return false;
        }
    };
@@ -1462,6 +1485,8 @@ parse_conf(YAML::Node cnode, string file, PlfsConf *pconf)
                     new string("global_params parsing failure: %s", e.what());
                 break;
             }
+            if (pconf->err_msg)
+                break;
             // now restore saved parameters to pconf
             pconf->files = temp_conf.files;
             pconf->backends = temp_conf.backends;
@@ -1474,6 +1499,10 @@ parse_conf(YAML::Node cnode, string file, PlfsConf *pconf)
             catch (exception &e) {
                 pconf->err_msg = 
                     new string("mount_point parsing failure: %s", e.what());
+                break;
+            }
+            if (pconf->tmp_mnt->err_msg) {
+                pconf->err_msg = pconf->tmp_mnt->err_msg;
                 break;
             }
             pconf->err_msg = insert_mount_point(pconf, pconf->tmp_mnt);

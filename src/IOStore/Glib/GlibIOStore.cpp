@@ -21,7 +21,7 @@
 
 IOSHandle *
 GlibIOStore::Open(const char *path, int flags, mode_t mode, int &ret) {
-    GlibIOSHandle *hand = new GlibIOSHandle(path);
+    GlibIOSHandle *hand = new GlibIOSHandle(path, this->buffsize);
     ret = hand->Open(flags,mode);
     if (ret == 0) {
         return hand;
@@ -33,8 +33,9 @@ GlibIOStore::Open(const char *path, int flags, mode_t mode, int &ret) {
     return NULL;
 }
 
-GlibIOSHandle::GlibIOSHandle(string newpath) {
+GlibIOSHandle::GlibIOSHandle(string newpath, unsigned int buffsize) {
     this->path = newpath;
+    this->buffsize = buffsize;
 }
 
 
@@ -71,9 +72,9 @@ flags_to_restrict_mode(int flags) {
 int 
 GlibIOSHandle::Open(int flags, mode_t mode) {
     int rv;
-    int fd = open(path.c_str(),flags,mode);
+    int fd = open(this->path.c_str(),flags,mode);
     if (fd < 0) {
-        return(get_err(fd));
+        return get_err(fd);
     }
 
     // the open was successful, turn into FILE *
@@ -86,8 +87,11 @@ GlibIOSHandle::Open(int flags, mode_t mode) {
     if (rv < 0) {
         close(fd);    // cleanup
     } else {
-        // successful here so set 16MB buff.  should come from plfsrc.
-        setvbuf(fp,NULL,_IOFBF,16*1048576);
+        // successful here so set the buffer size (default 16 MB)
+        if (this->buffsize > 0)
+            rv = setvbuf(this->fp,NULL,_IOFBF,this->buffsize*1048576);
+        else // if buffsize = 0, don't buffer
+            rv = setvbuf(this->fp,NULL,_IONBF,0);
     }
     return(rv);
 }
@@ -103,14 +107,14 @@ GlibIOSHandle::Fstat(struct stat* buf) {
 int 
 GlibIOSHandle::Fsync() {
     int rv;
-    rv = fflush(fp);  /* returns EOF on error */
+    rv = fflush(this->fp);  /* returns EOF on error */
     return(get_err(rv));
 };
 
 int 
 GlibIOSHandle::Ftruncate(off_t length) {
     int rv, fd;
-    fd = fileno(fp);
+    fd = fileno(this->fp);
     rv = ftruncate(fd, length);
     return(get_err(rv));
 };
@@ -134,7 +138,7 @@ GlibIOSHandle::Pread(void* buf, size_t count, off_t offset) {
     ssize_t rv;
     int ret;
     /* XXX: we need some mutex locking here for concurrent access? */
-    ret = fseek(fp,offset,SEEK_SET);
+    ret = fseek(this->fp,offset,SEEK_SET);
     rv = get_err(ret);
     if (rv == 0) {
         ret = fread(buf,1,count,this->fp);
@@ -152,7 +156,7 @@ GlibIOSHandle::Pwrite(const void* buf, size_t count, off_t offset) {
     ssize_t rv;
     int ret;
     /* XXX: we need some mutex locking here for concurrent access? */
-    ret = fseek(fp,offset,SEEK_SET);
+    ret = fseek(this->fp,offset,SEEK_SET);
     rv = get_err(ret);
     if (rv == 0) {
         ret = fwrite(buf,1,count,this->fp);
@@ -197,7 +201,7 @@ GlibIOSHandle::Size() {
 ssize_t 
 GlibIOSHandle::Write(const void* buf, size_t len) {
     ssize_t rv;
-    rv = fwrite(buf,1,len,fp);
+    rv = fwrite(buf,1,len,this->fp);
     /* must use ferror to tell if we got an error or EOF */
     if (rv == 0 && ferror(this->fp)) {
         rv = get_err(-1);

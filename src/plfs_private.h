@@ -69,6 +69,7 @@ typedef struct PlfsMount {
     plfs_filetype file_type;
     LogicalFileSystem *fs_ptr;
     unsigned max_writers;
+    unsigned glib_buffer_mbs;
     unsigned max_smallfile_containers; /* max cached smallfile containers */
     unsigned checksum;
 
@@ -86,7 +87,7 @@ typedef struct PlfsMount {
     struct plfs_backend **backends;             /*!< all backends */
     struct plfs_backend **canonical_backends;   /*!< ok for canonical */
     struct plfs_backend **shadow_backends;      /*!< ok for shadow */
-
+    string *err_msg; /* to report errors in mount parsing */
 } PlfsMount;
 
 typedef struct {

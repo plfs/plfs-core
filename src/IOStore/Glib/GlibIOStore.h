@@ -14,7 +14,7 @@
 class GlibIOSHandle: public IOSHandle {
  public:
 
-    GlibIOSHandle(string path);
+    GlibIOSHandle(string path, unsigned int buffsize);
     ~GlibIOSHandle(){};
 
     int Open(int flags, mode_t mode);
@@ -34,13 +34,20 @@ class GlibIOSHandle: public IOSHandle {
 
     FILE *fp;
     string path;
+    unsigned int buffsize;
 };
 
 
 class GlibIOStore: public PosixIOStore {
-public:
+ public:
+    GlibIOStore(unsigned int buffsize){
+        this->buffsize = buffsize;
+    };
     ~GlibIOStore(){};
     IOSHandle *Open(const char *bpath, int flags, mode_t mode, int &ret);
+
+ private:
+    unsigned int buffsize;
 
 };
 
