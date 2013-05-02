@@ -33,6 +33,7 @@ using namespace std;
 #include "mlogfacs.h"
 #include "Container.h"
 #include "mlog_oss.h"
+#include "mlog.h"
 
 #ifdef HAVE_SYS_FSUID_H
 #include <sys/fsuid.h>
@@ -345,21 +346,28 @@ void Util::addTime( string function, double elapsed, bool error )
 int Util::MutexLock(  pthread_mutex_t *mux , const char *where )
 {
     ENTER_MUX;
-//    mss::mlog_oss os(UT_DAPI), os2(UT_DAPI);
-//    os << "Locking mutex " << mux << " from " << where;
-//    os.commit();
+    if(mlog_filter(MLOG_DBG)) {
+        mss::mlog_oss os(UT_DAPI);
+        os << "Locking mutex " << mux << " from " << where;
+        os.commit();
+    }
     pthread_mutex_lock( mux );
-//    os2 << "Locked mutex " << mux << " from " << where;
-//    os2.commit();
+    if(mlog_filter(MLOG_DBG)) {
+        mss::mlog_oss os2(UT_DAPI);
+        os2 << "Locked mutex " << mux << " from " << where;
+        os2.commit();
+    }
     EXIT_UTIL;
 }
 
 int Util::MutexUnlock( pthread_mutex_t *mux, const char *where )
 {
     ENTER_MUX;
-//    mss::mlog_oss os(UT_DAPI);
-//    os << "Unlocking mutex " << mux << " from " << where;
-//    os.commit();
+    if(mlog_filter(MLOG_DBG)) {
+        mss::mlog_oss os(UT_DAPI);
+        os << "Unlocking mutex " << mux << " from " << where;
+        os.commit();
+    }
     pthread_mutex_unlock( mux );
     EXIT_UTIL;
 }
