@@ -132,7 +132,7 @@ static int mlog2syslog[] = {
     LOG_ALERT,     /* MLOG_ALERT */
     LOG_EMERG,     /* MLOG_EMERG */
 };
-static char *default_fac0name = "MLOG";   /* default name for facility 0 */
+static const char *default_fac0name = "MLOG";   /* default name for facility 0 */
 
 /*
  * macros
@@ -151,7 +151,7 @@ static char *default_fac0name = "MLOG";   /* default name for facility 0 */
 static void mlog_getmbptrs(char **, int *, char **, int *);
 static void mlog_dmesg_mbuf(char **b1p, int *b1len, char **b2p, int *b2len);
 static int mlog_getucon(int, struct sockaddr_in *, char *);
-static char *mlog_pristr(int);
+static const char *mlog_pristr(int);
 static int mlog_resolvhost(struct sockaddr_in *, char *, char *);
 static int mlog_setnfac(int);
 static uint32_t wswap(uint32_t);
@@ -262,14 +262,14 @@ static int mlog_getucon(int cnt, struct sockaddr_in *ads, char *dcon)
 /*
  * static arrays for converting between pri's and strings
  */
-static char *norm[] = { "DBUG", "INFO", "NOTE", "WARN",
-                        "ERR ", "CRIT", "ALRT", "EMRG"
-                      };
-static char *dbg[] = {  "D---", "D3--", "D2--", "D23-",
-                        "D1--", "D13-", "D12-", "D123",
-                        "D0--", "D03-", "D02-", "D023",
-                        "D01-", "D013", "D012", "DBUG"
-                     };
+static const char *norm[] = { "DBUG", "INFO", "NOTE", "WARN",
+                              "ERR ", "CRIT", "ALRT", "EMRG"
+                            };
+static const char *dbg[] = {  "D---", "D3--", "D2--", "D23-",
+                              "D1--", "D13-", "D12-", "D123",
+                              "D0--", "D03-", "D02-", "D023",
+                              "D01-", "D013", "D012", "DBUG"
+                           };
 /**
  * mlog_pristr: convert priority to 4 byte symbolic name.
  * does not access mlog global state.
@@ -277,7 +277,7 @@ static char *dbg[] = {  "D---", "D3--", "D2--", "D23-",
  * @param pri the priority to convert to a string
  * @return the string (symbolic name) of the priority
  */
-static char *mlog_pristr(int pri)
+static const char *mlog_pristr(int pri)
 {
     int s;
     pri = pri & MLOG_PRIMASK;   /* be careful */
@@ -387,10 +387,10 @@ static int mlog_setnfac(int n)
  * @param str the string to copy in (null to just add a \0)
  */
 static void mlog_bput(char **bpp, int *skippy, int *residp, int *totcp,
-                      char *str)
+                      const char *str)
 {
-    static char *nullsrc = "X\0\0";          /* 'X' is a non-null dummy char */
-    char *sp;
+    static const char *nullsrc = "X\0\0";          /* 'X' is a non-null dummy char */
+    const char *sp;
     if (str == NULL) {                       /* trick to allow a null insert */
         str = nullsrc;
     }
@@ -1204,7 +1204,8 @@ void mlog_setmasks(char *mstr, int mlen0)
  */
 int mlog_getmasks(char *buf, int discard, int len, int unterm)
 {
-    char *bp, *myname, *p;
+    char *bp, *myname;
+    const char *p;
     int skipcnt, resid, total, facno;
     char store[64];   /* fac unlikely to overflow this */
     /* not open? */
