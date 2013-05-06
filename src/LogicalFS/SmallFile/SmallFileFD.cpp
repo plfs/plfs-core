@@ -38,10 +38,19 @@ Small_fd::rename(const char *path, struct plfs_backend *back) {
 ssize_t
 Small_fd::write(const char *buf, size_t size, off_t offset, pid_t pid)
 {
+    ssize_t ret = -EBADF;
+
     if (open_flags == O_WRONLY || open_flags == O_RDWR) {
-        return container->write(myName, buf, offset, size, pid);
+        FileID fileid;
+        WriterPtr writer;
+        writer = container->get_writer(open_by_pid);
+        fileid = get_fileid(writer);
+        pthread_rwlock_rdlock(&indexes_lock);
+        ret = writer->write(fileid, buf, offset, size, NULL, indexes.get());
+        pthread_rwlock_unlock(&indexes_lock);
+        if (ret > 0) container->files.expand_filesize(myName, offset+ret);
     }
-    return -EBADF;
+    return ret;
 }
 
 int
@@ -70,7 +79,14 @@ Small_fd::trunc(const char *path, off_t offset)
 {
     int ret;
     if (open_flags == O_WRONLY || open_flags == O_RDWR) {
-        ret = container->truncate(myName, offset, open_by_pid);
+        FileID fileid;
+        WriterPtr writer;
+        writer = container->get_writer(open_by_pid);
+        fileid = get_fileid(writer);
+        pthread_rwlock_rdlock(&indexes_lock);
+        ret = writer->truncate(fileid, offset, NULL, indexes.get());
+        pthread_rwlock_unlock(&indexes_lock);
+        if (ret == 0) container->files.truncate_file(myName, offset);
     } else {
         ret = -EBADF;
     }
@@ -157,10 +173,12 @@ Small_fd::Small_fd(const string &filename, ContainerPtr conptr)
     container = conptr;
     refs = 0;
     pthread_rwlock_init(&indexes_lock, NULL);
+    pthread_rwlock_init(&fileids_lock, NULL);
 }
 
 Small_fd::~Small_fd() {
     pthread_rwlock_destroy(&indexes_lock);
+    pthread_rwlock_destroy(&fileids_lock);
 }
 
 void
@@ -222,4 +240,30 @@ Small_fd::globalLookup(IOSHandle **fh, off_t *chunk_off, size_t *length,
         container->get_data_file(entry.did, path, backp);
     }
     return 0;
+}
+
+FileID
+Small_fd::get_fileid(const WriterPtr &writer) {
+    map<ssize_t, FileID>::iterator itr;
+    FileID fid;
+    ssize_t did;
+
+    did = writer->get_droppingid();
+    pthread_rwlock_rdlock(&fileids_lock);
+    itr = idmap_.find(did);
+    if (itr != idmap_.end()) {
+        fid = itr->second;
+    } else {
+        pthread_rwlock_unlock(&fileids_lock);
+        pthread_rwlock_wrlock(&fileids_lock);
+        itr = idmap_.find(did);
+        if (itr != idmap_.end()) { // Somebody else wins the race.
+            fid = itr->second;
+        } else {
+            fid = writer->get_fileid(myName, &container->files);
+            idmap_[did] = fid;
+        }
+    }
+    pthread_rwlock_unlock(&fileids_lock);
+    return fid;
 }

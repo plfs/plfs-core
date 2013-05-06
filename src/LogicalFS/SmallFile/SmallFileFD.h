@@ -60,6 +60,10 @@ class Small_fd : public Plfs_fd, public PLFSIndex
         pid_t open_by_pid;
         string path_;
         string myName;
+        map<ssize_t, FileID> idmap_;
+        pthread_rwlock_t fileids_lock;
+
+        FileID get_fileid(const WriterPtr &writer);
 };
 
 #endif
