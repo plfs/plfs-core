@@ -189,12 +189,13 @@ SET(SRCDIR ${plfs_src_dir} ${iostore} ${iostore_glib} ${iostore_hdfs}
            ${logicalfs_smallfile} ${smallfile} ${mlog}
 )
 
-#needed by the crays to link against the dynamic version
+#setup RPATH/RUNPATH and shared library
+set (CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 set (CMAKE_EXE_LINKER_FLAGS "-dynamic -Wl,--enable-new-dtags")
 set (CMAKE_SHARED_LINKER_FLAGS "-dynamic -Wl,--enable-new-dtags")
 set (CMAKE_MODULE_LINKER_FLAGS "-dynamic -Wl,--enable-new-dtags")
 
-#static and shared bot same name
+#static and shared both same name
 add_library(plfs_lib SHARED ${SRCDIR})
 SET_TARGET_PROPERTIES(plfs_lib PROPERTIES OUTPUT_NAME plfs)
 
@@ -213,9 +214,6 @@ else()
 endif(NOT DISABLE_STATIC_LIB)
 
 
-SET_TARGET_PROPERTIES(plfs_lib PROPERTIES OUTPUT_NAME plfs)
-
-
 #zlib
 find_package (ZLIB REQUIRED)
 if (ZLIB_FOUND)
@@ -229,11 +227,10 @@ if (Threads_FOUND)
 endif (Threads_FOUND)
 
 #yaml-cpp
-find_package (YAMLCPP REQUIRED)
-if (YAMLCPP_FOUND)
-    target_link_libraries (plfs_lib ${YAMLCPP_LIBRARY})
-    include_directories (${YAMLCPP_INCLUDE_DIR})
-endif (YAMLCPP_FOUND)
+add_subdirectory (${CMAKE_CURRENT_SOURCE_DIR}/yaml-cpp ${PLFS_BUILD_DIR}/yaml-cpp)
+target_link_libraries (plfs_lib yaml-cpp)
+include_directories (yaml-cpp/include)
+include_directories (yaml-cpp/boost)
 
 #statvfs
 check_include_files(sys/statvfs.h HAVE_SYS_STATVFS_H)
@@ -244,7 +241,6 @@ configure_file (
     "${PLFS_SOURCE_DIR}/plfs.h.in"
     "${PROJECT_BINARY_DIR}/plfs.h"
 )
-
 
 #fuse
 if (FUSE_FOUND AND NOT DISABLE_FUSE)
