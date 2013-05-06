@@ -191,9 +191,11 @@ SET(SRCDIR ${plfs_src_dir} ${iostore} ${iostore_glib} ${iostore_hdfs}
 
 #setup RPATH/RUNPATH and shared library
 set (CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
-set (CMAKE_EXE_LINKER_FLAGS "-dynamic -Wl,--enable-new-dtags")
-set (CMAKE_SHARED_LINKER_FLAGS "-dynamic -Wl,--enable-new-dtags")
-set (CMAKE_MODULE_LINKER_FLAGS "-dynamic -Wl,--enable-new-dtags")
+if (NOT APPLE)
+    set (CMAKE_EXE_LINKER_FLAGS "-dynamic -Wl,--enable-new-dtags")
+    set (CMAKE_SHARED_LINKER_FLAGS "-dynamic -Wl,--enable-new-dtags")
+    set (CMAKE_MODULE_LINKER_FLAGS "-dynamic -Wl,--enable-new-dtags")
+endif()
 
 #static and shared both same name
 add_library(plfs_lib SHARED ${SRCDIR})
