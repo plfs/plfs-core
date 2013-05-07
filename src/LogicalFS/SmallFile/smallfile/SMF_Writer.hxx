@@ -50,12 +50,9 @@ private:
     /* The above members are protected by ResourceUnit::item_lock (rwlock). */
 
     ssize_t dropping_id; /**< Set by the constructor and never changes. */
-    map<string, FileID> open_files;
-    pthread_mutex_t mlock; /**< The lock protects the open_files mapping. */
 
     int add_single_record(const string &, enum SmallFileOps, off_t *,
                           InMemoryCache *);
-    FileID get_fileid(const string &filename, InMemoryCache *meta);
 
 protected:
     /** Check whether the dropping files are created. */
@@ -91,12 +88,14 @@ public:
     int create(const string &filename, InMemoryCache *cached);
     int remove(const string &filename, InMemoryCache *cached);
     int rename(const string &from, const string &to, InMemoryCache *cached);
-    ssize_t write(const string &filename, const void *buf, off_t offset,
+    ssize_t write(const FileID fileid, const void *buf, off_t offset,
                   size_t count, InMemoryCache *meta, InMemoryCache *index);
-    int truncate(const string &filename, off_t offset, InMemoryCache *meta,
+    int truncate(const FileID fileid, off_t offset, InMemoryCache *meta,
                  InMemoryCache *index);
     int utime(const string &filename, struct utimbuf *ut, InMemoryCache *meta);
     int sync(int sync_level);
+    FileID get_fileid(const string &filename, InMemoryCache *meta);
+    ssize_t get_droppingid() const { return dropping_id; };
 };
 
 #endif
