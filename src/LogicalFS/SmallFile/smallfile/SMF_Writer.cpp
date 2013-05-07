@@ -19,11 +19,9 @@ using namespace std;
 SMF_Writer::SMF_Writer(const plfs_pathback &fname, ssize_t did)
     : filename_(fname) {
     dropping_id = did;
-    pthread_mutex_init(&mlock, NULL);
 }
 
 SMF_Writer::~SMF_Writer() {
-    pthread_mutex_destroy(&mlock);
     name_file.close_file();
     index_file.close_file();
     data_file.close_file();
@@ -112,8 +110,12 @@ SMF_Writer::add_single_record(const string &filename, enum SmallFileOps op,
     memcpy((void *)header->filename, (void *)filename.c_str(), namelength);
     ret = name_file.append(header, recordsize, fileid);
     if (meta) {
-        index_mapping_t rec_meta(*fileid, dropping_id);
-        meta->update(header, &rec_meta);
+        if (op == SM_OPEN) {
+            index_mapping_t rec_meta(*fileid, dropping_id);
+            meta->update(header, &rec_meta);
+        } else {
+            meta->update(header, NULL);
+        }
     }
     if (recordsize > STACK_RECORD_SIZE) free(header);
     return ret;
@@ -121,26 +123,18 @@ SMF_Writer::add_single_record(const string &filename, enum SmallFileOps op,
 
 int
 SMF_Writer::create(const string &filename, InMemoryCache *meta) {
-    off_t fileid;
     int ret;
 
-    Util::MutexLock(&mlock, __FUNCTION__);
-    ret = add_single_record(filename, SM_CREATE, &fileid, meta);
-    if (!ret) open_files[filename] = fileid;
-    Util::MutexUnlock(&mlock, __FUNCTION__);
+    ret = add_single_record(filename, SM_CREATE, NULL, meta);
     return ret;
 }
 
 int
 SMF_Writer::remove(const string &filename, InMemoryCache *meta) {
-    off_t fileid;
     int ret;
-    ret = add_single_record(filename, SM_DELETE, &fileid, meta);
-    if (ret != 0) return ret;
-    Util::MutexLock(&mlock, __FUNCTION__);
-    open_files.erase(filename);
-    Util::MutexUnlock(&mlock, __FUNCTION__);
-    return 0;
+
+    ret = add_single_record(filename, SM_DELETE, NULL, meta);
+    return ret;
 }
 
 int
@@ -149,7 +143,6 @@ SMF_Writer::rename(const string &from, const string &to, InMemoryCache *meta) {
     size_t recordsize = namelength + sizeof(struct NameEntryHeader);
     char buf[STACK_RECORD_SIZE];
     struct NameEntryHeader *header;
-    map<string, FileID>::iterator itr;
     int ret;
 
     ret = require(WRITER_OPENNAMEFILE, NULL);
@@ -170,33 +163,23 @@ SMF_Writer::rename(const string &from, const string &to, InMemoryCache *meta) {
     name_addr += from.length() + 1;
     memcpy((void *)name_addr, (void *)to.c_str(), to.length() + 1);
     ret = name_file.append(header, recordsize, NULL);
-    Util::MutexLock(&mlock, __FUNCTION__);
-    itr = open_files.find(from);
-    if (ret == 0 && itr != open_files.end()) {
-        open_files[to] = itr->second;
-        open_files.erase(itr);
-    }
-    Util::MutexUnlock(&mlock, __FUNCTION__);
     if (meta) meta->update(header, NULL);
     if (recordsize > STACK_RECORD_SIZE) free(header);
     return ret;
 }
 
 ssize_t
-SMF_Writer::write(const string &filename, const void *buf, off_t offset,
+SMF_Writer::write(const FileID fileid, const void *buf, off_t offset,
               size_t length, InMemoryCache *meta, InMemoryCache *index)
 {
     off_t physical_offset;
     int ret;
-    FileID fileid;
     struct IndexEntry entry;
-    map<string, FileID>::iterator itr;
 
+    if (fileid == INVALID_FILEID) return -EINVAL;
     ret = require(WRITER_OPENDATAFILE, NULL);
     if (ret) return ret;
     release(WRITER_OPENDATAFILE, NULL);
-    fileid = get_fileid(filename, meta);
-    if (fileid == INVALID_FILEID) return -EIO;
     ret = data_file.append(buf, length, &physical_offset);
     if (ret != 0) return ret;
     entry.fid = fileid;
@@ -211,19 +194,16 @@ SMF_Writer::write(const string &filename, const void *buf, off_t offset,
 }
 
 int
-SMF_Writer::truncate(const string &filename, off_t offset, InMemoryCache *meta,
+SMF_Writer::truncate(const FileID fileid, off_t offset, InMemoryCache *meta,
                  InMemoryCache *index)
 {
     int ret;
     struct IndexEntry entry;
-    FileID fileid;
-    map<string, FileID>::iterator itr;
 
+    if (fileid == INVALID_FILEID) return -EINVAL;
     ret = require(WRITER_OPENINDEXFILE, NULL);
     if (ret) return ret;
     release(WRITER_OPENINDEXFILE, NULL);
-    fileid = get_fileid(filename, meta);
-    if (fileid == INVALID_FILEID) return -EIO;
     entry.fid = fileid;
     entry.offset = offset;
     entry.length = 0;
@@ -270,24 +250,14 @@ SMF_Writer::utime(const string &filename, struct utimbuf *ut,
 FileID
 SMF_Writer::get_fileid(const string &filename, InMemoryCache *meta) {
     FileID fileid = INVALID_FILEID;
-    map<string, FileID>::iterator itr;
+    int ret;
 
-    Util::MutexLock(&mlock, __FUNCTION__);
-    itr = open_files.find(filename);
-    if (itr == open_files.end()) {
-        int ret;
-        ret = add_single_record(filename, SM_OPEN, (off_t *)&fileid, meta);
-        if (ret != 0) {
-            mlog(SMF_ERR, "Cannot append open record for file %s.",
-                 filename.c_str());
-            Util::MutexUnlock(&mlock, __FUNCTION__);
-            return INVALID_FILEID;
-        }
-        open_files[filename] = fileid;
-    } else {
-        fileid = itr->second;
+    ret = add_single_record(filename, SM_OPEN, (off_t *)&fileid, meta);
+    if (ret != 0) {
+        mlog(SMF_ERR, "Cannot append open record for file %s.",
+             filename.c_str());
+        return INVALID_FILEID;
     }
-    Util::MutexUnlock(&mlock, __FUNCTION__);
     return fileid;
 }
 

@@ -350,12 +350,17 @@ SmallFileFS::trunc(const char *logical, off_t offset, int open_file)
 {
     PathExpandInfo expinfo;
     ContainerPtr container;
+    WriterPtr writer;
     int ret;
+    FileID fileid;
     smallfile_expand_path(logical, expinfo);
     container = get_container(expinfo);
     if (!container || !container->file_exist(expinfo.filename))
         return -ENOENT;
-    ret = container->truncate(expinfo.filename, offset, getpid());
+    writer = container->get_writer(getpid());
+    fileid = writer->get_fileid(expinfo.filename, &container->files);
+    ret = writer->truncate(fileid, offset, NULL, NULL);
+    if (ret == 0) container->files.truncate_file(expinfo.filename, offset);
     return ret;
 }
 
