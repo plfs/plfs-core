@@ -46,12 +46,10 @@ public:
     int create(const string &filename, pid_t pid);
     int rename(const string &from, const string &to, pid_t pid);
     int remove(const string &filename, pid_t pid);
-    ssize_t write(const string &filename, const void *buf, off_t offset,
-                  size_t count, pid_t pid);
-    int truncate(const string &filename, off_t offset, pid_t pid);
     int utime(const string &filename, struct utimbuf *ut, pid_t pid);
 
     int delete_if_empty();
+    WriterPtr get_writer(pid_t pid);
     int sync_writers(int sync_level);
 
     NamesMapping files;
@@ -72,7 +70,6 @@ private:
     pthread_rwlock_t writers_lock;
 
     int makeTopLevelDir(plfs_backend *, const string &, const string &);
-    WriterPtr get_writer(pid_t pid);
     void clear_chunk_cache();
 };
 

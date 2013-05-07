@@ -247,32 +247,6 @@ SmallFileContainer::remove(const string &filename, pid_t pid) {
     return ret;
 }
 
-ssize_t
-SmallFileContainer::write(const string &filename, const void *buf,
-                          off_t offset, size_t count, pid_t pid) {
-    WriterPtr writer = get_writer(pid);
-    IndexPtr indexptr = index_cache.lookup(filename);
-    ssize_t ret;
-
-    mlog(SMF_DAPI, "Write %lu@%lu to %s from pid-%lu.",
-         (unsigned long)count, (unsigned long)offset,
-         filename.c_str(), (unsigned long)pid);
-    ret = writer->write(filename, buf, offset, count, &files, indexptr.get());
-    if (ret > 0) files.expand_filesize(filename, offset+ret);
-    return ret;
-}
-
-int
-SmallFileContainer::truncate(const string &filename, off_t offset, pid_t pid) {
-    WriterPtr writer = get_writer(pid);
-    IndexPtr indexptr = index_cache.lookup(filename);
-    int ret;
-
-    ret = writer->truncate(filename, offset, &files, indexptr.get());
-    if (ret == 0) files.truncate_file(filename, offset);
-    return ret;
-}
-
 int
 SmallFileContainer::utime(const string &filename, struct utimbuf *ut,
                           pid_t pid)

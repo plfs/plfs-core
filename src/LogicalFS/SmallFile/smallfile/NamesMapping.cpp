@@ -89,19 +89,28 @@ NamesMapping::merge_object(void *record, void *metadata) {
         case SM_DELETE:
             metadata_cache.erase(filename);
             break;
-        case SM_OPEN:
-        case SM_CREATE: {
+        case SM_OPEN: {
             index_mapping_t *index_info = (index_mapping_t *)metadata;
+            map<string, FileMetaDataPtr>::iterator itr;
+            itr = metadata_cache.find(filename);
+            if (itr == metadata_cache.end()) {
+                mlog(SMF_ERR, "Open a nonexist file: %s.", filename.c_str());
+            } else {
+                itr->second->mtime = op_time;
+                itr->second->index_mapping.push_back(*index_info);
+            }
+            break;
+        }
+        case SM_CREATE: {
             map<string, FileMetaDataPtr>::iterator itr;
             itr = metadata_cache.find(filename);
             if (itr == metadata_cache.end()) {
                 FileMetaDataPtr temp_ptr(new FileMetaData);
                 temp_ptr->mtime = op_time;
-                temp_ptr->index_mapping.push_back(*index_info);
                 metadata_cache[filename] = temp_ptr;
             } else {
-                itr->second->mtime = op_time;
-                itr->second->index_mapping.push_back(*index_info);
+                mlog(SMF_INFO, "File %s is created multiple times.",
+                     filename.c_str());
             }
             break;
         }
