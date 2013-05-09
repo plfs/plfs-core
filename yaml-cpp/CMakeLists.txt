@@ -36,12 +36,6 @@ enable_testing()
 #     http://www.cmake.org/cmake/help/cmake2.6docs.html#command:add_library
 option(BUILD_SHARED_LIBS "Build Shared Libraries" ON)
 
-# --> Apple
-option(APPLE_UNIVERSAL_BIN "Apple: Build universal binary" OFF)
-
-#needed by the crays to link against the dynamic version
-#set (CMAKE_EXE_LINKER_FLAGS "-dynamic")
-
 ###
 ### Sources, headers, directories and libs
 ###
@@ -71,12 +65,6 @@ if(BUILD_SHARED_LIBS)
 	set(LABEL_SUFFIX "shared")
 else()
 	set(LABEL_SUFFIX "static")
-endif()
-
-if(APPLE)
-	if(APPLE_UNIVERSAL_BIN)
-		set(CMAKE_OSX_ARCHITECTURES ppc;i386)
-	endif()
 endif()
 
 # GCC specialities
@@ -117,9 +105,6 @@ endif()
 ###
 set(_library_dir lib)
 
-#set(INCLUDE_INSTALL_ROOT_DIR include)
-
-#set(INCLUDE_INSTALL_DIR ${INCLUDE_INSTALL_ROOT_DIR}/yaml-cpp)
 set(LIB_INSTALL_DIR "${_library_dir}${LIB_SUFFIX}")
 
 set(_INSTALL_DESTINATIONS
@@ -132,7 +117,7 @@ set(_INSTALL_DESTINATIONS
 ###
 ### Library
 ###
-add_library(yaml-cpp
+add_library(plfs-yaml
 	${sources}
 	${public_headers}
 	${private_headers}
@@ -141,22 +126,11 @@ add_library(yaml-cpp
 	${contrib_private_headers}
 )
 
-set_target_properties(yaml-cpp PROPERTIES
+set_target_properties(plfs-yaml PROPERTIES
 	VERSION "${YAML_CPP_VERSION}"
 	SOVERSION "${YAML_CPP_VERSION_MAJOR}.${YAML_CPP_VERSION_MINOR}"
-	PROJECT_LABEL "yaml-cpp ${LABEL_SUFFIX}"
+	PROJECT_LABEL "plfs-yaml ${LABEL_SUFFIX}"
 )
 
 # we don't need the headers installed for PLFS
-install(TARGETS yaml-cpp ${_INSTALL_DESTINATIONS})
-#install(
-#	DIRECTORY ${header_directory}
-#	DESTINATION ${INCLUDE_INSTALL_DIR}
-#	FILES_MATCHING PATTERN "*.h"
-#)
-
-#if(UNIX)
-#	set(PC_FILE ${CMAKE_BINARY_DIR}/yaml-cpp.pc)
-#	configure_file("yaml-cpp.pc.cmake" ${PC_FILE} @ONLY)
-#	install(FILES ${PC_FILE} DESTINATION ${LIB_INSTALL_DIR}/pkgconfig)
-#endif()
+install(TARGETS plfs-yaml ${_INSTALL_DESTINATIONS})
