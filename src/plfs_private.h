@@ -129,6 +129,7 @@ typedef struct {
     bool test_metalink; // for developers only
     bool lazy_stat;
     bool lazy_droppings; // defer index/data droppings creation until first write
+    bool compress_contiguous; //compress contiguous index entries
     string *err_msg;
 
     char *global_summary_dir;
