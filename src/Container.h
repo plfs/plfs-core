@@ -32,8 +32,12 @@ class IOSDirHandle;
 #define DROPPING_MODE  (S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH)//Container::dropping_mode()
 #define CONTAINER_MODE (DROPPING_MODE | S_IXUSR |S_IXGRP | S_IXOTH)
 
-// add a type to types in readdir() so we can diff btwn logical dir and containr
-#define DT_CONTAINER (unsigned char)-1
+// add a type to types in dirent.h so we can diff between a logical dir and a container
+enum   
+{
+    DT_CONTAINER = (unsigned char)-1
+#define DT_CONTAINER DT_CONTAINER
+};
 
 enum
 parentStatus {
