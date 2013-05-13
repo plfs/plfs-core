@@ -67,10 +67,10 @@ typedef struct PlfsConf {
     string file; // which top-level plfsrc was used
     set<string> files;     /* to detect recursive includes in plfsrc */
     set<string> backends;  /* to detect a backend being reused in plfsrc */
-    size_t num_hostdirs;
-    size_t threadpool_size;
-    size_t buffer_mbs;  // how many mbs to buffer for write indexing
-    size_t read_buffer_mbs; // how many mbs to buffer for metadata reading
+    int num_hostdirs;
+    int threadpool_size;
+    int buffer_mbs;  // how many mbs to buffer for write indexing
+    int read_buffer_mbs; // how many mbs to buffer for metadata reading
     map<string,PlfsMount *> mnt_pts;
     bool direct_io; // a flag FUSE needs.  Sorry ADIO and API for the wasted bit
     bool test_metalink; // for developers only

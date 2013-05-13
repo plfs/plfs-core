@@ -187,7 +187,7 @@ reader_thread( void *va )
 
 // returns -err or bytes read
 // TODO: rename this to container_reader or something better
-ssize_t
+size_t
 plfs_reader(void *pfd, char *buf, size_t size, off_t offset,
             PLFSIndex *index)
 {
@@ -218,7 +218,7 @@ plfs_reader(void *pfd, char *buf, size_t size, off_t offset,
         args.index = index;
         args.tasks = &tasks;
         pthread_mutex_init( &(args.mux), NULL );
-        size_t num_threads = min(pconf->threadpool_size,tasks.size());
+        size_t num_threads = min((size_t)pconf->threadpool_size,tasks.size());
         mlog(INT_DCOMMON, "plfs_reader %lu THREADS to %ld",
              (unsigned long)num_threads,
              (unsigned long)offset);

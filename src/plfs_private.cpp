@@ -673,10 +673,10 @@ plfs_dump_config(int check_dirs, int make_dir)
          << "Write index buffer size (mbs): " << pconf->buffer_mbs << endl
          << "Read index buffer size (mbs): " << pconf->read_buffer_mbs << endl
          << "Num Mountpoints: " << pconf->mnt_pts.size() << endl
-         << "Lazy Stat: " << (int)pconf->lazy_stat << endl
-         << "Lazy Droppings: " << (int) pconf->lazy_droppings << endl
-         << "Compress Contiguous: " << (int)pconf->compress_contiguous << endl
-         << "Test Metalink: " << (int) pconf->test_metalink << endl;
+         << "Lazy Stat: " << pconf->lazy_stat << endl
+         << "Lazy Droppings: " << pconf->lazy_droppings << endl
+         << "Compress Contiguous: " << pconf->compress_contiguous << endl
+         << "Test Metalink: " << pconf->test_metalink << endl;
     if (pconf->global_summary_dir) {
         cout << "Global summary dir: " << pconf->global_summary_dir << endl;
         if(check_dirs) {

@@ -34,6 +34,7 @@ set_default_confs(PlfsConf *pconf)
     pconf->threadpool_size = 8;
     pconf->direct_io = 0;
     pconf->lazy_stat = 1;
+    pconf->lazy_droppings = 1;
     pconf->compress_contiguous = 1;    
     pconf->err_msg = NULL;
     pconf->buffer_mbs = 64;
@@ -119,92 +120,141 @@ expand_macros(const char *target) {
  * 
  */
 namespace YAML {
+   template<typename T>
+   bool conv(const Node& node, T& rhs) {
+       istringstream temp(node.as<string>());
+       temp >> rhs;
+       temp >> std::ws;
+       if (temp.fail() || !temp.eof()) {
+           cerr << "Plfsrc invalid option value: " << node << endl;
+           return false;
+       }
+       else
+           return true;
+   }
    template<>
    struct convert<PlfsConf> {
        static bool decode(const Node& node, PlfsConf& pconf) {
            if(node["global_params"]) {
                set_default_confs(&pconf);
                if(node["num_hostdirs"]) {
-                   pconf.num_hostdirs = min(
-                                         max(node["num_hostdirs"].as<int>(),1),
-                                           (int)MAX_HOSTDIRS);
+                   if(!conv(node["num_hostdirs"],pconf.num_hostdirs) || 
+                      pconf.num_hostdirs > MAX_HOSTDIRS ||
+                      pconf.num_hostdirs <= 0)
+                       pconf.err_msg = new string ("Illegal num_hostdirs");
                }
-               if(node["threadpool_size"]) 
-                   pconf.threadpool_size = max(node["threadpool_size"].as<int>(), 1);
-               if(node["lazy_stat"]) pconf.lazy_stat = 
-                   node["lazy_stat"].as<bool>();
-               if(node["compress_contiguous"]) pconf.compress_contiguous =
-                  node["compress_contiguous"].as<bool>();
+               if(node["threadpool_size"]) {
+                   if(!conv(node["threadpool_size"], pconf.threadpool_size) ||
+                      pconf.threadpool_size < 1)
+                       pconf.err_msg = new string ("Illegal threadpool_size");
+                   pconf.threadpool_size = max(pconf.threadpool_size, 1);
+               }
+               if(node["lazy_stat"]) {
+                   if(!conv(node["lazy_stat"], pconf.lazy_stat)) 
+                       pconf.err_msg = new string ("Illegal lazy_stat");
+               }
+               if(node["lazy_droppings"]) {
+                   if(!conv(node["lazy_droppings"], pconf.lazy_droppings))
+                       pconf.err_msg = new string ("Illegal lazy_droppings");
+               }
+               if(node["compress_contiguous"]) {
+                   if(!conv(node["compress_contiguous"],pconf.compress_contiguous))
+                       pconf.err_msg = new string ("Illegal compress_contiguous");
+               }
                if(node["index_buffer_mbs"]) {
-                   pconf.buffer_mbs = node["index_buffer_mbs"].as<int>();
-                   if(node["index_buffer_mbs"].as<int>() < 0)
-                       pconf.err_msg = 
-                           new string ("Illegal value:index_buffer_mbs");
+                   if(!conv(node["index_buffer_mbs"], pconf.buffer_mbs) ||
+                      pconf.buffer_mbs < 0)
+                       pconf.err_msg = new string ("Illegal index_buffer_mbs");
                }
                if(node["read_buffer_mbs"]) {
-                   pconf.read_buffer_mbs = node["read_buffer_mbs"].as<int>();
-                   if(node["read_buffer_mbs"].as<int>() < 0)
-                       pconf.err_msg =
-                           new string ("Illegal value:read_buffer_mbs");
+                   if(!conv(node["read_buffer_mbs"],pconf.read_buffer_mbs) ||
+                      pconf.read_buffer_mbs < 0)
+                       pconf.err_msg = new string ("Illegal read_buffer_mbs");
                }
                if(node["global_summary_dir"]) {
-                   pconf.global_summary_dir = 
-                       strdup(node["global_summary_dir"].as<string>().c_str());
-                   pconf.global_sum_io.prefix = 
-                       strdup(node["global_summary_dir"].as<string>().c_str());
+                   string temp;
+                   if(!conv(node["global_summary_dir"],temp)) 
+                       pconf.err_msg = new string ("Illegal global_summary_dir");
+                   else {
+                       pconf.global_summary_dir = strdup(temp.c_str());
+                       pconf.global_sum_io.prefix = strdup(temp.c_str());
+                   }
                }
-               if(node["test_metalink"]) 
-                   pconf.test_metalink = node["test_metalink"].as<bool>();
+               if(node["test_metalink"]) { 
+                   if(!conv(node["test_metalink"],pconf.test_metalink))
+                       pconf.err_msg = new string ("Illegal test_metalink");
+               }
                if(node["mlog_stderr"]) {
-                   if (node["mlog_stderr"].as<bool>())
-                       pconf.mlog_flags |= MLOG_STDERR;
-                   else
-                       pconf.mlog_flags &= ~MLOG_STDERR;
+                   bool temp;
+                   if(!conv(node["mlog_stderr"],temp))
+                       pconf.err_msg = new string ("Illegal mlog_stderr");
+                   else {
+                       if (temp)
+                           pconf.mlog_flags |= MLOG_STDERR;
+                       else
+                           pconf.mlog_flags &= ~MLOG_STDERR;
+                   }
                }
                if(node["mlog_ucon"]) {
-                   if (node["mlog_ucon"].as<bool>())
-                       pconf.mlog_flags |= (MLOG_UCON_ON|MLOG_UCON_ENV);
-                   else
-                       pconf.mlog_flags &= ~(MLOG_UCON_ON|MLOG_UCON_ENV);
+                   bool temp;
+                   if(!conv(node["mlog_ucon"],temp))
+                       pconf.err_msg = new string ("Illegal mlog_ucon");
+                   else {
+                       if (temp)
+                           pconf.mlog_flags |= (MLOG_UCON_ON|MLOG_UCON_ENV);
+                       else
+                           pconf.mlog_flags &= ~(MLOG_UCON_ON|MLOG_UCON_ENV);
+                   }
                }
                if(node["mlog_syslog"]) {
-                   if (node["mlog_syslog"].as<bool>())
-                       pconf.mlog_flags |= MLOG_SYSLOG;
-                   else
-                       pconf.mlog_flags &= ~MLOG_SYSLOG;
+                   bool temp;
+                   if(!conv(node["mlog_syslog"],temp))
+                       pconf.err_msg = new string ("Illegal mlog_syslog");
+                   else {
+                       if (temp)
+                           pconf.mlog_flags |= MLOG_SYSLOG;
+                       else
+                           pconf.mlog_flags &= ~MLOG_SYSLOG;
+                   }
                }
                if(node["mlog_defmask"]) {
-                   pconf.mlog_defmask = 
-                       mlog_str2pri(node["mlog_defmask"]. \
-                           as<string>().c_str());
-                   if(pconf.mlog_defmask < 0)
-                       pconf.err_msg = new string ("Bad mlog_defmask");
+                   string temp;
+                   if(!conv(node["mlog_defmask"],temp))
+                       pconf.err_msg = new string ("Illegal mlog_defmask");
+                   else {
+                       pconf.mlog_defmask = mlog_str2pri(temp.c_str());
+                       if(pconf.mlog_defmask < 0)
+                           pconf.err_msg = new string ("Bad mlog_defmask value");
+                   }
                }
                if(node["mlog_stderrmask"]) {
-                   pconf.mlog_stderrmask = 
-                       mlog_str2pri(node["mlog_stderrmask"]. \
-                           as<string>().c_str());
-                   if(pconf.mlog_stderrmask < 0)
-                       pconf.err_msg = new string ("Bad mlog_stderrmask");
+                   string temp;
+                   if(!conv(node["mlog_stderrmask"],temp))
+                       pconf.err_msg = new string ("Illegal mlog_stderrmask");
+                   else {
+                       pconf.mlog_stderrmask = mlog_str2pri(temp.c_str());
+                       if(pconf.mlog_stderrmask < 0)
+                           pconf.err_msg = new string ("Bad mlog_stderrmask value");
+                   }
                }
                if(node["mlog_file"]) {
-                   if(!(strchr(node["mlog_file"].as<string>().c_str(),
-                           '%') != NULL))
-                       pconf.mlog_file = 
-                           strdup(node["mlog_file"].as<string>().c_str());
+                   string temp;
+                   if(!conv(node["mlog_file"],temp))
+                       pconf.err_msg = new string ("Illegal mlog_file");
                    else {
-                       pconf.mlog_file_base = 
-                           strdup(node["mlog_file"].as<string>().c_str());
-                       pconf.mlog_file = 
-                           strdup(expand_macros(node["mlog_file"]. \
-                               as<string>().c_str()).c_str());
+                       if(!(strchr(temp.c_str(),'%') != NULL))
+                           pconf.mlog_file = strdup(temp.c_str());
+                       else {
+                           pconf.mlog_file_base = strdup(temp.c_str());
+                           pconf.mlog_file = 
+                               strdup(expand_macros(temp.c_str()).c_str());
+                       }
                    }
                }
                if(node["mlog_msgbuf_size"]) {
-                   pconf.mlog_msgbuf_size =
-                   node["mlog_msgbuf_size"].as<int>();
-                   if (pconf.mlog_msgbuf_size && pconf.mlog_msgbuf_size < 256)
-                       pconf.err_msg = new string("mlog_msgbuf_size too small");
+                   if(!conv(node["mlog_msgbuf_size"],pconf.mlog_msgbuf_size) ||
+                      pconf.mlog_msgbuf_size < 256)
+                       pconf.err_msg = new string ("Illegal mlog_msgbuf_size");
                }
                if(node["mlog_syslogfac"]) {
                    int temp = 
@@ -240,16 +290,22 @@ namespace YAML {
                    }
                }
                if(node["mlog_setmasks"]) {
-                   string temp = node["mlog_setmasks"].as<string>();
-                   find_replace(temp, " ", ",");
-                   pconf.mlog_setmasks = strdup(temp.c_str());
+                   string temp;
+                   if(!conv(node["mlog_setmasks"],temp))
+                       pconf.err_msg = new string ("Illegal mlog_setmasks");
+                   else {
+                       find_replace(temp, " ", ",");
+                       pconf.mlog_setmasks = strdup(temp.c_str());
+                   }
                }
-               if(node["fuse_crash_log"]) pconf.fuse_crash_log = 
-                       strdup(node["fuse_crash_log"].as<string>().c_str());
+               if(node["fuse_crash_log"]) {
+                   if(!conv(node["fuse_crash_log"],pconf.fuse_crash_log))
+                       pconf.err_msg = new string ("Illegal fuse_crash_log");
+               } 
                return true;
            }
            pconf.err_msg = 
-               new string("decode global_params called on unknown node");
+               new string("Decode global_params called on unknown node");
            return false;
        }
    };
