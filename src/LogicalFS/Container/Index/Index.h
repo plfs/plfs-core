@@ -216,9 +216,6 @@ class Index : public Metadata, public PLFSIndex
         bool buffering;    // are we buffering the index on write?
         bool buffer_filled; // were we buffering but ran out of space?
         pthread_mutex_t    fd_mux;   // to allow thread safety
-
-        bool compress_contiguous; // set true for performance. 0 for tracing.
-
 };
 
 #define MAP_ITR map<off_t,ContainerEntry>::iterator

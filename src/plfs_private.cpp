@@ -18,7 +18,6 @@
 
 #include <syslog.h>    /* for mlog init */
 
-static void parse_mlog_keyval(PlfsConf *pconf, char *key, char *value);
 
 
 // the expansion info doesn't include a string for the backend
@@ -51,8 +50,7 @@ find_mount_point(PlfsConf *pconf, const string& logical, bool& found)
 {
     mlog(INT_DAPI,"Searching for mount point matching %s", logical.c_str());
     vector<string> logical_tokens;
-    const char *str = logical.c_str();
-    Util::fast_tokenize(str,logical_tokens);
+    Util::fast_tokenize(logical.c_str(),logical_tokens);
     return find_mount_point_using_tokens(pconf,logical_tokens,found);
 }
 
@@ -397,7 +395,10 @@ plfs_dump_config(int check_dirs, int make_dir)
          << "Write index buffer size (mbs): " << pconf->buffer_mbs << endl
          << "Read index buffer size (mbs): " << pconf->read_buffer_mbs << endl
          << "Num Mountpoints: " << pconf->mnt_pts.size() << endl
-         << "Lazy Stat: " << (int)pconf->lazy_stat << endl;
+         << "Lazy Stat: " << (int)pconf->lazy_stat << endl
+         << "Lazy Droppings: " << (int) pconf->lazy_droppings << endl
+         << "Compress Contiguous: " << (int)pconf->compress_contiguous << endl
+         << "Test Metalink: " << (int) pconf->test_metalink << endl;
     if (pconf->global_summary_dir) {
         cout << "Global summary dir: " << pconf->global_summary_dir << endl;
         if(check_dirs) {
@@ -406,12 +407,6 @@ plfs_dump_config(int check_dirs, int make_dir)
                                  pconf->global_sum_io.store,
                                  pconf->global_sum_io.bmpoint,ret,make_dir);
         }
-    }
-    if (pconf->test_metalink) {
-        cout << "Test metalink: TRUE" << endl;
-    }
-    if (pconf->lazy_droppings) {
-        cout << "Lazy droppings: TRUE" << endl;
     }
     map<string,PlfsMount *>::iterator itr;
     for(itr=pconf->mnt_pts.begin(); itr!=pconf->mnt_pts.end(); itr++) {
@@ -641,6 +636,7 @@ set_default_confs(PlfsConf *pconf)
     pconf->threadpool_size = 8;
     pconf->direct_io = 0;
     pconf->lazy_stat = 1;
+    pconf->compress_contiguous = 1;
     pconf->err_msg = NULL;
     pconf->buffer_mbs = 64;
     pconf->read_buffer_mbs = 64;
@@ -1222,6 +1218,8 @@ namespace YAML {
                    max(node["threadpool_size"].as<int>(), 1);
                if(node["lazy_stat"]) pconf.lazy_stat = 
                    node["lazy_stat"].as<bool>();
+               if(node["compress_contiguous"]) pconf.compress_contiguous =
+                  node["compress_contiguous"].as<bool>();
                if(node["index_buffer_mbs"]) {
                    pconf.buffer_mbs = node["index_buffer_mbs"].as<int>();
                    if(node["index_buffer_mbs"].as<int>() < 0)
