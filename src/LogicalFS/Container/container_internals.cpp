@@ -396,7 +396,8 @@ plfs_file_operation(const char *logical, FileOp& op)
                               __FUNCTION__, path.c_str());
             continue;
         }
-        ret = op.op(ritr->bpath.c_str(),is_container?DT_CONTAINER:DT_DIR,
+        ret = op.op(ritr->bpath.c_str(),
+                    is_container?(unsigned char)DT_CONTAINER:DT_DIR,
                     ritr->back->store);
     }
     if (is_container) {
