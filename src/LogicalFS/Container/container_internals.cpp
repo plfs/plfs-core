@@ -1958,7 +1958,7 @@ getAtomicUnlinkPath(string path)
     stringstream timestamp;
     timestamp << fixed << Util::getTime();
     vector<string> tokens;
-    Util::tokenize(path,"/",tokens);
+    Util::fast_tokenize(path.c_str(),tokens);
     atomicpath = "";
     for(size_t i=0 ; i < tokens.size(); i++) {
         atomicpath += "/";

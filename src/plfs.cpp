@@ -1,6 +1,5 @@
 #include "plfs.h"
 #include "plfs_private.h"
-
 #include "LogicalFS.h"
 #include "LogicalFD.h"
 #include "XAttrs.h"
@@ -66,8 +65,8 @@ plfs_is_mnt_ancestor(const char *path){
         string this_mnt = itr->first;
         vector<string> mnt_tokens;
         vector<string> target_tokens;
-        Util::tokenize(this_mnt,"/",mnt_tokens);
-        Util::tokenize(path,"/",target_tokens);
+        Util::fast_tokenize(this_mnt.c_str(),mnt_tokens);
+        Util::fast_tokenize(path,target_tokens);
         vector<string> token_itr;
         match = true;
         for(size_t i=0; i<target_tokens.size(); i++) {

@@ -69,6 +69,8 @@ include_directories(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile)
 include_directories(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile/smallfile)
 #Mlog
 include_directories(${PLFS_SOURCE_DIR}/Mlog)
+#Plfsrc
+include_directories(${PLFS_SOURCE_DIR}/Plfsrc)
 #user defined search paths
 foreach(path ${CMAKE_INCLUDE_PATH})
   include_directories(${path})
@@ -181,12 +183,13 @@ AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/FlatFile logicalfs_flatfile)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile logicalfs_smallfile)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile/smallfile smallfile)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/Mlog mlog)
+AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/Plfsrc plfsrc)
 
 
 SET(SRCDIR ${plfs_src_dir} ${iostore} ${iostore_glib} ${iostore_hdfs} 
            ${iostore_posix} ${iostore_pvfs} ${iostore_fuse} ${iostore_iofsl}
            ${logicalfs} ${logicalfs_container} ${container_index} ${logicalfs_flatfile}
-           ${logicalfs_smallfile} ${smallfile} ${mlog}
+           ${logicalfs_smallfile} ${smallfile} ${mlog} ${plfsrc}
 )
 
 #setup RPATH/RUNPATH and shared library
