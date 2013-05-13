@@ -192,8 +192,45 @@ SET(SRCDIR ${plfs_src_dir} ${iostore} ${iostore_glib} ${iostore_hdfs}
            ${logicalfs_smallfile} ${smallfile} ${mlog} ${plfsrc}
 )
 
-#setup RPATH/RUNPATH and shared library
-set (CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+#setup custom destination paths here so all targets will either be 
+#defined here or overridden by the user
+if (CMAKE_INSTALL_PREFIX)
+    message ("-- CMAKE_INSTALL_PREFIX set to ${CMAKE_INSTALL_PREFIX}")
+endif(CMAKE_INSTALL_PREFIX)
+
+if (NOT LIBDIR)
+    set (LIBDIR "lib/" CACHE PATH "Destination of all libraries")
+    set (CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${LIBDIR}")
+else()
+    message("-- LIBDIR set to ${LIBDIR}")
+    set (CMAKE_INSTALL_RPATH ${LIBDIR})
+endif()
+
+if (NOT BINDIR)
+    set (BINDIR "bin/" CACHE PATH "Destination of all binaries")
+else()
+    message("-- BINDIR set to ${BINDIR}")
+endif()
+
+if (NOT SBINDIR)
+    set (SBINDIR "sbin/" CACHE PATH "Destination of all system binaries")
+else()
+    message("-- SBINDIR set to ${SBINDIR}")
+endif()
+
+if (NOT INCLUDEDIR)
+    set (INCLUDEDIR "include/" CACHE PATH "Destination of all includes")
+else()
+    message("-- INCLUDEDIR set to ${INCLUDEDIR}")
+endif()
+
+if (NOT MANDIR)
+    set (MANDIR "share/man/" CACHE PATH "Destination of all manpages")
+else()
+    message("-- MANDIR set to ${MANDIR}")
+endif()
+
+#setup RPATH/RUNPATH flags and shared library
 if (NOT APPLE)
     set (CMAKE_EXE_LINKER_FLAGS "-dynamic -Wl,--enable-new-dtags")
     set (CMAKE_SHARED_LINKER_FLAGS "-dynamic -Wl,--enable-new-dtags")
@@ -203,6 +240,10 @@ endif()
 #static and shared both same name
 add_library(plfs_lib SHARED ${SRCDIR})
 SET_TARGET_PROPERTIES(plfs_lib PROPERTIES OUTPUT_NAME plfs)
+set_target_properties(plfs_lib PROPERTIES
+        VERSION "${plfs_VERSION_FULL}"
+        SOVERSION "${plfs_VERSION_MAJOR}.${plfs_CPP_VERSION_MINOR}"
+        PROJECT_LABEL "plfs_lib shared")
 
 if (NOT DISABLE_STATIC_LIB)
     add_library(plfs_lib_static STATIC ${SRCDIR})
@@ -210,12 +251,16 @@ if (NOT DISABLE_STATIC_LIB)
     #if not
     add_dependencies(plfs_lib plfs_lib_static)
     INSTALL(TARGETS plfs_lib  plfs_lib_static
-            LIBRARY DESTINATION lib
-            ARCHIVE DESTINATION lib)
+            LIBRARY DESTINATION ${LIBDIR}
+            ARCHIVE DESTINATION ${LIBDIR})
     SET_TARGET_PROPERTIES(plfs_lib_static PROPERTIES OUTPUT_NAME plfs)
+    set_target_properties(plfs_lib_static PROPERTIES
+        VERSION "${plfs_VERSION_FULL}"
+        SOVERSION "${plfs_VERSION_MAJOR}.${plfs_CPP_VERSION_MINOR}"
+        PROJECT_LABEL "plfs_lib static")
 else()
     INSTALL(TARGETS plfs_lib
-            LIBRARY DESTINATION lib)
+            LIBRARY DESTINATION ${LIBDIR})
 endif(NOT DISABLE_STATIC_LIB)
 
 
@@ -231,9 +276,9 @@ if (Threads_FOUND)
     target_link_libraries (plfs_lib ${CMAKE_THREAD_LIBS_INIT})
 endif (Threads_FOUND)
 
-#yaml-cpp
+#yaml-cpp which we call plfs-yaml to avoid conflicts
 add_subdirectory (${CMAKE_CURRENT_SOURCE_DIR}/yaml-cpp ${PLFS_BUILD_DIR}/yaml-cpp)
-target_link_libraries (plfs_lib yaml-cpp)
+target_link_libraries (plfs_lib plfs-yaml)
 include_directories (yaml-cpp/include)
 include_directories (yaml-cpp/boost)
 
@@ -270,7 +315,7 @@ if (FUSE_FOUND AND NOT DISABLE_FUSE)
     #change its name so that it create plfs executable
     SET_TARGET_PROPERTIES(plfs_fuse PROPERTIES OUTPUT_NAME plfs)
     #set install dir
-    INSTALL(TARGETS plfs_fuse DESTINATION sbin)
+    INSTALL(TARGETS plfs_fuse DESTINATION ${SBINDIR})
 elseif (NOT DISABLE_FUSE)
     message(FATAL_ERROR "FUSE not found and DISABLE_FUSE not specified")
 endif(FUSE_FOUND AND NOT DISABLE_FUSE)
@@ -299,13 +344,13 @@ add_subdirectory("${PLFS_TESTS_DIR}")
 
 #set up targets for make install
 INSTALL(TARGETS dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls
-                plfs_map plfs_query plfs_recover plfs_version DESTINATION bin
+                plfs_map plfs_query plfs_recover plfs_version DESTINATION ${BINDIR}
 )
-INSTALL(FILES "${PLFS_BUILD_DIR}/plfs.h" DESTINATION include)
+INSTALL(FILES "${PLFS_BUILD_DIR}/plfs.h" DESTINATION ${INCLUDEDIR})
 INSTALL(FILES "${PLFS_SOURCE_DIR}/Mlog/mlogfacs.h"
 	      "${PLFS_SOURCE_DIR}/plfs_internal.h" 
 	      "${PLFS_SOURCE_DIR}/Util.h" 
-    	      "${PLFS_SOURCE_DIR}/COPYRIGHT.h" DESTINATION include/plfs)
+    	      "${PLFS_SOURCE_DIR}/COPYRIGHT.h" DESTINATION ${INCLUDEDIR}/plfs)
 
 #man pages
 add_subdirectory("${PLFS_MAN_DIR}")
@@ -314,10 +359,10 @@ FILE(GLOB man1 ${PLFS_BUILD_DIR}/share/man/man1/*.1)
 FILE(GLOB man3 ${PLFS_BUILD_DIR}/share/man/man3/*.3)
 FILE(GLOB man5 ${PLFS_BUILD_DIR}/share/man/man5/*.5)
 FILE(GLOB man7 ${PLFS_BUILD_DIR}/share/man/man7/*.7)
-INSTALL(FILES ${man1} DESTINATION share/man/man1)
-INSTALL(FILES ${man3} DESTINATION share/man/man3)
-INSTALL(FILES ${man5} DESTINATION share/man/man5)
-INSTALL(FILES ${man7} DESTINATION share/man/man7)
+INSTALL(FILES ${man1} DESTINATION ${MANDIR}/man1)
+INSTALL(FILES ${man3} DESTINATION ${MANDIR}/man3)
+INSTALL(FILES ${man5} DESTINATION ${MANDIR}/man5)
+INSTALL(FILES ${man7} DESTINATION ${MANDIR}/man7)
 
 #build patches
 execute_process(COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR}/mpi_adio/scripts COMMAND ./make_ad_plfs_patch)

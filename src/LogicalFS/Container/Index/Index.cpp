@@ -316,7 +316,6 @@ Index::init( string physical, struct plfs_backend *ibackend )
     populated       = false;
     buffering       = false;
     buffer_filled   = false;
-    compress_contiguous = true;
     chunk_id        = 0;
     last_offset     = 0;
     total_bytes     = 0;
@@ -1069,7 +1068,7 @@ Index::insertGlobal( ContainerEntry *g_entry )
         if (g_entry->length != 0){
             handleOverlap( *g_entry, ret );
         }
-    } else if (compress_contiguous) {
+    } else if (get_plfs_conf()->compress_contiguous) {
         // does it abuts with the one before it
         if (ret.first!=global_index.begin() && g_entry->follows(prev->second)) {
             ioss << "Merging index for " << *g_entry << " and " << prev->second
@@ -1299,7 +1298,7 @@ Index::addWrite( off_t offset, size_t length, pid_t pid,
 {
     Metadata::addWrite( offset, length );
     // check whether incoming abuts with last and we want to compress
-    if ( compress_contiguous && !hostIndex.empty() &&
+    if ( get_plfs_conf()->compress_contiguous && !hostIndex.empty() &&
             hostIndex.back().id == pid  &&
             hostIndex.back().logical_offset +
             (off_t)hostIndex.back().length == offset) {

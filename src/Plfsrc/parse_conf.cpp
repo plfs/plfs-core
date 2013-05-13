@@ -34,6 +34,7 @@ set_default_confs(PlfsConf *pconf)
     pconf->threadpool_size = 8;
     pconf->direct_io = 0;
     pconf->lazy_stat = 1;
+    pconf->compress_contiguous = 1;    
     pconf->err_msg = NULL;
     pconf->buffer_mbs = 64;
     pconf->read_buffer_mbs = 64;
@@ -132,6 +133,8 @@ namespace YAML {
                    pconf.threadpool_size = max(node["threadpool_size"].as<int>(), 1);
                if(node["lazy_stat"]) pconf.lazy_stat = 
                    node["lazy_stat"].as<bool>();
+               if(node["compress_contiguous"]) pconf.compress_contiguous =
+                  node["compress_contiguous"].as<bool>();
                if(node["index_buffer_mbs"]) {
                    pconf.buffer_mbs = node["index_buffer_mbs"].as<int>();
                    if(node["index_buffer_mbs"].as<int>() < 0)

@@ -14,7 +14,6 @@
 #ifndef BOOST_STATIC_ASSERT_HPP
 #define BOOST_STATIC_ASSERT_HPP
 
-#include <boost/config.hpp>
 #include <boost/detail/workaround.hpp>
 
 #ifndef BOOST_NO_CXX11_STATIC_ASSERT
