@@ -110,6 +110,42 @@ expand_macros(const char *target) {
     return oss.str();
 }
 
+// a list of all valid keys in plfsrc
+string Valid_Keys[] = {
+    "global_params", "mount_type", "mount_point", "backends", "location",
+    "workload", "num_hostdirs", "threadpool_size", "index_buffer_mbs",
+    "glib_buffer_mbs", "read_buffer_mbs", "lazy_stat", "lazy_droppings", 
+    "syncer_ip", "global_summary_dir", "statfs", "test_metalink", 
+    "mlog_defmask", "mlog_setmasks", "mlog_stderrmask", "mlog_stderr", 
+    "mlog_file", "mlog_msgbuf_size", "mlog_syslog", "mlog_syslogfac", 
+    "mlog_ucon", "include"
+};
+
+/*
+ * This function checks to see if the current YAML::Node contains only keys
+ * that we care about. Unknown keys should cause PLFS to spit out an error
+ * rather than being silently ignored.
+ */
+bool
+is_valid_node(const YAML::Node node, string** bad_key) {
+    set<string> key_list(Valid_Keys, 
+                         Valid_Keys + 
+                         (sizeof(Valid_Keys) / sizeof(Valid_Keys[0]))
+                        );
+    string key;
+    for(YAML::const_iterator it=node.begin();it!=node.end();it++) {
+        if(!(it->first.IsNull()) && !(it->second.IsNull())) {
+            key = it->first.as<string>();
+            if(key_list.find(key) == key_list.end()) {
+                *bad_key = new string (key);
+                return false; // this is an unknown key
+            }
+        }
+    }
+    return true; // all keys are valid
+}
+
+
 /**
  * 
  * These templates define the mapping between a YAML::Node populated by
@@ -436,7 +472,14 @@ parse_conf(YAML::Node cnode, string file, PlfsConf *pconf)
     // if any includes, recurse
     // probably get rid of parse_conf_keyval entirely
     for (unsigned i = 0; i < cnode.size(); i++) {
+        // make sure there aren't any unknown entries
+        if (!is_valid_node(cnode[i],&pconf->err_msg))
+            break;
         if (cnode[i]["include"]) {
+            if(cnode[i]["include"].IsNull()) {
+                pconf->err_msg = new string("Include file invalid");
+                break;
+            }
             string inc_file = cnode[i]["include"].as<string>();
             YAML::Node inc_node;
             try { inc_node = YAML::LoadFile(inc_file); }
