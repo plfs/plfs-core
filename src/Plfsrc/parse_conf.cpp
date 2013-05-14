@@ -122,6 +122,7 @@ expand_macros(const char *target) {
 namespace YAML {
    template<typename T>
    bool conv(const Node& node, T& rhs) {
+       if(node.IsNull()) return false;
        istringstream temp(node.as<string>());
        temp >> rhs;
        temp >> std::ws;
@@ -173,7 +174,7 @@ namespace YAML {
                }
                if(node["global_summary_dir"]) {
                    string temp;
-                   if(!conv(node["global_summary_dir"],temp)) 
+                   if(!conv(node["global_summary_dir"],temp) || temp.c_str()[0] != '/') 
                        pconf.err_msg = new string ("Illegal global_summary_dir");
                    else {
                        pconf.global_summary_dir = strdup(temp.c_str());
