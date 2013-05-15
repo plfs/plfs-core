@@ -110,7 +110,8 @@ expand_macros(const char *target) {
     return oss.str();
 }
 
-// a list of all valid keys in plfsrc
+// a list of all valid keys in plfsrc, this must be updated whenever
+// a new key is added to plfsrc
 string Valid_Keys[] = {
     "global_params", "mount_type", "mount_point", "backends", "location",
     "workload", "num_hostdirs", "threadpool_size", "index_buffer_mbs",
@@ -118,13 +119,20 @@ string Valid_Keys[] = {
     "syncer_ip", "global_summary_dir", "statfs", "test_metalink", 
     "mlog_defmask", "mlog_setmasks", "mlog_stderrmask", "mlog_stderr", 
     "mlog_file", "mlog_msgbuf_size", "mlog_syslog", "mlog_syslogfac", 
-    "mlog_ucon", "include"
+    "mlog_ucon", "include", "type", "compress_contiguous"
 };
 
 /*
  * This function checks to see if the current YAML::Node contains only keys
  * that we care about. Unknown keys should cause PLFS to spit out an error
  * rather than being silently ignored.
+ * This is a bit nasty as it drills through the entire tree recursively
+ * but it will catch any unknowns in one pass
+ *
+ * Returns true if all keys are valid
+ *
+ * Returns false if unknown keys are found and sets bad_key to an error
+ * message that points out what key is invalid
  */
 bool
 is_valid_node(const YAML::Node node, string** bad_key) {
@@ -133,14 +141,25 @@ is_valid_node(const YAML::Node node, string** bad_key) {
                          (sizeof(Valid_Keys) / sizeof(Valid_Keys[0]))
                         );
     string key;
-    for(YAML::const_iterator it=node.begin();it!=node.end();it++) {
-        if(!(it->first.IsNull()) && !(it->second.IsNull())) {
-            key = it->first.as<string>();
-            if(key_list.find(key) == key_list.end()) {
-                *bad_key = new string (key);
-                return false; // this is an unknown key
+    string err = "\nUnknown key in plfsrc: ";
+    if(node.IsMap()) {
+        for(YAML::const_iterator it=node.begin();it!=node.end();it++) {
+            if(!it->first.IsNull()) {
+                key = it->first.as<string>();
+                if(!is_valid_node(node[key],bad_key)) // recurse
+                    return false;
+                if(key_list.find(key) == key_list.end()) {
+                    err.append(key);
+                    *bad_key = new string (err);
+                    return false; // this is an unknown key
+                }
             }
         }
+    }
+    else if (node.IsSequence()) {
+        for(int i = 0; i < node.size(); i++)
+            if(!is_valid_node(node[i],bad_key)) // recurse
+                return false;
     }
     return true; // all keys are valid
 }
@@ -355,25 +374,26 @@ namespace YAML {
                pmntp.mnt_pt = node["mount_point"].as<string>();
                Util::fast_tokenize(pmntp.mnt_pt.c_str(),pmntp.mnt_tokens);
                if(node["max_smallfile_containers"]) {
-                   pmntp.max_smallfile_containers =
-                       node["max_smallfile_containers"].as<int>();
-                   if(node["max_smallfile_containers"].as<int>() <= 0)
+                   if(!conv(node["max_smallfile_containers"],
+                            pmntp.max_smallfile_containers)) {
                        pmntp.err_msg = 
-                           new string("Illegal value:max_smallfile_containers");
+                           new string("Illegal max_smallfile_containers");
+                   }
                }
                if(node["workload"]) {
-                   if(node["workload"].as<string>() == "file_per_proc" ||
-                           node["workload"].as<string>() == "n-n") {
+                   string temp;
+                   if(!conv(node["workload"],temp)) {
+                       pmntp.err_msg = new string("Illegal workload");
+                   }
+                   else if(temp == "file_per_proc" || temp == "n-n") {
                        pmntp.file_type = FLAT_FILE;
                        pmntp.fs_ptr = &flatfs;
                    }
-                   else if(node["workload"].as<string>() == "shared_file" ||
-                           node["workload"].as<string>() == "n-1") {
+                   else if(temp == "shared_file" || temp == "n-1") {
                        pmntp.file_type = CONTAINER;
                        pmntp.fs_ptr = &containerfs;
                    }
-                   else if(node["workload"].as<string>() == "small_file" ||
-                           node["workload"].as<string>() == "1-n") {
+                   else if(temp == "small_file" || temp == "1-n") {
                        pmntp.file_type = SMALL_FILE;
                        pmntp.fs_ptr = new SmallFileFS(pmntp.max_smallfile_containers);
                    }
@@ -382,41 +402,46 @@ namespace YAML {
                    }
                }
                if(node["max_writers"]) {
-                   pmntp.max_writers =
-                       node["max_writers"].as<int>();
-                   if(node["max_writers"].as<int>() < 0)
-                       pmntp.err_msg = new string("Illegal value:max_writers");
+                   if(!conv(node["max_writers"],pmntp.max_writers)) {
+                       pmntp.err_msg = new string("Illegal max_writers");
+                   }
                }
                if(node["glib_buffer_mbs"]) {
-                   pmntp.glib_buffer_mbs = 
-                       node["glib_buffer_mbs"].as<int>();
-                   if(node["glib_buffer_mbs"].as<int>() < 0)
-                       pmntp.err_msg = new string("Illegal value:glib_buffer_mbs");
+                   if(!conv(node["glib_buffer_mbs"],pmntp.glib_buffer_mbs)) {
+                       pmntp.err_msg = new string("Illegal glib_buffer_mbs");
+                   }
                }
                if(node["statfs"]) {
-                   pmntp.statfs = new string(node["statfs"].as<string>());
-                   pmntp.statfs_io.prefix = 
-                       strdup(node["statfs"].as<string>().c_str());
+                   if(!conv(node["statfs"],*pmntp.statfs)) {
+                       pmntp.err_msg = new string("Illegal statfs");
+                   }
+                   pmntp.statfs_io.prefix = strdup(pmntp.statfs->c_str());
                }
                if(node["backends"]) {
                    string backspec;
                    string canspec;
                    string shadowspec;
+                   string temp;
+                   string temp_loc;
                    for(unsigned i = 0; i < node["backends"].size(); i++) {
+                       if(!conv(node["backends"][i]["location"],temp_loc)) {
+                           pmntp.err_msg = new string("Illegal backend location");
+                           break;
+                       }
                        if(node["backends"][i]["type"]) {
-                           if(node["backends"][i]["type"].as<string>() == 
-                                   "canonical") {
+                           if(!conv(node["backends"][i]["type"],temp)) {
+                               pmntp.err_msg = new string("Illegal backend type");
+                               break;
+                           }
+                           if(temp == "canonical") {
                                if (!canspec.empty())
                                    canspec.append(",");
-                               canspec.append(node["backends"][i]["location"]. \
-                                       as<string>());
+                               canspec.append(temp_loc);
                            }
-                           else if(node["backends"][i]["type"].as<string>() == 
-                                   "shadow") {
+                           else if(temp == "shadow") {
                                if (!shadowspec.empty())
                                    shadowspec.append(",");
-                               shadowspec.append(node["backends"][i]["location"]. \
-                                       as<string>());
+                               shadowspec.append(temp_loc);
                            }
                            else {
                                pmntp.err_msg = new string("Unknown backend type");
@@ -425,8 +450,7 @@ namespace YAML {
                        else {
                            if (!backspec.empty())
                                backspec.append(",");
-                           backspec.append(node["backends"][i]["location"]. \
-                                   as<string>());
+                           backspec.append(temp_loc);
                        }
                    }
                    if (!backspec.empty()) {
@@ -440,8 +464,9 @@ namespace YAML {
                        pmntp.shadowspec = strdup(shadowspec.c_str());
                }
                if(node["syncer_ip"]) {
-                   pmntp.syncer_ip = 
-                           new string(node["syncer_ip"].as<string>());
+                   if(!conv(node["syncer_ip"],*pmntp.syncer_ip)) {
+                       pmntp.err_msg = new string("Illegal syncer_ip");
+                   }
                    mlog(MLOG_DBG, "Discovered syncer_ip %s\n",
                        pmntp.syncer_ip->c_str());
                }
@@ -495,7 +520,7 @@ parse_conf(YAML::Node cnode, string file, PlfsConf *pconf)
             try { *pconf = cnode[i].as<PlfsConf>(); }
             catch (exception &e) {
                 pconf->err_msg = 
-                    new string("global_params parsing failure: %s", e.what());
+                    new string(e.what());
                 break;
             }
             if (pconf->err_msg)
@@ -511,7 +536,7 @@ parse_conf(YAML::Node cnode, string file, PlfsConf *pconf)
             try { *pconf->tmp_mnt = cnode[i].as<PlfsMount>(); }
             catch (exception &e) {
                 pconf->err_msg = 
-                    new string("mount_point parsing failure: %s", e.what());
+                    new string(e.what());
                 break;
             }
             if (pconf->tmp_mnt->err_msg) {
@@ -602,7 +627,7 @@ get_plfs_conf()
             cnode = YAML::LoadFile(file.c_str());
         }
         catch (exception& e) {
-            mlog(MLOG_ERR, "YAML load exception: %s", e.what());
+            mlog(MLOG_ERR, e.what());
             mlog(MLOG_ERR, ".plfsrc file that caused exception: %s", file.c_str());
             continue;
         }
