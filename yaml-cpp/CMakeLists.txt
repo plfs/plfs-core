@@ -30,12 +30,6 @@ set(YAML_CPP_VERSION "${YAML_CPP_VERSION_MAJOR}.${YAML_CPP_VERSION_MINOR}.${YAML
 
 enable_testing()
 
-## Build options
-# --> General
-# see http://www.cmake.org/cmake/help/cmake2.6docs.html#variable:BUILD_SHARED_LIBS
-#     http://www.cmake.org/cmake/help/cmake2.6docs.html#command:add_library
-option(BUILD_SHARED_LIBS "Build Shared Libraries" ON)
-
 ###
 ### Sources, headers, directories and libs
 ###
@@ -58,14 +52,6 @@ include_directories(${YAML_CPP_SOURCE_DIR}/src)
 include_directories(${YAML_CPP_SOURCE_DIR}/include)
 include_directories(${YAML_CPP_SOURCE_DIR}/boost)
 
-###
-### General compilation settings
-###
-if(BUILD_SHARED_LIBS)
-	set(LABEL_SUFFIX "shared")
-else()
-	set(LABEL_SUFFIX "static")
-endif()
 
 # GCC specialities
 if(CMAKE_COMPILER_IS_GNUCXX)
@@ -118,6 +104,7 @@ set(_INSTALL_DESTINATIONS
 ### Library
 ###
 add_library(plfs-yaml
+        SHARED
 	${sources}
 	${public_headers}
 	${private_headers}
@@ -126,11 +113,33 @@ add_library(plfs-yaml
 	${contrib_private_headers}
 )
 
+### Build dynamic lib
 set_target_properties(plfs-yaml PROPERTIES
 	VERSION "${YAML_CPP_VERSION}"
 	SOVERSION "${YAML_CPP_VERSION_MAJOR}.${YAML_CPP_VERSION_MINOR}"
-	PROJECT_LABEL "plfs-yaml ${LABEL_SUFFIX}"
+	PROJECT_LABEL "plfs-yaml shared"
+        OUTPUT_NAME "plfs-yaml"
 )
 
-# we don't need the headers installed for PLFS
 install(TARGETS plfs-yaml ${_INSTALL_DESTINATIONS})
+
+
+if(NOT DISABLE_STATIC_LIB)
+	### Build static lib
+	add_library(plfs-yaml-static
+	        STATIC
+	        ${sources}
+	        ${public_headers}
+	        ${private_headers}
+	        ${contrib_sources}
+	        ${contrib_public_headers}
+	        ${contrib_private_headers}
+	)
+	set_target_properties(plfs-yaml-static PROPERTIES
+	        VERSION "${YAML_CPP_VERSION}"
+	      	SOVERSION "${YAML_CPP_VERSION_MAJOR}.${YAML_CPP_VERSION_MINOR}"
+		PROJECT_LABEL "plfs-yaml static"
+		OUTPUT_NAME "plfs-yaml"
+	)
+	install(TARGETS plfs-yaml-static ${_INSTALL_DESTINATIONS})
+endif(NOT DISABLE_STATIC_LIB)
