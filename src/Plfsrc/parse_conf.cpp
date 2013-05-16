@@ -375,7 +375,8 @@ namespace YAML {
                Util::fast_tokenize(pmntp.mnt_pt.c_str(),pmntp.mnt_tokens);
                if(node["max_smallfile_containers"]) {
                    if(!conv(node["max_smallfile_containers"],
-                            pmntp.max_smallfile_containers)) {
+                            pmntp.max_smallfile_containers) ||
+                      pmntp.max_smallfile_containers < 1) {
                        pmntp.err_msg = 
                            new string("Illegal max_smallfile_containers");
                    }
@@ -402,12 +403,14 @@ namespace YAML {
                    }
                }
                if(node["max_writers"]) {
-                   if(!conv(node["max_writers"],pmntp.max_writers)) {
+                   if(!conv(node["max_writers"],pmntp.max_writers) ||
+                      pmntp.max_writers < 1) {
                        pmntp.err_msg = new string("Illegal max_writers");
                    }
                }
                if(node["glib_buffer_mbs"]) {
-                   if(!conv(node["glib_buffer_mbs"],pmntp.glib_buffer_mbs)) {
+                   if(!conv(node["glib_buffer_mbs"],pmntp.glib_buffer_mbs) ||
+                      pmntp.glib_buffer_mbs < 0) {
                        pmntp.err_msg = new string("Illegal glib_buffer_mbs");
                    }
                }
