@@ -576,6 +576,13 @@ parse_conf(YAML::Node cnode, string file, PlfsConf *pconf)
     return pconf;
 }
 
+// quick check to see if a file exists
+inline bool 
+exist_test (const std::string& name) {
+  struct stat buffer;   
+  return (stat (name.c_str(), &buffer) == 0); 
+}
+
 // get a pointer to a struct holding plfs configuration values
 // this is called multiple times but should be set up initially just once
 // it reads the map and creates tokens for the expression that
@@ -613,12 +620,17 @@ get_plfs_conf()
     // first, env PLFSRC, 2nd $HOME/.plfsrc, 3rd /etc/plfsrc
     if ( getenv("PLFSRC") ) {
         string env_file = getenv("PLFSRC");
-        possible_files.push_back(env_file);
+        if(exist_test(env_file))
+            possible_files.push_back(env_file);
+        else
+            mlog(MLOG_ERR, "PLFSRC env variable set to %s but no file found",
+                 env_file.c_str());
     }
     if ( getenv("HOME") ) {
         string home_file = getenv("HOME");
         home_file.append("/.plfsrc");
-        possible_files.push_back(home_file);
+        if(exist_test(home_file))
+            possible_files.push_back(home_file);
     }
     possible_files.push_back("/etc/plfsrc");
     // try to parse each file until one works
