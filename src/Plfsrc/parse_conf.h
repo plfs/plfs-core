@@ -41,7 +41,7 @@ typedef struct  PlfsMount {
     vector<string> mnt_tokens;
     plfs_filetype file_type;
     LogicalFileSystem *fs_ptr;
-    unsigned max_writers;
+    int max_writers;
     int glib_buffer_mbs;
     int max_smallfile_containers; /* max cached smallfile containers */
     unsigned checksum;
