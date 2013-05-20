@@ -139,7 +139,7 @@ if(NOT DISABLE_STATIC_LIB)
 	        VERSION "${YAML_CPP_VERSION}"
 	      	SOVERSION "${YAML_CPP_VERSION_MAJOR}.${YAML_CPP_VERSION_MINOR}"
 		PROJECT_LABEL "plfs-yaml static"
-		OUTPUT_NAME "plfs-yaml"
+		OUTPUT_NAME "plfs-yaml-static"
 	)
 	install(TARGETS plfs-yaml-static ${_INSTALL_DESTINATIONS})
 endif(NOT DISABLE_STATIC_LIB)
