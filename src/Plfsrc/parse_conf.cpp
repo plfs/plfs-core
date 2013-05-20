@@ -632,6 +632,10 @@ get_plfs_conf()
         if(exist_test(home_file))
             possible_files.push_back(home_file);
     }
+    if (possible_files.size() == 0 && !exist_test("/etc/plfsrc")) {
+        mlog(MLOG_ERR, "No plfsrc files found!");
+        exit(1);
+    }
     possible_files.push_back("/etc/plfsrc");
     // try to parse each file until one works
     // the C++ way to parse like this is istringstream (bleh)
