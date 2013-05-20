@@ -5,32 +5,49 @@ ${COPYRIGHT}
 plfsrc \- the configuration file for PLFS (Parallel Log Structured File System)
 
 .SH DESCRIPTION
-This configuration file defines the mapping between logical and physical paths 
-on the parallel filesystem. It also has some configuration options that PLFS 
-will use to try and optimize performance.  This file is never written by PLFS, 
-it is only read and it is the duty of the systems administrator or user to 
-properly create and maintain this file.  Please note that this configuration 
-file is very important; changing it can potentially disrupt the ability to 
+The configuration file which dictates where PLFS is accessed and where PLFS
+stores user data and its own metadata.  This file can also specify various
+performance optimizations and debugging behaviors.  The file is written by
+the user and read by PLFS.  Be careful when editing this file; 
+changing it can potentially disrupt PLFS's ability to 
 read existing files.  If a plfsrc file must be changed, it is recommended to 
 create a new mount point and copy files over.  Additionally, please use the 
 'plfs_check_config' tool included in the installation after every edit to the 
 plfsrc file. PLFS searches for this file in $ENV{'PLFSRC'}, $HOME/.plfsrc, 
-/etc/plfsrc in that order.
+/etc/plfsrc in that order and uses only the first file that it finds.
 
-You can think of this file as essentially mount options.  However, we use a
-configuration file because PLFS can be run without being mounted (e.g. using
-MPI-IO). 
-installation after every edit to the plfsrc file.  PLFS searches for this file 
-in $ENV{'PLFSRC'}, $HOME/.plfsrc,
-/etc/plfsrc in that order. 
+Essentially this file defines mount options.  However, we use a configuration
+file because PLFS can be run without being mounted (e.g. using MPI-IO).
 
 .SH FILE FORMAT
-The file consists of a series of YAML structures and must conform to the YAML 
-1.2 spec in addition to the requirements outlined below. Any line starting with 
-a # is not interpreted. Path names must be fully qualified. Note that all 
-keywords should be in lower-case and whitespace is important. The "- " at the 
-beginning of a keyword denotes the beginning of a new configuration structure. 
-The possible keywords and their meanings are as follows:
+The file consists of a series of YAML structures and must conform to the YAML
+1.2 spec in addition to the requirements outlined below. Any line starting with
+a # is not interpreted. Path names must be fully qualified. Note that all
+keywords should be in lower-case and whitespace is important. The "- " at the
+beginning of a keyword denotes the beginning of a new configuration structure.
+The possible keywords and their meanings are defined below.  Note that a plfsrc
+file may describe multiple mount points; some keywords define global behavior
+and others are specific to a single mountpoint.
+
+.SH SIMPLE EXAMPLE
+Here is an example of a bare-bones, but correct, plfsrc file. Like python, 
+indentation is important and is defined by spaces.
+.P
+- global_params:
+.br
+  threadpool_size: 64
+.br
+- mount_point: /mnt/plfs
+.br
+  workload: shared_file
+.br
+  backends:
+.br
+    - location: posix:///mnt/lustre/pstore1
+
+.SH COMMON KEYWORDS 
+This section defines the most common keywords required in your plfsrc in order
+to run plfs. 
 
 .B
 - include: <file>
@@ -47,7 +64,7 @@ values for threadpool_size.
 .B
 - global_params:
 .RS
-This key identifies to the parser the following keyword mapping as part of the 
+This key must preceed the list of globally defined keywords. 
 global configuration space. Only one global_parms mapping will be loaded upon 
 initialization (the last global_parms structure loaded will overwrite any 
 previous global parameters). There is no value associated with this keyword. 
@@ -57,7 +74,7 @@ Spacing is important, see example for details.
 .B
   num_hostdirs: <value>
 .RS
-Official rule:
+Global key specific to container mode.  Official rule:
 .br
 Let N be the size in PE's of the largest job that will be run on the system.
 .br
@@ -79,7 +96,7 @@ Optional.  Default is 32.  Max is 1024.
 .B
   threadpool_size: <value>
 .RS
-This value is set to the number of threads to run on a machine; for machines 
+Global key.  This value is set to the number of threads to run on a machine; for machines 
 used in large jobs, this value should probably be around 2; for machines used 
 in small jobs (like file transfer nodes), this value should probably be around 
 16.
@@ -88,56 +105,220 @@ Optional.  Default is 8.
 .RE
 
 .B
-  index_buffer_mbs: <value>
+- mount_point: <path>
 .RS
-This is the amount of memory (in megabytes) that PLFS can use to buffer 
-indexing information while it is writing files.  This buffer, if sufficiently 
-large, enables subsequent optimizations which improve read open times. This 
-particular behavior is only available through the MPI-IO interface and can be 
-controlled by an optional hint of "plfs_flatten_close."  When setting this 
-value, bear in mind that every open file handle can buffer this much memory 
-so that total memory being used can be much larger than this value.
 
-Optional.  Default is 64.
+This key defines a plfs mount point and must preceed the list of keys specific
+to that mount point.  This is the path used by users.
+Several mount_point structures may be defined and each
+must have their own distinct options to be correct (backends, etc). See example
+for details.
+
+Required.
 .RE
 
 .B
-  lazy_stat: <1/0>
+  backends:
+.B
+    - location: <prefix><path>
+.B
+      type: <value>
 .RS
-The lazy_stat flag, when it is set as 0 plfs will do slow stat(getattr).  
-This is only for querying the size of a file handle that is currently open for 
-write.  Doing a non-lazy stat of this open file handle will be very slow but 
-will give an accurate answer.  Doing a lazy-stat of an open file handle will 
-be very fast but might be inaccurate.  However, it will show monotonically 
-increasing sizes.
+The paths(s) where plfs will store user data and its own metadata.  The prefix
+can specify what type of storage system it is; currently supported values are
+'posix:' and 'hdfs:'.  Each can optionally carry the "type:" descriptor that
+will allow specification of the location being either "canonical" or "shadow"
+type. The type is optional and not typically used and is defined further below.
+Multiple locations can be used to distribute the PLFS workload across multiple
+backend directories.
 
-Optional.  Default is 1.
+Note this option must appear after the mount_point keyword and only applies 
+to the mount_point command that it follows.
+Be careful: the backends directive is IMMUTABLE.  Once a mount point is 
+defined, the backends can NEVER be changed.  If multiple machines share a 
+PLFS mount point, they must all define the same exact set of backends in the 
+same exact ordering.  When multiple machines share a mount point, it is 
+recommended to use the include directive to allow you to define a mount point 
+and its backends in one file and then include it, making it impossible to have 
+different configurations on different machines.
+
+Required.
 .RE
 
 .B
-  global_summary_dir: <path>
+  workload: <value>
 .RS
-The path into which to drop summary information.  Useful to determine how
-much PLFS is being used and a bit of information about how it is being
-used.  This must be set to a globally writable and globally visible path.
-When this is set, each close() will drop a file into this directory with
-some statistical information in the filename.  This will happen on every
-close() for every proc when using FUSE and just on rank 0's close() when
-using ADIO.  Be careful if you use this because this directory can get
-very full and can cause performance problems.
+Mount point keyword.  This tells PLFS whether a specific mount_point is
+intended for shared file workloads (i.e. N-1), file-per-proc workloads (i.e.
+N-N) or small files workloads (i.e. 1-N).  Possible values are "shared_file",
+"file_per_proc" or "small_file".  "n-1" can also be used in place of
+"shared_file", "n-n" can also be used in place of "file_per_proc" and "1-n" can
+alse be used in place of "small_file".  shared_file is intended for workloads
+where multiple writers write concurrently to a single file.  small_file is
+intended for workloads where each writer will create and write to a lot of
+small files.  "file_per_proc" is for workloads in which many processes
+concurrently create many files.  This should make a large metadata improvement
+for most metadata workloads so long as multiple backends are defined for the
+mount point.  This is especially true if each backend is serviced by a
+different metadata server so that the metadata workload can be balanced
+across multiple servers.
+
+Note this option must appear within mount_point structure and only applies 
+to the mount_point command that it follows.
+
+Optional.  Default is shared_file.
+.RE
+
+.SH BURST BUFFER KEYWORDS
+In container mode, PLFS can be configured to exploit burst buffers.  Burst buffers
+are typically high-speed and low capacity storage devices such as flash memory 
+backed by lower-speed, but higher capacity storage systems such as disk based
+parallel file systems.  These keywords are how to enable this behavior.  Note that
+applications will need to be further modified to use this mode by calling 
+container_trim() and container_protect() functions to control data placement across 
+the tiers.
+
+.B
+      shadow/canonical backend types
+.RS
+Backend keyword.  Shadow backends specify paths to burst buffers and canonical
+specify paths to the larger slower storage systems.  This can be used in
+instances where the canonical is desired to be on slow global storage devices
+and the data pieces are desired to be on fast local storage devices.  In
+scenarios with lots of different fast local mounts, different nodes will have
+different sets of shadow backends defined so that each node always writes to
+the fastest possible backend.  For reading, this will require that all
+locations are visible everywhere.  For advanced development, the PLFS team has
+used this to build "burst buffer" systems.
 
 Optional.
 .RE
 
 .B
-  test_metalink: <1/0>
+  syncer_ip: <value>
 .RS
-This is only for developers to do testing.  It won't be explained here.  If
-you really want to know what it does, please read the code.  Otherwise, do
-not use this directive.
+This is an advanced directive and will not be used in typical installations.  
+This is used in conjunction with shadow backends and canonical backends.  It
+is possible to use an RPC server to asynchronously copy data from 
+shadow backends into canonical backends by specifying this value and by 
+calling container_protect.
 
-Optional.  Default is 0.
+Note this option only applies to the canonical backends 
+and/or shadow backends definition that it follows.
+
+Optional.
 .RE
+
+.SH ADVANCED KEYWORDS
+This section describes keywords which won't be typically used in standard
+configurations but may be useful for performance tuning or debugging.
+
+.B
+  lazy_stat: <true/false>
+.RS
+Global key for container mode only.  The lazy_stat flag, when it is set as
+false plfs will do slow stat(getattr).  This is only for querying the size of a
+file handle that is currently open for write.  Doing a non-lazy stat of this
+open file handle will be very slow but will give an accurate answer.  Doing a
+lazy-stat of an open file handle will be very fast but might be inaccurate.
+However, it will show monotonically increasing sizes.
+
+Optional.  Default is true.
+.RE
+
+.B
+  compress_contiguous: <true/false>
+.RS
+Global key for container mode only. The plfs metadata can grow
+with every write to the file.  To reduce this growth, plfs tries to merge
+related metadata but doesn't consider the timestamp of each write.  
+Therefore it is possible for an old write to merge with a new write and 
+gain the timestamp of the new write.  Then when plfs resolves any overwrites,
+it may incorrectly apply the old write over a newer write since it has lost
+the original timestamp of the old write.  For most shared_file workloads,
+overwrites like this are unexpected so this behavior is fine.  However, if you
+have a workload in which multiple processes writing to a shared file frequently
+overwrite each other, you may want to set this to false.  Your metadata may be
+larger and your read open time might therefore be slower, but your overwrites
+will be resolved correctly (assuming cross-node clock skew isn't larger than 
+time between overwrites).
+
+Optional.  Default is true.
+.RE
+
+.B
+  global_summary_dir: <path>
+.RS
+Global key for container mode only. The path into which to drop summary
+information.  Useful to determine how much PLFS is being used and a bit of
+information about how it is being used.  This must be set to a globally
+writable and globally visible path.  When this is set, each close() will drop a
+file into this directory with some statistical information in the filename.
+This will happen on every close() for every proc when using FUSE and just on
+rank 0's close() when using ADIO.  Be careful if you use this because this
+directory can get very full and can cause performance problems.
+
+Optional.
+.RE
+
+.B
+  test_metalink: <true/false>
+.RS
+Global key for container mode only. This is only for developers to do testing.
+It won't be explained here.  If you really want to know what it does, please
+read the code.  Otherwise, do not use this directive.
+
+Optional.  Default is false.
+.RE
+
+.B
+  statfs: <path>
+.RS
+The path on which to resolve statfs calls received through FUSE.  Typically 
+this is not specified but may be used to avoid hanging on mounts when 
+backend volumes are not available.  This is because FUSE calls statfs when it
+mounts and PLFS by default forwards that to one of the backends and this can
+then hang. 
+
+Note this option must appear within the mount_point structure and only applies 
+to the mount_point command that it follows.
+
+Optional.
+.RE
+
+.B
+  glib_buffer_mbs: <value>
+.RS
+This option sets the in-memory Glibc buffer size (in megabytes) when using a 
+glib:// backend store.  Larger values can improve performance on some systems
+when performing many small writes.  This amount of memory will be used per open 
+file per process so care should be taken when tuning this parameter when 
+opening many files at a time or on systems with many processes per node.
+
+Note this option must appear within the mount_point structure and only applies
+to the mount_point command that it follows.
+
+Optional. Default is 16.
+.RE
+
+.B
+  index_buffer_mbs: <value>
+.RS
+Global key.  For container mode, this is the amount of memory (in megabytes)
+that PLFS can use to buffer indexing information while it is writing files.
+This buffer, if sufficiently large, enables subsequent optimizations which
+improve read open times. This particular behavior is only available through the
+MPI-IO interface and can be controlled by an optional hint of
+"plfs_flatten_close."  When setting this value, bear in mind that every open
+file handle can buffer this much memory so that total memory being used can be
+much larger than this value.
+
+Optional.  Default is 64.
+.RE
+
+
+.SH MLOG KEYWORDS 
+This section describes the keywords which dictate the debugging behavior of plfs.
 
 .B
   mlog_defmask: <value>
@@ -180,12 +361,12 @@ Optional.  The default value is CRIT.
 .RE
 
 .B
-  mlog_stderr: <1/0>
+  mlog_stderr: <true/false>
 .RS
-If set to 1, causes all logged messages to be printed to stderr, 
+If set to true, causes all logged messages to be printed to stderr, 
 irrespective of the value of mlog_stderrmask (e.g. for debugging).
 
-Optional.  The default value is 0.
+Optional.  The default value is false.
 .RE
 
 .B
@@ -209,18 +390,18 @@ Optional.  The default value is 4096. Min is 256.
 .RE
 
 .B
-  mlog_syslog: <1/0>
+  mlog_syslog: <true/false>
 .RS
-If set to 1, causes all logged messages to be sent the system's
+If set to true, causes all logged messages to be sent the system's
 syslog program with syslog(3).
 
-Optional.  The default is 0.
+Optional.  The default is false.
 .RE
 
 .B
   mlog_syslogfac: <value>
 .RS
-If mlog_syslog is set to 1, then this contains the facility level used to
+If mlog_syslog is true, then this contains the facility level used to
 open syslog with openlog(3).  It must be of the format LOCALn
 where "n" is between 0 and 7.
 
@@ -228,152 +409,15 @@ Optional.  The default is to use the USER facility.
 .RE
 
 .B
-  mlog_ucon: <1/0>
+  mlog_ucon: <true/false>
 .RS
 A low-level debugging option that enables log messages to be sent
-to a UDP socket (if set to 1).
+to a UDP socket (if set to true).
 
-Optional.  The default is 0.
+Optional.  The default is false.
 .RE
 
-.B
-- mount_point: <path>
-.RS
-The path which users use to access PLFS files. Users should NEVER see the 
-backends. This option is used to mark a new mount_point configuration structure 
-which uses the parameters defined in the global_parms structure to operate.
-Several mount_point structures may be defined and each must have their own 
-distinct options to be correct (backends, etc). See example for details.
-
-Required.
-.RE
-
-.B
-  backends:
-.B
-    - location: <path>
-.B
-      type: <value>
-.RS
-The location (or locations) where you want the physical files that comprise 
-a PLFS file to reside for the mount_point. Each backend location should be 
-described with a path and can optionally carry the "type:" descriptor that 
-will allow specification of the location being either "canonical" or "shadow" 
-type. These parameters are optional and described further below.
-Multiple locations can be used to distribute the PLFS workload across multiple 
-backend directories.
-
-Note this option must appear after the mount_point keyword and only applies 
-to the mount_point command that it follows.
-Be careful: the backends directive is IMMUTABLE.  Once a mount point is 
-defined, the backends can NEVER be changed.  If multiple machines share a 
-PLFS mount point, they must all define the same exact set of backends in the 
-same exact ordering.  When multiple machines share a mount point, it is 
-recommended to use the include directive to allow you to define a mount point 
-and its backends in one file and then include it, making it impossible to have 
-different configurations on different machines.
-
-Note this option must appear in each mount_point structure and only applies to 
-the mount_point command that it follows.
-
-Required.
-.RE
-
-.B
-      shadow/canonical backend types
-.RS
-This is an advanced directive and will not be used in typical installations.  
-Allows the user to specify that some set of backends are where canonical 
-containers should be placed and some different set of backends are where 
-shadows should be placed.  If these directives are used, then shadow subdirs 
-will ALWAYS be created in shadow backends.  This can be used in instances where 
-the canonical is desired to be on slow global storage devices and the data 
-pieces are desired to be on fast local storage devices.  In scenarios with 
-lots of different fast local mounts, different nodes will have different sets 
-of shadow backends defined so that each node always writes to the fastest 
-possible backend.  For reading, this will require that all locations are 
-visible everywhere.  For advanced development, the PLFS team has used this to 
-build "burst-buffer" systems.
-
-Optional.
-.RE
-
-.B
-  workload: <value>
-.RS
-This tells PLFS whether a specific mount_point is intended for shared
-file workloads (i.e. N-1), file-per-proc workloads (i.e. N-N) or small files
-workloads (i.e. 1-N).  Possible values are "shared_file", "file_per_proc"
-or "small_file".  "n-1" can also be used in place of "shared_file",
-"n-n" can also be used in place of "file_per_proc" and "1-n" can alse be used
-in place of "small_file".  shared_file is intended
-for workloads where multiple writers write concurrently to a single file.
-small_file is intended for workloads where each writer will create and write
-to a lot of small files.
-Other workloads should use "file_per_proc" which should make a large metadata
-improvement for most metadata workloads so long as multiple backends are 
-defined for the mount point.  This is especially true if each backend is serviced by
-a different metadata server so that the metadata workload can be balanced
-across multiple servers.
-
-Note this option must appear within mount_point structure and only applies 
-to the mount_point command that it follows.
-
-Optional.  Default is shared_file.
-.RE
-
-.B
-  syncer_ip: <value>
-.RS
-This is an advanced directive and will not be used in typical installations.  
-This is used in conjunction with shadow backends and canonical backends.  It
-is possible to use an RPC server to asynchronously copy data from 
-shadow backends into canonical backends by specifying this value and by 
-calling container_protect.
-
-Note this option only applies to the canonical backends 
-and/or shadow backends definition that it follows.
-
-Optional.
-.RE
-
-.B
-  statfs: <path>
-.RS
-The path on which to resolve statfs calls received through FUSE.  Typically 
-this is not specified but may be used to avoid hanging on mounts when 
-backend volumes are not available.  This is because FUSE calls statfs when it
-mounts and PLFS by default forwards that to one of the backends and this can
-then hang. 
-
-Note this option must appear within the mount_point structure and only applies 
-to the mount_point command that it follows.
-
-Optional.
-.RE
-
-.B
-  glib_buffer_mbs: <value>
-.RS
-This option sets the in-memory Glibc buffer size (in megabytes) when using a 
-glib:// backend store.  Larger values can improve performance on some systems
-when performing many small writes.  This amount of memory will be used per open 
-file per process so care should be taken when tuning this parameter when 
-opening many files at a time or on systems with many processes per node.
-
-Note this option must appear within the mount_point structure and only applies
-to the mount_point command that it follows.
-
-Optional. Default is 16.
-.RE
-
-.br 
-A tool for checking the plfsrc file for correct syntax is included in the plfs 
-distribution.  See 
-.I plfs_check_config(1)
-for more details. 
-
-.SH EXAMPLE
+.SH ADVANCED EXAMPLE
 A configuration file might appear as follows (note that the indentation is 
 important and is defined by spaces only, not tabs):
 .P
@@ -433,11 +477,12 @@ The system wide configuration file.
 Per user configuration file.
 .RE
 
-The per user file options will override options in the system wide file. 
-Options in files cannot be combined, only one file will be used.
-
 .SH AUTHORS
 ${AUTHORS}
 
 .SH SEE ALSO
+A tool for checking the plfsrc file for correct syntax is included in the plfs 
+distribution.  See 
+.I plfs_check_config(1)
+for more details. 
 ${SEEALSO5}
