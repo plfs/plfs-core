@@ -214,20 +214,20 @@ This section describes keywords which won't be typically used in standard
 configurations but may be useful for performance tuning or debugging.
 
 .B
-  lazy_stat: <true/false>
+  lazy_stat: <1/0>
 .RS
 Global key for container mode only.  The lazy_stat flag, when it is set as
-false plfs will do slow stat(getattr).  This is only for querying the size of a
+0 plfs will do slow stat(getattr).  This is only for querying the size of a
 file handle that is currently open for write.  Doing a non-lazy stat of this
 open file handle will be very slow but will give an accurate answer.  Doing a
 lazy-stat of an open file handle will be very fast but might be inaccurate.
 However, it will show monotonically increasing sizes.
 
-Optional.  Default is true.
+Optional.  Default is 1.
 .RE
 
 .B
-  compress_contiguous: <true/false>
+  compress_contiguous: <1/0>
 .RS
 Global key for container mode only. The plfs metadata can grow
 with every write to the file.  To reduce this growth, plfs tries to merge
@@ -238,12 +238,12 @@ it may incorrectly apply the old write over a newer write since it has lost
 the original timestamp of the old write.  For most shared_file workloads,
 overwrites like this are unexpected so this behavior is fine.  However, if you
 have a workload in which multiple processes writing to a shared file frequently
-overwrite each other, you may want to set this to false.  Your metadata may be
+overwrite each other, you may want to set this to 0.  Your metadata may be
 larger and your read open time might therefore be slower, but your overwrites
 will be resolved correctly (assuming cross-node clock skew isn't larger than 
 time between overwrites).
 
-Optional.  Default is true.
+Optional.  Default is 1.
 .RE
 
 .B
@@ -262,13 +262,13 @@ Optional.
 .RE
 
 .B
-  test_metalink: <true/false>
+  test_metalink: <1/0>
 .RS
 Global key for container mode only. This is only for developers to do testing.
 It won't be explained here.  If you really want to know what it does, please
 read the code.  Otherwise, do not use this directive.
 
-Optional.  Default is false.
+Optional.  Default is 0.
 .RE
 
 .B
@@ -361,12 +361,12 @@ Optional.  The default value is CRIT.
 .RE
 
 .B
-  mlog_stderr: <true/false>
+  mlog_stderr: <1/0>
 .RS
-If set to true, causes all logged messages to be printed to stderr, 
+If set to 1, causes all logged messages to be printed to stderr, 
 irrespective of the value of mlog_stderrmask (e.g. for debugging).
 
-Optional.  The default value is false.
+Optional.  The default value is 0.
 .RE
 
 .B
@@ -390,18 +390,18 @@ Optional.  The default value is 4096. Min is 256.
 .RE
 
 .B
-  mlog_syslog: <true/false>
+  mlog_syslog: <1/0>
 .RS
-If set to true, causes all logged messages to be sent the system's
+If set to 1, causes all logged messages to be sent the system's
 syslog program with syslog(3).
 
-Optional.  The default is false.
+Optional.  The default is 0.
 .RE
 
 .B
   mlog_syslogfac: <value>
 .RS
-If mlog_syslog is true, then this contains the facility level used to
+If mlog_syslog is 1, then this contains the facility level used to
 open syslog with openlog(3).  It must be of the format LOCALn
 where "n" is between 0 and 7.
 
@@ -409,12 +409,12 @@ Optional.  The default is to use the USER facility.
 .RE
 
 .B
-  mlog_ucon: <true/false>
+  mlog_ucon: <1/0>
 .RS
 A low-level debugging option that enables log messages to be sent
-to a UDP socket (if set to true).
+to a UDP socket (if set to 1).
 
-Optional.  The default is false.
+Optional.  The default is 0.
 .RE
 
 .SH ADVANCED EXAMPLE
