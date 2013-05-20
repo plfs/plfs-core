@@ -630,9 +630,9 @@ get_plfs_conf()
             cnode = YAML::LoadFile(file.c_str());
         }
         catch (exception& e) {
-            mlog(MLOG_ERR, e.what());
+            mlog(MLOG_ERR, "%s", e.what());
             mlog(MLOG_ERR, ".plfsrc file that caused exception: %s", file.c_str());
-            continue;
+            exit(1);
         }
         PlfsConf *tmppconf = parse_conf(cnode,file,NULL);
         if(tmppconf) {
