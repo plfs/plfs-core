@@ -198,7 +198,7 @@ if (CMAKE_INSTALL_PREFIX)
     message ("-- CMAKE_INSTALL_PREFIX set to ${CMAKE_INSTALL_PREFIX}")
 endif(CMAKE_INSTALL_PREFIX)
 
-if (NOT LIBDIR)
+if (NOT LIBDIR OR LIBDIR STREQUAL "lib")
     set (LIBDIR "lib/" CACHE PATH "Destination of all libraries")
     set (CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${LIBDIR}")
 else()
