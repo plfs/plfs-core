@@ -485,7 +485,7 @@ Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index, string path)
             args.index = index;
             args.tasks = &tasks;
             pthread_mutex_init( &(args.mux), NULL );
-            size_t count = min(pconf->threadpool_size,tasks.size());
+            size_t count = min((size_t)pconf->threadpool_size,tasks.size());
             ThreadPool threadpool(count,indexer_thread, (void *)&args);
             mlog(CON_DAPI, "%lu THREADS to create index of %s",
                  (unsigned long)count,path.c_str());

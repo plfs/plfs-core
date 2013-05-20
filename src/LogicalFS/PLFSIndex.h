@@ -29,7 +29,7 @@ public:
  * This function takes care of thread pool and open file cache. The only
  * thing you need to do is providing a class derived from PLFSIndex.
  */
-ssize_t plfs_reader(void *unused, char *buf, size_t size,
+size_t plfs_reader(void *unused, char *buf, size_t size,
                     off_t offset, PLFSIndex *index);
 
 #endif
