@@ -14,11 +14,11 @@ settings for their github account in Account Settings.
 
 4) Treat all build warnings as errors.
 No build warnings!
-Use the following environment variables when running configure to make sure
-all warnings are being treated as errors:
+Use the following flags when running cmake to make sure all warnings are being 
+treated as errors:
 
-setenv CFLAGS '-Wall -Werror -Wshadow'
-setenv CXXFLAGS '-Wall -Werror -Wshadow'
+-DCMAKE_C_FLAGS="-Wall -Werror -Wshadow"
+-DCMAKE_CXX_FLAGS="-Wall -Werror -Wshadow"
 
 5) Everything must be code-reviewed before being committed to the master
 branch on github
@@ -123,38 +123,17 @@ Once regression testing is done and a new release is ready, do the following:
 Generate a tarball
     1) Make sure the local repository is set for <release> (use
     'git checkout <release>')
-    2) ./autogen.sh
-    3) ./configure
-    4) make dist # Creates plfs-<version>.tar.gz
-    5) Upload the tarball to github.com
+    2) cmake .
+    3) make dist # Creates plfs-<version>.tar.gz
+    4) Upload the tarball to github.com
 
-8) AUTOGEN
-./autogen.sh checks for versions of the autotools to create the PLFS build
-scripts. The check is a greater than or equal to check. That is, any version
-of the autotools that is greater than or equal to a minimum will work. 
-Makefile.tools can be used to quickly download and build the needed versions.
-Do 'make -f Makefile.tools' to install all the necessary build tools into
-./buildtools/bin. Then prepend that to your PATH and then ./autogen.sh will
-just work. Except sometimes recently Makefile.tools doesn't work always. Very
-annoying. In this case, just find one machine where you have all the right
-versions and then use sshfs from that machine to the target machine to do the
-autogen.
+8) MAKEFILES
+Don't edit Makefiles directly.  Edit the CMakeLists.txt file to change build
+behavoir
 
-9) MAKEFILES
-Don't edit Makefiles directly.  Edit the Makefile.am files and then redo
-autogen and configure
-
-10) CONFIGURE
-./easyconf.sh is your friend.  Here are the environment variables I set:
-
-setenv PLFS_WANT_ALL_DEBUG 1
-setenv PLFS_WANT_DEBUG_FLAGS 1
-setenv PLFS_WANT_VERBOSE_CONF_OUT 1 
-setenv PLFS_WANT_ADIO 0
-
-11) DEBUGGING WITH MLOG
+9) DEBUGGING WITH MLOG
 Please read README.mlog
 
-12) valgrind on OS X
+10) valgrind on OS X
 You will need to run dsymutil on the plfs binary and libplfs.0.dylib to get 
 debug symbols available for valgrind so it can report line numbers.

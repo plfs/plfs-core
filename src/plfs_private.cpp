@@ -1,26 +1,8 @@
-#define MLOG_FACSARRAY   /* need to define before include mlog .h files */
-
 #include <cstdlib>
 #include "plfs_internal.h"
 #include "plfs_private.h"
 #include "Util.h"
-#include "mlog.h"
 #include "LogMessage.h"
-#include "IOStore.h"
-#include "ThreadPool.h"
-
-// why is these included???!!!????
-#include "FlatFileFS.h"
-#include "ContainerFS.h"
-#include "SmallFileFS.h"
-#include <assert.h>
-#include <stdlib.h>
-
-#include <syslog.h>    /* for mlog init */
-
-static void parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
-                              char *key, char *value);
-
 
 // the expansion info doesn't include a string for the backend
 // to save a bit of space (probably an unnecessary optimization but anyway)
@@ -52,7 +34,7 @@ find_mount_point(PlfsConf *pconf, const string& logical, bool& found)
 {
     mlog(INT_DAPI,"Searching for mount point matching %s", logical.c_str());
     vector<string> logical_tokens;
-    Util::tokenize(logical,"/",logical_tokens);
+    Util::fast_tokenize(logical.c_str(),logical_tokens);
     return find_mount_point_using_tokens(pconf,logical_tokens,found);
 }
 
@@ -154,7 +136,7 @@ expandPath(string logical, ExpansionInfo *exp_info,
     // find the appropriate PlfsMount from the PlfsConf
     bool mnt_pt_found = false;
     vector<string> logical_tokens;
-    Util::tokenize(logical,"/",logical_tokens);
+    Util::fast_tokenize(logical.c_str(),logical_tokens);
     PlfsMount *pm = find_mount_point_using_tokens(pconf,logical_tokens,
                     mnt_pt_found);
     if(!mnt_pt_found || pm == NULL) {
@@ -250,557 +232,7 @@ expandPath(string logical, ExpansionInfo *exp_info,
     return exp_info->expanded;
 }
 
-// a helper routine that returns a list of all possible expansions
-// for a logical path (canonical is at index 0, shadows at the rest)
-// also works for directory operations which need to iterate on all
-// it may well return some paths which don't actually exist
-// some callers assume that the ordering is consistent.  Don't change.
-// also, the order returned is the same as the ordering of the backends.
-// returns 0 or -err
-int
-find_all_expansions(const char *logical, vector<plfs_pathback> &containers)
-{
-    PLFS_ENTER;
-    ExpansionInfo exp_info;
-    struct plfs_pathback pb;
-    for(int i = 0; i < expansion_info.mnt_pt->nback; i++) {
-        path = expandPath(logical,&exp_info,EXPAND_TO_I,i,0);
-        if(exp_info.Errno) {
-            PLFS_EXIT(exp_info.Errno);
-        }
-        pb.bpath = path;
-        pb.back = exp_info.backend;
-        containers.push_back(pb);
-    }
-    PLFS_EXIT(ret);
-}
-
-// helper routine for plfs_dump_config
-// changes ret to new error or leaves it alone
-int
-plfs_check_dir(string type, const char *prefix, IOStore *store, string bpath,
-               int previous_ret, bool make_dir)
-{
-    const char *directory = bpath.c_str();
-    int rv;
-
-    if(Util::isDirectory(directory, store)) {
-        return(previous_ret);
-    }
-    if (!make_dir) {
-        printf("Error: Required %s directory %s%s not found/not a directory\n",
-               type.c_str(), prefix, directory);
-        return(-ENOENT);
-    }
-    rv = mkdir_dash_p(bpath, false, store);
-    if (rv < 0) {
-        printf("Attempt to create directory %s%s failed (%s)\n",
-               prefix, directory, strerror(-rv));
-        return(rv);
-    }
-    return(previous_ret);
-}
-
-int
-print_backends(PlfsMount *pmnt, int simple, bool check_dirs,
-               int ret, bool make_dir)
-{
-    int lcv, idx, can, shd;
-    struct plfs_backend **bcks;
-
-    bcks = pmnt->backends;
-    for (lcv = 0 ; lcv < pmnt->nback ; lcv++) {
-
-        can = shd = 0;
-        if (!simple) {
-            for (idx = 0, can = 0; idx < pmnt->ncanback && can == 0; idx++) {
-                if (pmnt->canonical_backends[idx] == bcks[lcv]) {
-                    can++;
-                }
-            }
-            for (idx = 0, shd = 0; idx < pmnt->nshadowback && shd == 0; idx++) {
-                if (pmnt->shadow_backends[idx] == bcks[lcv]) {
-                    shd++;
-                }
-            }
-        }
-
-        printf("\tBackend: %s%s%s%s\n", bcks[lcv]->prefix,
-               bcks[lcv]->bmpoint.c_str(), (can) ? " CANONICAL" : "",
-               (shd) ? " SHADOW" : "");
-
-        if (check_dirs) {
-            ret = plfs_check_dir("backend", bcks[lcv]->prefix,
-                                 bcks[lcv]->store, bcks[lcv]->bmpoint,
-                                 ret, make_dir);
-        }
-    }
-
-    return(ret);
-}
-
-// returns 0 or -err
-int
-plfs_dump_config(int check_dirs, int make_dir)
-{
-    PlfsConf *pconf = get_plfs_conf();
-    static IOStore *fakestore = NULL;
-    int simple;
-    if ( ! pconf ) {
-        cerr << "FATAL no plfsrc file found.\n" << endl;
-        return -ENOENT;
-    }
-    if ( pconf->err_msg ) {
-        cerr << "FATAL conf file error: " << *(pconf->err_msg) << endl;
-        return -EINVAL;
-    }
-
-    /*
-     * if we make it here, we've parsed correctly.  if we are checking
-     * dirs, then we need to attach to backends.  in order to check
-     * the global_summary_dir (if enabled), we do a one-off attach
-     * here first.   we also need a fake iostore to check local posix
-     * mount points (e.g. for FUSE, but it doesn't make sense for MPI
-     * or library access XXX).
-     */
-
-    if (check_dirs) {
-        if (pconf->global_summary_dir) {
-            map<string,PlfsMount *>::iterator itr;
-            PlfsMount *pmnt;
-            itr = pconf->mnt_pts.begin();
-            /* note: get_plfs_conf() ensures there is at least 1 mnt */
-            pmnt = itr->second;
-            (void) plfs_attach(pmnt); /* ignore ret val */
-        }
-
-        /* XXX: generate a fake POSIX iostore, we'll never free it */
-        if (fakestore == NULL) {
-            char *pp, *bmp, spec[2];
-            int pl;
-            spec[0] = '/';
-            spec[1] = 0;
-            fakestore = plfs_iostore_get(spec, &pp, &pl, &bmp);
-        }
-    }
-
-    vector<int> rets;
-    int ret = 0;
-    cout << "Config file " << pconf->file << " correctly parsed:" << endl
-         << "Num Hostdirs: " << pconf->num_hostdirs << endl
-         << "Threadpool size: " << pconf->threadpool_size << endl
-         << "Write index buffer size (mbs): " << pconf->buffer_mbs << endl
-         << "Read index buffer size (mbs): " << pconf->read_buffer_mbs << endl
-         << "Max cached smallfile containers: "
-         << pconf->max_smallfile_containers << endl
-         << "Num Mountpoints: " << pconf->mnt_pts.size() << endl
-         << "Lazy Stat: " << (int)pconf->lazy_stat << endl;
-    if (pconf->global_summary_dir) {
-        cout << "Global summary dir: " << pconf->global_summary_dir << endl;
-        if(check_dirs) {
-            ret = plfs_check_dir("global_summary_dir",
-                                 pconf->global_sum_io.prefix,
-                                 pconf->global_sum_io.store,
-                                 pconf->global_sum_io.bmpoint,ret,make_dir);
-        }
-    }
-    if (pconf->test_metalink) {
-        cout << "Test metalink: TRUE" << endl;
-    }
-    if (pconf->lazy_droppings) {
-        cout << "Lazy droppings: TRUE" << endl;
-    }
-    map<string,PlfsMount *>::iterator itr;
-    for(itr=pconf->mnt_pts.begin(); itr!=pconf->mnt_pts.end(); itr++) {
-        PlfsMount *pmnt = itr->second;
-        int check_dirs_now = check_dirs;
-        cout << "Mount Point " << itr->first << " :" << endl;
-        cout << "\tExpected Workload "
-             << (pmnt->file_type == CONTAINER ? "shared_file (N-1)"
-                 : pmnt->file_type == FLAT_FILE ? "file_per_proc (N-N)"
-                 : pmnt->file_type == SMALL_FILE ? "small_file (1-N)"
-                 : "UNKNOWN.  WTF.  email plfs-devel@lists.sourceforge.net")
-             << endl;
-        if (check_dirs && plfs_attach(pmnt) != 0) {
-            cout << "\tUnable to attach to mount point, disable check_dirs"
-                 << endl;
-            check_dirs_now = 0;
-        }
-        if(check_dirs_now && fakestore != NULL) {
-            ret = plfs_check_dir("mount_point","",
-                                 fakestore,itr->first,ret,make_dir);
-        }
-
-        simple = (pmnt->ncanback == pmnt->nback) &&
-            (pmnt->nshadowback == pmnt->nback);
-        if (simple) {
-            printf("\tBackends: total=%d (no restrictions)\n", pmnt->nback);
-        } else {
-        printf("\tBackends: canonical=%d, shadow=%d, total=%d\n",
-               pmnt->ncanback, pmnt->nshadowback, pmnt->nback);
-        }
-
-        ret = print_backends(pmnt, simple, check_dirs_now, ret, make_dir);
-
-        if(pmnt->syncer_ip) {
-            cout << "\tSyncer IP: " << pmnt->syncer_ip->c_str() << endl;
-        }
-        if(pmnt->statfs) {
-            cout << "\tStatfs: " << pmnt->statfs->c_str() << endl;
-            if(check_dirs_now && pmnt->statfs_io.store != NULL) {
-                ret=plfs_check_dir("statfs",pmnt->statfs_io.prefix,
-                                   pmnt->statfs_io.store,
-                                   pmnt->statfs->c_str(),ret,make_dir);
-            }
-        }
-        cout << "\tMax writers: " << pmnt->max_writers << endl;
-        cout << "\tChecksum: " << pmnt->checksum << endl;
-    }
-    return ret;
-}
-
-
 /*
- * This function gets the hostname on which the application is running.
- */
-
-char
-*plfs_gethostname()
-{
-      return Util::hostname();
-}
-
-
-double
-plfs_wtime()
-{
-    return Util::getTime();
-}
-
-// this applies a function to a directory path on each backend
-// currently used by readdir, rmdir, mkdir
-// this doesn't require the dirs to already exist
-// returns 0 or -err
-int
-plfs_iterate_backends(const char *logical, FileOp& op)
-{
-    int ret = 0;
-    vector<plfs_pathback> exps;
-    vector<plfs_pathback>::iterator itr;
-    if ( (ret = find_all_expansions(logical,exps)) != 0 ) {
-        PLFS_EXIT(ret);
-    }
-    for(itr = exps.begin(); itr != exps.end() && ret == 0; itr++ ) {
-        ret = op.op(itr->bpath.c_str(),DT_DIR,itr->back->store);
-        mlog(INT_DCOMMON, "%s on %s: %d",op.name(),itr->bpath.c_str(),ret);
-    }
-    PLFS_EXIT(ret);
-}
-
-void
-plfs_stat_add(const char *func, double elapsed, int ret)
-{
-    Util::addTime(func,elapsed,ret);
-}
-
-void
-plfs_stats( void *vptr )
-{
-    string *stats = (string *)vptr;
-    string ustats = Util::toString();
-    (*stats) = ustats;
-}
-
-// this code just iterates up a path and makes sure all the component
-// directories exist.  It's not particularly efficient since it starts
-// at the beginning and works up and many of the dirs probably already
-// do exist
-// returns 0 or -err
-// if it sees EEXIST, it silently ignores it and returns 0
-int
-mkdir_dash_p(const string& path, bool parent_only, IOStore *store)
-{
-    string recover_path;
-    vector<string> canonical_tokens;
-    mlog(INT_DAPI, "%s on %s",__FUNCTION__,path.c_str());
-    Util::tokenize(path,"/",canonical_tokens);
-    size_t last = canonical_tokens.size();
-    if (parent_only) {
-        last--;
-    }
-    for(size_t i=0 ; i < last; i++) {
-        recover_path += "/";
-        recover_path += canonical_tokens[i];
-        int ret = store->Mkdir(recover_path.c_str(), CONTAINER_MODE);
-        if ( ret != 0 && ret != -EEXIST ) { // some other error
-            return(ret);
-        }
-    }
-    return 0;
-}
-
-// restores a lost directory hierarchy
-// currently just used in plfs_recover.  See more comments there
-// returns 0 or -err
-// if directories already exist, it returns 0
-int
-recover_directory(const char *logical, bool parent_only)
-{
-    PLFS_ENTER;
-    vector<plfs_pathback> exps;
-    if ( (ret = find_all_expansions(logical,exps)) != 0 ) {
-        PLFS_EXIT(ret);
-    }
-    for(vector<plfs_pathback>::iterator itr = exps.begin();
-            itr != exps.end();
-            itr++ ) {
-        ret = mkdir_dash_p(itr->bpath,parent_only,itr->back->store);
-    }
-    return ret;
-}
-
-// a (non-thread proof) way to ensure we only init once
-bool
-plfs_conditional_init() {
-    static bool inited = false;
-    bool ret = true;
-    if (!inited) {
-        ret = plfs_init();
-        inited = true;
-    }
-    return ret;
-}
-
-bool
-plfs_warm_path_resolution(PlfsConf *pconf) { 
-    map<string,PlfsMount*>::iterator itr = pconf->mnt_pts.begin();
-    if (itr==pconf->mnt_pts.end()) return false;
-    ExpansionInfo exp_info;
-    expandPath(itr->first,&exp_info,EXPAND_SHADOW,-1,0);
-    return(exp_info.expand_error ? false : true);
-}
-
-// this init's the library if it hasn't been done yet
-bool
-plfs_init()
-{
-    static pthread_mutex_t confmutex = PTHREAD_MUTEX_INITIALIZER;
-    static PlfsConf *pconf = NULL;
-    bool ret = true;
-    if ( ! pconf ) {    // not yet initialized.  Try to do so.
-        pthread_mutex_lock(&confmutex); // who should initialize?
-        if (pconf) { // someone beat us in race.  they will initialize.
-            ret = true;
-        } else {    // we won race.  we need to initialize.
-            LogMessage::init();
-            pconf = get_plfs_conf();
-            if ( !pconf ) {
-                ret = false;    // something failed
-            } else {
-                ret = plfs_warm_path_resolution(pconf); 
-                if ( !ret ) {
-                    mlog(MLOG_WARN, "Unable to warm path resolution\n"); 
-                }
-            }
-        }
-        pthread_mutex_unlock(&confmutex); 
-    }
-    return ret;
-}
-
-/**
- * plfs_mlogargs: manage mlog command line args (override plfsrc).
- *
- * @param mlargc argc (in if mlargv, out if !mlargv)
- * @param mlargv NULL if reading back old value, otherwise value to save
- * @return the mlog argv[]
- */
-char **
-plfs_mlogargs(int *mlargc, char **mlargv)
-{
-    static int mlac = 0;
-    static char **mlav = NULL;
-    if (mlargv) {
-        mlac = *mlargc;    /* read back */
-        mlav = mlargv;
-    } else {
-        *mlargc = mlac;    /* set */
-    }
-    return(mlav);
-}
-
-/**
- * plfs_mlogtag: allow override of default mlog tag for apps that
- * can support it.
- *
- * @param newtag the new tag to use, or NULL just to read the tag
- * @return the current tag
- */
-char *
-plfs_mlogtag(char *newtag)
-{
-    static char *tag = NULL;
-    if (newtag) {
-        tag = newtag;
-    }
-    return((tag) ? tag : (char *)"plfs");
-}
-
-/**
- * setup_mlog_facnamemask: setup the mlog facility names and inital
- * mask.    helper function for setup_mlog() and get_plfs_conf(), the
- * latter for the early mlog init before the plfsrc is read.
- *
- * @param masks masks in mlog_setmasks() format, or NULL
- */
-void
-setup_mlog_facnamemask(char *masks)
-{
-    int lcv;
-    /* name facilities */
-    for (lcv = 0; mlog_facsarray[lcv] != NULL ; lcv++) {
-        /* can't fail, as we preallocated in mlog_open() */
-        if (lcv == 0) {
-            continue;    /* don't mess with the default facility */
-        }
-        (void) mlog_namefacility(lcv, (char *)mlog_facsarray[lcv],
-                                 (char *)mlog_lfacsarray[lcv]);
-    }
-    /* finally handle any mlog_setmasks() calls */
-    if (masks != NULL) {
-        mlog_setmasks(masks, -1);
-    }
-}
-
-/**
- * setup_mlog: setup and open the mlog, as per default config, augmented
- * by plfsrc, and then by command line args
- *
- * XXX: we call parse_conf_keyval with a NULL pmntp... shouldn't be
- * a problem because we restrict the parser to "mlog_" style key values
- * (so it will never touch that).
- *
- * @param pconf the config we are going to use
- */
-static void
-setup_mlog(PlfsConf *pconf)
-{
-    static const char *menvs[] = { "PLFS_MLOG_STDERR", "PLFS_MLOG_UCON",
-                                   "PLFS_MLOG_SYSLOG", "PLFS_MLOG_DEFMASK",
-                                   "PLFS_MLOG_STDERRMASK", "PLFS_MLOG_FILE",
-                                   "PLFS_MLOG_MSGBUF_SIZE",
-                                   "PLFS_MLOG_SYSLOGFAC",
-                                   "PLFS_MLOG_SETMASKS", 0
-                                 };
-    int lcv, mac;
-    char *ev, *p, **mav, *start;
-    char tmpbuf[64];   /* must be larger than any envs in menvs[] */
-    const char *level;
-    /* read in any config from the environ */
-    for (lcv = 0 ; menvs[lcv] != NULL ; lcv++) {
-        ev = getenv(menvs[lcv]);
-        if (ev == NULL) {
-            continue;
-        }
-        strcpy(tmpbuf, menvs[lcv] + sizeof("PLFS_")-1);
-        for (p = tmpbuf ; *p ; p++) {
-            if (isupper(*p)) {
-                *p = tolower(*p);
-            }
-        }
-        parse_conf_keyval(pconf, NULL, NULL, tmpbuf, ev);
-        if (pconf->err_msg) {
-            mlog(MLOG_WARN, "ignore env var %s: %s", menvs[lcv],
-                 pconf->err_msg->c_str());
-            delete pconf->err_msg;
-            pconf->err_msg = NULL;
-        }
-    }
-    /* recover command line arg key/value pairs, if any */
-    mav = plfs_mlogargs(&mac, NULL);
-    if (mac) {
-        for (lcv = 0 ; lcv < mac ; lcv += 2) {
-            start = mav[lcv];
-            if (start[0] == '-' && start[1] == '-') {
-                start += 2;    /* skip "--" */
-            }
-            parse_conf_keyval(pconf, NULL, NULL, start, mav[lcv+1]);
-            if (pconf->err_msg) {
-                mlog(MLOG_WARN, "ignore cmd line %s flag: %s", start,
-                     pconf->err_msg->c_str());
-                delete pconf->err_msg;
-                pconf->err_msg = NULL;
-            }
-        }
-    }
-    /* simplified high-level env var config, part 1 (WHERE) */
-    ev = getenv("PLFS_DEBUG_WHERE");
-    if (ev) {
-        parse_conf_keyval(pconf, NULL, NULL, (char *)"mlog_file", ev);
-        if (pconf->err_msg) {
-            mlog(MLOG_WARN, "PLFS_DEBUG_WHERE error: %s",
-                 pconf->err_msg->c_str());
-            delete pconf->err_msg;
-            pconf->err_msg = NULL;
-        }
-    }
-    /* end of part 1 of simplified high-level env var config */
-    /* shutdown early mlog config so we can replace with the real one ... */
-    mlog_close();
-    /* now we are ready to mlog_open ... */
-    if (mlog_open(plfs_mlogtag(NULL),
-                  /* don't count the null at end of mlog_facsarray */
-                  sizeof(mlog_facsarray)/sizeof(mlog_facsarray[0]) - 1,
-                  pconf->mlog_defmask, pconf->mlog_stderrmask,
-                  pconf->mlog_file, pconf->mlog_msgbuf_size,
-                  pconf->mlog_flags, pconf->mlog_syslogfac) < 0) {
-        fprintf(stderr, "mlog_open: failed.  Check mlog params.\n");
-        /* XXX: keep going without log?   or abort/exit? */
-        exit(1);
-    }
-    setup_mlog_facnamemask(pconf->mlog_setmasks);
-    /* simplified high-level env var config, part 2 (LEVEL,WHICH) */
-    level = getenv("PLFS_DEBUG_LEVEL");
-    if (level && mlog_str2pri((char *)level) == -1) {
-        mlog(MLOG_WARN, "PLFS_DEBUG_LEVEL error: bad level: %s", level);
-        level = NULL;   /* reset to default */
-    }
-    ev = getenv("PLFS_DEBUG_WHICH");
-    if (ev == NULL) {
-        if (level != NULL) {
-            mlog_setmasks((char *)level, -1);  /* apply to all facs */
-        }
-    } else {
-        while (*ev) {
-            start = ev;
-            while (*ev != 0 && *ev != ',') {
-                ev++;
-            }
-            snprintf(tmpbuf, sizeof(tmpbuf), "%.*s=%s", (int)(ev - start),
-                     start, (level) ? level : "DBUG");
-            mlog_setmasks(tmpbuf, -1);
-            if (*ev == ',') {
-                ev++;
-            }
-        }
-    }
-    /* end of part 2 of simplified high-level env var config */
-    mlog(PLFS_INFO, "mlog init complete");
-#if 0
-    /* XXXCDC: FOR LEVEL DEBUG */
-    mlog(PLFS_EMERG, "test emergy log");
-    mlog(PLFS_ALERT, "test alert log");
-    mlog(PLFS_CRIT, "test crit log");
-    mlog(PLFS_ERR, "test err log");
-    mlog(PLFS_WARN, "test warn log");
-    mlog(PLFS_NOTE, "test note log");
-    mlog(PLFS_INFO, "test info log");
-    /* XXXCDC: END LEVEL DEBUG */
-#endif
-    return;
-}
-
-/**
  * plfs_attach: attach a filesystem.  must protect pmnt iostore data
  * with a mutex.
  *
@@ -835,7 +267,7 @@ int plfs_attach(PlfsMount *pmnt) {
             }
         }
     } /* end: special case code for global_summary_dir */
-    
+
     { /* begin: special case code for statfs */
         if (pmnt->statfs != NULL) {
             if (plfs_iostore_factory(pmnt, &pmnt->statfs_io) != 0) {
@@ -844,7 +276,7 @@ int plfs_attach(PlfsMount *pmnt) {
             }
         }
     } /* end: special case code for statfs */
-    
+
     /* be careful about partly attached mounts */
     for (lcv = 0 ; lcv < pmnt->nback && rv == 0 ; lcv++) {
         if (pmnt->backends[lcv]->store != NULL)
@@ -860,8 +292,7 @@ int plfs_attach(PlfsMount *pmnt) {
     return(rv);
 }
 
-
-/**
+/*
  * insert_backends: insert some backends into a mount
  *
  * @param pconf current config (so we can look for dups)
@@ -870,7 +301,8 @@ int plfs_attach(PlfsMount *pmnt) {
  * @param bas free backend store array
  * @return NULL on success, otherwise error message
  */
-string *insert_backends(PlfsConf *pconf, char *spec, int n,
+string *
+insert_backends(PlfsConf *pconf, char *spec, int n,
                         struct plfs_backend *bas) {
     string *error;
     int idx;
@@ -897,18 +329,19 @@ string *insert_backends(PlfsConf *pconf, char *spec, int n,
          */
         bas[idx].prefix = sp;
     }
-    
+
     return(NULL);
 }
 
-/**
+/*
  * countchar: count number of times a char occurs in a string
  *
  * @param c the char to look for
  * @param str the string to look in (can be NULL)
  * @return the count, -1 if string is null
  */
-static int countchar(int c, char *str) {
+static int 
+countchar(int c, char *str) {
     int tot;
     char *p;
     if (!str) {
@@ -922,16 +355,15 @@ static int countchar(int c, char *str) {
     return(tot);
 }
 
-/**
+/*
  * insert_mount_point: insert a mount point into config (mnt_pts).
  *
  * @param pconf the current config
  * @param pmnt the mount point to try and insert
- * @param file the cfg file we are currently reading
  * @return NULL on success, otherwise an error message string
  */
 string *
-insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt, char *file)
+insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt)
 {
     /*
      * two main mallocs here:
@@ -1074,8 +506,8 @@ insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt, char *file)
     }
 
     /* finally, insert into list of global mount points */
-    mlog(INT_DCOMMON, "Inserting mount point %s as discovered in %s",
-         pmnt->mnt_pt.c_str(), file);
+    mlog(INT_DCOMMON, "Inserting mount point %s",
+         pmnt->mnt_pt.c_str());
     insert_ret = pconf->mnt_pts.insert(pair<string,PlfsMount *>(pmnt->mnt_pt,
                                                                 pmnt));
     if (!insert_ret.second) {
@@ -1094,497 +526,366 @@ insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt, char *file)
     return(error);
 }
 
-void
-set_default_mount(PlfsMount *pmnt)
+// a helper routine that returns a list of all possible expansions
+// for a logical path (canonical is at index 0, shadows at the rest)
+// also works for directory operations which need to iterate on all
+// it may well return some paths which don't actually exist
+// some callers assume that the ordering is consistent.  Don't change.
+// also, the order returned is the same as the ordering of the backends.
+// returns 0 or -err
+int
+find_all_expansions(const char *logical, vector<plfs_pathback> &containers)
 {
-    pmnt->statfs = pmnt->syncer_ip = NULL;
-    pmnt->statfs_io.prefix = NULL;
-    pmnt->statfs_io.store = NULL;
-    pmnt->file_type = CONTAINER;
-    pmnt->fs_ptr = &containerfs;
-    pmnt->max_writers = 4;
-    pmnt->checksum = (unsigned)-1;
-    pmnt->backspec = pmnt->canspec = pmnt->shadowspec = NULL;
-    pmnt->attached = pmnt->nback = pmnt->ncanback = pmnt->nshadowback = 0;
-    pmnt->backstore = NULL;
-    pmnt->backends = pmnt->canonical_backends = pmnt->shadow_backends = NULL;
+    PLFS_ENTER;
+    ExpansionInfo exp_info;
+    struct plfs_pathback pb;
+    for(int i = 0; i < expansion_info.mnt_pt->nback; i++) {
+        path = expandPath(logical,&exp_info,EXPAND_TO_I,i,0);
+        if(exp_info.Errno) {
+            PLFS_EXIT(exp_info.Errno);
+        }
+        pb.bpath = path;
+        pb.back = exp_info.backend;
+        containers.push_back(pb);
+    }
+    PLFS_EXIT(ret);
 }
 
-void
-set_default_confs(PlfsConf *pconf)
+// helper routine for plfs_dump_config
+// changes ret to new error or leaves it alone
+int
+plfs_check_dir(string type, const char *prefix, IOStore *store, string bpath,
+               int previous_ret, bool make_dir)
 {
-    pconf->num_hostdirs = 32;
-    pconf->threadpool_size = 8;
-    pconf->direct_io = 0;
-    pconf->lazy_stat = 1;
-    pconf->err_msg = NULL;
-    pconf->buffer_mbs = 64;
-    pconf->read_buffer_mbs = 64;
-    pconf->global_summary_dir = NULL;
-    pconf->global_sum_io.prefix = NULL;
-    pconf->global_sum_io.store = NULL;
-    pconf->test_metalink = 0;
-    pconf->lazy_droppings = 1;
-    /* default mlog settings */
-    pconf->mlog_flags = MLOG_LOGPID;
-    pconf->mlog_defmask = MLOG_WARN;
-    pconf->mlog_stderrmask = MLOG_CRIT;
-    pconf->mlog_file_base = NULL;
-    pconf->mlog_file = NULL;
-    pconf->mlog_msgbuf_size = 4096;
-    pconf->mlog_syslogfac = LOG_USER;
-    pconf->mlog_setmasks = NULL;
-    pconf->tmp_mnt = NULL;
-    pconf->fuse_crash_log = NULL;
-    pconf->max_smallfile_containers = 32;
+    const char *directory = bpath.c_str();
+    int rv;
+
+    if(Util::isDirectory(directory, store)) {
+        return(previous_ret);
+    }
+    if (!make_dir) {
+        printf("Error: Required %s directory %s%s not found/not a directory\n",
+               type.c_str(), prefix, directory);
+        return(-ENOENT);
+    }
+    rv = mkdir_dash_p(bpath, false, store);
+    if (rv < 0) {
+        printf("Attempt to create directory %s%s failed (%s)\n",
+               prefix, directory, strerror(-rv));
+        return(rv);
+    }
+    return(previous_ret);
 }
 
+int
+print_backends(PlfsMount *pmnt, int simple, bool check_dirs,
+               int ret, bool make_dir)
+{
+    int lcv, idx, can, shd;
+    struct plfs_backend **bcks;
 
+    bcks = pmnt->backends;
+    for (lcv = 0 ; lcv < pmnt->nback ; lcv++) {
 
-// a helper function that expands %t, %p, %h in mlog file name
-string
-expand_macros(const char *target) {
-    ostringstream oss;
-    for(size_t i = 0; i < strlen(target); i++) {
-        if (target[i] != '%') {
-            oss << target[i];
-        } else {
-            switch(target[++i]) {
-                case 'h':
-                    oss << Util::hostname();
-                    break;
-                case 'p':
-                    oss << getpid(); 
-                    break;
-                case 't':
-                    oss << time(NULL); 
-                    break;
-                default:
-                    oss << "%";
-                    oss << target[i];
-                    break;
+        can = shd = 0;
+        if (!simple) {
+            for (idx = 0, can = 0; idx < pmnt->ncanback && can == 0; idx++) {
+                if (pmnt->canonical_backends[idx] == bcks[lcv]) {
+                    can++;
+                }
+            }
+            for (idx = 0, shd = 0; idx < pmnt->nshadowback && shd == 0; idx++) {
+                if (pmnt->shadow_backends[idx] == bcks[lcv]) {
+                    shd++;
+                }
             }
         }
+
+        printf("\tBackend: %s%s%s%s\n", bcks[lcv]->prefix,
+               bcks[lcv]->bmpoint.c_str(), (can) ? " CANONICAL" : "",
+               (shd) ? " SHADOW" : "");
+
+        if (check_dirs) {
+            ret = plfs_check_dir("backend", bcks[lcv]->prefix,
+                                 bcks[lcv]->store, bcks[lcv]->bmpoint,
+                                 ret, make_dir);
+        }
     }
-    return oss.str();
+
+    return(ret);
 }
 
-/**
- * parse_conf_keyval: parse a single conf key/value entry.  void, but will
- * set pconf->err_msg on error.
- *
- * @param pconf the pconf we are loading into
- * @param pmntp pointer to current mount pointer
- * @param key the key value
- * @param value the value of the key
+// returns 0 or -err
+int
+plfs_dump_config(int check_dirs, int make_dir)
+{
+    PlfsConf *pconf = get_plfs_conf();
+    static IOStore *fakestore = NULL;
+    int simple;
+    if ( ! pconf ) {
+        cerr << "FATAL no plfsrc file found.\n" << endl;
+        return -ENOENT;
+    }
+    if ( pconf->err_msg ) {
+        cerr << "FATAL conf file error: " << *(pconf->err_msg) << endl;
+        return -EINVAL;
+    }
+
+    /*
+     * if we make it here, we've parsed correctly.  if we are checking
+     * dirs, then we need to attach to backends.  in order to check
+     * the global_summary_dir (if enabled), we do a one-off attach
+     * here first.   we also need a fake iostore to check local posix
+     * mount points (e.g. for FUSE, but it doesn't make sense for MPI
+     * or library access XXX).
+     */
+
+    if (check_dirs) {
+        if (pconf->global_summary_dir) {
+            map<string,PlfsMount *>::iterator itr;
+            PlfsMount *pmnt;
+            itr = pconf->mnt_pts.begin();
+            /* note: get_plfs_conf() ensures there is at least 1 mnt */
+            pmnt = itr->second;
+            (void) plfs_attach(pmnt); /* ignore ret val */
+        }
+
+        /* XXX: generate a fake POSIX iostore, we'll never free it */
+        if (fakestore == NULL) {
+            char *pp, *bmp, spec[2];
+            int pl;
+            map<string,PlfsMount *>::iterator itr;
+            PlfsMount *pmnt;
+            itr = pconf->mnt_pts.begin();
+            /* note: get_plfs_conf() ensures there is at least 1 mnt */
+            pmnt = itr->second;
+            spec[0] = '/';
+            spec[1] = 0;
+            fakestore = plfs_iostore_get(spec, &pp, &pl, &bmp, pmnt);
+        }
+    }
+
+    vector<int> rets;
+    int ret = 0;
+    cout << "Config file " << pconf->file << " correctly parsed:" << endl
+         << "Num Hostdirs: " << pconf->num_hostdirs << endl
+         << "Threadpool size: " << pconf->threadpool_size << endl
+         << "Write index buffer size (mbs): " << pconf->buffer_mbs << endl
+         << "Read index buffer size (mbs): " << pconf->read_buffer_mbs << endl
+         << "Num Mountpoints: " << pconf->mnt_pts.size() << endl
+         << "Lazy Stat: " << pconf->lazy_stat << endl
+         << "Lazy Droppings: " << pconf->lazy_droppings << endl
+         << "Compress Contiguous: " << pconf->compress_contiguous << endl
+         << "Test Metalink: " << pconf->test_metalink << endl;
+    if (pconf->global_summary_dir) {
+        cout << "Global summary dir: " << pconf->global_summary_dir << endl;
+        if(check_dirs) {
+            ret = plfs_check_dir("global_summary_dir",
+                                 pconf->global_sum_io.prefix,
+                                 pconf->global_sum_io.store,
+                                 pconf->global_sum_io.bmpoint,ret,make_dir);
+        }
+    }
+    map<string,PlfsMount *>::iterator itr;
+    for(itr=pconf->mnt_pts.begin(); itr!=pconf->mnt_pts.end(); itr++) {
+        PlfsMount *pmnt = itr->second;
+        int check_dirs_now = check_dirs;
+        cout << "Mount Point " << itr->first << " :" << endl;
+        cout << "\tExpected Workload "
+             << (pmnt->file_type == CONTAINER ? "shared_file (N-1)"
+                 : pmnt->file_type == FLAT_FILE ? "file_per_proc (N-N)"
+                 : pmnt->file_type == SMALL_FILE ? "small_file (1-N)"
+                 : "UNKNOWN.  WTF.  email plfs-devel@lists.sourceforge.net")
+             << endl;
+        if (check_dirs && plfs_attach(pmnt) != 0) {
+            cout << "\tUnable to attach to mount point, disable check_dirs"
+                 << endl;
+            check_dirs_now = 0;
+        }
+        if(check_dirs_now && fakestore != NULL) {
+            ret = plfs_check_dir("mount_point","",
+                                 fakestore,itr->first,ret,make_dir);
+        }
+
+        simple = (pmnt->ncanback == pmnt->nback) &&
+            (pmnt->nshadowback == pmnt->nback);
+        if (simple) {
+            printf("\tBackends: total=%d (no restrictions)\n", pmnt->nback);
+        } else {
+        printf("\tBackends: canonical=%d, shadow=%d, total=%d\n",
+               pmnt->ncanback, pmnt->nshadowback, pmnt->nback);
+        }
+
+        ret = print_backends(pmnt, simple, check_dirs_now, ret, make_dir);
+        cout << "\tGlib buffer size (mbs): " << pmnt->glib_buffer_mbs << endl;
+        if(pmnt->syncer_ip) {
+            cout << "\tSyncer IP: " << pmnt->syncer_ip->c_str() << endl;
+        }
+        if(pmnt->statfs) {
+            cout << "\tStatfs: " << pmnt->statfs->c_str() << endl;
+            if(check_dirs_now && pmnt->statfs_io.store != NULL) {
+                ret=plfs_check_dir("statfs",pmnt->statfs_io.prefix,
+                                   pmnt->statfs_io.store,
+                                   pmnt->statfs->c_str(),ret,make_dir);
+            }
+        }
+        if (pmnt->file_type == SMALL_FILE) {
+            cout << "\tMax writers: " << pmnt->max_writers << endl;
+            cout << "\tMax cached smallfile containers: " 
+                << pmnt->max_smallfile_containers << endl;
+        }
+        cout << "\tChecksum: " << pmnt->checksum << endl;
+    }
+    return ret;
+}
+
+
+/*
+ * This function gets the hostname on which the application is running.
  */
-static void
-parse_conf_keyval(PlfsConf *pconf, PlfsMount **pmntp, char *file,
-                  char *key, char *value)
-{
-    int v;
-    if(strcmp(key,"index_buffer_mbs")==0) {
-        if (atoi(value) < 0) {
-            pconf->err_msg = new string("illegal negative value");
-        } else {
-            pconf->buffer_mbs = atoi(value);
-        }
-    } else if(strcmp(key,"read_buffer_mbs") == 0) {
-        if (atoi(value) <= 0) {
-            pconf->err_msg = new string("illegal negative value");
-        } else {
-            pconf->read_buffer_mbs = atoi(value);
-        }
-    } else if(strcmp(key,"max_writers") == 0) {
-        if( !*pmntp ) {
-            pconf->err_msg = new string("No mount point yet declared");
-            return;
-        }
-        if (atoi(value) < 0) {
-            pconf->err_msg = new string("illegal negative value");
-        } else {
-            (*pmntp)->max_writers = atoi(value);
-        }
-    } else if(strcmp(key,"workload")==0) {
-        if( !*pmntp ) {
-            pconf->err_msg = new string("No mount point yet declared");
-            return;
-        }
-        if (strcmp(value,"file_per_proc")==0||strcmp(value,"n-n")==0) {
-            (*pmntp)->file_type = FLAT_FILE;
-            (*pmntp)->fs_ptr = &flatfs;
-        } else if (strcmp(value,"shared_file")==0||strcmp(value,"n-1")==0) {
-            (*pmntp)->file_type = CONTAINER;
-            (*pmntp)->fs_ptr = &containerfs;
-        } else if (strcmp(value, "small_file")==0||strcmp(value,"1-n")==0) {
-            (*pmntp)->file_type = SMALL_FILE;
-            (*pmntp)->fs_ptr =new SmallFileFS(pconf->max_smallfile_containers);
-        } else {
-            pconf->err_msg = new string("unknown workload type");
-            return;
-        }
-    } else if(strcmp(key,"include")==0) {
-        FILE *include = fopen(value,"r");
-        if ( include == NULL ) {
-            pconf->err_msg = new string("open include file failed");
-        } else {
-            pconf = parse_conf(include, value, pconf);  // recurse
-            fclose(include);
-        }
-    } else if(strcmp(key,"threadpool_size")==0) {
-        pconf->threadpool_size = atoi(value);
-        if (pconf->threadpool_size <=0) {
-            pconf->err_msg = new string("illegal negative value");
-        }
-    }else if (strcmp(key,"fuse_crash_log") == 0) {
-        pconf->fuse_crash_log = strdup(value);
 
-        if (pconf->fuse_crash_log == NULL) {
-            pconf->err_msg = new string("Unable to set fuse_crash_log");
-         }
-    } else if(strcmp(key,"max_smallfile_containers")==0) {
-        pconf->max_smallfile_containers = atoi(value);
-        if (pconf->max_smallfile_containers <= 0) {
-            pconf->err_msg = new string("illegal negative value");
-        }
-    } else if (strcmp(key,"global_summary_dir")==0) {
-        pconf->global_summary_dir = strdup(value);
-        /* second copy gets chopped up by attach code */
-        pconf->global_sum_io.prefix = strdup(value);
-        if (pconf->global_summary_dir == NULL ||
-            pconf->global_sum_io.prefix == NULL) {
-            pconf->err_msg = new string("unable to malloc global_summary_dir");
-        }
-    } else if (strcmp(key,"test_metalink")==0) {
-        pconf->test_metalink = atoi(value);
-        if (pconf->test_metalink) {
-            fprintf(stderr,"WARNING: Running in testing mode with"
-                    " test_metalink.  If this is a production installation"
-                    " or if performance is important, pls edit %s to"
-                    " remove the test_metalink directive\n", file);
-        }
-    } else if (strcmp(key,"lazy_droppings")==0) {
-        pconf->lazy_droppings = atoi(value)==0 ? 0 : 1;
-    } else if (strcmp(key,"num_hostdirs")==0) {
-        pconf->num_hostdirs = atoi(value);
-        if (pconf->num_hostdirs <= 0) {
-            pconf->err_msg = new string("illegal negative value");
-        }
-        if (pconf->num_hostdirs > MAX_HOSTDIRS) {
-            pconf->num_hostdirs = MAX_HOSTDIRS;
-        }
-    } else if (strcmp(key,"lazy_stat")==0) {
-        pconf->lazy_stat = atoi(value)==0 ? 0 : 1;
-    } else if (strcmp(key,"mount_point")==0) {
-        // clear and save the previous one
-        if (*pmntp) {
-            pconf->err_msg = insert_mount_point(pconf,*pmntp,
-                                                file);
-            if(pconf->err_msg) {
-                return;
-            }
-            *pmntp = NULL;
-        }
-        // now set up the beginnings of the first one
-        *pmntp = new PlfsMount;
-        set_default_mount(*pmntp);
-        (*pmntp)->mnt_pt = value;
-        Util::tokenize((*pmntp)->mnt_pt,"/",
-                       (*pmntp)->mnt_tokens);
-    } else if (strcmp(key,"statfs")==0) {
-        if( !*pmntp ) {
-            pconf->err_msg = new string("No mount point yet declared");
-        }
-        (*pmntp)->statfs = new string(value);
-        (*pmntp)->statfs_io.prefix = strdup(value);
-        if ( (*pmntp)->statfs_io.prefix == NULL) {
-            pconf->err_msg = new string("Unable to malloc statfs");
-        }
-    } else if (strcmp(key,"backends")==0) {
-        if( !*pmntp ) {
-            pconf->err_msg = new string("No mount point yet declared");
-        } else {
-            (*pmntp)->backspec = strdup(value); /* XXX (old val?) */
-            if ((*pmntp)->backspec == NULL) {
-                pconf->err_msg = new string("unable to malloc backends");
-            } else {
-                (*pmntp)->checksum = (unsigned)Container::hashValue(value);
-            }
-        }
-    } else if (strcmp(key, "canonical_backends") == 0) {
-        if( !*pmntp ) {
-            pconf->err_msg = new string("No mount point yet declared");
-        } else {
-            (*pmntp)->canspec = strdup(value); /* XXX (old val?) */
-            if ((*pmntp)->canspec == NULL) {
-                pconf->err_msg = new string("unable to malloc can backends");
-            } 
-        }
-    } else if (strcmp(key, "shadow_backends") == 0) {
-        if( !*pmntp ) {
-            pconf->err_msg = new string("No mount point yet declared");
-        } else {
-            (*pmntp)->shadowspec = strdup(value); /* XXX (old val?) */
-            if ((*pmntp)->shadowspec == NULL) {
-                pconf->err_msg = new string("malloc shadow backends failed");
-            } 
-        }
-    } else if (strcmp(key, "syncer_ip") == 0) {
-        if( !*pmntp ) {
-            pconf->err_msg = new string("No mount point yet declared");
-        } else {
-            (*pmntp)->syncer_ip = new string(value);
-            mlog(MLOG_DBG, "Discovered syncer_ip %s\n",
-                 (*pmntp)->syncer_ip->c_str());
-        }
-    } else if (strcmp(key, "mlog_stderr") == 0) {
-        v = atoi(value);
-        if (v) {
-            pconf->mlog_flags |= MLOG_STDERR;
-        } else {
-            pconf->mlog_flags &= ~MLOG_STDERR;
-        }
-    } else if (strcmp(key, "mlog_ucon") == 0) {
-        v = atoi(value);
-        if (v) {
-            pconf->mlog_flags |= (MLOG_UCON_ON|MLOG_UCON_ENV);
-        } else {
-            pconf->mlog_flags &= ~(MLOG_UCON_ON|MLOG_UCON_ENV);
-        }
-    } else if (strcmp(key, "mlog_syslog") == 0) {
-        v = atoi(value);
-        if (v) {
-            pconf->mlog_flags |= MLOG_SYSLOG;
-        } else {
-            pconf->mlog_flags &= ~MLOG_SYSLOG;
-        }
-    } else if (strcmp(key, "mlog_defmask") == 0) {
-        pconf->mlog_defmask = mlog_str2pri(value);
-        if (pconf->mlog_defmask < 0) {
-            pconf->err_msg = new string("Bad mlog_defmask value");
-        }
-    } else if (strcmp(key, "mlog_stderrmask") == 0) {
-        pconf->mlog_stderrmask = mlog_str2pri(value);
-        if (pconf->mlog_stderrmask < 0) {
-            pconf->err_msg = new string("Bad mlog_stderrmask value");
-        }
-    } else if (strcmp(key, "mlog_file") == 0) {
-        v = (strchr(value, '%') != NULL);  /* expansion required? */
-        if (!v) {
-            /* mlog_file_base remains NULL */
-            pconf->mlog_file = strdup(value);
-        } else {
-            /* save value for expanding when calling mlog_reopen() */
-            pconf->mlog_file_base = strdup(value);
-            if (pconf->mlog_file_base != NULL) {
-                pconf->mlog_file = strdup(expand_macros(value).c_str());
-            }
-        }
-        if (pconf->mlog_file == NULL) {
-            /*
-             * XXX: strdup fails, new will too, and we don't handle
-             * exceptions... so we'll assert here.
-             */
-            if (pconf->mlog_file_base != NULL) {
-                free(pconf->mlog_file_base);
-                pconf->mlog_file_base = NULL;
-            }
-            pconf->err_msg = new string("Unable to malloc mlog_file");
-        }
-    } else if (strcmp(key, "mlog_msgbuf_size") == 0) {
-        pconf->mlog_msgbuf_size = atoi(value);
-        /*
-         * 0 means disable it.  negative non-zero values or very
-         * small positive numbers don't make sense, so disallow.
-         */
-        if (pconf->mlog_msgbuf_size < 0 ||
-                (pconf->mlog_msgbuf_size > 0 &&
-                 pconf->mlog_msgbuf_size < 256)) {
-            pconf->err_msg = new string("Bad mlog_msgbuf_size");
-        }
-    } else if (strcmp(key, "mlog_syslogfac") == 0) {
-        if (strncmp(value, "LOCAL", 5) != 0) {
-            pconf->err_msg = new string("mlog_syslogfac must be LOCALn");
-            return;
-        }
-        v = atoi(&value[5]);
-        switch (v) {
-        case 0:
-            v = LOG_LOCAL0;
-            break;
-        case 1:
-            v = LOG_LOCAL1;
-            break;
-        case 2:
-            v = LOG_LOCAL2;
-            break;
-        case 3:
-            v = LOG_LOCAL3;
-            break;
-        case 4:
-            v = LOG_LOCAL4;
-            break;
-        case 5:
-            v = LOG_LOCAL5;
-            break;
-        case 6:
-            v = LOG_LOCAL6;
-            break;
-        case 7:
-            v = LOG_LOCAL7;
-            break;
-        default:
-            v = -1;
-        }
-        if (v == -1) {
-            pconf->err_msg = new string("bad mlog_syslogfac value");
-            return;
-        }
-        pconf->mlog_syslogfac = v;
-    } else if (strcmp(key, "mlog_setmasks") == 0) {
-        pconf->mlog_setmasks = strdup(value);
-        if (pconf->mlog_setmasks == NULL) {
-            /*
-             * XXX: strdup fails, new will too, and we don't handle
-             * exceptions... so we'll assert here.
-             */
-            pconf->err_msg = new string("Unable to malloc mlog_setmasks");
-        }
-    } else {
-        ostringstream error_msg;
-        error_msg << "Unknown key " << key;
-        pconf->err_msg = new string(error_msg.str());
-    }
+char
+*plfs_gethostname()
+{
+      return Util::hostname();
 }
 
-PlfsConf *
-parse_conf(FILE *fp, string file, PlfsConf *pconf)
+
+double
+plfs_wtime()
 {
-    bool top_of_stack = (pconf==NULL); // this recurses.  Remember who is top.
-    pair<set<string>::iterator, bool> insert_ret;
-    if (!pconf) {
-        pconf = new PlfsConf; /* XXX: and if new/malloc fails? */
-        set_default_confs(pconf);
-        pconf->file = file;
-    }
-    insert_ret = pconf->files.insert(file);
-    mlog(MLOG_DBG, "Parsing %s", file.c_str());
-    if (insert_ret.second == false) {
-        pconf->err_msg = new string("include file included more than once");
-        return pconf;
-    }
-    char input[8192];
-    char key[8192];
-    char value[8192];
-    int line = 0;
-    while(fgets(input,8192,fp)) {
-        line++;
-        if (input[0]=='\n' || input[0] == '\r' || input[0]=='#') {
-            continue;
-        }
-        sscanf(input, "%s %s\n", key, value);
-        mlog(MLOG_DBG, "Read %s %s (%d)", key, value,line);
-        parse_conf_keyval(pconf, &pconf->tmp_mnt, (char *)file.c_str(),
-                          key, value);
-        if (pconf->err_msg) {
-            break;
-        }
-    }
-    mlog(MLOG_DBG, "Got EOF from parsing conf %s",file.c_str());
-    // save the final mount point.  Make sure there is at least one.
-    if (top_of_stack) {
-        if (!pconf->err_msg && pconf->tmp_mnt) {
-            pconf->err_msg = insert_mount_point(
-                                 pconf,pconf->tmp_mnt,(char *)file.c_str());
-            pconf->tmp_mnt = NULL;
-        }
-        if (!pconf->err_msg && pconf->mnt_pts.size()<=0 && top_of_stack) {
-            pconf->err_msg = new string("No mount points defined.");
-        }
-    }
-    if(pconf->err_msg) {
-        mlog(MLOG_DBG, "Error in the conf file: %s", pconf->err_msg->c_str());
-        ostringstream error_msg;
-        error_msg << "Parse error in " << file << " line " << line << ": "
-                  << pconf->err_msg->c_str() << endl;
-        delete pconf->err_msg;
-        pconf->err_msg = new string(error_msg.str());
-    }
-    assert(pconf);
-    mlog(MLOG_DBG, "Successfully parsed conf file");
-    return pconf;
+    return Util::getTime();
 }
 
-// get a pointer to a struct holding plfs configuration values
-// this is called multiple times but should be set up initially just once
-// it reads the map and creates tokens for the expression that
-// matches logical and the expression used to resolve into physical
-// boy, I wonder if we have to protect this.  In fuse, it *should* get
-// done at mount time so that will init it before threads show up
-// in adio, there are no threads.  should be OK.
-PlfsConf *
-get_plfs_conf()
+// this applies a function to a directory path on each backend
+// currently used by readdir, rmdir, mkdir
+// this doesn't require the dirs to already exist
+// returns 0 or -err
+int
+plfs_iterate_backends(const char *logical, FileOp& op)
+{
+    int ret = 0;
+    vector<plfs_pathback> exps;
+    vector<plfs_pathback>::iterator itr;
+    if ( (ret = find_all_expansions(logical,exps)) != 0 ) {
+        PLFS_EXIT(ret);
+    }
+    for(itr = exps.begin(); itr != exps.end() && ret == 0; itr++ ) {
+        ret = op.op(itr->bpath.c_str(),DT_DIR,itr->back->store);
+        mlog(INT_DCOMMON, "%s on %s: %d",op.name(),itr->bpath.c_str(),ret);
+    }
+    PLFS_EXIT(ret);
+}
+
+void
+plfs_stat_add(const char *func, double elapsed, int ret)
+{
+    Util::addTime(func,elapsed,ret);
+}
+
+void
+plfs_stats( void *vptr )
+{
+    string *stats = (string *)vptr;
+    string ustats = Util::toString();
+    (*stats) = ustats;
+}
+
+// this code just iterates up a path and makes sure all the component
+// directories exist.  It's not particularly efficient since it starts
+// at the beginning and works up and many of the dirs probably already
+// do exist
+// returns 0 or -err
+// if it sees EEXIST, it silently ignores it and returns 0
+int
+mkdir_dash_p(const string& path, bool parent_only, IOStore *store)
+{
+    string recover_path;
+    vector<string> canonical_tokens;
+    mlog(INT_DAPI, "%s on %s",__FUNCTION__,path.c_str());
+    Util::fast_tokenize(path.c_str(),canonical_tokens);
+    size_t last = canonical_tokens.size();
+    if (parent_only) {
+        last--;
+    }
+    for(size_t i=0 ; i < last; i++) {
+        recover_path += "/";
+        recover_path += canonical_tokens[i];
+        int ret = store->Mkdir(recover_path.c_str(), CONTAINER_MODE);
+        if ( ret != 0 && ret != -EEXIST ) { // some other error
+            return(ret);
+        }
+    }
+    return 0;
+}
+
+// restores a lost directory hierarchy
+// currently just used in plfs_recover.  See more comments there
+// returns 0 or -err
+// if directories already exist, it returns 0
+int
+recover_directory(const char *logical, bool parent_only)
+{
+    PLFS_ENTER;
+    vector<plfs_pathback> exps;
+    if ( (ret = find_all_expansions(logical,exps)) != 0 ) {
+        PLFS_EXIT(ret);
+    }
+    for(vector<plfs_pathback>::iterator itr = exps.begin();
+            itr != exps.end();
+            itr++ ) {
+        ret = mkdir_dash_p(itr->bpath,parent_only,itr->back->store);
+    }
+    return ret;
+}
+
+// a (non-thread proof) way to ensure we only init once
+bool
+plfs_conditional_init() {
+    static bool inited = false;
+    bool ret = true;
+    if (!inited) {
+        ret = plfs_init();
+        inited = true;
+    }
+    return ret;
+}
+
+bool
+plfs_warm_path_resolution(PlfsConf *pconf) { 
+    map<string,PlfsMount*>::iterator itr = pconf->mnt_pts.begin();
+    if (itr==pconf->mnt_pts.end()) return false;
+    ExpansionInfo exp_info;
+    expandPath(itr->first,&exp_info,EXPAND_SHADOW,-1,0);
+    return(exp_info.expand_error ? false : true);
+}
+
+// this init's the library if it hasn't been done yet
+bool
+plfs_init()
 {
     static pthread_mutex_t confmutex = PTHREAD_MUTEX_INITIALIZER;
-    static PlfsConf *pconf = NULL;   /* note static */
-
-    pthread_mutex_lock(&confmutex);
-    if (pconf ) {
-        pthread_mutex_unlock(&confmutex);
-        return pconf;
-    }
-    /*
-     * bring up a simple mlog here so we can collect early error messages
-     * before we've got access to all the mlog config info from file.
-     * we'll replace with the proper settings once we've got the conf
-     * file loaded and the command line args parsed...
-     * XXXCDC: add code to check environment vars for non-default levels
-     */
-    if (mlog_open((char *)"plfsinit",
-                  /* don't count the null at end of mlog_facsarray */
-                  sizeof(mlog_facsarray)/sizeof(mlog_facsarray[0]) - 1,
-                  MLOG_WARN, MLOG_WARN, NULL, 0, MLOG_LOGPID, 0) == 0) {
-        setup_mlog_facnamemask(NULL);
-    }
-    map<string,string> confs;
-    vector<string> possible_files;
-    // three possible plfsrc locations:
-    // first, env PLFSRC, 2nd $HOME/.plfsrc, 3rd /etc/plfsrc
-    if ( getenv("PLFSRC") ) {
-        string env_file = getenv("PLFSRC");
-        possible_files.push_back(env_file);
-    }
-    if ( getenv("HOME") ) {
-        string home_file = getenv("HOME");
-        home_file.append("/.plfsrc");
-        possible_files.push_back(home_file);
-    }
-    possible_files.push_back("/etc/plfsrc");
-    // try to parse each file until one works
-    // the C++ way to parse like this is istringstream (bleh)
-    for( size_t i = 0; i < possible_files.size(); i++ ) {
-        string file = possible_files[i];
-        FILE *fp = fopen(file.c_str(),"r");
-        if ( fp == NULL ) {
-            continue;
-        }
-        PlfsConf *tmppconf = parse_conf(fp,file,NULL);
-        fclose(fp);
-        if(tmppconf) {
-            if(tmppconf->err_msg) {
-                pthread_mutex_unlock(&confmutex);
-                return tmppconf;
+    static PlfsConf *pconf = NULL;
+    bool ret = true;
+    if ( ! pconf ) {    // not yet initialized.  Try to do so.
+        pthread_mutex_lock(&confmutex); // who should initialize?
+        if (pconf) { // someone beat us in race.  they will initialize.
+            ret = true;
+        } else {    // we won race.  we need to initialize.
+            LogMessage::init();
+            pconf = get_plfs_conf();
+            if ( !pconf ) {
+                ret = false;    // something failed
             } else {
-                pconf = tmppconf;
+                ret = plfs_warm_path_resolution(pconf); 
+                if ( !ret ) {
+                    mlog(MLOG_WARN, "Unable to warm path resolution\n"); 
+                }
             }
         }
-        break;
+        pthread_mutex_unlock(&confmutex); 
     }
-    if (pconf) {
-        setup_mlog(pconf);
-    }
-    pthread_mutex_unlock(&confmutex);
-    return pconf;
+    return ret;
 }
 
 const char *

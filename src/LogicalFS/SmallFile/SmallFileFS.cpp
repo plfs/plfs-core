@@ -23,7 +23,8 @@ smallfile_expand_path(const char *logical, PathExpandInfo &res) {
     PlfsConf *pconf = get_plfs_conf();
     bool mnt_pt_found = false;
     vector<string> logical_tokens;
-    Util::tokenize(logical, DIR_SEPERATOR, logical_tokens);
+    Util::fast_tokenize(logical, logical_tokens);
+
     PlfsMount *pmount = find_mount_point_using_tokens(pconf,logical_tokens,
                                                   mnt_pt_found);
     int err;

@@ -167,13 +167,14 @@ cat /mnt/plfs/.plfsmlogmask
 
 will reset the log levels, and then print the current levels.  
 
-MLOG has two compile-time options that are set at 'configure' time.
+MLOG has two compile-time options that are set at 'cmake' time.
 They are:
-     --disable-mlog: compiles out mlog, to totally avoid logging overhead
-     --disable-mlog-macro-opts: switches off mlog C preprocessor
-                                macro optimizations (in case the
-                                compiler is old and does not support
-                                varargs cpp macros).
+     -DDISABLE_MLOG=yes: compiles out mlog, to totally avoid 
+                         logging overhead
+     -DDISABLE_MLOG_MACRO_OPTS=yes: switches off mlog C preprocessor
+                                    macro optimizations (in case the
+                                    compiler is old and does not support
+                                    varargs cpp macros).
 
 Normally mlog() is a varargs pre-processor macro.  This allows the
 compiler to generate code that checks the mask without having to
