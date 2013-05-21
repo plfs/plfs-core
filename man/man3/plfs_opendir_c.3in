@@ -1,0 +1,32 @@
+${COPYRIGHT}
+.TH plfs_opendir_c 3 "${PACKAGE_STRING}" 
+.SH NAME
+plfs_opendir_c 
+.SH SYNTAX
+#include <plfs.h>
+.PP
+int plfs_opendir_c( const char *path, Plfs_dirp **plfs_dir );
+
+.SH DESCRIPTION
+This is the C program interface to opening a directory.
+
+.SH INPUT PARAMETERS
+.TP 1i
+path
+the name of the directory to open.
+.TP 1i
+plfs_dir
+the address of the pointer to the opened directory. This is passed to
+plfs_readdir_c to read entries and plfs_closedir_c to close the directory
+when done.
+
+
+.SH RETURN VALUES
+Returns 0 for success or -errno.
+
+.SH AUTHORS
+${AUTHORS}
+
+.SH SEE ALSO
+${SEEALSO3}
+

@@ -221,7 +221,8 @@ WriterUnit::writefileTest() {
         char removed[256];
         int record_size;
         sprintf(removed, "TESTFILE-%d", i);
-        ret = writer->write(removed, "0123456789", 0, 10, NULL, NULL);
+        writer->get_fileid(removed, NULL);
+        ret = writer->write(iop.fid, "0123456789", 0, 10, NULL, NULL);
         CPPUNIT_ASSERT_EQUAL(ret, 10);
         iop.offset = 0; iop.length = 10;
         iop.physical_offset = i*10;
@@ -256,7 +257,8 @@ WriterUnit::truncfileTest() {
     list<IndexOperation> indexentries;
     IOSHandle *fh;
 
-    ret = writer->truncate("TESTFILE", 0, NULL, NULL);
+    FileID fileid = writer->get_fileid("TESTFILE", NULL);
+    ret = writer->truncate(fileid, 0, NULL, NULL);
     CPPUNIT_ASSERT_EQUAL(ret, 0);
     fh = store->Open(namefile.c_str(), O_RDONLY, 0666, ret);
     nop.fh = fh;
@@ -264,12 +266,12 @@ WriterUnit::truncfileTest() {
     dropping_name2index(namefile, indexfile);
     fh = store->Open(indexfile.c_str(), O_RDONLY, 0666, ret);
     iop.fh = fh;
-    iop.fid = 0;
+    iop.fid = fileid;
     iop.offset = 0; iop.length = 0;
     iop.physical_offset = HOLE_PHYSICAL_OFFSET;
     indexentries.push_back(iop);
     for (int i = 0; i < 100; i++) {
-        ret = writer->truncate("TESTFILE", i, NULL, NULL);
+        ret = writer->truncate(fileid, i, NULL, NULL);
         CPPUNIT_ASSERT_EQUAL(ret, 0);
         iop.offset = i; iop.length = 0;
         iop.physical_offset = HOLE_PHYSICAL_OFFSET;
@@ -415,8 +417,10 @@ IndexUnit::loadindexTest() {
         writers.push_back(SMF_Writer(fileinfo, i));
         namefiles.push_back(fileinfo);
     }
+    writers[0].create("TESTFILE", NULL);
     for (int i = 0; i < 1000; i++) {
-        ret = writers[i%10].write("TESTFILE", "0123456789", 10*i, 10, NULL, NULL);
+        FileID fileid = writers[i%10].get_fileid("TESTFILE", NULL);
+        ret = writers[i%10].write(fileid, "0123456789", 10*i, 10, NULL, NULL);
         CPPUNIT_ASSERT_EQUAL(10, ret);
     }
     for (int i = 0; i < 10; i++) writers[i].sync(WRITER_SYNC_DATAFILE);
@@ -438,7 +442,7 @@ IndexUnit::loadindexTest() {
     off_t offsets[5] = {9373, 3524, 5876, 2010, 91};
     for (int i = 0; i < 5; i++) {
         off_t verify1, verify2;
-        writers[i].truncate("TESTFILE", offsets[i], NULL, index);
+        writers[i].truncate(0, offsets[i], NULL, index);
         CPPUNIT_ASSERT(index->get_filesize() == offsets[i]);
         if (offsets[i] < valid_mapping) valid_mapping = offsets[i];
         verify1 = (offsets[i]/10 - 1);

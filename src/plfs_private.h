@@ -1,19 +1,10 @@
 #ifndef __PLFS_PRIVATE__
 #define __PLFS_PRIVATE__
 
+#include "parse_conf.h"
 #include "plfs_internal.h"
 #include "mlogfacs.h"
-#include "OpenFile.h"
-#include "LogicalFD.h"
-#include "LogicalFS.h"
 #include "FileOp.h"
-#include "Container.h"
-#include "PLFSIndex.h"
-
-#include <map>
-#include <set>
-#include <string>
-#include <vector>
 using namespace std;
 
 #define SVNVERS $Rev$
@@ -33,69 +24,6 @@ expansionMethod {
     EXPAND_TO_I,
 };
 
-/**
- * plfs_backend: describes a single backend filesystem.   each mount
- * point may have one or more backends, as per the plfsrc config.
- */
-struct plfs_backend {
-    char *prefix;    /*!< hdfs://..., or can be empty for posix */
-    string bmpoint;  /*!< the backend plfs mount point */
-    /*
-     * note: store must be protected by a mutex since we allow apps
-     * defer attaching to a mount until its first reference.
-     */
-    IOStore *store;  /*!<  store (non-NULL if we've attached to this mount) */
-};
-
-/**
- * plfs_pathback: bpath + backend (needed to access iostore)
- */
-struct plfs_pathback {
-    string bpath;               /*!< bmpoint+bnode */
-    struct plfs_backend *back;  /*!< backend for the bpath */
-};
-
-/**
- * PlfsMount: describes a PLFS mount point.   the mount point is backed
- * by one or more backend filesystems.
- */
-typedef struct PlfsMount {
-    string mnt_pt;  // the logical mount point
-    string *statfs; // where to resolve statfs calls
-    struct plfs_backend statfs_io;  /* for statfs */
-    string *syncer_ip; // where to send commands within plfs_protect
-    vector<string> mnt_tokens;
-    plfs_filetype file_type;
-    LogicalFileSystem *fs_ptr;
-    unsigned max_writers;
-    unsigned checksum;
-
-    /* backend filesystem info */
-    char *backspec;       /*!< backend spec from plfsrc */
-    char *canspec;        /*!< canonical spec from plfsrc */
-    char *shadowspec;     /*!< shadow sepc from plfsrc */
-
-    /* must hold attach mutex to modify any of the following group */
-    int attached;         /*!< non-zero if we've attached to backends */
-    int nback;            /*!< number of backends */
-    int ncanback;         /*!< number of canonical */
-    int nshadowback;      /*!< number of shadow */
-    struct plfs_backend *backstore;             /*!< array of backends */
-    struct plfs_backend **backends;             /*!< all backends */
-    struct plfs_backend **canonical_backends;   /*!< ok for canonical */
-    struct plfs_backend **shadow_backends;      /*!< ok for shadow */
-
-} PlfsMount;
-
-typedef struct {
-    bool is_mnt_pt;
-    bool expand_error;
-    PlfsMount *mnt_pt;
-    int Errno;  // don't want to shadow the global var
-    string expanded;
-    struct plfs_backend *backend;
-} ExpansionInfo;
-
 #define PLFS_ENTER PLFS_ENTER2(PLFS_PATH_REQUIRED)
 
 #define PLFS_ENTER2(X) \
@@ -113,50 +41,14 @@ typedef struct {
 
 #define PLFS_EXIT(X) return(X);
 
-typedef struct {
-    string file; // which top-level plfsrc was used
-    set<string> files;     /* to detect recursive includes in plfsrc */
-    set<string> backends;  /* to detect a backend being reused in plfsrc */
-    size_t num_hostdirs;
-    size_t threadpool_size;
-    size_t buffer_mbs;  // how many mbs to buffer for write indexing
-    size_t read_buffer_mbs; // how many mbs to buffer for metadata reading
-    map<string,PlfsMount *> mnt_pts;
-    bool direct_io; // a flag FUSE needs.  Sorry ADIO and API for the wasted bit
-    bool test_metalink; // for developers only
-    bool lazy_stat;
-    bool lazy_droppings; // defer index/data droppings creation until first write
-    string *err_msg;
-
-    char *global_summary_dir;
-    struct plfs_backend global_sum_io;
-    
-    PlfsMount *tmp_mnt; // just used during parsing
-
-    /* mlog related settings, read from plfsrc, allow for cmd line override */
-    int mlog_flags;        /* mlog flag value to use (stderr,ucon,syslog) */
-    int mlog_defmask;      /* default mlog logging level */
-    int mlog_stderrmask;   /* force mlog to stderr if level >= to this value */
-    char *mlog_file_base;  /* pre-expanded version of logfile, if needed */
-    char *mlog_file;       /* logfile, NULL if disabled */
-    int mlog_msgbuf_size;  /* number of bytes in mlog message buffer */
-    int mlog_syslogfac;    /* syslog facility to use, if syslog enabled */
-    char *mlog_setmasks;   /* initial non-default log level settings */
-
-    /* File to dump fuse errors to regardless of mlog configuration */
-    char *fuse_crash_log;
-    int max_smallfile_containers; /* number of cached smallfile containers */
-} PlfsConf;
-
-PlfsConf *parse_conf(FILE *fp, string file, PlfsConf *pconf);
-
-/* get_plfs_conf
-   get a pointer to a struct holding plfs configuration values
-   parse $HOME/.plfsrc or /etc/plfsrc to find parameter values
-   if root, check /etc/plfsrc first and then if fail, then check $HOME/.plfsrc
-   if not root, reverse order
-*/
-PlfsConf *get_plfs_conf( );
+typedef struct ExpansionInfo {
+    bool is_mnt_pt;
+    bool expand_error;
+    PlfsMount *mnt_pt;
+    int Errno;  // don't want to shadow the global var
+    string expanded;
+    struct plfs_backend *backend;
+} ExpansionInfo;
 
 PlfsMount *find_mount_point(PlfsConf *pconf, const string& path, bool& found);
 PlfsMount *find_mount_point_using_tokens(PlfsConf *, vector <string> &, bool&);
@@ -202,4 +94,45 @@ int plfs_setfsgid(gid_t);
 
 int plfs_phys_backlookup(const char *phys, PlfsMount *pmnt,
                          struct plfs_backend **backout, string *bpathout);
+
+/*
+ * This function returns the time that PLFS was built.
+ */
+const char *plfs_buildtime();
+
+/*
+ * This function writes out the PLFS configuration. It retunrns 0 if
+ * successful, -errno otherwise.
+ */
+
+int plfs_dump_config(int check_dirs, int make_dir);
+
+int plfs_expand_path(const char *logical,char **physical, void **pmountp, void **pbackp);
+
+/*
+ * This function gets the hostname on which the application is running.
+ */
+
+char *plfs_gethostname();
+
+/*
+ * This funtion to get stats back from plfs operations the void * needs
+ * to be a pointer to an STL string but void * is used here so it
+ * compiles with C code.
+ */
+
+void plfs_stats( void *vptr );
+
+/*
+ * This function returns the PLFS version that is built.
+ */
+
+const char *plfs_version();
+
+/*
+ * Returns a timestamp similar to MPI_Wtime().
+ */
+
+double plfs_wtime();
+
 #endif
