@@ -69,6 +69,8 @@ class Util
         static vector<string> &tokenize(    const string& str,
                                             const string& delimiters,
                                             vector<string> &tokens);
+        static vector<string> &fast_tokenize ( const char* str,
+                                               vector<string> &tokens);
 /*
  * March 26, 2013:
  * Only plfs_serious_error calls this. And, nothing calls plfs_serious_error.
