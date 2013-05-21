@@ -277,10 +277,10 @@ if (Threads_FOUND)
 endif (Threads_FOUND)
 
 #yaml-cpp which we call plfs-yaml to avoid conflicts
-add_subdirectory (${CMAKE_CURRENT_SOURCE_DIR}/yaml-cpp ${PLFS_BUILD_DIR}/yaml-cpp)
+add_subdirectory (${CMAKE_CURRENT_SOURCE_DIR}/src/Plfsrc/yaml-cpp ${PLFS_BUILD_DIR}/yaml-cpp)
 target_link_libraries (plfs_lib plfs-yaml)
-include_directories (yaml-cpp/include)
-include_directories (yaml-cpp/boost)
+include_directories (src/Plfsrc/yaml-cpp/include)
+include_directories (src/Plfsrc/yaml-cpp/boost)
 
 #statvfs
 check_include_files(sys/statvfs.h HAVE_SYS_STATVFS_H)
