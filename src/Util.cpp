@@ -1,7 +1,3 @@
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <stdlib.h>
 #include "COPYRIGHT.h"
 #include <string>
@@ -37,6 +33,7 @@ using namespace std;
 #include "mlogfacs.h"
 #include "Container.h"
 #include "mlog_oss.h"
+#include "mlog.h"
 
 #ifdef HAVE_SYS_FSUID_H
 #include <sys/fsuid.h>
@@ -56,15 +53,14 @@ using namespace std;
 #ifndef UTIL_COLLECT_TIMES
 off_t total_ops = 0;
 #define ENTER_UTIL int ret = 0; total_ops++;
-#define ENTER_IO   ssize_t ret = 0;
+#define ENTER_IO   ssize_t ret = 0; total_ops++;
 #define EXIT_IO    return ret;
 #define EXIT_UTIL  return ret;
 #define ENTER_MUX  ENTER_UTIL;
 #define ENTER_PATH ENTER_UTIL;
 #else
-#define DEBUG_ENTER /* mlog(UT_DAPI, "Enter %s", __FUNCTION__ );*/
+#define DEBUG_ENTER mss::mlog_oss oss(UT_DAPI);
 #define DEBUG_EXIT  LogMessage lm1;                             \
-                        mss::mlog_oss oss(UT_DAPI);             \
                         oss << "Util::" << setw(13) << __FUNCTION__; \
                         if (path) oss << " on " << path << " ";     \
                         oss << setw(7) << " ret=" << setprecision(0) << ret    \
@@ -72,7 +68,7 @@ off_t total_ops = 0;
                             << end-begin << endl; \
                         lm1 << oss.str();                           \
                         lm1.flush();                                \
-                        mlog(UT_DAPI, "%s", oss.str().c_str());
+                        oss.commit();
 
 #define ENTER_MUX   LogMessage lm2;                             \
                         lm2 << "Util::" << setw(13) << __FUNCTION__ \
@@ -138,6 +134,30 @@ vector<string> &Util::tokenize(const string& str,const string& delimiters,
     return tokens;
 }
 
+// fast tokenize for directory splitting on '/'
+vector<string> &Util::fast_tokenize(const char *str, vector<string> &tokens)
+{
+    do
+    {
+        const char *begin = str;
+        while(*str != '/' && *str)
+            str++;
+        if (*str != *begin)
+            tokens.push_back(std::string(begin, str));
+    } while (0 != *str++);
+    return tokens;
+}
+
+
+/*
+ * March 26, 2013:
+ * Only plfs_serious_error calls this. And, nothing calls plfs_serious_error.
+ *
+ * So, I am commenting out both this and plfs_serious_error.
+ *
+ * If anyone ever wanted to use this, it is recommended that
+ * mlog() be used with some form of *_CRIT status.
+ *
 void
 Util::SeriousError( string msg, pid_t pid )
 {
@@ -153,6 +173,7 @@ Util::SeriousError( string msg, pid_t pid )
         fclose(debugfile);
     }
 }
+ */
 
 // initialize static variables
 HASH_MAP<string, double> utimers;
@@ -164,7 +185,7 @@ string Util::toString( )
 {
     ostringstream oss;
     string output;
-    off_t  total_ops  = 0;
+    off_t  tops  = 0;
     off_t  total_errs = 0;
     double total_time = 0.0;
     HASH_MAP<string,double>::iterator itr;
@@ -175,13 +196,13 @@ string Util::toString( )
         count  = counters.find( itr->first );
         err = errors.find( itr->first );
         output += timeToString( itr, err, count, &total_errs,
-                                &total_ops, &total_time );
+                                &tops, &total_time );
         if ( ( kitr = kbytes.find(itr->first) ) != kbytes.end() ) {
             output += bandwidthToString( itr, kitr );
         }
         output += "\n";
     }
-    oss << "Util Total Ops " << total_ops << " Errs "
+    oss << "Util Total Ops " << tops << " Errs "
         << total_errs << " in "
         << std::setprecision(2) << std::fixed << total_time << "s\n";
     output += oss.str();
@@ -204,7 +225,7 @@ string Util::timeToString( HASH_MAP<string,double>::iterator itr,
                            HASH_MAP<string,off_t>::iterator eitr,
                            HASH_MAP<string,off_t>::iterator citr,
                            off_t *total_errs,
-                           off_t *total_ops,
+                           off_t *tops,
                            double *total_time )
 {
     double value    = itr->second;
@@ -213,7 +234,7 @@ string Util::timeToString( HASH_MAP<string,double>::iterator itr,
     double avg      = (double) count / value;
     ostringstream oss;
     *total_errs += errs;
-    *total_ops  += count;
+    *tops  += count;
     *total_time += value;
     oss << setw(12) << itr->first << ": " << setw(8) << count << " ops, "
         << setw(8) << errs << " errs, "
@@ -325,21 +346,28 @@ void Util::addTime( string function, double elapsed, bool error )
 int Util::MutexLock(  pthread_mutex_t *mux , const char *where )
 {
     ENTER_MUX;
-    mss::mlog_oss os(UT_DAPI), os2(UT_DAPI);
-    os << "Locking mutex " << mux << " from " << where;
-    mlog(UT_DAPI, "%s", os.str().c_str() );
+    if(mlog_filter(MLOG_DBG)) {
+        mss::mlog_oss os(UT_DAPI);
+        os << "Locking mutex " << mux << " from " << where;
+        os.commit();
+    }
     pthread_mutex_lock( mux );
-    os2 << "Locked mutex " << mux << " from " << where;
-    mlog(UT_DAPI, "%s", os2.str().c_str() );
+    if(mlog_filter(MLOG_DBG)) {
+        mss::mlog_oss os2(UT_DAPI);
+        os2 << "Locked mutex " << mux << " from " << where;
+        os2.commit();
+    }
     EXIT_UTIL;
 }
 
 int Util::MutexUnlock( pthread_mutex_t *mux, const char *where )
 {
     ENTER_MUX;
-    mss::mlog_oss os(UT_DAPI);
-    os << "Unlocking mutex " << mux << " from " << where;
-    mlog(UT_DAPI, "%s", os.str().c_str() );
+    if(mlog_filter(MLOG_DBG)) {
+        mss::mlog_oss os(UT_DAPI);
+        os << "Unlocking mutex " << mux << " from " << where;
+        os.commit();
+    }
     pthread_mutex_unlock( mux );
     EXIT_UTIL;
 }

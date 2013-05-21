@@ -1,0 +1,40 @@
+${COPYRIGHT}
+.TH plfs_getattr 3 "${PACKAGE_STRING}" 
+.SH NAME
+plfs_getattr 
+.SH SYNTAX
+#include <plfs.h>
+.PP
+int plfs_getattr( Plfs_fd *, const char *path, struct stat *st, int size_only );
+
+.SH DESCRIPTION
+This function returns metadata concerning a file specified by 
+.I path 
+in a 
+.I stat 
+structure.
+
+.SH INPUT PARAMETERS
+.TP 1i
+Plfs_fd
+the file handle returned from plfs_open (can be NULL)
+.TP 1i
+path
+path of file to get attributes for
+.TP 1i
+st
+Structure of metadata information
+.TP 1i
+size_only
+Boolean telling whether or not the only attribute of interest is the file size.
+
+.SH RETURN VALUES
+Most PLFS functions return 0 or -errno, except write and read
+which return the number of bytes or -errno
+
+.SH AUTHORS
+${AUTHORS}
+
+.SH SEE ALSO
+${SEEALSO3}
+

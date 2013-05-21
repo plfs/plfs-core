@@ -3,6 +3,7 @@
 #include "IOStore.h"
 #include "LogMessage.h"
 #include "COPYRIGHT.h"
+#include "mlog_oss.h"
 
 #include <errno.h>
 #include <string>
@@ -156,7 +157,7 @@ class generic_exception: public exception
 #define DEBUG_MUTEX_OFF
 #endif
 
-#define FUSE_PLFS_ENTER vector<gid_t> orig_groups;                                 \
+#define FUSE_PLFS_ENTER vector<gid_t> orig_groups;                            \
                    ostringstream funct_id;                                    \
                    LogMessage lm, lm2;                                        \
                    DEBUG_MUTEX_ON;                                            \
@@ -166,7 +167,7 @@ class generic_exception: public exception
                    START_TIMES;                                               \
                    START_MESSAGE;                                             \
                    lm << funct_id.str();                              \
-                   mlog(FUSE_DBG,"%s BEGIN", lm.str().c_str());                 \
+                   mlog(FUSE_DBG,"%s BEGIN", lm.str().c_str());               \
                    lm << endl;                              \
                    lm.flush();                                                \
                    SAVE_IDS;                                                  \
@@ -187,7 +188,7 @@ class generic_exception: public exception
                    END_TIMES;                                           \
                    END_MESSAGE;                                         \
                    lm2 << funct_id.str();\
-                   mlog(FUSE_DBG,"%s END", lm2.str().c_str());                  \
+                   mlog(FUSE_DBG,"%s END", lm2.str().c_str());          \
                    lm2 << endl;                                         \
                    lm2.flush();                                         \
                    DEBUG_MUTEX_OFF;                                     \
@@ -199,10 +200,10 @@ class generic_exception: public exception
                        Plfs_fd *of = NULL;                                   \
                        if ( openfile ) {                                     \
                            of = (Plfs_fd *)openfile->pfd;                    \
-                           ostringstream oss;                                \
+                           mss::mlog_oss oss(FUSE_DBG);                      \
                            oss << __FUNCTION__ << " got OpenFile for " <<    \
                                strPath.c_str() << " (" << of << ")" ;   \
-                           mlog(FUSE_DCOMMON, "%s", oss.str().c_str() ); \
+                           oss.commit();                                \
                        }
 
 
@@ -926,11 +927,13 @@ int Plfs::f_open(const char *path, struct fuse_file_info *fi)
     // we can safely add more writers to an already open file
     // bec FUSE checks f_access before allowing an f_open
     if ( ret != 0 ) {
-        ostringstream oss;
-        oss << __FUNCTION__ << ": failed open on " << path << ": "
-            << strerror(-ret) << endl;
-        plfs_serious_error(oss.str().c_str(),fuse_get_context()->pid);
-        cerr << "Calling plfs_serious_error" << endl;
+        //ostringstream oss;
+        //oss << __FUNCTION__ << ": failed open on " << path << ": "
+        //    << strerror(-ret) << endl;
+        mlog( FUSE_CRIT, "%s: failed open on %s; err: %s; pid: %d", 
+            __FUNCTION__, path, strerror( -ret ), fuse_get_context()->pid );
+        //plfs_serious_error(oss.str().c_str(),fuse_get_context()->pid);
+        cerr << "Calling mlog with a FUSE_CRIT error" << endl;
     }
     FUSE_PLFS_EXIT;
 }
@@ -995,10 +998,10 @@ int Plfs::f_release( const char *path, struct fuse_file_info *fi )
 // the fd_mutex should be held when calling this
 int Plfs::addOpenFile( string expanded, pid_t pid, Plfs_fd *pfd)
 {
-    ostringstream oss;
+    mss::mlog_oss oss;
     oss << __FUNCTION__ << " adding OpenFile for " <<
         expanded << " (" << pfd << ") pid " << pid;
-    mlog(FUSE_DCOMMON, "%s", oss.str().c_str() );
+    oss.commit();
     self->open_files[expanded] = pfd;
     //mlog(FUSE_DCOMMON, "Current open files: %s",
     //openFilesToString(false).c_str());
@@ -1011,12 +1014,12 @@ int Plfs::addOpenFile( string expanded, pid_t pid, Plfs_fd *pfd)
 // it has already been removed
 int Plfs::removeOpenFile(string expanded, pid_t pid, Plfs_fd *pfd)
 {
-    ostringstream oss;
+    mss::mlog_oss oss;
     int erased = 0;
     erased = self->open_files.erase( expanded );
     oss << __FUNCTION__ << " removed " << erased << " OpenFile for " <<
         expanded << " (" << pfd << ") pid " << pid;
-    mlog(FUSE_DCOMMON, "%s",oss.str().c_str());
+    oss.commit();
     //mlog(FUSE_DCOMMON, "Current open files: %s",
     //     openFilesToString(false).c_str());
     return erased;
@@ -1033,11 +1036,11 @@ Plfs_fd *Plfs::findOpenFile( string expanded )
         mlog(FUSE_DCOMMON, "No OpenFile found for %s", expanded.c_str() );
         pfd = NULL;
     } else {
-        ostringstream oss;
+        mss::mlog_oss oss;
         pfd = itr->second;
         oss << __FUNCTION__ << " OpenFile " << pfd << " found for " <<
             expanded.c_str();
-        mlog(FUSE_DCOMMON, "%s", oss.str().c_str() );
+        oss.commit();
     }
     return pfd;
 }

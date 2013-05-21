@@ -10,6 +10,7 @@
 #include <map>
 #include <set>
 #include <vector>
+#include "Util.h"
 using namespace std;
 
 class IOStore;
@@ -176,4 +177,21 @@ class
         }
 };
 
+class
+    RenameOp : public FileOp
+{
+    public:
+        RenameOp(const char *);
+        int do_op(const char *, unsigned char, IOStore *);
+        const char *name() {
+            return "RenameOp";
+        }
+    private:
+        const char * to;
+        int err;
+        int indx;
+        int ret_val;
+        int size;
+        vector<plfs_pathback> dsts;
+};
 #endif
