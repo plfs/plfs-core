@@ -1,0 +1,36 @@
+${COPYRIGHT}
+.TH plfs_getxattr 3 "${PACKAGE_STRING}" 
+.SH NAME
+plfs_getxattr 
+.SH SYNTAX
+#include <plfs.h>
+.PP
+int plfs_getxattr( Plfs_fd *fd, void *value, const char *key, size_t len );
+
+.SH DESCRIPTION
+This function returns the extended attribute value associated with the key for the file pointer, fd.
+
+.SH INPUT PARAMETERS
+.TP li
+fd 
+the pointer to the file that has been opened or created.
+.TP li
+value 
+the place where the value of key is stored.
+.TP li
+key
+the name of the extended attribute for which the caller wants its value.
+.TP li
+len
+the length of the buffer pointed to by value into which the value of the extended attribute is stored.
+
+.SH RETURN VALUES
+Most PLFS functions return 0 or -errno, except write and read
+which return the number of bytes or -errno
+
+.SH AUTHORS
+${AUTHORS}
+
+.SH SEE ALSO
+${SEEALSO3}
+

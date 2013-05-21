@@ -12,7 +12,7 @@
 */
 %module interfacedumpindexfp 
 %{
-#include "plfs.h"
+#include "container_internals.h"
 %}
 
 /* Converts a PyFile instance to a stdio FILE* */
@@ -25,7 +25,7 @@
     }
 }
 
-extern int plfs_dump_index( FILE *fp, const char *path, int compress );
+extern int container_dump_index( FILE *fp, const char *path, int compress );
 /* This functions arguments:
         File *fp - where to print the map, usually stderr for interactive
         const char *path - the logical PLFS file (the mount point)

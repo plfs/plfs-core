@@ -1,4 +1,4 @@
-# also check man 5 plfsrc for more info about this file
+# also check man 5 plfsrc for more info about this file and more examples
 #
 ###############
 # plfsrc rules
@@ -60,8 +60,6 @@
 # [This means that for 1B cores, we will have about 30K files per directory.  We
 # might need to move to a 3 level hierarchy for exascale.]
 
-#num_hostdirs 41
-
 ###############
 # threadpool_size:
 # this should be related to how many threads you want running on a machine
@@ -83,10 +81,13 @@
 # fact, adding more streams can hurt per client PanFS performance.  This is just
 # a performance hint; it can be set to any value without affecting correctness.
 
-#threadpool_size 1
+#- global_params:
+#  threadpool_size 1
+#  num_hostdirs: 41
 
 # this must match where FUSE is mounted and the logical paths passed to ADIO
-#mount_point /tmp/plfs
+# - mount_point: /tmp/plfs
 
 # these must be full paths, can be just a single one
-#backends /tmp/.plfs_store
+#   backends:
+#    - location: /tmp/.plfs_store

@@ -1,10 +1,10 @@
 #include "plfs.h"
 #include "plfs_private.h"
-
 #include "LogicalFS.h"
 #include "LogicalFD.h"
 #include "XAttrs.h"
 #include <assert.h>
+#include "mlog_oss.h"
 
 void
 debug_enter(const char *func, string msg)
@@ -65,8 +65,8 @@ plfs_is_mnt_ancestor(const char *path){
         string this_mnt = itr->first;
         vector<string> mnt_tokens;
         vector<string> target_tokens;
-        Util::tokenize(this_mnt,"/",mnt_tokens);
-        Util::tokenize(path,"/",target_tokens);
+        Util::fast_tokenize(this_mnt.c_str(),mnt_tokens);
+        Util::fast_tokenize(path,target_tokens);
         vector<string> token_itr;
         match = true;
         for(size_t i=0; i<target_tokens.size(); i++) {
@@ -319,7 +319,7 @@ plfs_query(Plfs_fd *fd, size_t *writers, size_t *readers,
 ssize_t
 plfs_read(Plfs_fd *fd, char *buf, size_t size, off_t offset)
 {
-    ostringstream oss;
+    mss::mlog_oss oss;
     oss << fd->getPath() << " -> " <<offset << ", " << size;
     debug_enter(__FUNCTION__,oss.str());
     memset(buf, (int)'z', size);
@@ -426,7 +426,7 @@ int
 plfs_rename(const char *from, const char *to)
 {
     int ret = 0;
-    ostringstream oss;
+    mss::mlog_oss oss;
     oss << from << " -> " << to;
     char stripped_from[PATH_MAX];
     stripPrefixPath(from, stripped_from);
@@ -482,7 +482,7 @@ int
 plfs_symlink(const char *from, const char *to)
 {
     int ret = 0;
-    ostringstream oss;
+    mss::mlog_oss oss;
     oss << from << " -> " << to;
 
     char stripped_from[PATH_MAX];
@@ -581,7 +581,7 @@ ssize_t
 plfs_write(Plfs_fd *fd, const char *buf, size_t size,
            off_t offset, pid_t pid)
 {
-    ostringstream oss;
+    mss::mlog_oss oss(PLFS_DAPI);
     oss << fd->getPath() << " -> " <<offset << ", " << size;
     debug_enter(__FUNCTION__,oss.str());
     ssize_t wret = 0;
@@ -615,5 +615,37 @@ int plfs_setxattr(Plfs_fd *fd, const void *value, const char *key, size_t len) {
     debug_enter(__FUNCTION__,fd->getPath());
     int ret = fd->setxattr(value, key, len);
     debug_exit(__FUNCTION__,fd->getPath(),ret);
+    return ret;
+}
+
+int plfs_flush_writes(const char *path)
+{
+    debug_enter(__FUNCTION__,path);
+    int ret = 0;
+    char stripped_path[PATH_MAX];
+    stripPrefixPath(path, stripped_path);
+    LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
+    if (logicalfs == NULL) {
+        ret = -EINVAL;
+    } else {
+        ret = logicalfs->flush_writes(stripped_path);
+    }
+    debug_exit(__FUNCTION__,path,ret);
+    return ret;
+}
+
+int plfs_invalidate_read_cache(const char *path)
+{
+    debug_enter(__FUNCTION__,path);
+    int ret = 0;
+    char stripped_path[PATH_MAX];
+    stripPrefixPath(path, stripped_path);
+    LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
+    if (logicalfs == NULL) {
+        ret = -EINVAL;
+    } else {
+        ret = logicalfs->invalidate_cache(stripped_path);
+    }
+    debug_exit(__FUNCTION__,path,ret);
     return ret;
 }

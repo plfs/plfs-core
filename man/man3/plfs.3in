@@ -1,5 +1,5 @@
-#COPYRIGHT#
-.TH PLFS 3 "#PACKAGE_STRING#" 
+${COPYRIGHT}
+.TH PLFS 3 "${PACKAGE_STRING}" 
 .SH NAME
 PLFS \- General information for PLFS (Parallel Log Structured File System) API
 .SH DESCRIPTION
@@ -28,8 +28,9 @@ directly.  In this case, at a minimum, the application can call
 plfs_open(), plfs_write(), plfs_read, plfs_close().
 
 .SH RETURN VALUES
-Most PLFS functions return 0 or -errno, except write and read which return
-the number of bytes or -errno
+Most PLFS functions return 0 or -errno, but some return values that
+are more logically expected. Check the man pages for the individual
+functions to confirm the return values.
 
 .SH FILES
 In order to use any of these interfaces, a configuration file must be
@@ -40,8 +41,8 @@ present on the system. (see
 
 
 .SH AUTHORS
-#AUTHORS#
+${AUTHORS}
 
 .SH SEE ALSO
-#SEEALSO3#
+${SEEALSO3}
 
