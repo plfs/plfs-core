@@ -536,8 +536,8 @@ parse_conf(YAML::Node cnode, string file, PlfsConf *pconf)
             PlfsConf temp_conf = *pconf; // save current mount params
             try { *pconf = cnode[i].as<PlfsConf>(); }
             catch (exception &e) {
-                 pconf->err_msg = new string(e.what());
-                 break;
+                pconf->err_msg = new string(e.what());
+                break;
             }
             if (pconf->err_msg)
                 break;
