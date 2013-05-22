@@ -27,11 +27,11 @@ They should also work for any MPICH derivative that doesn't modify the path
 to the ROMIO layer or the build system (such as MVAPICH2).
 
 1) make install of plfs
-   The 'make' process will automatically generate the second PLFS patch.
-   However, if any files in ad_plfs are changed after running 'make', it will
+   The 'cmake' process will automatically generate the second PLFS patch.
+   However, if any files in ad_plfs are changed after running 'cmake', it will
    be necessary to re-generate the second patch to capture these changes. This
    is done by the following (again, this is only needed if ad_plfs files have
-   been changed since running 'make'):
+   been changed since running 'cmake'):
       1) cd <plfs source directory>/mpi_adio
       2) ./scripts/make_ad_plfs_patch
       The default behavior of make_ad_plfs_patch is to create a patch for Open
