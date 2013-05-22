@@ -42,9 +42,9 @@ SMF_Writer::resource_available(int type, void *resource) {
     return -1;
 }
 
-int
+plfs_error_t
 SMF_Writer::add_resource(int type, void *resource) {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     bool clear_filename = false;
 
     switch (type) {
@@ -52,9 +52,9 @@ SMF_Writer::add_resource(int type, void *resource) {
         if (!data_file.is_opened()) {
             string dataname;
             ret = dropping_name2data(filename_.bpath, dataname);
-            if (!ret) ret = data_file.open_file(dataname.c_str(),
+            if (ret == PLFS_SUCCESS) ret = data_file.open_file(dataname.c_str(),
                                                 filename_.back->store);
-            if (ret) break;
+            if (ret != PLFS_SUCCESS) break;
         }
         /* If data file has been opened, clear 'filename_' to save memory */
         clear_filename = true;
@@ -62,9 +62,9 @@ SMF_Writer::add_resource(int type, void *resource) {
         if (!index_file.is_opened()) {
             string indexname;
             ret = dropping_name2index(filename_.bpath, indexname);
-            if (!ret) ret = index_file.open_file(indexname.c_str(),
+            if (ret == PLFS_SUCCESS) ret = index_file.open_file(indexname.c_str(),
                                                  filename_.back->store);
-            if (ret) break;
+            if (ret != PLFS_SUCCESS) break;
         }
     case WRITER_OPENNAMEFILE:
         if (!name_file.is_opened()) {
@@ -72,21 +72,21 @@ SMF_Writer::add_resource(int type, void *resource) {
                 ret = name_file.open_file(filename_.bpath.c_str(),
                                           filename_.back->store);
             } else {
-                ret = -EINVAL;
+                ret = PLFS_EINVAL;
             }
         }
         break;
     default:
         assert(0);
     }
-    if (!ret && clear_filename) filename_.bpath.clear();
+    if (ret == PLFS_SUCCESS && clear_filename) filename_.bpath.clear();
     return ret;
 }
 
 #define STACK_RECORD_SIZE 256
 #define ROUND_UP(val, align) ((((val)+(align) - 1)/(align))*(align))
 
-int
+plfs_error_t
 SMF_Writer::add_single_record(const string &filename, enum SmallFileOps op,
                           off_t *fileid, InMemoryCache *meta)
 {
@@ -94,10 +94,10 @@ SMF_Writer::add_single_record(const string &filename, enum SmallFileOps op,
     size_t recordsize = namelength + sizeof(struct NameEntryHeader);
     char buf[STACK_RECORD_SIZE];
     struct NameEntryHeader *header;
-    int ret;
+    plfs_error_t ret;
 
     ret = require(WRITER_OPENNAMEFILE, NULL);
-    if (ret) return ret;
+    if (ret != PLFS_SUCCESS) return ret;
     release(WRITER_OPENNAMEFILE, NULL);
     recordsize = ROUND_UP(recordsize, 4);
     if (recordsize > STACK_RECORD_SIZE) {
@@ -122,32 +122,32 @@ SMF_Writer::add_single_record(const string &filename, enum SmallFileOps op,
     return ret;
 }
 
-int
+plfs_error_t
 SMF_Writer::create(const string &filename, InMemoryCache *meta) {
-    int ret;
+    plfs_error_t ret;
 
     ret = add_single_record(filename, SM_CREATE, NULL, meta);
     return ret;
 }
 
-int
+plfs_error_t
 SMF_Writer::remove(const string &filename, InMemoryCache *meta) {
-    int ret;
+    plfs_error_t ret;
 
     ret = add_single_record(filename, SM_DELETE, NULL, meta);
     return ret;
 }
 
-int
+plfs_error_t
 SMF_Writer::rename(const string &from, const string &to, InMemoryCache *meta) {
     size_t namelength = from.length() + to.length() + 2;
     size_t recordsize = namelength + sizeof(struct NameEntryHeader);
     char buf[STACK_RECORD_SIZE];
     struct NameEntryHeader *header;
-    int ret;
+    plfs_error_t ret;
 
     ret = require(WRITER_OPENNAMEFILE, NULL);
-    if (ret) return ret;
+    if (ret != PLFS_SUCCESS) return ret;
     release(WRITER_OPENNAMEFILE, NULL);
     recordsize = ROUND_UP(recordsize, 4);
     if (recordsize > STACK_RECORD_SIZE) {
@@ -169,41 +169,41 @@ SMF_Writer::rename(const string &from, const string &to, InMemoryCache *meta) {
     return ret;
 }
 
-ssize_t
+plfs_error_t
 SMF_Writer::write(const FileID fileid, const void *buf, off_t offset,
               size_t length, InMemoryCache *meta, InMemoryCache *index)
 {
     off_t physical_offset;
-    int ret;
+    plfs_error_t ret;
     struct IndexEntry entry;
 
-    if (fileid == INVALID_FILEID) return -EINVAL;
+    if (fileid == INVALID_FILEID) return PLFS_EINVAL;
     ret = require(WRITER_OPENDATAFILE, NULL);
-    if (ret) return ret;
+    if (ret != PLFS_SUCCESS) return ret;
     release(WRITER_OPENDATAFILE, NULL);
     ret = data_file.append(buf, length, &physical_offset);
-    if (ret != 0) return ret;
+    if (ret != PLFS_SUCCESS) return ret;
     entry.fid = fileid;
     entry.offset = offset;
     entry.length = length;
     entry.timestamp = get_current_timestamp();
     entry.physical_offset = physical_offset;
     ret = index_file.append(&entry, sizeof entry, NULL);
-    if (ret != 0) return ret;
+    if (ret != PLFS_SUCCESS) return ret;
     if (index) index->update(&entry, &dropping_id);
-    return length;
+    return PLFS_SUCCESS;
 }
 
-int
+plfs_error_t
 SMF_Writer::truncate(const FileID fileid, off_t offset, InMemoryCache *meta,
                  InMemoryCache *index)
 {
-    int ret;
+    plfs_error_t ret;
     struct IndexEntry entry;
 
-    if (fileid == INVALID_FILEID) return -EINVAL;
+    if (fileid == INVALID_FILEID) return PLFS_EINVAL;
     ret = require(WRITER_OPENINDEXFILE, NULL);
-    if (ret) return ret;
+    if (ret != PLFS_SUCCESS) return ret;
     release(WRITER_OPENINDEXFILE, NULL);
     entry.fid = fileid;
     entry.offset = offset;
@@ -215,7 +215,7 @@ SMF_Writer::truncate(const FileID fileid, off_t offset, InMemoryCache *meta,
     return ret;
 }
 
-int
+plfs_error_t
 SMF_Writer::utime(const string &filename, struct utimbuf *ut,
               InMemoryCache *meta)
 {
@@ -223,10 +223,10 @@ SMF_Writer::utime(const string &filename, struct utimbuf *ut,
     size_t recordsize = namelength + sizeof(struct NameEntryHeader);
     char buf[STACK_RECORD_SIZE];
     struct NameEntryHeader *header;
-    int ret;
+    plfs_error_t ret;
 
     ret = require(WRITER_OPENNAMEFILE, NULL);
-    if (ret) return ret;
+    if (ret != PLFS_SUCCESS) return ret;
     release(WRITER_OPENNAMEFILE, NULL);
     recordsize = ROUND_UP(recordsize, 4);
     if (recordsize > STACK_RECORD_SIZE) {
@@ -251,10 +251,10 @@ SMF_Writer::utime(const string &filename, struct utimbuf *ut,
 FileID
 SMF_Writer::get_fileid(const string &filename, InMemoryCache *meta) {
     FileID fileid = INVALID_FILEID;
-    int ret;
+    plfs_error_t ret;
 
     ret = add_single_record(filename, SM_OPEN, (off_t *)&fileid, meta);
-    if (ret != 0) {
+    if (ret != PLFS_SUCCESS) {
         mlog(SMF_ERR, "Cannot append open record for file %s.",
              filename.c_str());
         return INVALID_FILEID;
@@ -262,16 +262,16 @@ SMF_Writer::get_fileid(const string &filename, InMemoryCache *meta) {
     return fileid;
 }
 
-int
+plfs_error_t
 SMF_Writer::sync(int sync_level) {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     switch (sync_level) {
     case WRITER_SYNC_DATAFILE:
         ret = data_file.sync();
-        if (ret) break;
+        if (ret != PLFS_SUCCESS) break;
     case WRITER_SYNC_INDEXFILE:
         ret = index_file.sync();
-        if (ret) break;
+        if (ret != PLFS_SUCCESS) break;
     case WRITER_SYNC_NAMEFILE:
         ret = name_file.sync();
         break;

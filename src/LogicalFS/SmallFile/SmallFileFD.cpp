@@ -2,7 +2,7 @@
 #include "SmallFileFD.h"
 #include <SmallFileIndex.hxx>
 
-int
+plfs_error_t
 Small_fd::open(const char *filename, int flags, pid_t pid,
                mode_t mode, Plfs_open_opt *open_opt)
 {
@@ -10,35 +10,39 @@ Small_fd::open(const char *filename, int flags, pid_t pid,
     open_flags = flags & 0xf;
     open_by_pid = pid;
     if (flags & O_TRUNC) trunc(NULL, 0);
-    return 0;
+    return PLFS_SUCCESS;
 }
 
-int
-Small_fd::close(pid_t pid, uid_t u, int flags, Plfs_close_opt *close_opt)
+plfs_error_t
+Small_fd::close(pid_t pid, uid_t u, int flags, Plfs_close_opt *close_opt,
+                int *num_ref)
 {
     assert(refs > 0);
     refs--;
-    return refs;
+    *num_ref = refs;
+    return PLFS_SUCCESS;
 }
 
-ssize_t
-Small_fd::read(char *buf, size_t size, off_t offset)
+plfs_error_t
+Small_fd::read(char *buf, size_t size, off_t offset, ssize_t *bytes_read)
 {
     if (open_flags == O_RDONLY || open_flags == O_RDWR) {
-        return plfs_reader(NULL, buf, size, offset, this);
+        return plfs_reader(NULL, buf, size, offset, this, bytes_read);
     }
-    return -EBADF;
+    return PLFS_EBADF;
 }
 
-int
+plfs_error_t
 Small_fd::rename(const char *path, struct plfs_backend *back) {
-    return 0;
+    return PLFS_SUCCESS;
 }
 
-ssize_t
-Small_fd::write(const char *buf, size_t size, off_t offset, pid_t pid)
+plfs_error_t
+Small_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
+                ssize_t *bytes_written)
 {
-    ssize_t ret = -EBADF;
+    plfs_error_t ret = PLFS_EBADF;
+    *bytes_written = -1;
 
     if (open_flags == O_WRONLY || open_flags == O_RDWR) {
         FileID fileid;
@@ -47,37 +51,38 @@ Small_fd::write(const char *buf, size_t size, off_t offset, pid_t pid)
         fileid = get_fileid(writer);
         pthread_rwlock_rdlock(&indexes_lock);
         ret = writer->write(fileid, buf, offset, size, NULL, indexes.get());
+        if (ret == PLFS_SUCCESS) *bytes_written = (ssize_t)size;
         pthread_rwlock_unlock(&indexes_lock);
-        if (ret > 0) container->files.expand_filesize(myName, offset+ret);
+        if (ret == PLFS_SUCCESS) container->files.expand_filesize(myName, offset+size);
     }
     return ret;
 }
 
-int
+plfs_error_t
 Small_fd::sync()
 {
-    int ret;
+    plfs_error_t ret;
     ret = container->sync_writers(WRITER_SYNC_DATAFILE);
-    if (ret) return ret;
+    if (ret != PLFS_SUCCESS) return ret;
     container->index_cache.erase(myName);
     container->files.invalidate_attr_cache(myName);
     pthread_rwlock_wrlock(&indexes_lock);
     indexes.reset(); // It is OK to reset even if indexes == NULL.
     pthread_rwlock_unlock(&indexes_lock);
-    return 0;
+    return PLFS_SUCCESS;
 }
 
-int
+plfs_error_t
 Small_fd::sync(pid_t pid)
 {
     this->sync();
-    return 0;
+    return PLFS_SUCCESS;
 }
 
-int
+plfs_error_t
 Small_fd::trunc(const char *path, off_t offset)
 {
-    int ret;
+    plfs_error_t ret;
     if (open_flags == O_WRONLY || open_flags == O_RDWR) {
         FileID fileid;
         WriterPtr writer;
@@ -86,28 +91,28 @@ Small_fd::trunc(const char *path, off_t offset)
         pthread_rwlock_rdlock(&indexes_lock);
         ret = writer->truncate(fileid, offset, NULL, indexes.get());
         pthread_rwlock_unlock(&indexes_lock);
-        if (ret == 0) container->files.truncate_file(myName, offset);
+        if (ret == PLFS_SUCCESS) container->files.truncate_file(myName, offset);
     } else {
-        ret = -EBADF;
+        ret = PLFS_EBADF;
     }
     return ret;
 }
 
-int
+plfs_error_t
 Small_fd::getattr(const char *path, struct stat *stbuf, int sz_only)
 {
     IndexPtr temp_indexes;
-    int ret;
+    plfs_error_t ret;
 
     ret = container->files.get_attr_cache(myName, stbuf);
-    if (ret == 0) return ret;
+    if (ret == PLFS_SUCCESS) return ret;
     mlog(SMF_INFO, "We need to build stat for an open file.");
     pthread_rwlock_wrlock(&indexes_lock);
     if (indexes == NULL) {
         temp_indexes = container->get_index(myName);
         if (temp_indexes == NULL) {
             pthread_rwlock_unlock(&indexes_lock);
-            return -EIO;
+            return PLFS_EIO;
         }
         indexes = temp_indexes;
     } else {
@@ -127,14 +132,14 @@ Small_fd::getattr(const char *path, struct stat *stbuf, int sz_only)
         stbuf->st_ctime = time(NULL);
         stbuf->st_atime = time(NULL);
     }
-    return 0;
+    return PLFS_SUCCESS;
 }
 
-int
+plfs_error_t
 Small_fd::query(size_t *writers, size_t *readers, size_t *bytes_written,
                     bool *reopen)
 {
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 bool
@@ -155,10 +160,10 @@ Small_fd::setPath(string p, struct plfs_backend *back)
     path_ = p;
 }
 
-int
+plfs_error_t
 Small_fd::compress_metadata(const char *path)
 {
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 const char *
@@ -204,7 +209,7 @@ Small_fd::setChunkFh(pid_t chunk_id, IOSHandle *fh) {
     return 0;
 }
 
-int
+plfs_error_t
 Small_fd::globalLookup(IOSHandle **fh, off_t *chunk_off, size_t *length,
                        string& path, struct plfs_backend **backp,
                        bool *hole, pid_t *chunk_id,
@@ -212,14 +217,14 @@ Small_fd::globalLookup(IOSHandle **fh, off_t *chunk_off, size_t *length,
 {
     IndexPtr temp_indexes;
     DataEntry entry;
-    int ret;
+    plfs_error_t ret;
 
     pthread_rwlock_wrlock(&indexes_lock);
     if (indexes == NULL) {
         temp_indexes = container->get_index(myName);
         if (temp_indexes == NULL) {
             pthread_rwlock_unlock(&indexes_lock);
-            return -EIO;
+            return PLFS_EIO;
         }
         indexes = temp_indexes;
     } else {
@@ -227,7 +232,7 @@ Small_fd::globalLookup(IOSHandle **fh, off_t *chunk_off, size_t *length,
     }
     pthread_rwlock_unlock(&indexes_lock);
     ret = temp_indexes->lookup(logical, entry);
-    if (ret) {
+    if (ret != PLFS_SUCCESS) {
         mlog(SMF_ERR, "Failed to build the index cache. ret = %d.", ret);
         return ret;
     }
@@ -239,7 +244,7 @@ Small_fd::globalLookup(IOSHandle **fh, off_t *chunk_off, size_t *length,
     if (!*hole && entry.did != HOLE_DROPPING_ID) {
         container->get_data_file(entry.did, path, backp);
     }
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 FileID

@@ -17,10 +17,10 @@ public:
     virtual void unlock(const char *function) = 0;
     virtual IOSHandle *getChunkFh( pid_t chunk_id ) = 0;
     virtual int setChunkFh( pid_t chunk_id, IOSHandle *fh ) = 0;
-    virtual int globalLookup( IOSHandle **fh, off_t *chunk_off, size_t *length,
-                              string& path, struct plfs_backend **backp,
-                              bool *hole, pid_t *chunk_id,
-                              off_t logical ) = 0;
+    virtual plfs_error_t globalLookup( IOSHandle **fh, off_t *chunk_off, size_t *length,
+                                       string& path, struct plfs_backend **backp,
+                                       bool *hole, pid_t *chunk_id,
+                                       off_t logical ) = 0;
 };
 
 /**
@@ -29,7 +29,7 @@ public:
  * This function takes care of thread pool and open file cache. The only
  * thing you need to do is providing a class derived from PLFSIndex.
  */
-size_t plfs_reader(void *unused, char *buf, size_t size,
-                    off_t offset, PLFSIndex *index);
+plfs_error_t plfs_reader(void *unused, char *buf, size_t size,
+                         off_t offset, PLFSIndex *index, ssize_t *bytes_read);
 
 #endif

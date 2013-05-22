@@ -27,23 +27,25 @@ get_backend(const ExpansionInfo& exp)
  * @param pconf the current configuration
  * @param logical the path we are considering
  * @param found set to true if we found the mount point
- * @return the mount point or null on error
+ * @param res_pmount returns the mount point or null on error
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-PlfsMount *
-find_mount_point(PlfsConf *pconf, const string& logical, bool& found)
+plfs_error_t
+find_mount_point(PlfsConf *pconf, const string& logical, bool& found, PlfsMount **res_pmount)
 {
     mlog(INT_DAPI,"Searching for mount point matching %s", logical.c_str());
     vector<string> logical_tokens;
     Util::fast_tokenize(logical.c_str(),logical_tokens);
-    return find_mount_point_using_tokens(pconf,logical_tokens,found);
+    return find_mount_point_using_tokens(pconf,logical_tokens,found,res_pmount);
 }
 
-PlfsMount *
-find_mount_point_using_tokens(PlfsConf *pconf,
-                              vector<string> &logical_tokens, bool& found)
+plfs_error_t
+find_mount_point_using_tokens(PlfsConf *pconf, vector<string> &logical_tokens, 
+                              bool& found, PlfsMount **res_pmount)
 {
     map<string,PlfsMount *>::iterator itr;
     PlfsMount *rv;
+    *res_pmount = NULL;
     for(itr=pconf->mnt_pts.begin(); itr!=pconf->mnt_pts.end(); itr++) {
         if (itr->second->mnt_tokens.size() > logical_tokens.size() ) {
             continue;
@@ -64,14 +66,16 @@ find_mount_point_using_tokens(PlfsConf *pconf,
         // corresponding token in the incoming logical path
         if (found) {
             rv = itr->second;
-            if (rv->attached == 0 && plfs_attach(rv) < 0) {
-                return(NULL);
+            plfs_error_t ret;
+            if (rv->attached == 0 && (ret = plfs_attach(rv)) != PLFS_SUCCESS) {
+                return ret;
             }
-            return rv;
+            *res_pmount = rv;
+            return PLFS_SUCCESS;
         }
     }
     found = false;
-    return NULL;
+    return PLFS_ENOENT;
 }
 // These functions take a path and strips the adio prefix from it
 // they work if you pass in a char * or a string
@@ -114,7 +118,7 @@ expandPath(string logical, ExpansionInfo *exp_info,
     exp_info->is_mnt_pt = false;
     exp_info->expand_error = false;
     exp_info->mnt_pt = NULL;
-    exp_info->Errno = 0;
+    exp_info->Errno = PLFS_SUCCESS;
     exp_info->expanded = "UNINITIALIZED";
     // get our initial conf
     static PlfsConf *pconf = NULL;
@@ -122,14 +126,14 @@ expandPath(string logical, ExpansionInfo *exp_info,
         pconf = get_plfs_conf();
         if (!pconf) {
             exp_info->expand_error = true;
-            exp_info->Errno = -ENODATA; // real error return
+            exp_info->Errno = PLFS_ENODATA; // real error return
             return "MISSING PLFSRC";  // ugly, but real error is returned above
         }
     }
     if ( pconf->err_msg ) {
         mlog(INT_ERR, "PlfsConf error: %s", pconf->err_msg->c_str());
         exp_info->expand_error = true;
-        exp_info->Errno = -EINVAL;
+        exp_info->Errno = PLFS_EINVAL;
         return "INVALID";
     }
     logical = stripPrefixPath(logical);
@@ -137,8 +141,9 @@ expandPath(string logical, ExpansionInfo *exp_info,
     bool mnt_pt_found = false;
     vector<string> logical_tokens;
     Util::fast_tokenize(logical.c_str(),logical_tokens);
-    PlfsMount *pm = find_mount_point_using_tokens(pconf,logical_tokens,
-                    mnt_pt_found);
+    PlfsMount *pm;
+    find_mount_point_using_tokens(pconf,logical_tokens,
+                                  mnt_pt_found, &pm);
     if(!mnt_pt_found || pm == NULL) {
         if (!mnt_pt_found && depth==0 && logical[0]!='/') {
             // here's another weird thing
@@ -166,7 +171,7 @@ expandPath(string logical, ExpansionInfo *exp_info,
                   logical.c_str());
         }
         exp_info->expand_error = true;
-        exp_info->Errno = -EPROTOTYPE;
+        exp_info->Errno = PLFS_EPROTOTYPE;
         // we used to return a bogus string as an error indication
         // but it's screwing things up now that we're trying to make it
         // so that container_access can return OK for things like /mnt
@@ -209,7 +214,9 @@ expandPath(string logical, ExpansionInfo *exp_info,
         backcnt = pm->ncanback;
         break;
     case EXPAND_SHADOW:
-        hash_val = Container::hashValue(Util::hostname());
+        char *hostname;
+        Util::hostname(&hostname);
+        hash_val = Container::hashValue(hostname);
         backends = pm->shadow_backends;
         backcnt = pm->nshadowback;
         break;
@@ -237,13 +244,13 @@ expandPath(string logical, ExpansionInfo *exp_info,
  * with a mutex.
  *
  * @param pmnt the mount to attach to
- * @return 0 if attached, -1 on error
+ * @return PLFS_SUCCESS if attached, PLFS_E* on error
  */
-int plfs_attach(PlfsMount *pmnt) {
+plfs_error_t plfs_attach(PlfsMount *pmnt) {
     static pthread_mutex_t attachmutex = PTHREAD_MUTEX_INITIALIZER;
-    int rv, lcv;
+    int lcv;
 
-    rv = 0;
+    plfs_error_t rv = PLFS_SUCCESS;
     pthread_mutex_lock(&attachmutex);
     if (pmnt->attached)       /* lost race, ok since someone else attached */
         goto done;
@@ -256,7 +263,7 @@ int plfs_attach(PlfsMount *pmnt) {
              * XXX: this results in the bpath to the dir going in
              * the global_sum_io.bmpoint string.
              */
-            if (plfs_iostore_factory(pmnt, &pconf->global_sum_io) != 0) {
+            if (plfs_iostore_factory(pmnt, &pconf->global_sum_io) != PLFS_SUCCESS) {
                 mlog(INT_WARN, "global_summary_dir %s: failed to attach!",
                      pconf->global_summary_dir);
             } else if (!Util::isDirectory(pconf->global_sum_io.bmpoint.c_str(),
@@ -270,7 +277,7 @@ int plfs_attach(PlfsMount *pmnt) {
 
     { /* begin: special case code for statfs */
         if (pmnt->statfs != NULL) {
-            if (plfs_iostore_factory(pmnt, &pmnt->statfs_io) != 0) {
+            if (plfs_iostore_factory(pmnt, &pmnt->statfs_io) != PLFS_SUCCESS) {
                 mlog(INT_WARN, "statfs %s: %s: failed to attach!",
                      pmnt->mnt_pt.c_str(), (*pmnt->statfs).c_str());
             }
@@ -278,13 +285,13 @@ int plfs_attach(PlfsMount *pmnt) {
     } /* end: special case code for statfs */
 
     /* be careful about partly attached mounts */
-    for (lcv = 0 ; lcv < pmnt->nback && rv == 0 ; lcv++) {
+    for (lcv = 0 ; lcv < pmnt->nback && rv == PLFS_SUCCESS ; lcv++) {
         if (pmnt->backends[lcv]->store != NULL)
             continue;        /* this one already done, should be ok */
         rv = plfs_iostore_factory(pmnt, pmnt->backends[lcv]);
     }
 
-    if (rv == 0)
+    if (rv == PLFS_SUCCESS)
         pmnt->attached = 1;
 
  done:
@@ -532,8 +539,8 @@ insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt)
 // it may well return some paths which don't actually exist
 // some callers assume that the ordering is consistent.  Don't change.
 // also, the order returned is the same as the ordering of the backends.
-// returns 0 or -err
-int
+// returns PLFS_SUCCESS or PLFS_E*
+plfs_error_t
 find_all_expansions(const char *logical, vector<plfs_pathback> &containers)
 {
     PLFS_ENTER;
@@ -541,7 +548,7 @@ find_all_expansions(const char *logical, vector<plfs_pathback> &containers)
     struct plfs_pathback pb;
     for(int i = 0; i < expansion_info.mnt_pt->nback; i++) {
         path = expandPath(logical,&exp_info,EXPAND_TO_I,i,0);
-        if(exp_info.Errno) {
+        if(exp_info.Errno != PLFS_SUCCESS) {
             PLFS_EXIT(exp_info.Errno);
         }
         pb.bpath = path;
@@ -553,12 +560,12 @@ find_all_expansions(const char *logical, vector<plfs_pathback> &containers)
 
 // helper routine for plfs_dump_config
 // changes ret to new error or leaves it alone
-int
+plfs_error_t
 plfs_check_dir(string type, const char *prefix, IOStore *store, string bpath,
-               int previous_ret, bool make_dir)
+               plfs_error_t previous_ret, bool make_dir)
 {
     const char *directory = bpath.c_str();
-    int rv;
+    plfs_error_t rv;
 
     if(Util::isDirectory(directory, store)) {
         return(previous_ret);
@@ -566,20 +573,20 @@ plfs_check_dir(string type, const char *prefix, IOStore *store, string bpath,
     if (!make_dir) {
         printf("Error: Required %s directory %s%s not found/not a directory\n",
                type.c_str(), prefix, directory);
-        return(-ENOENT);
+        return(PLFS_ENOENT);
     }
     rv = mkdir_dash_p(bpath, false, store);
-    if (rv < 0) {
+    if (rv != PLFS_SUCCESS) {
         printf("Attempt to create directory %s%s failed (%s)\n",
-               prefix, directory, strerror(-rv));
+               prefix, directory, strplfserr(rv));
         return(rv);
     }
     return(previous_ret);
 }
 
-int
+plfs_error_t
 print_backends(PlfsMount *pmnt, int simple, bool check_dirs,
-               int ret, bool make_dir)
+               plfs_error_t ret, bool make_dir)
 {
     int lcv, idx, can, shd;
     struct plfs_backend **bcks;
@@ -615,8 +622,8 @@ print_backends(PlfsMount *pmnt, int simple, bool check_dirs,
     return(ret);
 }
 
-// returns 0 or -err
-int
+// returns PLFS_SUCCESS or PLFS_E*
+plfs_error_t
 plfs_dump_config(int check_dirs, int make_dir)
 {
     PlfsConf *pconf = get_plfs_conf();
@@ -624,11 +631,11 @@ plfs_dump_config(int check_dirs, int make_dir)
     int simple;
     if ( ! pconf ) {
         cerr << "FATAL no plfsrc file found.\n" << endl;
-        return -ENOENT;
+        return PLFS_ENOENT;
     }
     if ( pconf->err_msg ) {
         cerr << "FATAL conf file error: " << *(pconf->err_msg) << endl;
-        return -EINVAL;
+        return PLFS_EINVAL;
     }
 
     /*
@@ -661,12 +668,11 @@ plfs_dump_config(int check_dirs, int make_dir)
             pmnt = itr->second;
             spec[0] = '/';
             spec[1] = 0;
-            fakestore = plfs_iostore_get(spec, &pp, &pl, &bmp, pmnt);
+            plfs_iostore_get(spec, &pp, &pl, &bmp, pmnt, &fakestore);
         }
     }
 
-    vector<int> rets;
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     cout << "Config file " << pconf->file << " correctly parsed:" << endl
          << "Num Hostdirs: " << pconf->num_hostdirs << endl
          << "Threadpool size: " << pconf->threadpool_size << endl
@@ -697,7 +703,7 @@ plfs_dump_config(int check_dirs, int make_dir)
                  : pmnt->file_type == SMALL_FILE ? "small_file (1-N)"
                  : "UNKNOWN.  WTF.  email plfs-devel@lists.sourceforge.net")
              << endl;
-        if (check_dirs && plfs_attach(pmnt) != 0) {
+        if (check_dirs && plfs_attach(pmnt) != PLFS_SUCCESS) {
             cout << "\tUnable to attach to mount point, disable check_dirs"
                  << endl;
             check_dirs_now = 0;
@@ -744,10 +750,10 @@ plfs_dump_config(int check_dirs, int make_dir)
  * This function gets the hostname on which the application is running.
  */
 
-char
-*plfs_gethostname()
+plfs_error_t
+plfs_gethostname(char **hname)
 {
-      return Util::hostname();
+    return Util::hostname(hname);
 }
 
 
@@ -760,17 +766,17 @@ plfs_wtime()
 // this applies a function to a directory path on each backend
 // currently used by readdir, rmdir, mkdir
 // this doesn't require the dirs to already exist
-// returns 0 or -err
-int
+// returns PLFS_SUCCESS or PLFS_E*
+plfs_error_t
 plfs_iterate_backends(const char *logical, FileOp& op)
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     vector<plfs_pathback> exps;
     vector<plfs_pathback>::iterator itr;
-    if ( (ret = find_all_expansions(logical,exps)) != 0 ) {
+    if ( (ret = find_all_expansions(logical,exps)) != PLFS_SUCCESS ) {
         PLFS_EXIT(ret);
     }
-    for(itr = exps.begin(); itr != exps.end() && ret == 0; itr++ ) {
+    for(itr = exps.begin(); itr != exps.end() && ret == PLFS_SUCCESS; itr++ ) {
         ret = op.op(itr->bpath.c_str(),DT_DIR,itr->back->store);
         mlog(INT_DCOMMON, "%s on %s: %d",op.name(),itr->bpath.c_str(),ret);
     }
@@ -795,9 +801,9 @@ plfs_stats( void *vptr )
 // directories exist.  It's not particularly efficient since it starts
 // at the beginning and works up and many of the dirs probably already
 // do exist
-// returns 0 or -err
-// if it sees EEXIST, it silently ignores it and returns 0
-int
+// returns PLFS_SUCCESS or PLFS_E*
+// if it sees EEXIST, it silently ignores it and returns PLFS_SUCCESS
+plfs_error_t
 mkdir_dash_p(const string& path, bool parent_only, IOStore *store)
 {
     string recover_path;
@@ -811,24 +817,24 @@ mkdir_dash_p(const string& path, bool parent_only, IOStore *store)
     for(size_t i=0 ; i < last; i++) {
         recover_path += "/";
         recover_path += canonical_tokens[i];
-        int ret = store->Mkdir(recover_path.c_str(), CONTAINER_MODE);
-        if ( ret != 0 && ret != -EEXIST ) { // some other error
+        plfs_error_t ret = store->Mkdir(recover_path.c_str(), CONTAINER_MODE);
+        if ( ret != PLFS_SUCCESS && ret != PLFS_EEXIST ) { // some other error
             return(ret);
         }
     }
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 // restores a lost directory hierarchy
 // currently just used in plfs_recover.  See more comments there
-// returns 0 or -err
-// if directories already exist, it returns 0
-int
+// returns PLFS_SUCCESS or PLFS_E*
+// if directories already exist, it returns PLFS_SUCCESS
+plfs_error_t
 recover_directory(const char *logical, bool parent_only)
 {
     PLFS_ENTER;
     vector<plfs_pathback> exps;
-    if ( (ret = find_all_expansions(logical,exps)) != 0 ) {
+    if ( (ret = find_all_expansions(logical,exps)) != PLFS_SUCCESS ) {
         PLFS_EXIT(ret);
     }
     for(vector<plfs_pathback>::iterator itr = exps.begin();
@@ -900,7 +906,7 @@ plfs_buildtime( )
     return __DATE__;
 }
 
-int
+plfs_error_t
 plfs_expand_path(const char *logical,char **physical, void **pmountp, void **pbackp) {
   PLFS_ENTER;
   (void)ret; // suppress compiler warning
@@ -914,7 +920,7 @@ plfs_expand_path(const char *logical,char **physical, void **pmountp, void **pba
   if (pbackp) {
     *pbackp = expansion_info.backend;
   }
-  return 0;
+  return PLFS_SUCCESS;
 }
 
 
@@ -933,13 +939,17 @@ plfs_getgid()
 int
 plfs_setfsuid(uid_t u)
 {
-    return Util::Setfsuid(u);
+    int uid;
+    Util::Setfsuid(u, &uid);
+    return uid;
 }
 
 int
 plfs_setfsgid(gid_t g)
 {
-    return Util::Setfsgid(g);
+    int gid;
+    Util::Setfsgid(g, &gid);
+    return gid;
 }
 
 int
@@ -961,9 +971,9 @@ plfs_mutex_lock(pthread_mutex_t *mux, const char *func){
  * @param pmnt the mount to search
  * @param backout where the result is placed
  * @param bpathout put a copy of bpath here (see above)
- * @return 0 on success, -err on failure
+ * @return PLFS_SUCCESS on success, PLFS_E* on failure
  */
-static int
+static plfs_error_t
 plfs_phys_backlookup_mnt(const char *prefix, int prelen, const char *bpath,
                          PlfsMount *pmnt, struct plfs_backend **backout,
                          string *bpathout) {
@@ -990,10 +1000,10 @@ plfs_phys_backlookup_mnt(const char *prefix, int prelen, const char *bpath,
 
         /* found it! */
         *backout = bp;
-        return(0);
+        return(PLFS_SUCCESS);
     }
 
-    return(-ENOENT);
+    return(PLFS_ENOENT);
 }
 
 /**
@@ -1009,13 +1019,14 @@ plfs_phys_backlookup_mnt(const char *prefix, int prelen, const char *bpath,
  * @param pmnt the logical mount to look in (if null: global search)
  * @param backout where we place the result
  * @param bpathout also put bpath here if !NULL
- * @return 0 on success, -err on failure
+ * @return PLFS_SUCCESS on success, PLFS_E* on failure
  */
-int
+plfs_error_t
 plfs_phys_backlookup(const char *phys, PlfsMount *pmnt,
                      struct plfs_backend **backout, string *bpathout) {
     const char *prefix;
-    int prelen, rv = 0;
+    int prelen;
+    plfs_error_t rv = PLFS_SUCCESS;
     const char *bpath;
     PlfsConf *pconf;
     map<string,PlfsMount *>::iterator itr;
@@ -1034,7 +1045,7 @@ plfs_phys_backlookup(const char *phys, PlfsMount *pmnt,
             bpath = strchr(bpath+(sizeof("://")-1), '/');
         if (bpath == NULL) {
             mlog(CON_INFO, "plfs_phys_backlookup: bad phys %s", phys);
-            return(-EINVAL);
+            return(PLFS_EINVAL);
         }
         prelen = bpath - prefix;
     }
@@ -1050,12 +1061,12 @@ plfs_phys_backlookup(const char *phys, PlfsMount *pmnt,
     pconf = get_plfs_conf();
     if (!pconf) {
         mlog(CON_CRIT, "plfs_phys_backlookup: no config found");
-            return(-EINVAL);
+        return(PLFS_EINVAL);
     }
     for (itr = pconf->mnt_pts.begin() ; itr != pconf->mnt_pts.end() ; itr++) {
         rv = plfs_phys_backlookup_mnt(prefix, prelen, bpath,
                                       itr->second, backout, bpathout);
-        if (rv == 0)
+        if (rv == PLFS_SUCCESS)
             break;
     }
 

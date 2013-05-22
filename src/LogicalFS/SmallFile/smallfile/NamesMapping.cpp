@@ -51,23 +51,23 @@ NamesMapping::NamesMapping() {
 NamesMapping::~NamesMapping() {
 }
 
-int
+plfs_error_t
 NamesMapping::init_data_source(void *resource, RecordReader **reader) {
     vector<plfs_pathback> &files = *(vector<plfs_pathback> *)resource;
     size_t i;
     MinimumHeap *min_heap = new MinimumHeap(files.size(), compare_name_file);
-    int ret;
+    plfs_error_t ret;
 
     *reader = min_heap;
-    if (files.size() == 0) return 0;
+    if (files.size() == 0) return PLFS_SUCCESS;
     unsigned int buf_size = get_read_buffer_size(files.size());
     for (i = 0; i < files.size(); i++) {
         NameReader *namefile = new NameReader(files[i], i, buf_size);
         mlog(SMF_DAPI, "Load names from %s.", files[i].bpath.c_str());
         ret = namefile->pop_front();
-        if (ret == 1 && namefile->front()) {
+        if (ret == PLFS_SUCCESS && namefile->front()) {
             min_heap->push_back(namefile);
-        } else if (ret == 0) { // Skip empty files.
+        } else if (ret == PLFS_EEOF) { // Skip empty files.
             delete namefile;
             mlog(SMF_DAPI, "Skip empty name file:%s.", files[i].bpath.c_str());
         } else {
@@ -75,12 +75,12 @@ NamesMapping::init_data_source(void *resource, RecordReader **reader) {
             mlog(SMF_WARN, "Error read name file:%s.", files[i].bpath.c_str());
         }
     }
-    return 0;
+    return PLFS_SUCCESS;
 }
 
-int
+plfs_error_t
 NamesMapping::merge_object(void *record, void *metadata) {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     struct NameEntryHeader *header = (struct NameEntryHeader *)record;
     time_t op_time = TS2TIME(header->timestamp);
     if (header->operation != SM_RENAME) {
@@ -128,7 +128,7 @@ NamesMapping::merge_object(void *record, void *metadata) {
         default:
             mlog(SMF_EMERG, "Unknow OP code in name file. The name file "
                  "might be corrupted.");
-            ret = -EINVAL;
+            ret = PLFS_EINVAL;
             break;
         }
     } else {
@@ -143,7 +143,7 @@ NamesMapping::merge_object(void *record, void *metadata) {
             metadata_cache.erase(rename_from);
         } else {
             mlog(SMF_EMERG, "Found an invalid rename record!");
-            //            ret = -EINVAL;
+            //            ret = PLFS_EINVAL;
         }
     }
     return ret;
@@ -169,10 +169,10 @@ void
 NamesMapping::dump_mapping() {
     map<string, FileMetaDataPtr>::iterator names_itr;
     list<index_mapping_t>::iterator index_itr;
-    int ret;
+    plfs_error_t ret;
 
     ret = require(MEMCACHE_FULLYLOADED, NULL);
-    if (ret) return;
+    if (ret != PLFS_SUCCESS) return;
     for (names_itr = metadata_cache.begin(); names_itr != metadata_cache.end();
          names_itr++) {
         cout << names_itr->first << " => {";
@@ -197,16 +197,16 @@ NamesMapping::dump_mapping() {
  * @param namefiles The vector which contains all of the full pathnames of
  *    the dropping.name.x files in all backends.
  *
- * @return On success, 0 is returned, otherwise it fails and res is untouched.
+ * @return On success, PLFS_SUCCESS is returned, otherwise it fails and res is untouched.
  */
 
-int
+plfs_error_t
 NamesMapping::read_names(set<string> *res, vector<plfs_pathback> *namefiles) {
     map<string, FileMetaDataPtr>::iterator names_itr;
-    int ret;
+    plfs_error_t ret;
 
     ret = require(MEMCACHE_FULLYLOADED, namefiles);
-    if (ret) return ret;
+    if (ret != PLFS_SUCCESS) return ret;
     for (names_itr = metadata_cache.begin();
          names_itr != metadata_cache.end();
          names_itr++)
@@ -214,22 +214,22 @@ NamesMapping::read_names(set<string> *res, vector<plfs_pathback> *namefiles) {
         res->insert(names_itr->first);
     }
     release(MEMCACHE_FULLYLOADED, namefiles);
-    return 0;
+    return PLFS_SUCCESS;
 }
 
-int
+plfs_error_t
 NamesMapping::set_attr_cache(const string &filename, struct stat *stbuf) {
-    int ret;
+    plfs_error_t ret;
     map<string, FileMetaDataPtr>::iterator names_itr;
 
     ret = require(MEMCACHE_FULLYLOADED, NULL);
-    if (ret) return -ENOENT;
+    if (ret != PLFS_SUCCESS) return PLFS_ENOENT;
     names_itr = metadata_cache.find(filename);
     if (names_itr == metadata_cache.end()) {
         release(MEMCACHE_FULLYLOADED, NULL);
         mlog(SMF_ERR, "Set attribute cache of a non-exist file:%s!",
              filename.c_str());
-        return -ENOENT;
+        return PLFS_ENOENT;
     }
     names_itr->second->lock();
     names_itr->second->stbuf = *stbuf;
@@ -243,27 +243,27 @@ NamesMapping::set_attr_cache(const string &filename, struct stat *stbuf) {
     release(MEMCACHE_FULLYLOADED, NULL);
     mlog(SMF_DAPI, "File %s's attribute cache is valid now!",
          filename.c_str());
-    return 0;
+    return PLFS_SUCCESS;
 }
 
-int
+plfs_error_t
 NamesMapping::get_attr_cache(const string &filename, struct stat *stbuf) {
     map<string, FileMetaDataPtr>::iterator names_itr;
-    int ret;
+    plfs_error_t ret;
 
     ret = require(MEMCACHE_FULLYLOADED, NULL);
-    if (ret) return -ENOENT;
+    if (ret != PLFS_SUCCESS) return PLFS_ENOENT;
     names_itr = metadata_cache.find(filename);
     if (names_itr == metadata_cache.end()) {
         release(MEMCACHE_FULLYLOADED, NULL);
         mlog(SMF_ERR, "File %s does not exist!", filename.c_str());
-        return -ENOENT;
+        return PLFS_ENOENT;
     }
     names_itr->second->lock();
     if (!names_itr->second->stbuf_valid) {
         mlog(SMF_INFO, "File %s's attribute cache is invalid.",
              filename.c_str());
-        ret = -ENOENT;
+        ret = PLFS_ENOENT;
     } else {
         *stbuf = names_itr->second->stbuf;
         stbuf->st_mtime = names_itr->second->mtime;
@@ -279,7 +279,7 @@ void
 NamesMapping::invalidate_attr_cache(const string &filename) {
     map<string, FileMetaDataPtr>::iterator names_itr;
 
-    if (require(MEMCACHE_FULLYLOADED, NULL) != 0) return;
+    if (require(MEMCACHE_FULLYLOADED, NULL) != PLFS_SUCCESS) return;
     names_itr = metadata_cache.find(filename);
     if (names_itr != metadata_cache.end()) {
         names_itr->second->lock();
@@ -292,18 +292,18 @@ NamesMapping::invalidate_attr_cache(const string &filename) {
     return;
 }
 
-int
+plfs_error_t
 NamesMapping::expand_filesize(const string &filename, off_t offset) {
     map<string, FileMetaDataPtr>::iterator names_itr;
-    int ret;
+    plfs_error_t ret;
 
     ret = require(MEMCACHE_FULLYLOADED, NULL);
-    if (ret) return -ENOENT;
+    if (ret != PLFS_SUCCESS) return PLFS_ENOENT;
     names_itr = metadata_cache.find(filename);
     if (names_itr == metadata_cache.end()) {
         release(MEMCACHE_FULLYLOADED, NULL);
         mlog(SMF_ERR, "File %s does not exist!", filename.c_str());
-        return -ENOENT;
+        return PLFS_ENOENT;
     }
     names_itr->second->lock();
     if (names_itr->second->stbuf_valid) {
@@ -314,21 +314,21 @@ NamesMapping::expand_filesize(const string &filename, off_t offset) {
     }
     names_itr->second->unlock();
     release(MEMCACHE_FULLYLOADED, NULL);
-    return 0;
+    return PLFS_SUCCESS;
 }
 
-int
+plfs_error_t
 NamesMapping::truncate_file(const string &filename, off_t offset) {
     map<string, FileMetaDataPtr>::iterator names_itr;
-    int ret;
+    plfs_error_t ret;
 
     ret = require(MEMCACHE_FULLYLOADED, NULL);
-    if (ret) return -ENOENT;
+    if (ret != PLFS_SUCCESS) return PLFS_ENOENT;
     names_itr = metadata_cache.find(filename);
     if (names_itr == metadata_cache.end()) {
         release(MEMCACHE_FULLYLOADED, NULL);
         mlog(SMF_ERR, "File %s does not exist!", filename.c_str());
-        return -ENOENT;
+        return PLFS_ENOENT;
     }
     names_itr->second->lock();
     if (names_itr->second->stbuf_valid) {
@@ -337,5 +337,5 @@ NamesMapping::truncate_file(const string &filename, off_t offset) {
     }
     names_itr->second->unlock();
     release(MEMCACHE_FULLYLOADED, NULL);
-    return 0;
+    return PLFS_SUCCESS;
 }
