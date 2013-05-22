@@ -249,7 +249,7 @@ add_library(plfs_lib SHARED ${SRCDIR})
 SET_TARGET_PROPERTIES(plfs_lib PROPERTIES OUTPUT_NAME plfs)
 set_target_properties(plfs_lib PROPERTIES
         VERSION "${plfs_VERSION_FULL}"
-        SOVERSION "${plfs_VERSION_MAJOR}.${plfs_CPP_VERSION_MINOR}"
+        SOVERSION "${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}"
         PROJECT_LABEL "plfs_lib shared")
 
 if (NOT DISABLE_STATIC_LIB)
@@ -263,7 +263,7 @@ if (NOT DISABLE_STATIC_LIB)
     SET_TARGET_PROPERTIES(plfs_lib_static PROPERTIES OUTPUT_NAME plfs)
     set_target_properties(plfs_lib_static PROPERTIES
         VERSION "${plfs_VERSION_FULL}"
-        SOVERSION "${plfs_VERSION_MAJOR}.${plfs_CPP_VERSION_MINOR}"
+        SOVERSION "${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}"
         PROJECT_LABEL "plfs_lib static")
 else()
     INSTALL(TARGETS plfs_lib
