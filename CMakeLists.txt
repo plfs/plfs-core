@@ -230,6 +230,12 @@ else()
     message("-- MANDIR set to ${MANDIR}")
 endif()
 
+#default to Release build if not specified
+if (NOT CMAKE_BUILD_TYPE)
+    message("-- CMAKE_BUILD_TYPE not selected, default to Release")
+    set(CMAKE_BUILD_TYPE "Release")
+endif()
+
 #setup RPATH/RUNPATH flags and shared library
 if (NOT APPLE)
     set (CMAKE_EXE_LINKER_FLAGS "-dynamic -Wl,--enable-new-dtags")
