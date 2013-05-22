@@ -81,13 +81,13 @@
 # fact, adding more streams can hurt per client PanFS performance.  This is just
 # a performance hint; it can be set to any value without affecting correctness.
 
-#- global_params:
-#  threadpool_size 1
-#  num_hostdirs: 41
+- global_params:
+  threadpool_size: 1
+  num_hostdirs: 41
 
 # this must match where FUSE is mounted and the logical paths passed to ADIO
-# - mount_point: /tmp/plfs
+- mount_point: /tmp/plfs
 
 # these must be full paths, can be just a single one
-#   backends:
-#    - location: /tmp/.plfs_store
+  backends:
+    - location: /tmp/.plfs_store
