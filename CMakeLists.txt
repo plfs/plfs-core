@@ -365,8 +365,10 @@ INSTALL(FILES ${man5} DESTINATION ${MANDIR}/man5)
 INSTALL(FILES ${man7} DESTINATION ${MANDIR}/man7)
 
 #build patches
-execute_process(COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR}/mpi_adio/scripts COMMAND ./make_ad_plfs_patch)
-execute_process(COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR}/mpi_adio/scripts COMMAND ./make_ad_plfs_patch --mpi=mpich)
+execute_process(COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR}/mpi_adio COMMAND
+./scripts/make_ad_plfs_patch)
+execute_process(COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR}/mpi_adio COMMAND
+./scripts/make_ad_plfs_patch --mpi=mpich)
 
 #if we ever move to cmake 2.8 this would be a cool feature.
 #set up rpm build process
