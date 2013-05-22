@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 2.6)
 
+#default to Release build if not specified
+#This is before the project(plfs) invocation to allow it to be cached
+if (NOT CMAKE_BUILD_TYPE)
+    message("-- CMAKE_BUILD_TYPE not selected, default to Release")
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "The type of build")
+endif()
+
 #begin plfs project
 project(plfs)
 
