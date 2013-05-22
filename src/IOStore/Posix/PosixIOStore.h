@@ -13,19 +13,20 @@ class PosixIOSHandle: public IOSHandle {
     PosixIOSHandle(int newfd, string newbpath);
     ~PosixIOSHandle() {};
     
-    int Fstat(struct stat* buf);
-    int Fsync();
-    int Ftruncate(off_t length);
-    int GetDataBuf(void **bufp, size_t length);
-    ssize_t Pread(void* buf, size_t count, off_t offset);
-    ssize_t Pwrite(const void* buf, size_t count, off_t offset);
-    ssize_t Read(void *buf, size_t count);
-    int ReleaseDataBuf(void *buf, size_t length);
-    off_t Size();
-    ssize_t Write(const void* buf, size_t len);
+    plfs_error_t Fstat(struct stat* buf);
+    plfs_error_t Fsync();
+    plfs_error_t Ftruncate(off_t length);
+    plfs_error_t GetDataBuf(void **bufp, size_t length);
+    plfs_error_t Pread(void* buf, size_t count, off_t offset, ssize_t *bytes_read);
+    plfs_error_t Pwrite(const void* buf, size_t count, off_t offset,
+                        ssize_t *bytes_written);
+    plfs_error_t Read(void *buf, size_t count, ssize_t *bytes_read);
+    plfs_error_t ReleaseDataBuf(void *buf, size_t length);
+    plfs_error_t Size(off_t *res_offset);
+    plfs_error_t Write(const void* buf, size_t len, ssize_t *bytes_written);
     
  private:
-    int Close();
+    plfs_error_t Close();
     int fd;
     string bpath;
 };
@@ -35,10 +36,10 @@ class PosixIOSDirHandle: public IOSDirHandle {
  public:
     PosixIOSDirHandle(DIR *newdp, string newbpath);
     ~PosixIOSDirHandle() {};
-    int Readdir_r(struct dirent *dst, struct dirent **dret);
+    plfs_error_t Readdir_r(struct dirent *dst, struct dirent **dret);
 
  private:
-    int Closedir();
+    plfs_error_t Closedir();
     DIR *dp;
     string bpath;
 };
@@ -48,23 +49,23 @@ class PosixIOSDirHandle: public IOSDirHandle {
 class PosixIOStore: public IOStore {
 public:
     ~PosixIOStore(){};
-    int Access(const char *path, int amode);
-    int Chmod(const char* path, mode_t mode);
-    int Chown(const char *path, uid_t owner, gid_t group);
-    int Lchown(const char *path, uid_t owner, gid_t group);
-    int Lstat(const char* path, struct stat* buf);
-    int Mkdir(const char* path, mode_t mode);
-    class IOSHandle *Open(const char *bpath, int flags, mode_t mode, int &ret);
-    class IOSDirHandle *Opendir(const char *bpath, int &ret);
-    int Rename(const char*, const char*);
-    int Rmdir(const char*);
-    int Stat(const char*, struct stat*);
-    int Statvfs(const char*, struct statvfs*);
-    int Symlink(const char*, const char*);
-    ssize_t Readlink(const char*, char*, size_t);
-    int Truncate(const char*, off_t);
-    int Unlink(const char*);
-    int Utime(const char*, const utimbuf*);
+    plfs_error_t Access(const char *path, int amode);
+    plfs_error_t Chmod(const char* path, mode_t mode);
+    plfs_error_t Chown(const char *path, uid_t owner, gid_t group);
+    plfs_error_t Lchown(const char *path, uid_t owner, gid_t group);
+    plfs_error_t Lstat(const char* path, struct stat* buf);
+    plfs_error_t Mkdir(const char* path, mode_t mode);
+    plfs_error_t Open(const char *bpath, int flags, mode_t mode, IOSHandle **res_hand);
+    plfs_error_t Opendir(const char *bpath, IOSDirHandle **dirh);
+    plfs_error_t Rename(const char*, const char*);
+    plfs_error_t Rmdir(const char*);
+    plfs_error_t Stat(const char*, struct stat*);
+    plfs_error_t Statvfs(const char*, struct statvfs*);
+    plfs_error_t Symlink(const char*, const char*);
+    plfs_error_t Readlink(const char*, char*, size_t, ssize_t *);
+    plfs_error_t Truncate(const char*, off_t);
+    plfs_error_t Unlink(const char*);
+    plfs_error_t Utime(const char*, const utimbuf*);
 };
 
 

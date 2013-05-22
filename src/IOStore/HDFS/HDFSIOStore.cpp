@@ -26,15 +26,15 @@
 #include "HDFSIOStore.h"
 
 /*
- * IOStore functions that return signed int should return 0 on success
- * and -err on error.   The HFDS API uses 0 for success, -1 for failure
+ * IOStore functions that return plfs_error_t should return PLFS_SUCCESS on success
+ * and PLFS_E* on error.   The HFDS API uses 0 for success, -1 for failure
  * with the error code in the global error number variable.   This macro
  * translates HDFS to IOStore.   libhdfs is very sloppy with handling
  * err numbers (e.g. it returns -1 if there is a java exception), so filter
  * out bogus errors with safe_error().
  */
 #define safe_error() ((errno > 0) ? errno : EIO)         /* error# ok */
-#define get_err(X) (((X) >= 0) ? (X) : -safe_error())
+#define get_err(X) (((X) >= 0) ? PLFS_SUCCESS : errno_to_plfs_error(safe_error()))
 
 /*
  * copy of TAILQ.  not all system have <sys/queue.h> so just replicate
@@ -361,16 +361,18 @@ void hdfs_execute(const char *name, void *a, void (*hand)(void *ap)) {
 /*
  * do_hdfs_check: a macro to check for connection before running.
  * will return the function w/error if there is one...
+ * @return PLFS_E*
  */
 #define do_hdfs_check(ME) do {                              \
     int check_rv = HDFS_Check(ME);                          \
-    if (check_rv < 0) return(check_rv);                     \
+    if (check_rv < 0) return errno_to_plfs_error(-check_rv);                     \
     } while (0)
 
 /* this one is for functions that return NULL on error instead of -err */
+/* @param RET return NULL */
 #define do_hdfs_check_alt(ME,RET) do {                      \
     int check_rv = HDFS_Check(ME);                          \
-    if (check_rv < 0) { (RET) = check_rv; return(NULL); }   \
+    if (check_rv < 0) { (RET) = NULL; return errno_to_plfs_error(-check_rv); }   \
     } while (0)
 
 /**
@@ -379,11 +381,13 @@ void hdfs_execute(const char *name, void *a, void (*hand)(void *ap)) {
  * @param phys_path the physical path of the backing store
  * @param prelenp return the length of the prefix here
  * @param bmpointp return the bmpoint string here
- * @return the newly allocated class or NULL on error
+ * @param hiostore return the newly allocated HDFSIOStore class here
+ * @return PLFS_SUCCESS or PLFS_TBD on error
  */
-class HDFSIOStore *HDFSIOStore::HDFSIOStore_xnew(char *phys_path, 
-                                                 int *prelenp,
-                                                 char **bmpointp) {
+plfs_error_t HDFSIOStore::HDFSIOStore_xnew(char *phys_path,
+                                           int *prelenp,
+                                           char **bmpointp,
+                                           class HDFSIOStore **hiostore) {
     char *p, *sl, *host, *col;
     int plen, port, rv;
     class HDFSIOStore *hio;
@@ -400,13 +404,13 @@ class HDFSIOStore *HDFSIOStore::HDFSIOStore_xnew(char *phys_path,
     /* end of module init stuff - now start parsing the phys_path */
 
     if (strncmp(phys_path, "hdfs://", sizeof("hdfs://")-1) != 0) {
-        return(NULL);     /* should never happen, but play it safe */
+        return PLFS_TBD;     /* should never happen, but play it safe */
     }
     p = phys_path + sizeof("hdfs://") - 1;
     sl = strchr(p, '/');  /* find start of bmpoint */
     plen = sl - phys_path;
     if (sl == NULL) {
-        return(NULL);
+        return PLFS_TBD;
     }
     host = (char *)malloc(sl - p + 1);
     strncpy(host, p, sl - p); 
@@ -427,10 +431,11 @@ class HDFSIOStore *HDFSIOStore::HDFSIOStore_xnew(char *phys_path,
     hio->hdfs_port = port;
     hio->hfs = NULL;
 
-    if (hio->HDFS_Probe() == 0) {
+    if (hio->HDFS_Probe() == PLFS_SUCCESS) {
         *prelenp = plen;
         *bmpointp = sl;
-        return(hio);
+        *hiostore = hio;
+        return PLFS_SUCCESS;
     }
 
   got_error:
@@ -438,7 +443,7 @@ class HDFSIOStore *HDFSIOStore::HDFSIOStore_xnew(char *phys_path,
         delete hio;
     }
     free(host);
-    return(NULL);
+    return PLFS_TBD;
 }
 
 /**
@@ -470,9 +475,9 @@ int HDFSIOStore::HDFS_Check(class HDFSIOStore *hio) {
  * the JVM was inited in the parent process).  the fork avoids this
  * issue.
  *
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E*
  */
-int HDFSIOStore::HDFS_Probe() {
+plfs_error_t HDFSIOStore::HDFS_Probe() {
     pid_t child;
     hdfsFS tmpfs;
     int status;
@@ -492,10 +497,10 @@ int HDFSIOStore::HDFS_Probe() {
     if (status != 0) {
         mlog(STO_ERR, "HDFS_Probe(%s,%d): connect failed.",
              this->hdfs_host, this->hdfs_port);
-        return(-EIO);
+        return PLFS_EIO;
     }
 
-    return(0);
+    return PLFS_SUCCESS;
 }
 
 /**
@@ -535,9 +540,9 @@ static hdfsFile hdfsOpenFile_retry(hdfsFS fs, const char* path, int flags,
  *
  * @param path the path we are checking
  * @param mode the mode to check
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int HDFSIOStore::Access(const char* path, int mode) 
+plfs_error_t HDFSIOStore::Access(const char* path, int mode)
 {
     do_hdfs_check(this);
     
@@ -546,9 +551,9 @@ int HDFSIOStore::Access(const char* path, int mode)
      * be wrong documentation.
      */
     if ((mode & F_OK) && hdfsExists_wrap(this->hfs, path)) {
-        return(-ENOENT);
+        return PLFS_ENOENT;
     }
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 /**
@@ -556,14 +561,14 @@ int HDFSIOStore::Access(const char* path, int mode)
  *
  * @param path the path of the file/dir to change
  * @param mode the mode to change it to
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int HDFSIOStore::Chmod(const char* path, mode_t mode) 
+plfs_error_t HDFSIOStore::Chmod(const char* path, mode_t mode)
 {
     do_hdfs_check(this);
 
     /* hdfsChmod_wrap(this->hfs, path, mode); */
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 /**
@@ -574,9 +579,9 @@ int HDFSIOStore::Chmod(const char* path, mode_t mode)
  * @param path the path of the file/dir to change
  * @param owner the uid of the new owner
  * @param group the gid of the new group
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int HDFSIOStore::Chown(const char *path, uid_t owner, gid_t group) 
+plfs_error_t HDFSIOStore::Chown(const char *path, uid_t owner, gid_t group)
 {
     int rv;
     struct passwd passwd_s, *p;
@@ -604,9 +609,9 @@ int HDFSIOStore::Chown(const char *path, uid_t owner, gid_t group)
  * @param path the path of the file/dir to change
  * @param owner the uid of the new owner
  * @param group the gid of the new group
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int HDFSIOStore::Lchown(const char *path, uid_t owner, gid_t group)
+plfs_error_t HDFSIOStore::Lchown(const char *path, uid_t owner, gid_t group)
 {
     return(Chown(path, owner, group));
 }
@@ -616,9 +621,9 @@ int HDFSIOStore::Lchown(const char *path, uid_t owner, gid_t group)
  * 
  * @param path the file we are getting stat on
  * @param buf the result will be placed here on success
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int HDFSIOStore::Lstat(const char* path, struct stat* buf)
+plfs_error_t HDFSIOStore::Lstat(const char* path, struct stat* buf)
 {
     return(Stat(path, buf));
 }
@@ -631,26 +636,26 @@ int HDFSIOStore::Lstat(const char* path, struct stat* buf)
  *
  * @param path the directory to create
  * @param mode permissions to set on the directory
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int HDFSIOStore::Mkdir(const char* path, mode_t mode)
+plfs_error_t HDFSIOStore::Mkdir(const char* path, mode_t mode)
 {
+    plfs_error_t ret;
     int rv, r2;
     do_hdfs_check(this);
 
     rv = hdfsCreateDirectory_wrap(this->hfs, path);
-    rv = get_err(rv);
+    ret = get_err(rv);
 
-    if (rv >= 0) {
+    if (ret == PLFS_SUCCESS) {
         r2 = hdfsChmod_wrap(this->hfs, path, mode);
-        r2 = get_err(r2);
-        if (r2 < 0) {
+        if (get_err(r2) != PLFS_SUCCESS) {
             mlog(STO_WARN, "Mkdir/chmod of %s failed (%s)", path,
-                 strerror(-r2));
+                    strerror(errno));
         }
     }
 
-    return(rv);
+    return ret;
 }
 
 /**
@@ -662,17 +667,18 @@ int HDFSIOStore::Mkdir(const char* path, mode_t mode)
  * @param bpath the path we are creating
  * @param flags read/write mode
  * @param mode desired permissions
- * @param ret return 0 or -err here
- * @return class pointer to IOSHandle for the new file or null on error
+ * @param res_hand return class pointer to IOSHandle for the new file or null on error
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-class IOSHandle *
-HDFSIOStore::Open(const char *bpath, int flags, mode_t mode, int &ret) {
+plfs_error_t
+HDFSIOStore::Open(const char *bpath, int flags, mode_t mode, IOSHandle **res_hand) {
+    plfs_error_t rv;
     int new_flags;
     hdfsFile openFile;
     HDFSIOSHandle *hand;
 
-    do_hdfs_check_alt(this,ret);
-    ret = 0;
+    do_hdfs_check_alt(this,*res_hand);
+    rv = PLFS_SUCCESS;
 
     if (flags == O_RDONLY) {
         new_flags = O_RDONLY;
@@ -686,25 +692,26 @@ HDFSIOStore::Open(const char *bpath, int flags, mode_t mode, int &ret) {
             new_flags = O_WRONLY;
         }
     } else {
-        ret = -ENOTSUP;
-        return(NULL);
+        *res_hand = NULL;
+        return PLFS_ENOTSUP;
     }
 
     openFile = hdfsOpenFile_retry(this->hfs, bpath, new_flags, 0, 0, 0);
     if (!openFile) {
-        ret = get_err(-1);
-        return(NULL);
+        *res_hand = NULL;
+        return get_err(-1);
     }
 
     hand = new HDFSIOSHandle(this, this->hfs, openFile, bpath);
     if (hand == NULL) {
-        ret = -ENOMEM;
+        rv = PLFS_ENOMEM;
         hdfsCloseFile_wrap(this->hfs, openFile);
     }
 
     Chmod(bpath, mode);  /* ignoring errors.... */
     
-    return(hand);
+    *res_hand = hand;
+    return rv;
 }
 
 /**
@@ -712,27 +719,30 @@ HDFSIOStore::Open(const char *bpath, int flags, mode_t mode, int &ret) {
  * read an entire directory in one shot instead.   we fake it.
  *
  * @param bpath the path we are creating
- * @param ret return 0 or -err here
- * @return class pointer to IOSDirHandle for the dir or NULL on error
+ * @param res_dhand return class pointer to IOSDirHandle for the dir or NULL on error
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-class IOSDirHandle *
-HDFSIOStore::Opendir(const char *bpath, int &ret) {
+plfs_error_t
+HDFSIOStore::Opendir(const char *bpath, class IOSDirHandle **res_dhand) {
     HDFSIOSDirHandle *dhand;
+    int ret;
 
-    do_hdfs_check_alt(this,ret);
+    do_hdfs_check_alt(this,*res_dhand);
 
     dhand = new HDFSIOSDirHandle(this->hfs, bpath, ret);
     if (dhand == NULL) {
-        ret = -ENOMEM;
-        return(NULL);
+        *res_dhand = NULL;
+        return PLFS_ENOMEM;
     }
 
     if (ret < 0) {
         delete dhand;
-        return(NULL);
+        *res_dhand = NULL;
+        return errno_to_plfs_error(-ret);
     }
-    
-    return(dhand);
+
+    *res_dhand = dhand;
+    return PLFS_SUCCESS;
 }
 
 
@@ -741,9 +751,9 @@ HDFSIOStore::Opendir(const char *bpath, int &ret) {
  *
  * @param oldpath the old filename
  * @param newpath the name we want to move it to
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int HDFSIOStore::Rename(const char *oldpath, const char *newpath)
+plfs_error_t HDFSIOStore::Rename(const char *oldpath, const char *newpath)
 {
     int rv;
     do_hdfs_check(this);
@@ -757,9 +767,9 @@ int HDFSIOStore::Rename(const char *oldpath, const char *newpath)
  * and a directory.  In 0.21, we do.
  *
  * @param path the directory to remove
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int HDFSIOStore::Rmdir(const char* path)
+plfs_error_t HDFSIOStore::Rmdir(const char* path)
 {
     int rv;
     do_hdfs_check(this);
@@ -774,9 +784,9 @@ int HDFSIOStore::Rmdir(const char* path)
  *
  * @param path the node to stats
  * @param buf put the results here
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int HDFSIOStore::Stat(const char* path, struct stat* buf)
+plfs_error_t HDFSIOStore::Stat(const char* path, struct stat* buf)
 {
     struct passwd passwd_s, *p;
     struct group group_s, *g;
@@ -844,7 +854,7 @@ int HDFSIOStore::Stat(const char* path, struct stat* buf)
     buf->st_ctime = hdfsInfo->mLastMod;
 
     hdfsFreeFileInfo_wrap(hdfsInfo, 1);
-    return(0);
+    return PLFS_SUCCESS;
 }
 
 /**
@@ -852,9 +862,9 @@ int HDFSIOStore::Stat(const char* path, struct stat* buf)
  *
  * @param path a file on the fs
  * @param stbuf the results are placed here
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int HDFSIOStore::Statvfs( const char *path, struct statvfs *stbuf )
+plfs_error_t HDFSIOStore::Statvfs( const char *path, struct statvfs *stbuf )
 {
     tOffset c, u, b;
     do_hdfs_check(this);
@@ -876,7 +886,7 @@ int HDFSIOStore::Statvfs( const char *path, struct statvfs *stbuf )
     stbuf->f_blocks = c/b;  /* size */
     stbuf->f_bfree = u/b;   /* free */
 
-    return(0);
+    return PLFS_SUCCESS;
 }
 
 /** 
@@ -884,11 +894,11 @@ int HDFSIOStore::Statvfs( const char *path, struct statvfs *stbuf )
  *
  * @param oldpath
  * @param newpath
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int HDFSIOStore::Symlink(const char* oldpath, const char* newpath)
+plfs_error_t HDFSIOStore::Symlink(const char* oldpath, const char* newpath)
 {
-    return(-EPERM); /* According to POSIX spec, this is the proper code */
+    return PLFS_EPERM; /* According to POSIX spec, this is the proper code */
 }
 
 /**
@@ -897,11 +907,12 @@ int HDFSIOStore::Symlink(const char* oldpath, const char* newpath)
  * @param link the link to read
  * @param buf the place the write the result
  * @param the size of the result buffer
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-ssize_t HDFSIOStore::Readlink(const char *link, char *buf, size_t bufsize)
+plfs_error_t HDFSIOStore::Readlink(const char *link, char *buf, size_t bufsize,
+                                   ssize_t *readlen)
 {
-    return(-EINVAL);
+    return PLFS_EINVAL;
 }
 
 /**
@@ -922,9 +933,9 @@ ssize_t HDFSIOStore::Readlink(const char *link, char *buf, size_t bufsize)
  *
  * @param path the file to truncate
  * @param the length (only 0 supported)
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int HDFSIOStore::Truncate(const char* path, off_t length)
+plfs_error_t HDFSIOStore::Truncate(const char* path, off_t length)
 {
     hdfsFileInfo *hdfsInfo;
     int lenis0;
@@ -933,7 +944,7 @@ int HDFSIOStore::Truncate(const char* path, off_t length)
     do_hdfs_check(this);
 
     if (length != 0) {
-        return(-EINVAL);
+        return PLFS_EINVAL;
     }
 
     hdfsInfo = hdfsGetPathInfo_wrap(this->hfs, path);
@@ -944,7 +955,7 @@ int HDFSIOStore::Truncate(const char* path, off_t length)
     hdfsFreeFileInfo_wrap(hdfsInfo, 1);
 
     if (lenis0)
-        return(0);   /* already truncated? */
+        return PLFS_SUCCESS;   /* already truncated? */
 
     truncFile = hdfsOpenFile_retry(this->hfs, path, O_WRONLY, 0, 0, 0);
     if (!truncFile) {
@@ -952,16 +963,16 @@ int HDFSIOStore::Truncate(const char* path, off_t length)
     }
     hdfsCloseFile_wrap(this->hfs, truncFile);
 
-    return(0);
+    return PLFS_SUCCESS;
 }
 
 /**
  * Unlink: wrap hdfsDelete
  *
  * @param path the path to remove
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int HDFSIOStore::Unlink(const char* path)
+plfs_error_t HDFSIOStore::Unlink(const char* path)
 {
     int rv;
     do_hdfs_check(this);
@@ -975,9 +986,9 @@ int HDFSIOStore::Unlink(const char* path)
  *
  * @param filename the file to change
  * @param times the times to set
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int HDFSIOStore::Utime(const char* filename, const struct utimbuf *times)
+plfs_error_t HDFSIOStore::Utime(const char* filename, const struct utimbuf *times)
 {
     int rv;
     struct utimbuf now;
@@ -1018,9 +1029,9 @@ HDFSIOSHandle::HDFSIOSHandle(HDFSIOStore *newparent, hdfsFS newhfs,
  * Close: close an open file handle.  we flush it too.  this object
  * will be deleted after the close (by generic iostore code).
  *
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int HDFSIOSHandle::Close() {
+plfs_error_t HDFSIOSHandle::Close() {
     int rv;
 
     (void) hdfsFlush_wrap(this->hfs, this->hfd);
@@ -1033,18 +1044,18 @@ int HDFSIOSHandle::Close() {
  * saved path in the object to do the stat...
  *
  * @param buf the stat buffer to fill out
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int HDFSIOSHandle::Fstat(struct stat *buf) {
+plfs_error_t HDFSIOSHandle::Fstat(struct stat *buf) {
     return(this->parent->Stat(this->bpath.c_str(), buf));
 }
 
 /**
  * Fsync: sync an open file (flush)
  *
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int HDFSIOSHandle::Fsync() {
+plfs_error_t HDFSIOSHandle::Fsync() {
     int rv;
     rv = hdfsFlush_wrap(this->hfs, this->hfd);
     return(get_err(rv));
@@ -1056,9 +1067,9 @@ int HDFSIOSHandle::Fsync() {
  * best we can do at this point, i think.   XXX
  *
  * @param length the truncation size
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int HDFSIOSHandle::Ftruncate(off_t length) {
+plfs_error_t HDFSIOSHandle::Ftruncate(off_t length) {
     return(this->parent->Truncate(this->bpath.c_str(), length));
 }
 
@@ -1068,9 +1079,9 @@ int HDFSIOSHandle::Ftruncate(off_t length) {
  *
  * @param bufp allocated buffer pointer put here
  * @param length length of the data we want
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int HDFSIOSHandle::GetDataBuf(void **bufp, size_t length) {
+plfs_error_t HDFSIOSHandle::GetDataBuf(void **bufp, size_t length) {
     size_t bytes_read;
     char *buffer;
     int rv;
@@ -1079,7 +1090,7 @@ int HDFSIOSHandle::GetDataBuf(void **bufp, size_t length) {
     buffer = (char *)malloc(length);
 
     if (!buffer) {
-        return(-ENOMEM);
+        return PLFS_ENOMEM;
     }
     
     while (bytes_read < length) {
@@ -1087,18 +1098,18 @@ int HDFSIOSHandle::GetDataBuf(void **bufp, size_t length) {
                             buffer+bytes_read, length-bytes_read);
         if (rv <= 0) {
             if (rv == 0) {
-                rv = -EWOULDBLOCK;   /* ??? */
+                rv = EWOULDBLOCK;   /* ??? */
             } else {
-                rv = get_err(rv);
+                rv = safe_error();
             }
             free(buffer);
-            return(rv);
+            return errno_to_plfs_error(rv);
         }
         bytes_read += rv;
     }
 
     *bufp = buffer;
-    return(0);
+    return PLFS_SUCCESS;
 }
 
 /**
@@ -1107,11 +1118,14 @@ int HDFSIOSHandle::GetDataBuf(void **bufp, size_t length) {
  * @param buf the buffer to read into
  * @param count the number of bytes to read
  * @param offset the offset to read from
- * @return 0, size count, or -err
+ * @param bytes_read return 0, size count
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-ssize_t HDFSIOSHandle::Pread(void* buf, size_t count, off_t offset) {
+plfs_error_t HDFSIOSHandle::Pread(void* buf, size_t count,
+                                  off_t offset, ssize_t *bytes_read) {
     ssize_t rv;
     rv = hdfsPread_wrap(this->hfs, this->hfd, offset, buf, count);
+    *bytes_read = rv;
     return(get_err(rv));
 }
 
@@ -1122,10 +1136,12 @@ ssize_t HDFSIOSHandle::Pread(void* buf, size_t count, off_t offset) {
  * @param buf the buffer to write from
  * @param count the number of bytes to write
  * @param offset the offset to write from
- * @return 0, size count, or -err
+ * @param bytes_written return 0, size count
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-ssize_t HDFSIOSHandle::Pwrite(const void* buf, size_t count, off_t offset) {
-    return(-ENOTSUP);
+plfs_error_t HDFSIOSHandle::Pwrite(const void* buf, size_t count,
+                                   off_t offset, ssize_t *bytes_written) {
+    return PLFS_ENOTSUP;
 }
 
 /**
@@ -1133,11 +1149,13 @@ ssize_t HDFSIOSHandle::Pwrite(const void* buf, size_t count, off_t offset) {
  *
  * @param buf the buffer to read into
  * @param count the number of bytes to read
- * @return 0, size count, or -err
+ * @param bytes_read return 0, size count
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-ssize_t HDFSIOSHandle::Read(void *buf, size_t count) {
+plfs_error_t HDFSIOSHandle::Read(void *buf, size_t count, ssize_t *bytes_read) {
     ssize_t rv;
     rv = hdfsRead_wrap(this->hfs, this->hfd, buf, count);
+    *bytes_read = rv;
     return(get_err(rv));
 }
 
@@ -1146,12 +1164,12 @@ ssize_t HDFSIOSHandle::Read(void *buf, size_t count) {
  *
  * @param addr the buffer previously allocated with GetDataBuf
  * @param len the length of the buffer
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int HDFSIOSHandle::ReleaseDataBuf(void* addr, size_t len)
+plfs_error_t HDFSIOSHandle::ReleaseDataBuf(void* addr, size_t len)
 {
     free(addr);
-    return(0);
+    return PLFS_SUCCESS;
 }
 
 /**
@@ -1159,9 +1177,10 @@ int HDFSIOSHandle::ReleaseDataBuf(void* addr, size_t len)
  * open for write instead of read.   Not sure what can be done about
  * that...
  *
- * @return 0, offset, or -err
+ * @param res_offset offset to return(0, offset)
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-off_t HDFSIOSHandle::Size() {
+plfs_error_t HDFSIOSHandle::Size(off_t *res_offset) {
     tOffset tell, avail;
     
     /*
@@ -1177,7 +1196,8 @@ off_t HDFSIOSHandle::Size() {
         return(get_err(-1));
     }
 
-    return(tell + avail);
+    *res_offset = tell + avail;
+    return PLFS_SUCCESS;
 }
 
 /**
@@ -1185,11 +1205,13 @@ off_t HDFSIOSHandle::Size() {
  *
  * @param buf the buffer to write
  * @param len its length
- * @return byte count or -err
+ * @param bytes_written return byte count
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-ssize_t HDFSIOSHandle::Write(const void* buf, size_t len) {
+plfs_error_t HDFSIOSHandle::Write(const void* buf, size_t len, ssize_t *bytes_written) {
     ssize_t rv;
     rv = hdfsWrite_wrap(this->hfs, this->hfd, buf, len);
+    *bytes_written = rv;
     return(get_err(rv));
 }
 
@@ -1218,14 +1240,14 @@ HDFSIOSDirHandle::HDFSIOSDirHandle(hdfsFS newfs, string newbpath, int &ret) {
 /**
  * Closedir: close the directory (not really open, just free bufs)
  *
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int HDFSIOSDirHandle::Closedir() {
+plfs_error_t HDFSIOSDirHandle::Closedir() {
     if (this->infos != NULL) {
         hdfsFreeFileInfo_wrap(this->infos, this->numEntries);
         this->infos = NULL;
     }
-    return(0);
+    return PLFS_SUCCESS;
 }
 
 /**
@@ -1233,15 +1255,15 @@ int HDFSIOSDirHandle::Closedir() {
  *
  * @param dst a dirent structure we can use to return stuff in
  * @param dret we put the pointer to the return struct here
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int HDFSIOSDirHandle::Readdir_r(struct dirent *dst, struct dirent **dret) {
+plfs_error_t HDFSIOSDirHandle::Readdir_r(struct dirent *dst, struct dirent **dret) {
     char *lastComponent;
     
     /* check to see if we are at the end of the directory */
     if (this->curEntryNum >= this->numEntries) {
         *dret = NULL;
-        return(0);
+        return PLFS_SUCCESS;
     }
 
     dst->d_ino = 0;                         /* n/a in HDFS */
@@ -1274,7 +1296,7 @@ int HDFSIOSDirHandle::Readdir_r(struct dirent *dst, struct dirent **dret) {
     dst->d_name[NAME_MAX] = '\0';
     this->curEntryNum++;
     *dret = dst;
-    return(0);
+    return PLFS_SUCCESS;
 }
 
 #endif /* USE_HDFS */

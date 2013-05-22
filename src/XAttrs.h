@@ -26,11 +26,11 @@ class XAttrs
         XAttrs(string bpath, struct plfs_backend *canback);
         ~XAttrs();
 
-        XAttr *getXAttr(string key, size_t len);
-        bool setXAttr(string key, const void* value, size_t len);
+        plfs_error_t getXAttr(string key, size_t len, XAttr **res_xattr);
+        plfs_error_t setXAttr(string key, const void* value, size_t len);
 
     private:
-	string path;
+        string path;
         struct plfs_backend *canback;
 };
 

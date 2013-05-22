@@ -9,23 +9,23 @@ ResourceUnit::~ResourceUnit() {
     pthread_rwlock_destroy(&item_lock);
 }
 
-int
+plfs_error_t
 ResourceUnit::require(int type, void *resource) {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     int tries = 0;
     do {
         pthread_rwlock_rdlock(&item_lock);
-        if (resource_available(type, resource)) return 0;
+        if (resource_available(type, resource)) return PLFS_SUCCESS;
         pthread_rwlock_unlock(&item_lock);
         pthread_rwlock_wrlock(&item_lock);
         ret = add_resource(type, resource);
         pthread_rwlock_unlock(&item_lock);
-        if (ret != 0) return ret;
+        if (ret != PLFS_SUCCESS) return ret;
     } while (++tries <= 3);
     /* Wired, we add the resource and it becomes unavailable very soon.
      * So we try at most 3 times and then fail the request.
      */
-    return -EAGAIN;
+    return PLFS_EAGAIN;
 }
 
 void

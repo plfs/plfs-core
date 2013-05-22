@@ -72,7 +72,7 @@ public:
      * @return tr1::shared_ptr to a existent or newly created object in map[k].
      */
     tr1::shared_ptr<Value> insert(const Key &k, void *initpara, bool &created);
-    int transfer(const Key &from, const Key &to);
+    plfs_error_t transfer(const Key &from, const Key &to);
     void erase(const Key &k);
     void clear();
     /* Capacity */
@@ -164,17 +164,17 @@ CacheManager<Key, Value>::insert(const Key &key, void *init_para,
 };
 
 template <class Key, class Value>
-int
+plfs_error_t
 CacheManager<Key, Value>::transfer(const Key &from, const Key &to) {
     typename map<Key, tr1::shared_ptr<Value> >::iterator itr;
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
 
     pthread_rwlock_wrlock(&mlock);
     itr = mapper.find(from);
     if (itr == mapper.end()) {
-        ret = -ENOENT;
+        ret = PLFS_ENOENT;
     } else if (mapper.find(to) != mapper.end()) {
-        ret = -EEXIST;
+        ret = PLFS_EEXIST;
     } else {
         mapper[to] = itr->second;
         mapper.erase(itr);

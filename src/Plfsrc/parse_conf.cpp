@@ -92,7 +92,9 @@ expand_macros(const char *target) {
         } else {
             switch(target[++i]) {
                 case 'h':
-                    oss << Util::hostname();
+                    char *hname;
+                    Util::hostname(&hname);
+                    oss << hname;
                     break;
                 case 'p':
                     oss << getpid();

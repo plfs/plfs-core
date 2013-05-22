@@ -4,6 +4,7 @@
 #include "COPYRIGHT.h"
 #include <pthread.h>
 #include <vector>
+#include "plfs_error.h"
 using namespace std;
 
 class ThreadPool
@@ -11,10 +12,10 @@ class ThreadPool
     public:
         ThreadPool( size_t size, void *(*start_routine) (void *), void *args );
         ~ThreadPool();
-        int threadError();
+        plfs_error_t threadError();
         vector<void *>* getStati();
     private:
-        int thread_error;    /* store negative error number here */
+        plfs_error_t thread_error;    /* store negative error number here */
         vector<void *> stati;
 };
 
