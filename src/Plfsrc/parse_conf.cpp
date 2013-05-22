@@ -141,7 +141,7 @@ is_valid_node(const YAML::Node node, string** bad_key) {
                          (sizeof(Valid_Keys) / sizeof(Valid_Keys[0]))
                         );
     string key;
-    string err = "\nUnknown key in plfsrc: ";
+    string err = "\nBad key or value in plfsrc: ";
     if(node.IsMap()) {
         for(YAML::const_iterator it=node.begin();it!=node.end();it++) {
             if(!it->first.IsNull()) {
@@ -160,6 +160,11 @@ is_valid_node(const YAML::Node node, string** bad_key) {
         for(int i = 0; i < node.size(); i++)
             if(!is_valid_node(node[i],bad_key)) // recurse
                 return false;
+    }
+    else if (node.IsScalar() && node.as<string>().find(" ") != string::npos) {
+        err.append(node.as<string>());
+        *bad_key = new string (err);
+        return false; // no spaces in values allowed
     }
     return true; // all keys are valid
 }
@@ -191,8 +196,9 @@ namespace YAML {
    template<>
    struct convert<PlfsConf> {
        static bool decode(const Node& node, PlfsConf& pconf) {
-           if(node["global_params"]) {
-               set_default_confs(&pconf);
+           set_default_confs(&pconf);
+           if(node["global_params"] && (node["global_params"].IsNull() || 
+              node["global_params"].as<string>() == "")) {
                if(node["num_hostdirs"]) {
                    if(!conv(node["num_hostdirs"],pconf.num_hostdirs) || 
                       pconf.num_hostdirs > MAX_HOSTDIRS ||
@@ -360,8 +366,6 @@ namespace YAML {
                } 
                return true;
            }
-           pconf.err_msg = 
-               new string("Decode global_params called on unknown node");
            return false;
        }
    };
@@ -427,7 +431,8 @@ namespace YAML {
                    string temp;
                    string temp_loc;
                    for(unsigned i = 0; i < node["backends"].size(); i++) {
-                       if(!conv(node["backends"][i]["location"],temp_loc)) {
+                       if(!node["backends"][i].IsMap() ||
+                          !conv(node["backends"][i]["location"],temp_loc)) {
                            pmntp.err_msg = new string("Illegal backend location");
                            break;
                        }
@@ -475,7 +480,6 @@ namespace YAML {
                }
                return true;
            }
-           pmntp.err_msg = new string("Decode mount called on non-mount node\n");
            return false;
        }
    };
@@ -496,10 +500,20 @@ parse_conf(YAML::Node cnode, string file, PlfsConf *pconf)
         pconf->err_msg = new string("include file included more than once");
         return pconf;
     }
+    // make sure there's SOMETHING here to try and parse
+    if (cnode.size() == 0) {
+        pconf->err_msg = new string("plfsrc file not in YAML format");
+    }
     // only special case here is include
     // if any includes, recurse
-    // probably get rid of parse_conf_keyval entirely
     for (unsigned i = 0; i < cnode.size(); i++) {
+        // if this is a scalar node then plfsrc is invalid
+        if (cnode[i].IsScalar() ) {
+            string bad = cnode[i].as<string>();
+            pconf->err_msg = new string("Invalid entry in plfsrc: ");
+            pconf->err_msg->append(bad);
+            break;
+        }
         // make sure there aren't any unknown entries
         if (!is_valid_node(cnode[i],&pconf->err_msg))
             break;
@@ -522,8 +536,7 @@ parse_conf(YAML::Node cnode, string file, PlfsConf *pconf)
             PlfsConf temp_conf = *pconf; // save current mount params
             try { *pconf = cnode[i].as<PlfsConf>(); }
             catch (exception &e) {
-                pconf->err_msg = 
-                    new string(e.what());
+                pconf->err_msg = new string(e.what());
                 break;
             }
             if (pconf->err_msg)
@@ -637,8 +650,6 @@ get_plfs_conf()
         exit(1);
     }
     possible_files.push_back("/etc/plfsrc");
-    // try to parse each file until one works
-    // the C++ way to parse like this is istringstream (bleh)
     for( size_t i = 0; i < possible_files.size(); i++ ) {
         string file = possible_files[i];
         YAML::Node cnode;
@@ -735,10 +746,6 @@ setup_mlog_facnamemask(char *masks)
 /**
  * setup_mlog: setup and open the mlog, as per default config, augmented
  * by plfsrc, and then by command line args
- *
- * XXX: we call parse_conf_keyval with a NULL pmntp... shouldn't be
- * a problem because we restrict the parser to "mlog_" style key values
- * (so it will never touch that).
  *
  * @param pconf the config we are going to use
  */
