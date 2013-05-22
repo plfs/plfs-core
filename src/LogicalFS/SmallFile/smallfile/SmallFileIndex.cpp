@@ -18,7 +18,7 @@ public:
     IndexReader(struct plfs_pathback &fname, const index_mapping_t &meta,
                 int bufsize);
     virtual void *metadata() {return &fid_did.second;};
-    virtual int pop_front();
+    virtual plfs_error_t pop_front();
 protected:
     /* Index file has fixed-length records */
     virtual int record_size(void *unused) { return sizeof(struct IndexEntry);};
@@ -32,9 +32,9 @@ IndexReader::IndexReader(plfs_pathback &fname, const index_mapping_t &meta,
     fid_did = meta;
 }
 
-int
+plfs_error_t
 IndexReader::pop_front() {
-    int ret;
+    plfs_error_t ret;
     struct IndexEntry *entry;
 
     /* Skip all the index entries that don't belong to this file */
@@ -55,19 +55,19 @@ index_compare_func(void *index1, void *index2) {
 }
 
 SmallFileIndex::SmallFileIndex(void *init_para) {
-    int ret = require(MEMCACHE_FULLYLOADED, init_para);
-    if (ret) throw IndexBuildError();
+    plfs_error_t ret = require(MEMCACHE_FULLYLOADED, init_para);
+    if (ret != PLFS_SUCCESS) throw IndexBuildError();
     release(MEMCACHE_FULLYLOADED, init_para);
 }
 
 SmallFileIndex::~SmallFileIndex() {
 }
 
-int
+plfs_error_t
 SmallFileIndex::init_data_source(void *init_para,
                                  RecordReader **reader)
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     vector<plfs_pathback> &droppings = *(((index_init_para_t *)init_para)->namefiles);
     list<index_mapping_t> *fid = ((index_init_para_t *)init_para)->fids;
     MinimumHeap *min_heap = new MinimumHeap(fid->size(), index_compare_func);
@@ -75,19 +75,19 @@ SmallFileIndex::init_data_source(void *init_para,
     mlog(SMF_DAPI, "Start to build index %p.", this);
     if (fid->size() == 0) {
         *reader = min_heap;
-        return 0;
+        return PLFS_SUCCESS;
     }
     unsigned int buf_size = get_read_buffer_size(fid->size());
     list<index_mapping_t>::const_iterator itr;
     for (itr = fid->begin(); itr != fid->end(); itr++ ) {
         string index_fname;
         IndexReader *indexfile;
-        int pop_result;
+        plfs_error_t pop_result;
         struct plfs_pathback entry;
         entry.back = droppings[itr->second].back;
         assert(itr->second < droppings.size());
         ret = dropping_name2index(droppings[itr->second].bpath, entry.bpath);
-        if (ret) {
+        if (ret != PLFS_SUCCESS) {
             mlog(SMF_ERR, "Unable to get index file name from name file:%s.",
                  droppings[itr->second].bpath.c_str());
             break;
@@ -95,10 +95,10 @@ SmallFileIndex::init_data_source(void *init_para,
         indexfile = new IndexReader(entry, *itr, buf_size);
         /* Only after this pop_front(), we can get the first record. */
         pop_result = indexfile->pop_front();
-        if (pop_result == 1 && indexfile->front()) {
+        if (pop_result == PLFS_SUCCESS && indexfile->front()) {
             mlog(SMF_DAPI, "Load index entries from %s.", entry.bpath.c_str());
             min_heap->push_back(indexfile);
-        } else if (pop_result == 0 || pop_result == -ENOENT) {
+        } else if (pop_result == PLFS_EEOF || pop_result == PLFS_ENOENT) {
             delete indexfile;
             mlog(SMF_DAPI, "Skip empty or non-existent index file:%s.",
                  entry.bpath.c_str());
@@ -110,7 +110,7 @@ SmallFileIndex::init_data_source(void *init_para,
             break;
         }
     }
-    if (ret == 0) {
+    if (ret == PLFS_SUCCESS) {
         mlog(SMF_DAPI, "Successfully build index %p.", this);
         *reader = min_heap;
     } else {
@@ -120,7 +120,7 @@ SmallFileIndex::init_data_source(void *init_para,
     return ret;
 }
 
-int
+plfs_error_t
 SmallFileIndex::merge_object(void *record, void *meta) {
     const struct IndexEntry *entry = (const struct IndexEntry *)record;
     map<off_t, DataEntry>::iterator itr;
@@ -177,21 +177,21 @@ add_entry:
         index_mapping[entry->offset].did = HOLE_DROPPING_ID;
     index_mapping[entry->offset].offset = entry->physical_offset;
     index_mapping[entry->offset].length = entry->length;
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 #define IS_HOLE_ITR(itr) ((itr)->second.length == 0 && \
                           (off_t)(itr)->second.offset == HOLE_PHYSICAL_OFFSET)
 #define MAP_ITR_END(itr) ((off_t)((itr)->first + (itr)->second.length))
 
-int
+plfs_error_t
 SmallFileIndex::lookup(off_t offset, DataEntry &entry) {
     map<off_t, DataEntry>::const_iterator itr;
     map<off_t, DataEntry>::const_iterator itr_lower;
-    int ret;
+    plfs_error_t ret;
 
     ret = require(MEMCACHE_FULLYLOADED, NULL);
-    if (ret) return ret;
+    if (ret != PLFS_SUCCESS) return ret;
     if (index_mapping.empty()) {
         /* An empty index tree, return entry.length = 0 */
         entry.length = 0;
@@ -237,7 +237,7 @@ out_return:
     mlog(SMF_DAPI, "Get an entry record {%lu, %lu, %ld}@%lu.",
          (unsigned long)entry.length, (unsigned long)entry.offset,
          (long int)entry.did, (unsigned long)offset);
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 void
@@ -258,10 +258,10 @@ off_t
 SmallFileIndex::get_filesize() {
     map<off_t, DataEntry>::const_reverse_iterator itr;
     off_t retval = 0;
-    int ret;
+    plfs_error_t ret;
 
     ret = require(MEMCACHE_FULLYLOADED, NULL);
-    if (ret) return (off_t)-1;
+    if (ret != PLFS_SUCCESS) return (off_t)-1;
     itr = index_mapping.rbegin();
     if (itr != index_mapping.rend())
         retval = itr->first + itr->second.length;

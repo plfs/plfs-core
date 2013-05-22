@@ -33,24 +33,24 @@ InMemoryCache::resource_available(int type, void *resource) {
     return false;
 }
 
-int
+plfs_error_t
 InMemoryCache::add_resource(int type, void *resource) {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     if (type == MEMCACHE_DATASOURCE) {
         if (!data_source)
             ret = init_data_source(resource, &data_source);
     } else if (type == MEMCACHE_FULLYLOADED) {
         void *record;
-        if (fully_loaded) return 0;
+        if (fully_loaded) return PLFS_SUCCESS;
         if (!data_source) {
-            if (!resource) return -EINVAL;
+            if (!resource) return PLFS_EINVAL;
             ret = init_data_source(resource, &data_source);
-            if (ret || !data_source) return ret;
+            if (ret != PLFS_SUCCESS || !data_source) return ret;
         }
         fully_loaded = true;
         while ((record = data_source->front()) != NULL) {
             ret = merge_object(record, data_source->metadata());
-            if (ret) {
+            if (ret != PLFS_SUCCESS) {
                 fully_loaded = false;
                 break;
             }
@@ -62,7 +62,7 @@ InMemoryCache::add_resource(int type, void *resource) {
         MemCacheUpdateEntry *entry = (MemCacheUpdateEntry *)resource;
         if (fully_loaded && !entry->merged) {
             ret = merge_object(entry->record, entry->metadata);
-            if (!ret) entry->merged = true;
+            if (ret == PLFS_SUCCESS) entry->merged = true;
         }
     } else {
         assert(0);
@@ -70,15 +70,15 @@ InMemoryCache::add_resource(int type, void *resource) {
     return ret;
 }
 
-int
+plfs_error_t
 InMemoryCache::update(void *record, void *metadata) {
     MemCacheUpdateEntry updateentry;
-    int ret;
+    plfs_error_t ret;
 
     updateentry.record = record;
     updateentry.metadata = metadata;
     updateentry.merged = false;
     ret = require(MEMCACHE_MERGEUPDATE, &updateentry);
-    if (!ret) release(MEMCACHE_MERGEUPDATE, &updateentry);
+    if (ret == PLFS_SUCCESS) release(MEMCACHE_MERGEUPDATE, &updateentry);
     return ret;
 }

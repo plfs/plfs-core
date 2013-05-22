@@ -39,12 +39,14 @@ class PosixIOStore PosixIO;   /* shared for posix access */
  * @param prefixp we return a pointer to the prefix
  * @param prelenp we return the length of the prefix 
  * @param bmpointp we return a pointer to the bmpoint
- * @return the new iostore, or NULL on error
+ * @param res_store we return the new iostore
+ * @return PLFS_SUCCESS, or PLFS_TBD on error
  */
-class IOStore *plfs_iostore_get(char *phys_path, char **prefixp,
-                                int *prelenp, char **bmpointp, 
-                                PlfsMount *pmnt) {
-
+plfs_error_t plfs_iostore_get(char *phys_path, char **prefixp,
+                              int *prelenp, char **bmpointp,
+                              PlfsMount *pmnt, IOStore **res_store) {
+    plfs_error_t ret = PLFS_TBD;
+    *res_store = NULL;
     /* special handling for posix (allows shorthand) */
     if (phys_path[0] == '/' ||
         strncmp(phys_path, "posix:", sizeof("posix:")-1) == 0) {
@@ -53,7 +55,8 @@ class IOStore *plfs_iostore_get(char *phys_path, char **prefixp,
         *prelenp = 0;
         *bmpointp = (phys_path[0] == '/') ? phys_path :
             (phys_path + sizeof("posix:")-1);
-        return(&PosixIO);
+        *res_store = &PosixIO;
+        return PLFS_SUCCESS;
     }
 
     /* the only time we strip off the scheme/protocol is for posix */
@@ -62,22 +65,29 @@ class IOStore *plfs_iostore_get(char *phys_path, char **prefixp,
     if (strncmp(phys_path, "glib:", sizeof("glib:")-1) == 0) {
         *prelenp = 0;
         *bmpointp = phys_path + (sizeof("glib:")-1);
-        return(new GlibIOStore(pmnt->glib_buffer_mbs));
+        *res_store = new GlibIOStore(pmnt->glib_buffer_mbs);
+        return PLFS_SUCCESS;
     }
         
 #ifdef USE_HDFS
     if (strncmp(phys_path, "hdfs://", sizeof("hdfs://")-1) == 0) {
         class IOStore *rv;
-        rv = HDFSIOStore::HDFSIOStore_xnew(phys_path, prelenp, bmpointp);
-        return(rv);
+        ret = HDFSIOStore::HDFSIOStore_xnew(phys_path, prelenp, bmpointp, &rv);
+        if (ret == PLFS_SUCCESS) {
+            *res_store = rv;
+            return PLFS_SUCCESS;
+        }
     }
 #endif
 
 #ifdef USE_PVFS
     if (strncmp(phys_path, "pvfs://", sizeof("pvfs://")-1) == 0) {
         class IOStore *rv;
-        rv = PVFSIOStore::PVFSIOStore_xnew(phys_path, prelenp, bmpointp);
-        return(rv);
+        ret = PVFSIOStore::PVFSIOStore_xnew(phys_path, prelenp, bmpointp, &rv);
+        if (ret == PLFS_SUCCESS) {
+            *res_store = rv;
+            return PLFS_SUCCESS;
+        }
      }
 #endif
 
@@ -85,11 +95,12 @@ class IOStore *plfs_iostore_get(char *phys_path, char **prefixp,
     if (strncmp(phys_path, "iofsl:", sizeof("iofsl:")-1) == 0) {
         *prelenp = sizeof("iofsl:")-1;
         *bmpointp = phys_path + *prelenp;
-        return(new IOFSLIOStore());
+        *res_store = new IOFSLIOStore();
+        return PLFS_SUCCESS;
     }
 #endif
 
-    return(NULL);
+    return ret;
 }
 
 
@@ -100,18 +111,19 @@ class IOStore *plfs_iostore_get(char *phys_path, char **prefixp,
  *
  * @param pmnt mount point for log/err msgs, if any (can be NULL)
  * @param bend the backend to attach
- * @return 0 on success, -1 on error
+ * @return PLFS_SUCCESS on success, PLFS_E* on error
  */
-int plfs_iostore_factory(PlfsMount *pmnt, struct plfs_backend *bend) {
+plfs_error_t plfs_iostore_factory(PlfsMount *pmnt, struct plfs_backend *bend) {
+    plfs_error_t ret;
     char *prefix;
     int prefixlen;
     char *bmpoint;
     class IOStore *rv;
 
-    rv = plfs_iostore_get(bend->prefix, &prefix, &prefixlen, &bmpoint, pmnt);
+    ret = plfs_iostore_get(bend->prefix, &prefix, &prefixlen, &bmpoint, pmnt, &rv);
 
-    if (rv == NULL) {
-        return(-1);
+    if (ret != PLFS_SUCCESS) {
+        return ret;
     }
 
     bend->bmpoint = bmpoint;  /* malloc/copy to c++ string */
@@ -119,6 +131,6 @@ int plfs_iostore_factory(PlfsMount *pmnt, struct plfs_backend *bend) {
     prefix[prefixlen] = 0;    /* null terminate it */
     bend->store = rv;         /* ready to roll! */
 
-    return(0);
+    return PLFS_SUCCESS;
 }
 

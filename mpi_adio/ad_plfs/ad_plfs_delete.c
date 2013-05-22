@@ -11,15 +11,15 @@
 
 void ADIOI_PLFS_Delete(char *filename, int *error_code)
 {
-    int err;
+    plfs_error_t err;
     static char myname[] = "ADIOI_PLFS_DELETE";
     plfs_debug("%s: begin\n", myname );
     err = plfs_unlink(filename);
-    if (err < 0) {
+    if (err != PLFS_SUCCESS) {
         *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
                                            myname, __LINE__, MPI_ERR_IO,
                                            "**io",
-                                           "**io %s", strerror(-err));
+                                           "**io %s", strplfserr(err));
     } else {
         *error_code = MPI_SUCCESS;
     }
