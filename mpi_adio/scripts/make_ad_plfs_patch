@@ -23,7 +23,7 @@ while ( $i <= $#argv )
             echo "OPTIONS:"
             echo "\t--mpi=MPI"
             echo "\t\tSpecify what MPI implementation to patch for. Possible values are"
-            echo "\t\topenmpi and mpich2. Default is $mpi."
+            echo "\t\topenmpi and mpich. Default is $mpi."
             exit 0
             breaksw
         default:
@@ -39,12 +39,12 @@ end
 set unique_str = plfs-patch
 set ompi_path_base = openmpi-${unique_str}
 set ompi_path = ompi/mca/io/romio/romio/adio 
-set mpich2_path_base = mpich2-${unique_str}
-set mpich2_path = src/mpi/romio/adio
+set mpich_path_base = mpich-${unique_str}
+set mpich_path = src/mpi/romio/adio
 
 # Patch files that can be generated
 set ompi_patch = patches/openmpi/ompi-plfs.patch
-set mpich2_patch = patches/mpich2/mpich2-plfs.patch
+set mpich_patch = patches/mpich/mpich-plfs.patch
 
 # Choose one MPI to deal with. Set up paths and filenames that need to be
 # dealt with.
@@ -54,12 +54,12 @@ if ( "$mpi" == openmpi ) then #Open MPI
     set patch = $ompi_patch
     set in_makefile = Makefile.am.ompi
     set out_makefile = Makefile.am
-else if ( "$mpi" == mpich2 ) then # MPICH2
-    set adio_path_base = $mpich2_path_base
-    set adio_path = $mpich2_path
-    set patch = $mpich2_patch
-    set in_makefile = Makefile.in.mpich2
-    set out_makefile = Makefile.in
+else if ( "$mpi" == mpich ) then # MPICH
+    set adio_path_base = $mpich_path_base
+    set adio_path = $mpich_path
+    set patch = $mpich_patch
+    set in_makefile = Makefile.mk.mpich
+    set out_makefile = Makefile.mk
 else
     echo "Invalid value of '${mpi}' given to --mpi. See --help for help."
     exit 1
