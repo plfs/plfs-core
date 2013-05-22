@@ -1,0 +1,25 @@
+## -*- Mode: Makefile; -*-
+## vim: set ft=automake :
+##
+## (C) 2011 by Argonne National Laboratory.
+##     See COPYRIGHT in top-level directory.
+##
+
+if BUILD_AD_PLFS
+
+noinst_HEADERS += adio/ad_plfs/ad_plfs.h
+
+romio_other_sources +=              \
+	adio/ad_plfs/ad_plfs.c          \
+	adio/ad_plfs/ad_plfs_close.c    \
+	adio/ad_plfs/ad_plfs_delete.c   \
+	adio/ad_plfs/ad_plfs_fcntl.c    \
+	adio/ad_plfs/ad_plfs_features.c \
+	adio/ad_plfs/ad_plfs_flush.c    \
+	adio/ad_plfs/ad_plfs_open.c     \
+	adio/ad_plfs/ad_plfs_read.c     \
+	adio/ad_plfs/ad_plfs_resize.c   \
+	adio/ad_plfs/ad_plfs_hints.c    \
+	adio/ad_plfs/ad_plfs_write.c
+
+endif BUILD_AD_PLFS
