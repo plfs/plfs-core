@@ -4,15 +4,86 @@
 
 *** Creating a new prep.patch file ***
 
-Use existing patch files as a template. In general, it is sufficient to grep
-for PANFS (case-insensitive) and make modifications for PLFS wherever PANFS
-appears. Search in romio, romio/adio, romio/include and romio/common.
+The easiest way to generate a new prep.patch file is to apply an existing
+prep.patch to the new MPI source and then generate a new patch using diff if
+the existing prep.patch applied without errors. Here would be the general
+steps:
 
-We do have to do one bug fix. ROMIO, when doing data sieving, wants to do a 
-read-modify-write. If the file is opened write only, ROMIO will instead open
-the file in read-write mode, but report write only. PLFS does not perform well
-in read-write mode, so we want to disable that. In romio/common, grep for
-'data sieving' or 'read-modify-write'. Where ever this type of code appears:
+1) untar new MPI source
+2) copy untarred MPI source directory with '-plfs' appended to it
+3) change directory in to the -plfs directory
+4) apply the most recent prep.patch; if there are no errors, but only messages
+   about applying hunks at offsets, then continue. If there were errors, it
+   will be necessary to manually modify un-patched files. More on this below.
+5) go back up one directory
+6) diff the pristing MPI source directory with the -plfs directory to generate
+   a new patch. Use 'diff -Naur'.
+
+Here is an example of patching a new version of Open MPI:
+$> tar xjf openmpi-1.6.3.tar.gz
+$> cp openmpi-1.6.3 openmpi-1.6.3-plfs
+$> cd openmpi-1.6.3-plfs
+$> patch -p1 < /path/to/plfs/source/mpi_adio/patches/openmpi/openmpi-1.4.x-prep.patch
+# if no errors, continue.
+$> cd ..
+$> diff -Naur openmpi-1.6.3 openmpi-1.6.3-plfs > openmpi-1.6.3-prep.patch
+
+Test the patch by now compiling the MPI implementation in the -plfs directory.
+If the testing fails, the captured patch can be used on another pristine copy
+of the MPI source where iterative manual modification can take place. During
+the iterative testing process (make changes, test changes, make more changes,
+etc.), generate a patch before any testing as testing will generate build files
+that we do not want mentioned in the patch. Only generate patches from MPI
+source that has not had any build commands done in it. This means that after
+testing changes, it is best to remove that test case and start over from
+pristine source and apply the most recent patch to rapidly get back to the
+changes that have already been done.
+
+If the resulting patch file can be used with more than one version of the MPI
+implementation, then name it appropriately (see README.patching for a
+discussion of the naming convention for the prep.patch files).
+
+If there are no errors or messages about applying hunks to offsets, then it is
+possible to either modify the name of the existing patch to signify that it
+works with a broader range of versions of the MPI implementation or copy the
+existing prep.patch with a new name. As an example of the former, if it is
+found that openmpi-1.6.0-prep.patch works with openmpi-1.6.1, rename
+openmpi-1.6.0-prep.patch to be openmpi-1.6.x-prep.patch. As an example of the
+latter, if it is found that openmpi-1.6.x-prep.patch works with openmpi-1.7.0
+with no errors or messages about hunks being applied at offsets, copy
+openmpi-1.6.x-prep.patch to openmpi-1.6.0-prep.patch. This is because we don't
+want openmpi-1.x-prep.patch as it won't apply cleanly to openmpi-1.4.
+
+Even though this doesn't have to do with the prep.patch file persay, now would
+be a good time to verify the number of function pointers in
+ADIO_PLFS_operations in ad_plfs.c. The number of pointers in this structure
+need to match the number of function pointers in the struct ADIOI_Fns_struct
+in romio's adio/include/adioi.h. This is because the members of this struct
+are called by offset, not by name. If PLFS's version of the struct has a
+different number of function pointers, the wrong function may be called
+resulting in bad behavior (such as seg faults). If a descrepancy is found in
+the number of function pointers, more development needs to happen on ad_plfs
+to accomodate the new required functions.
+
+If there are errors in applying the patch, then it is necessary to manually
+edit the problem files. Use the existing patch file as a template to see
+what kind of changes are needed. Also search for PANFS (case-insensitive)
+and make modifications for PLFS wherever PANFS appears. Search in romio,
+romio/adio, romio/include and romio/common. Generally, the same type of
+lines used to get romio to work with PANFS are needed to get romio to work
+with PLFS.
+
+Most of the changes done by the prep.patch have to do with letting romio know
+about PLFS and how to deal with it. However, we do have to do one bug fix and
+this fix needs to be checked when manually editing MPI source files. In
+ad_plfs.c in the ADIO_PLFS_operations structure, we use the ADIOI_GEN_OpenColl
+function for "collective opens". This functions is in romio's
+adio/common/ad_opencoll.c. We need to patch this function because ROMIO, when
+doing data sieving, wants to do a read-modify-write. If the file is opened
+write only, ADIOI_GEN_OpenColl will instead open the file in read-write mode,
+but report write only. PLFS does not perform well in read-write mode, so we
+want to disable that. The original code in question should look something like
+this:
 
 /* For writing with data sieving, a read-modify-write is needed. If 
    the file is opened for write_only, the read will fail. Therefore, 
@@ -26,7 +97,7 @@ in read-write mode, so we want to disable that. In romio/common, grep for
     } 
     fd->access_mode = access_mode;
 
-change it to this:
+We need to change it to this:
 
 /* For writing with data sieving, a read-modify-write is needed. If 
    the file is opened for write_only, the read will fail. Therefore, 
@@ -40,13 +111,8 @@ change it to this:
     } 
     fd->access_mode = access_mode;
 
-One important thing to check is to make sure the same number of function
-pointers in the struct ADIOI_Fns_struct in adioi.h appear in 
-ADIO_PLFS_operations in ad_plfs.c. This is because the members of this struct
-are called by offset, not by name. If PLFS's version of the struct has a
-different number of function pointers, the wrong function may be called
-resulting in bad behavior (such as seg faults).
-
+Once all necessary modifications are believed to have been made, generate a
+patch file as outlined above and test the patch.
 
 *** A couple of possible optimizations ***
 
