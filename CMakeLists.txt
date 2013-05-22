@@ -365,7 +365,7 @@ INSTALL(FILES ${man5} DESTINATION ${MANDIR}/man5)
 INSTALL(FILES ${man7} DESTINATION ${MANDIR}/man7)
 
 #build patches
-message("Generating ad_plfs patches")
+message("-- Generating ad_plfs patches")
 execute_process(COMMAND ./scripts/make_ad_plfs_patch
 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/mpi_adio OUTPUT_QUIET)
 execute_process(COMMAND ./scripts/make_ad_plfs_patch --mpi=mpich
