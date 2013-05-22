@@ -3,7 +3,8 @@
    tools/plfs_check_config after building PLFS. Please note that the plfsrc
    file format has changed as of version 2.4. Any old plfsrc's not in the new
    YAML format need to be edited to conform to the new standard before updating
-   to 2.4 or above.
+   to 2.4 or above. For more examples and full details of all configuration 
+   options please see the plfsrc man page located in man/man5.
 
 1) Build the PLFS library and supporting tools.
 
