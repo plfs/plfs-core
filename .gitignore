@@ -19,7 +19,7 @@ a.out.dSYM*
 
 #patches
 *ompi-plfs.patch
-*mpich2-plfs.patch
+*mpich-plfs.patch
 
 #cmake
 CMakeCache.txt
