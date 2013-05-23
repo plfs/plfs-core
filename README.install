@@ -1,11 +1,3 @@
-0) All PLFS installations need a valid plfsrc file.  Please see plfsrc.example
-   to create one in either $HOME/.plfsrc or in /etc/plfsrc.  Check it with
-   tools/plfs_check_config after building PLFS. Please note that the plfsrc
-   file format has changed as of version 2.4. Any old plfsrc's not in the new
-   YAML format need to be edited to conform to the new standard before updating
-   to 2.4 or above. For more examples and full details of all configuration 
-   options please see the plfsrc man page located in man/man5.
-
 1) Build the PLFS library and supporting tools.
 
    0) In order to build the tools that work with fuse, you'll need to have fuse
@@ -29,9 +21,17 @@
       path, then /usr/local/bin and /usr/local/sbin need to be added to PATH.
       PLFS's lib directory can also be added to LD_LIBRARY_PATH. The default
       is /usr/local/lib.
-   5) check your plfsrc file with plfs_check_config (located in the bin
+   ### IMPORTANT ###
+   5) All PLFS installations need a valid plfsrc file. Please see the plfsrc
+      man page located by default in /usr/local/share/man/man5. Please note
+      that the plfsrc file format has changed as of version 2.4. Any old plfsrc
+      files not in the new YAML format need to be edited to conform to the new
+      standard before upgrading to PLFS 2.4 or above. By default PLFS will look
+      for a plfsrc file in $HOME/.plfsrc and /etc/plfsrc. You can also set
+      the PLFSRC environment variable to point to a plfsrc file.
+   6) Check your plfsrc file with plfs_check_config (located in the bin
       directory in the PLFS source tree after running make or in the
-      installation directory's bin directory)
+      installation directory's bin directory).
 
 2) To install PLFS as a ROMIO ADIO layer for MPI-IO.
 
