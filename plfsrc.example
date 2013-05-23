@@ -9,9 +9,9 @@
   num_hostdirs: 41
 
 # this must match where FUSE is mounted and the logical paths passed to ADIO
- - mount_point: /path/to/plfs/mount/point
+- mount_point: /path/to/plfs/mount/point
 
 # at least one location is needed, more can be specified
-   backends:
+  backends:
     - location: /path/to/plfs/backend/.plfs_store
-   workload: N-1
+  workload: n-1
