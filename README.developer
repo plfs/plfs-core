@@ -72,60 +72,66 @@ working on stays compatible with the current product.
 
 7) Release Process
 For the purposes of tagging a release, changes may be committed directly to
-plfs/plfs-core. Only changes to VERSION and ChangeLog are allowed to go
-directly to plfs/plfs-core; all others have to go through the normal code
-review process.
+plfs/plfs-core. Only changes to ChangeLog are allowed to go directly to
+plfs/plfs-core; all others have to go through the normal code review process.
 
 Regression testing a release
     1) Once all new features are in and a new release is to be made, the
     master branch of plfs/plfs-core is now frozen. No new features may be
     committed; only bug-fixes can be committed. Code review will be used to
     enforce this.
-    2) Verify that 'make dist' creates an acceptable tarball. Verify the
+    2) Verify that the proper version numbers are used at the top of
+    CMakeLists.txt. Make sure 'rc1' is present in either the minor or patch
+    field.
+    3) Verify that 'make dist' creates an acceptable tarball. Verify the
     following:
         1) The appropriate patches have been generated in /mpi_adio/patches.
         Each directory should get a <MPI>-plfs.patch where <MPI> is ompi, 
-        mpich2, etc.
+        mpich, etc.
         2) The following are in contrib/init.d: plfs.init, plfs.init.suse,
         plfs.sysconfig.
         3) PLFS can be built and used from the resulting tarball.
-    3) Update plfs.spec and verify an rpm can be built with it. This will
+    4) Update plfs.spec and verify an rpm can be built with it. This will
     verify that all files listed in the spec file match what will be created
     via 'make install'. Set "Version:" to <release> rather than <release>rc1.
     Make sure these changes are checked in to plfs/plfs-core via the
     appropriate method.
-    4) If the procedure outlined in README.git has been followed, the
+    5) If the procedure outlined in README.git has been followed, the
     committer will have a working repository with a remote defined as upstream
     that points to plfs/plfs-core. Upstream will be used directly in the
     following instructions, so ensure that upstream is sufficiently set up.
-    5) Update ChangeLog
-    6) Update VERSION to contain <release>rc1 where <release> is a version
-    number such as 2.3, for example.
+    6) Update ChangeLog
     7) Commit changes to the local repository.
     8) Make an annotated git tag: git tag -a <release>rc1
     9) Push local commits to upstream: git push upstream master
     10) Push <release>rc1 tag to upstream: git push upstream <release>rc1
-    11) Regression test <release>rc1. If problems are found and fixed, iterate
-    through steps 5 through 10 to create rc2. Iterate as many times as needed
-    until the release passes all regression tests satisfactorily. Once all
-    testing requirements have been satisfied, move on to the "Tag the release"
-    section.
+    11) Regression test <release>rc1.
+    12) If problems are found and fixed, iterate through steps 5 through 11
+    to create rc2. Iterate through these steps, generating a new release tag,
+    as many times as needed until the release passes all regression tests
+    satisfactorily. Each time a new release candidate is created, update
+    CMakeLists.txt accordingly with the new rc#. Once all testing requirements
+    have been satisfied, move on to the "Tag the release" section.
 
 Tag the release
 Once regression testing is done and a new release is ready, do the following:
-    1) Update VERSION to contain <release> (remove rc strings).
-    2) Commit that change to the local repository
+    1) Update CMakeLists.txt to have the proper version numbers; should mean
+    that only the "rc#" has to be removed from the minor or patch field.
+    2) Commit this change to the local repository
     3) Make an annotated git tag: git tag -a <release>
-    4) Push local commits to upstream: git push upstream master
+    4) Push changes upstream: git push upstream master
     5) Push <release> tag to upstream: git push upstream <release>
     6) The master branch on plfs/plfs-core is now unfrozen.
+After tagging a release, it is a good time to change the PLFS version
+numbers in CMakeLists.txt for the next release. This will help differentiate
+subsequent library names from the library associated with the actual release.
 
 Generate a tarball
     1) Make sure the local repository is set for <release> (use
     'git checkout <release>')
     2) cmake .
     3) make dist # Creates plfs-<version>.tar.gz
-    4) Upload the tarball to github.com
+    4) Upload the tarball
 
 8) MAKEFILES
 Don't edit Makefiles directly.  Edit the CMakeLists.txt file to change build
