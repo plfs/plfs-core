@@ -1,13 +1,25 @@
 %define debug_package	%{nil}
 %define	_release	1	
+# major version of PLFS
+%define pmajor	2
+# minor version of PLFS
+%define pminor	4
+# patch version of PLFS. Uncomment if not zero
+#%define ppatch	0
+# major YAML version that is included in with PLFS
+%define ymajor	0
+# minor YAML version that is included in with PLFS
+%define yminor	5
+# patch YAML version that is included in with PLFS
+%define ypatch	0
 
 Name:		plfs
 Summary:	plfs - Parallel Log Structured File System
-Version:    2.3
+Version:    %{pmajor}.%{pminor}
 Release:	%{_release}%{?dist}
 License:	LANS LLC
 Group:		System Environment/Filesystems
-Source:		plfs-%{version}.tar.gz
+Source:		plfs-%{version}.tar.bz2
 URL:		http://institutes.lanl.gov/plfs
 BuildRoot:	%{_tmppath}/plfs-%{version}-root
 %if 0%{?suse_version}
@@ -37,20 +49,18 @@ small N to 1 strided write patterns to a parallel file system.
 %setup -q -n plfs-%{version}
 
 %build
-./configure --prefix=%{_prefix} \
-            --libdir=%{_libdir} \
-            --bindir=%{_bindir} \
-            --sbindir=%{_sbindir} \
-            --includedir=%{_includedir} \
-            --datarootdir=%{_prefix}/share \
-            --sysconfdir=%{_sysconfdir}
+cmake -DCMAKE_INSTALL_PREFIX:PATH=%{_prefix} \
+      -DLIBDIR:PATH=%{_libdir} \
+      -DBINDIR:PATH=%{_bindir} \
+      -DSBINDIR:PATH=%{_sbindir} \
+      -DINCLUDEDIR:PATH=%{_includedir} \
+      -DMANDIR:PATH=%{_mandir}
+
 %{__make}
 
 %install
 %{__mkdir_p} %{buildroot}{%{_sbindir},%{_bindir},%{_libdir}}
 %{__mkdir_p} %{buildroot}%{_includedir}/plfs
-%{__mkdir_p} %{buildroot}%{_sysconfdir}/plfs
-%{__install} -m 0644 plfsrc.example %{buildroot}%{_sysconfdir}/plfsrc
 # create the directories and files for init.d
 %{__mkdir_p} %{buildroot}%{_initrddir}
 %{__mkdir_p} %{buildroot}%{_sysconfdir}/sysconfig
@@ -93,7 +103,6 @@ fi
 %config %{_initrddir}/plfs
 %defattr(-,root,root,0644)
 %config(noreplace) %{_sysconfdir}/sysconfig/plfs
-%config(noreplace) %{_sysconfdir}/plfsrc
 %{_mandir}/man1/plfs.1.gz
 
 %files lib
@@ -108,18 +117,18 @@ fi
 %{_bindir}/plfs_version
 %{_bindir}/plfs_ls
 %{_libdir}/libplfs.a
-%{_libdir}/libplfs.la
 %{_libdir}/libplfs.so
-%{_libdir}/libplfs.so.0
-%{_libdir}/libplfs.so.0.0.0
+%{_libdir}/libplfs.so.%{pmajor}.%{pminor}
+%{_libdir}/libplfs-yaml-static.a
+%{_libdir}/libplfs-yaml.so
+%{_libdir}/libplfs-yaml.so.%{ymajor}.%{yminor}
+%{_libdir}/libplfs-yaml.so.%{ymajor}.%{yminor}.%{ypatch}
 %defattr(-,root,root,0644)
 %{_includedir}/plfs/COPYRIGHT.h
 %{_includedir}/plfs/mlogfacs.h
 %{_includedir}/plfs/plfs_internal.h
 %{_includedir}/plfs/Util.h
 %{_includedir}/plfs.h
-%config %{_sysconfdir}/plfs/VERSION
-%config %{_sysconfdir}/plfs/VERSION.LAYOUT
 %doc COPYRIGHT.h
 %{_mandir}/man1/plfs_check_config.1.gz
 %{_mandir}/man1/plfs_flatten_index.1.gz
@@ -129,7 +138,7 @@ fi
 %{_mandir}/man1/plfs_version.1.gz
 %{_mandir}/man1/plfs_ls.1.gz
 %{_mandir}/man5/plfsrc.5.gz
-%{_mandir}/man3/is_plfs_file.3.gz
+%{_mandir}/man3/is_plfs_path.3.gz
 %{_mandir}/man3/plfs.3.gz
 %{_mandir}/man3/plfs_access.3.gz
 %{_mandir}/man3/plfs_chmod.3.gz
@@ -165,6 +174,15 @@ fi
 %{_mandir}/man7/plfs.7.gz
 
 %changelog
+* Thu May 23 2013 David Shrader <dshrader@lanl.gov>
+- use _mandir for directory to put man pages in instead of constructed path
+  based on _prefix.
+- Update to v2.4rc2.
+
+* Wed May 22 2013 David Shrader <dshrader@lanl.gov>
+- Update to v2.4rc1. A new build system is in use in 2.4. The YAML library is now
+  packaged with PLFS.
+
 * Mon Jul 2 2012 David Shrader <dshrader@lanl.gov>
 - Added dcon, findmesgbuf, and mlogfacs.h.
 - Moved all binaries except plfs into the plfs-lib rpm as they will be useful

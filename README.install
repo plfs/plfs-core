@@ -20,7 +20,8 @@
    4) Add the paths to the PLFS binaries to PATH. If using the default install
       path, then /usr/local/bin and /usr/local/sbin need to be added to PATH.
       PLFS's lib directory can also be added to LD_LIBRARY_PATH. The default
-      is /usr/local/lib.
+      is /usr/local/lib. It may also be useful to add PLFS's man pages to
+      MANPATH. The default is /usr/local/share/man.
    ### IMPORTANT ###
    5) All PLFS installations need a valid plfsrc file. Please see the plfsrc
       man page located by default in /usr/local/share/man/man5. Please note
