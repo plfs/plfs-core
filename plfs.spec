@@ -54,15 +54,13 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH=%{_prefix} \
       -DBINDIR:PATH=%{_bindir} \
       -DSBINDIR:PATH=%{_sbindir} \
       -DINCLUDEDIR:PATH=%{_includedir} \
-      -DMANDIR:PATH=%{_prefix}/share/man
+      -DMANDIR:PATH=%{_mandir}
 
 %{__make}
 
 %install
 %{__mkdir_p} %{buildroot}{%{_sbindir},%{_bindir},%{_libdir}}
 %{__mkdir_p} %{buildroot}%{_includedir}/plfs
-%{__mkdir_p} %{buildroot}%{_sysconfdir}/plfs
-%{__install} -m 0644 plfsrc.example %{buildroot}%{_sysconfdir}/plfsrc
 # create the directories and files for init.d
 %{__mkdir_p} %{buildroot}%{_initrddir}
 %{__mkdir_p} %{buildroot}%{_sysconfdir}/sysconfig
@@ -105,7 +103,6 @@ fi
 %config %{_initrddir}/plfs
 %defattr(-,root,root,0644)
 %config(noreplace) %{_sysconfdir}/sysconfig/plfs
-%config(noreplace) %{_sysconfdir}/plfsrc
 %{_mandir}/man1/plfs.1.gz
 
 %files lib
@@ -132,8 +129,6 @@ fi
 %{_includedir}/plfs/plfs_internal.h
 %{_includedir}/plfs/Util.h
 %{_includedir}/plfs.h
-#%config %{_sysconfdir}/plfs/VERSION
-#%config %{_sysconfdir}/plfs/VERSION.LAYOUT
 %doc COPYRIGHT.h
 %{_mandir}/man1/plfs_check_config.1.gz
 %{_mandir}/man1/plfs_flatten_index.1.gz
@@ -179,6 +174,15 @@ fi
 %{_mandir}/man7/plfs.7.gz
 
 %changelog
+* Thu May 23 2013 David Shrader <dshrader@lanl.gov>
+- use _mandir for directory to put man pages in instead of constructed path
+  based on _prefix.
+- Update to v2.4rc2.
+
+* Wed May 22 2013 David Shrader <dshrader@lanl.gov>
+- Update to v2.4rc1. A new build system is in use in 2.4. The YAML library is now
+  packaged with PLFS.
+
 * Mon Jul 2 2012 David Shrader <dshrader@lanl.gov>
 - Added dcon, findmesgbuf, and mlogfacs.h.
 - Moved all binaries except plfs into the plfs-lib rpm as they will be useful
