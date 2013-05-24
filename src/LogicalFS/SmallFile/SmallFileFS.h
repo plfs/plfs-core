@@ -49,6 +49,7 @@ class SmallFileFS : public LogicalFileSystem
         int statvfs(const char *path, struct statvfs *stbuf);
         int flush_writes(const char *dir);
         int invalidate_cache(const char *dir);
+        int resolvepath_finish(struct plfs_physpathinfo *ppip);
 };
 
 #endif

@@ -531,3 +531,9 @@ SmallFileFS::flush_writes(const char *dir)
     }
     return 0;
 }
+
+int
+SmallFileFS::resolvepath_finish(struct plfs_physpathinfo *ppip) {
+    /* XXXCDC */
+    return(-EIO);
+}

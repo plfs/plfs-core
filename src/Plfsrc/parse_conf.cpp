@@ -374,9 +374,21 @@ namespace YAML {
    struct convert<PlfsMount> {
        static bool decode(const Node& node, PlfsMount& pmntp) {
            if (node["mount_point"]) {
+
                set_default_mount(&pmntp);
-               pmntp.mnt_pt = node["mount_point"].as<string>();
-               Util::fast_tokenize(pmntp.mnt_pt.c_str(),pmntp.mnt_tokens);
+               const char *myvalue, *clean;
+               myvalue = node["mount_point"].as<string>().c_str();
+               clean = NULL;
+               if (Util::sanitize_path(myvalue, &clean, 1) != 0) {
+                   pmntp.err_msg = 
+                       new string("sanitize_path failed (mem err?)");
+               } else {
+                   pmntp.mnt_pt = clean; /* c++ strdup */
+                   if (clean != myvalue)
+                       free((void *)clean);   
+                   Util::fast_tokenize(pmntp.mnt_pt.c_str(),pmntp.mnt_tokens);
+               }
+
                if(node["max_smallfile_containers"]) {
                    if(!conv(node["max_smallfile_containers"],
                             pmntp.max_smallfile_containers) ||

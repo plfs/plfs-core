@@ -20,6 +20,112 @@ get_backend(const ExpansionInfo& exp)
 }
 
 /**
+ * find_best_mount_point: find the best matching mount point (e.g.
+ * choose /mnt/a/b/c over /mnt/a because it is a longer match).
+ *
+ * @param cleanlogical a cleaned version of the logical path
+ * @param mpp pointer to the mount we found
+ * @param mntlen length of the mount point string
+ * @return 0 or -err
+ */
+int find_best_mount_point(const char *cleanlogical,
+                          PlfsMount **mpp, int *mntlen) {
+    /*
+     * XXX: the old expandPath() used a static to cache the PlfsConf
+     * (prob to avoid the mutex lock in get_plfs_conf()).  we
+     * replicate that here.
+     */
+    static PlfsConf *pconf = get_plfs_conf();
+    map<string,PlfsMount *>::iterator itr;
+    PlfsMount *mymount, *xtry;
+    int hitlen, rv;
+
+    mymount = NULL;
+    hitlen = 0;
+    if (pconf == NULL)
+        goto done;
+
+    for (hitlen = 0, itr = pconf->mnt_pts.begin();
+         itr != pconf->mnt_pts.end(); itr++) {
+        xtry = itr->second;
+        if (hitlen > xtry->mnt_pt.length())  /* already found better match */
+            continue;
+        if (strncmp(cleanlogical,
+                    xtry->mnt_pt.c_str(), xtry->mnt_pt.length()) == 0) {
+            mymount = xtry;
+            hitlen = xtry->mnt_pt.length();
+        }
+    }
+ done:
+    if (mymount) {
+
+        /* make sure it is attached ... */
+        if (mymount->attached == 0) {
+            rv = plfs_attach(mymount);
+            if (rv != 0)
+                return(rv);
+        }
+
+        *mpp = mymount;
+        *mntlen = hitlen;
+        return(0);
+    }
+    
+    return(-ENOENT);
+}
+
+/**
+ * plfs_resolvepath: lookup the physical path info for a logical path
+ * using the mount table in the plfs config.
+ *
+ * @param logical the logical path we wish to resolve
+ * @param ppip pointer to a structure where we place the results
+ * @return 0 or -err
+ */
+int plfs_resolvepath(const char *logical, struct plfs_physpathinfo *ppip) {
+    int rv, mntlen;
+    const char *cleanlogical;
+
+    cleanlogical = NULL;
+    rv = Util::sanitize_path(logical, &cleanlogical, 0);
+    if (rv)
+        goto done;
+    
+    rv = find_best_mount_point(cleanlogical, &ppip->mnt_pt, &mntlen);
+    if (rv)
+        goto done;
+    
+    /*
+     * skip past mount point, and collect the rest of the path into
+     * a malloc'd C++ string (that will be owned by the caller).
+     *
+     * XXXCDC: watch out for mount point itself?
+     * if cleanlogical+mntlen points to \0 at the end of the string,
+     * then maybe we want "bnode" to be "/" instead of a null string?
+     * then again, maybe not, since we can just sub the path from mnt_pt?
+     */
+    ppip->bnode = cleanlogical + mntlen;
+    ppip->filename = strrchr(ppip->bnode.c_str(), '/');
+    if (ppip->filename) {
+        ppip->filename++;   /* skip over the slash */
+    }
+    /* note: ppip->mnt_pt is init'd above in the find call */
+    
+    /*
+     * give the logicalfs the option of filling out the rest of
+     * ppip (e.g. canback) if it wants to.
+     */
+    rv = ppip->mnt_pt->fs_ptr->resolvepath_finish(ppip);
+    
+ done:
+    if (cleanlogical && cleanlogical != logical) {
+        free((void *)cleanlogical);
+    }
+    return(rv);
+}
+
+
+/**
  * find_mount_point: find the PLFS mount point for a given logical path.
  * note that we can return NULL even if found is set to true, this
  * indicates some sort of error getting to a filesystem we know about.

@@ -32,6 +32,7 @@ class ContainerFileSystem : public LogicalFileSystem
         int rmdir(const char *path);
         int symlink(const char *path, const char *to);
         int statvfs(const char *path, struct statvfs *stbuf);
+        int resolvepath_finish(struct plfs_physpathinfo *ppip);
 };
 
 extern ContainerFileSystem containerfs;

@@ -43,6 +43,7 @@ class
         virtual int statvfs(const char *path, struct statvfs *stbuf) = 0;
         virtual int flush_writes(const char *dir) {return 0;};
         virtual int invalidate_cache(const char *dir) {return 0;};
+        virtual int resolvepath_finish(struct plfs_physpathinfo *ppip) = 0;
 };
 
 #endif

@@ -456,3 +456,10 @@ FlatFileSystem::statvfs(const char *logical, struct statvfs *stbuf)
     ret = flatback->store->Statvfs(path.c_str(), stbuf);
     FLAT_EXIT(ret);
 }
+
+/* ret 0 or -err */
+int
+FlatFileSystem::resolvepath_finish(struct plfs_physpathinfo *ppip) {
+    /*XXXCDC*/
+    return(-EIO);
+}

@@ -1,3 +1,5 @@
+#include "plfs_private.h"
+#include "Container.h"
 #include "ContainerFS.h"
 #include "ContainerFD.h"
 #include "container_internals.h"
@@ -130,4 +132,19 @@ int
 ContainerFileSystem::statvfs(const char *path, struct statvfs *stbuf)
 {
     return container_statvfs(path, stbuf);
+}
+
+int
+ContainerFileSystem::resolvepath_finish(struct plfs_physpathinfo *ppip)
+{
+    int hash_val;
+
+    hash_val = Container::hashValue(ppip->filename);
+    hash_val = hash_val % ppip->mnt_pt->ncanback;
+    ppip->canback = ppip->mnt_pt->canonical_backends[hash_val];
+
+    /* XXXCDC: verify the case where we are on the bmpoint is ok */
+    ppip->canbpath = ppip->canback->bmpoint + "/" + ppip->bnode;
+    return(0);
+    
 }

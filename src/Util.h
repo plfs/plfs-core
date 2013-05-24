@@ -66,6 +66,8 @@ class Util
         static char *Strdup(const char *s1);
 
         // other misc stuff
+        static int sanitize_path(const char *dirty, const char **clean,
+                                 int forcecopy);
         static vector<string> &tokenize(    const string& str,
                                             const string& delimiters,
                                             vector<string> &tokens);
