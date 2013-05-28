@@ -336,10 +336,12 @@ static int mlog_setnfac(int n)
 {
     int try, lcv;
     struct mlog_fac *nfacs;
-    /* fail if mlog not open */
-    if (!mlog_xst.tag) {
-        return(-1);
-    }
+
+    /*
+     * no need to check mlog_xst.tag to see if mlog is open or not,
+     * since caller holds mlog_lock already it must be ok.
+     */
+
     /* hmm, already done */
     if (n <= mlog_xst.fac_cnt) {
         return(0);
@@ -428,6 +430,68 @@ static uint32_t wswap(uint32_t w)
             ((w >>  8) & 0xff) << 16 |
             ((w      ) & 0xff) << 24 );
 }
+
+/**
+ * mlog_cleanout: release previously allocated resources (e.g. from a
+ * close or during a failed open).  this function assumes the mlogmux
+ * has been allocated (caller must ensure that this is true or we'll
+ * die when attempting a mlog_lock()).  we will dispose of mlogmux.
+ * (XXX: might want to switch over to a PTHREAD_MUTEX_INITIALIZER for
+ * mlogmux at some point?).
+ *
+ * the caller handles cleanout of mlog_xst.tag (not us).
+ */
+static void mlog_cleanout()
+{
+    int lcv;
+    mlog_lock();
+    if (mst.logfile) {
+        if (mst.logfd >= 0) {
+            close(mst.logfd);
+        }
+        mst.logfd = -1;
+        free(mst.logfile);
+        mst.logfile = NULL;
+    }
+    if (mlog_xst.mlog_facs) {
+        /*
+         * free malloced facility names, being careful not to free
+         * the static default_fac0name....
+         */
+        for (lcv = 0 ; lcv < mst.fac_alloc ; lcv++) {
+            if (mlog_xst.mlog_facs[lcv].fac_aname &&
+                    mlog_xst.mlog_facs[lcv].fac_aname != default_fac0name) {
+                free(mlog_xst.mlog_facs[lcv].fac_aname);
+            }
+            if (mlog_xst.mlog_facs[lcv].fac_lname) {
+                free(mlog_xst.mlog_facs[lcv].fac_lname);
+            }
+        }
+        free(mlog_xst.mlog_facs);
+        mlog_xst.mlog_facs = NULL;
+        mlog_xst.fac_cnt = mst.fac_alloc = 0;
+    }
+    if (mst.mb) {
+        free(mst.mb);
+        mst.mb = NULL;
+    }
+    if (mst.udpsock >= 0) {
+        close(mst.udpsock);
+        mst.udpsock = -1;
+    }
+    if (mst.ucons) {
+        free(mst.ucons);
+        mst.ucons = NULL;
+    }
+    if (mst.oflags & MLOG_SYSLOG) {
+        closelog();
+    }
+    mlog_unlock();
+#ifdef MLOG_MUTEX
+    pthread_mutex_destroy(&mst.mlogmux);
+#endif
+}
+
 
 /**
  * vmlog: core log function, front-ended by mlog/mlog_abort/mlog_exit.
@@ -729,7 +793,7 @@ int mlog_open(char *tag, int maxfac_hint, int default_mask, int stderr_mask,
               char *logfile, int msgbuf_len, int flags, int syslogfac)
 {
     int tagblen;
-    char *dcon, *cp;
+    char *newtag, *dcon, *cp;
     struct mlog_mbhead *mb;
     /* quick sanity check (mst.tag is non-null if already open) */
     if (mlog_xst.tag || !tag ||
@@ -738,29 +802,29 @@ int mlog_open(char *tag, int maxfac_hint, int default_mask, int stderr_mask,
             (msgbuf_len < 0) || (msgbuf_len > 0 && msgbuf_len < 16)) {
         return(-1);
     }
-    /* init working area so we can use mlog_close to bail out */
+    /* init working area so we can use mlog_cleanout to bail out */
     memset(&mst, 0, sizeof(mst));
     mst.logfd = mst.udpsock = -1;
     /* start filling it in */
     tagblen = strlen(tag) + MLOG_TAGPAD;     /* add a bit for pid */
-    mlog_xst.tag = calloc(1, tagblen);
-    if (!mlog_xst.tag) {
+    newtag = calloc(1, tagblen);
+    if (!newtag) {
         return(-1);
     }
 #ifdef MLOG_MUTEX    /* create lock */
     if (pthread_mutex_init(&mst.mlogmux, NULL) != 0) {
-        /* prevent close from destroying failed init of mst.mlogmux */
-        cp = mlog_xst.tag;
-        mlog_xst.tag = NULL;
-        free(cp);
+        /* XXX: consider cvt to PTHREAD_MUTEX_INITIALIZER */
+        free(newtag);
         return(-1);
     }
 #endif
+    /* it is now safe to use mlog_cleanout() for error handling */
+    
     mlog_lock();     /* now locked */
     if (flags & MLOG_LOGPID) {
-        snprintf(mlog_xst.tag, tagblen, "%s[%d]", tag, getpid());
+        snprintf(newtag, tagblen, "%s[%d]", tag, getpid());
     } else {
-        snprintf(mlog_xst.tag, tagblen, "%s", tag);
+        snprintf(newtag, tagblen, "%s", tag);
     }
     mst.def_mask = default_mask;
     mst.stderr_mask = stderr_mask;
@@ -842,14 +906,16 @@ int mlog_open(char *tag, int maxfac_hint, int default_mask, int stderr_mask,
         openlog(tag, (flags & MLOG_LOGPID) ? LOG_PID : 0, syslogfac);
         mst.oflags |= MLOG_SYSLOG;
     }
+    mlog_xst.tag = newtag;
     mlog_unlock();
     return(0);
 error:
     /*
-     * we failed.  mlog_close can handle the cleanup for us.
+     * we failed.  mlog_cleanout can handle the cleanup for us.
      */
+    free(newtag);    /* was never installed */
     mlog_unlock();
-    mlog_close();
+    mlog_cleanout();
     return(-1);
 }
 
@@ -940,52 +1006,7 @@ void mlog_close()
     }
     free(mlog_xst.tag);
     mlog_xst.tag = NULL;       /* marks us as down */
-    mlog_lock();
-    if (mst.logfile) {
-        if (mst.logfd >= 0) {
-            close(mst.logfd);
-        }
-        mst.logfd = -1;
-        free(mst.logfile);
-        mst.logfile = NULL;
-    }
-    if (mlog_xst.mlog_facs) {
-        /*
-         * free malloced facility names, being careful not to free
-         * the static default_fac0name....
-         */
-        for (lcv = 0 ; lcv < mst.fac_alloc ; lcv++) {
-            if (mlog_xst.mlog_facs[lcv].fac_aname &&
-                    mlog_xst.mlog_facs[lcv].fac_aname != default_fac0name) {
-                free(mlog_xst.mlog_facs[lcv].fac_aname);
-            }
-            if (mlog_xst.mlog_facs[lcv].fac_lname) {
-                free(mlog_xst.mlog_facs[lcv].fac_lname);
-            }
-        }
-        free(mlog_xst.mlog_facs);
-        mlog_xst.mlog_facs = NULL;
-        mlog_xst.fac_cnt = mst.fac_alloc = 0;
-    }
-    if (mst.mb) {
-        free(mst.mb);
-        mst.mb = NULL;
-    }
-    if (mst.udpsock >= 0) {
-        close(mst.udpsock);
-        mst.udpsock = -1;
-    }
-    if (mst.ucons) {
-        free(mst.ucons);
-        mst.ucons = NULL;
-    }
-    if (mst.oflags & MLOG_SYSLOG) {
-        closelog();
-    }
-    mlog_unlock();
-#ifdef MLOG_MUTEX
-    pthread_mutex_destroy(&mst.mlogmux);
-#endif
+    mlog_cleanout();
 }
 
 /*
