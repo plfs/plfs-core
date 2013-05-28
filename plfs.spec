@@ -85,7 +85,6 @@ if [ "$1" = "1" ]; then
    if [ -x /sbin/chkconfig ] ; then
        /sbin/chkconfig --add plfs
    fi
-   mkdir -p /tmp/plfs /tmp/.plfs_store
 fi
 
 %preun
@@ -94,7 +93,6 @@ if [ "$1" = "0" ]; then
     if [ -x /sbin/chkconfig ] ; then
         /sbin/chkconfig --del plfs
     fi
-   rmdir  /tmp/plfs /tmp/.plfs_store
 fi
 
 %files
