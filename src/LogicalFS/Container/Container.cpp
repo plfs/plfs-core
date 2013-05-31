@@ -1554,9 +1554,9 @@ Container::getattr( const string& path, struct plfs_backend *canback,
 // returns -err or 0
 int
 Container::makeTopLevel( const string& expanded_path,
-                         struct plfs_backend *canback, 
-                         const string& hostname, mode_t mode, pid_t pid,
-                         unsigned mnt_pt_checksum, bool lazy_subdir )
+                         struct plfs_backend *canback,
+                         const string& hostname, mode_t mode, int flags,
+                         pid_t pid, unsigned mnt_pt_checksum, bool lazy_subdir )
 {
     int rv;
     /*
@@ -1656,8 +1656,8 @@ Container::makeTopLevel( const string& expanded_path,
             // if it's something like EEXIST or ENOTEMPTY or EISDIR
             // then that probably means the same thing
             //if ( ! isContainer( expanded_path ) )
-            if ( saverv != -EEXIST && saverv != -ENOTEMPTY
-                    && saverv != -EISDIR ) {
+            if ( flags & O_EXCL || (saverv != -EEXIST && saverv != -ENOTEMPTY
+                    && saverv != -EISDIR) ) {
                 mlog(CON_DRARE, "rename %s to %s failed: %s",
                      tmpName.c_str(), expanded_path.c_str(),
                      strerror(-saverv));
@@ -2085,7 +2085,7 @@ Container::createHelper(const string& expanded_path,
     mlog(CON_DCOMMON, "Making top level container %s %x",
          expanded_path.c_str(),mode);
     begin_time = time(NULL);
-    res = makeTopLevel( expanded_path, canback, hostname, mode, pid,
+    res = makeTopLevel( expanded_path, canback, hostname, mode, flags, pid,
                         mnt_pt_cksum, lazy_subdir );
     end_time = time(NULL);
     if ( end_time - begin_time > 2 ) {

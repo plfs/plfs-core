@@ -31,7 +31,11 @@ int
 ContainerFileSystem::create(const char *logical, mode_t mode,
                             int flags, pid_t pid)
 {
-    flags = O_WRONLY|O_CREAT|O_TRUNC;
+    int new_flags = O_WRONLY|O_CREAT|O_TRUNC;
+    if(flags & O_EXCL){
+        new_flags |= O_EXCL;
+    }
+    flags = new_flags;
     return container_create(logical, mode, flags, pid);
 }
 
