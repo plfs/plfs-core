@@ -1,2 +1,0 @@
-PLFS_MNT='/plfs/scratch /plfs/scratch1 /plfs/scratch2'
-PLFSOPTS='-o allow_other'
