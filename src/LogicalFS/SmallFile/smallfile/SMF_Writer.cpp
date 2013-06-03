@@ -39,6 +39,7 @@ SMF_Writer::resource_available(int type, void *resource) {
     default:
         assert(0);
     }
+    return -1;
 }
 
 int
@@ -263,7 +264,7 @@ SMF_Writer::get_fileid(const string &filename, InMemoryCache *meta) {
 
 int
 SMF_Writer::sync(int sync_level) {
-    int ret;
+    int ret = 0;
     switch (sync_level) {
     case WRITER_SYNC_DATAFILE:
         ret = data_file.sync();
