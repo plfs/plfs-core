@@ -1000,7 +1000,6 @@ done:
  */
 void mlog_close()
 {
-    int lcv;
     if (!mlog_xst.tag) {
         return;    /* return if already closed */
     }
