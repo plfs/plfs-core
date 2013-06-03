@@ -12,7 +12,7 @@ void show_usage(char* app_name) {
 
 int main (int argc, char **argv) {
     int i;
-    char *target;
+    char *target = NULL;
     bool found_target = false;
     for (i = 1; i < argc; i++) {
         plfs_handle_version_arg(argc, argv[i]);

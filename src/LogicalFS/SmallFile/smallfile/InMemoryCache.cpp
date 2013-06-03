@@ -30,6 +30,7 @@ InMemoryCache::resource_available(int type, void *resource) {
     } else {
         assert(0);
     }
+    return false;
 }
 
 int

@@ -10,7 +10,7 @@ void show_usage(char* app_name) {
 
 int main (int argc, char **argv) {
     int i;
-    char *target;
+    char *target = NULL;
     bool found_target = false;
     int uniform_restart = false;
     pid_t uniform_rank = 0;
