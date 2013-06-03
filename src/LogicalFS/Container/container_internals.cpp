@@ -1360,6 +1360,7 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
     Index     *index   = NULL;
     bool new_writefile = false;
     bool new_index     = false;
+    bool truncated     = false; // don't truncate twice
     /*
     if ( pid == 0 && open_opt && open_opt->pinter == PLFS_MPIIO ) {
         // just one message per MPI open to make sure the version is right
@@ -1377,11 +1378,17 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
     //ret = Container::Access(path.c_str(),flags);
     if ( ret == 0 && flags & O_CREAT ) {
         ret = container_create( logical, mode, flags, pid );
+        if (ret == 0 && flags & O_TRUNC) { // create did truncate
+            truncated = true;   
+        }
     }
-    if ( ret == 0 && flags & O_TRUNC ) {
-        // truncating an open file
+    if ( ret == 0 && flags & O_TRUNC && !truncated) {
         ret = container_trunc( NULL, logical, 0,(int)true );
+        if (ret == 0) {
+            truncated = true;
+        }
     }
+
     if ( ret == 0 && *pfd) {
         plfs_reference_count(*pfd);
     }
