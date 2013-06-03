@@ -157,7 +157,7 @@ is_valid_node(const YAML::Node node, string** bad_key) {
         }
     }
     else if (node.IsSequence()) {
-        for(int i = 0; i < node.size(); i++)
+        for(unsigned int i = 0; i < node.size(); i++)
             if(!is_valid_node(node[i],bad_key)) // recurse
                 return false;
     }

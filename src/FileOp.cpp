@@ -60,7 +60,7 @@ int Access( const string& path, IOStore *store, int mask )
     // will exist if the container exists
     // doing just Access is insufficient when plfs daemon run as root
     // root can access everything.  so, we must also try the open
-    mode_t open_mode;
+    mode_t open_mode = 0;
     int ret;
     IOSHandle *fh;
     bool mode_set=false;
