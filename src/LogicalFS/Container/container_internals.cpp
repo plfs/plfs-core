@@ -137,6 +137,9 @@ findContainerPaths(const string& logical, ContainerPaths& paths)
     return 0;  // no expansion errors.  All paths derived and returned
 }
 
+// some callers pass O_TRUNC in the flags and expect this code to do a truncate
+// it does, so it's all good.  But just be careful to make sure that this code
+// continues to also do a truncate (actually done in Container::create
 int
 container_create( const char *logical, mode_t mode, int flags, pid_t pid )
 {
@@ -1379,6 +1382,9 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
     if ( ret == 0 && flags & O_CREAT ) {
         ret = container_create( logical, mode, flags, pid );
         if (ret == 0 && flags & O_TRUNC) { // create did truncate
+            // this assumes that container_create did the truncate!
+            // I think this is fine for now but be careful not to
+            // remove truncate from container_create
             truncated = true;   
         }
     }
