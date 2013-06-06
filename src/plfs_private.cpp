@@ -632,6 +632,30 @@ insert_mount_point(PlfsConf *pconf, PlfsMount *pmnt)
     return(error);
 }
 
+/**
+ * generate_backpaths: make a list of all backend paths for a given
+ * file (one for each backend in this mount point).
+ *
+ * @param ppip the physical path
+ * @param containers the output list is placed here
+ * @return 0 or -err (but actually never fails)
+ */
+int
+generate_backpaths(struct plfs_physpathinfo *ppip,
+                   vector<plfs_pathback> &containers)
+{
+    struct plfs_pathback pb;
+    int lcv;
+
+    for (lcv = 0 ; lcv < ppip->mnt_pt->nback ; lcv++) {
+        pb.back = ppip->mnt_pt->backends[lcv];
+        /* c++ is doing all sorts of malloc/copies under the hood here ... */
+        pb.bpath = pb.back->bmpoint + "/" + ppip->bnode;
+        containers.push_back(pb);  /* copies pb, so we can reuse it */
+    }
+    return(0);
+}
+
 // a helper routine that returns a list of all possible expansions
 // for a logical path (canonical is at index 0, shadows at the rest)
 // also works for directory operations which need to iterate on all
@@ -863,10 +887,36 @@ plfs_wtime()
     return Util::getTime();
 }
 
+/**
+ * plfs_backends_op: apply a fileop to all the backends in a mount.
+ * currently used by readdir, rmdir, mkdir
+ * this doesn't require the dires to already exist
+ *
+ * @param ppip the phyiscal path we are operating on
+ * @param op the file op to apply
+ * @return 0 or -err
+ */
+int
+plfs_backends_op(struct plfs_physpathinfo *ppip, FileOp& op)
+{
+    int ret = 0;
+    vector<plfs_pathback> exps;
+    vector<plfs_pathback>::iterator itr;
+    if ( (ret = generate_backpaths(ppip, exps)) != 0 ) {
+        return(ret);
+    }
+    for(itr = exps.begin(); itr != exps.end() && ret == 0; itr++ ) {
+        ret = op.op(itr->bpath.c_str(),DT_DIR,itr->back->store);
+        mlog(INT_DCOMMON, "%s on %s: %d",op.name(),itr->bpath.c_str(),ret);
+    }
+    return(ret);
+}
+
 // this applies a function to a directory path on each backend
 // currently used by readdir, rmdir, mkdir
 // this doesn't require the dirs to already exist
 // returns 0 or -err
+// XXXCDC: depreciate in favor of plfs_backends_op?
 int
 plfs_iterate_backends(const char *logical, FileOp& op)
 {
@@ -923,26 +973,6 @@ mkdir_dash_p(const string& path, bool parent_only, IOStore *store)
         }
     }
     return 0;
-}
-
-// restores a lost directory hierarchy
-// currently just used in plfs_recover.  See more comments there
-// returns 0 or -err
-// if directories already exist, it returns 0
-int
-recover_directory(const char *logical, bool parent_only)
-{
-    PLFS_ENTER;
-    vector<plfs_pathback> exps;
-    if ( (ret = find_all_expansions(logical,exps)) != 0 ) {
-        PLFS_EXIT(ret);
-    }
-    for(vector<plfs_pathback>::iterator itr = exps.begin();
-            itr != exps.end();
-            itr++ ) {
-        ret = mkdir_dash_p(itr->bpath,parent_only,itr->back->store);
-    }
-    return ret;
 }
 
 // a (non-thread proof) way to ensure we only init once

@@ -2,16 +2,17 @@
 #define __CONTAINER_INTERNALS_H_
 #include "OpenFile.h"
 
-int container_access( const char *path, int mask );
+int container_access(struct plfs_physpathinfo *ppip, int mask );
 
-int container_chmod( const char *path, mode_t mode );
+int container_chmod(struct plfs_physpathinfo *ppip, mode_t mode );
 
-int container_chown( const char *path, uid_t, gid_t );
+int container_chown(struct plfs_physpathinfo *ppip, uid_t, gid_t );
 
 int container_close(Container_OpenFile *,pid_t,uid_t,int open_flags,
                     Plfs_close_opt *close_opt);
 
-int container_create( const char *path, mode_t mode, int flags, pid_t pid );
+int container_create(struct plfs_physpathinfo *ppip, mode_t mode,
+                     int flags, pid_t pid );
 
 int container_dump_index( FILE *fp, const char *path, 
                     int compress, int uniform_restart, pid_t uniform_rank );
@@ -24,8 +25,8 @@ int container_dump_index_size()
 
 int container_file_version(const char *logical, const char **version);
 
-int container_getattr(Container_OpenFile *, const char *path, struct stat *st,
-                      int size_only);
+int container_getattr(Container_OpenFile *, struct plfs_physpathinfo *ppip,
+                      struct stat *st, int size_only);
 
 #ifdef __cplusplus
 extern "C" {
@@ -123,7 +124,8 @@ extern "C" {
 }
 #endif
 
-int container_link( const char *path, const char *to );
+int container_link(struct plfs_physpathinfo *ppip,
+                   struct plfs_physpathinfo *ppip_to);
 
 /*
  * the void *'s should be a vector<string>
@@ -135,11 +137,11 @@ int container_link( const char *path, const char *to );
 int container_locate(const char *logical, void *files_ptr,
                             void *dirs_ptr, void *metalinks_ptr);
 
-int container_mode( const char *path, mode_t *mode );
+int container_mode(struct plfs_physpathinfo *ppip, mode_t *mode );
 
-int container_mkdir( const char *path, mode_t );
+int container_mkdir(struct plfs_physpathinfo *ppip, mode_t );
 
-int container_open( Container_OpenFile **, const char *path,
+int container_open( Container_OpenFile **, struct plfs_physpathinfo *ppip,
                     int flags, pid_t pid, mode_t , Plfs_open_opt *open_opt);
 
 int container_query( Container_OpenFile *, size_t *writers,
@@ -148,9 +150,10 @@ int container_query( Container_OpenFile *, size_t *writers,
 ssize_t container_read( Container_OpenFile *, char *buf, size_t size,
                         off_t offset );
 
-int container_readdir( const char *path, set<string> * );
+int container_readdir(struct plfs_physpathinfo *ppip, set<string> * );
 
-int container_readlink( const char *path, char *buf, size_t bufsize );
+int container_readlink(struct plfs_physpathinfo *ppip, char *buf,
+                       size_t bufsize );
 
 /*  
  * recover a lost plfs file (which can happen if plfsrc is ever improperly
@@ -160,33 +163,36 @@ int container_readlink( const char *path, char *buf, size_t bufsize );
 
 int container_recover(const char *logical);
 
-int container_rename_open_file(Container_OpenFile *of, const char *logical,
-                               struct plfs_backend *b);
+int container_rename_open_file(Container_OpenFile *of,
+                               struct plfs_physpathinfo *ppip_to);
 
-int container_rename( const char *from, const char *to );
+int container_rename(struct plfs_physpathinfo *ppip,
+                     struct plfs_physpathinfo *ppip_to);
 
-int container_rmdir( const char *path );
+int container_rmdir(struct plfs_physpathinfo *ppip);
 
-int container_statvfs( const char *path, struct statvfs *stbuf );
+int container_statvfs(struct plfs_physpathinfo *ppip, struct statvfs *stbuf );
 
-int container_symlink( const char *path, const char *to );
+int container_symlink(const char *path, struct plfs_physpathinfo *ppip_to);
 
 int container_sync( Container_OpenFile * );
 
 int container_sync( Container_OpenFile *, pid_t );
 
-int container_trunc( Container_OpenFile *, const char *path, off_t,
-                     int open_file );
+int container_trunc( Container_OpenFile *, struct plfs_physpathinfo *ppip,
+                     off_t, int open_file );
 
-int container_unlink( const char *path );
+int container_unlink(struct plfs_physpathinfo *ppip);
 
-int container_utime( const char *path, struct utimbuf *ut );
+int container_utime(struct plfs_physpathinfo *ppip, struct utimbuf *ut );
 
 ssize_t container_write( Container_OpenFile *, const char *, size_t, off_t,
                          pid_t );
 
-int container_prepare_writer( WriteFile *, pid_t, mode_t, const string& );
+int container_prepare_writer(WriteFile *, pid_t, mode_t, const string &,
+                             PlfsMount *, const string &,
+                             struct plfs_backend *);
 
-int container_flatten_index(Container_OpenFile *fd, const char *logical);
-int is_container_file( const char *logical, mode_t *mode );
+int container_flatten_index(Container_OpenFile *fd,
+                            struct plfs_pathback *container);
 #endif

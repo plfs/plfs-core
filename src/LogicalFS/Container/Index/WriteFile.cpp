@@ -18,12 +18,15 @@ using namespace std;
 // anyway, this should all happen above WriteFile and be transparent to
 // WriteFile.  This comment is for educational purposes only.
 WriteFile::WriteFile(string path, string newhostname, mode_t newmode,
-                     size_t buffer_mbs, int pid, string logical,
-                     struct plfs_backend *backend) : Metadata::Metadata()
+                     size_t buffer_mbs, int pid, string mybnode,
+                     struct plfs_backend *backend,
+                     PlfsMount *pmnt) : Metadata::Metadata()
 {
     this->container_path    = path;
+    this->canback           = backend;
     this->subdir_path       = path;     /* not really a subdir */
-    this->subdirback        = backend;
+    this->subdirback        = backend;  /* can change if we switch to shadow */
+    this->wrpmnt            = pmnt;
     this->hostname          = newhostname;
     this->index             = NULL;
     this->mode              = newmode;
@@ -33,7 +36,7 @@ WriteFile::WriteFile(string path, string newhostname, mode_t newmode,
     this->index_buffer_mbs  = buffer_mbs;
     this->max_writers       = 0;
     this->open_pid          = pid;
-    this->logical_path      = logical;
+    this->bnode             = mybnode;
     pthread_mutex_init( &data_mux, NULL );
     pthread_mutex_init( &index_mux, NULL );
 }
@@ -42,6 +45,20 @@ void WriteFile::setContainerPath ( string p )
 {
     this->container_path    = p;
     this->has_been_renamed = true;
+}
+
+void WriteFile::setPhysPath(struct plfs_physpathinfo *ppip_to) {
+    /*
+     * XXXCDC: this used to update the logical_path.  now we've got
+     * more data that could be updated, but it isn't clear how this
+     * worked in the old case either?  the old one didn't update
+     * subdir_path/subdirback.  should we?
+     */
+    this->bnode = ppip_to->bnode;
+    this->container_path = ppip_to->canbpath;
+    this->canback = ppip_to->canback;
+    /* XXXCDC subdirpath */
+    /* XXXCDC subdirback */
 }
 
 /**
@@ -325,7 +342,9 @@ WriteFile::prepareForWrite( pid_t pid )
         // After changing to avoid creating empty data dropping and
         // index files in open, we defer the creation until first
         // write, which is here.
-        ret = Container::prepareWriter( this, pid, mode, logical_path );
+        ret = Container::prepareWriter(this, pid, mode, this->bnode,
+                                       this->wrpmnt, this->container_path,
+                                       this->canback);
     }
 
     // we also defer creating index dropping. so index may be NULL.

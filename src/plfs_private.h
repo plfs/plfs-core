@@ -73,6 +73,9 @@ int find_best_mount_point(const char *cleanlogical, PlfsMount **mpp,
                           int *mlen);
 PlfsMount *find_mount_point(PlfsConf *pconf, const string& path, bool& found);
 PlfsMount *find_mount_point_using_tokens(PlfsConf *, vector <string> &, bool&);
+
+int generate_backpaths(struct plfs_physpathinfo *ppip,
+                       vector<plfs_pathback> &containers);
 int find_all_expansions(const char *logical,vector<plfs_pathback> &containers);
 
 // a helper function that expands %t, %p, %h in mlog file name
@@ -83,8 +86,8 @@ void stripPrefixPath(const char *path, char *stripped_path);
 string expandPath(string logical, ExpansionInfo *exp_info,
                   expansionMethod hash_method, int which_backend, int depth);
 int mkdir_dash_p(const string& path, bool parent_only, IOStore *);
-int recover_directory(const char *logical, bool parent_only);
 
+int plfs_backends_op(struct plfs_physpathinfo *ppip, FileOp& op);
 int plfs_iterate_backends(const char *logical, FileOp& op);
 int plfs_resolvepath(const char *logical, struct plfs_physpathinfo *ppip);
 

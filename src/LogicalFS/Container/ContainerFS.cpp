@@ -10,8 +10,9 @@
 ContainerFileSystem containerfs;
 
 int
-ContainerFileSystem::open(Plfs_fd **pfd, const char *logical, int flags,
-                          pid_t pid, mode_t mode, Plfs_open_opt *open_opt)
+ContainerFileSystem::open(Plfs_fd **pfd, struct plfs_physpathinfo *ppip,
+                          int flags, pid_t pid, mode_t mode,
+                          Plfs_open_opt *open_opt)
 {
     int ret;
     bool newly_created = false;
@@ -21,7 +22,7 @@ ContainerFileSystem::open(Plfs_fd **pfd, const char *logical, int flags,
         newly_created = true;
         *pfd = new Container_fd();
     }
-    ret = (*pfd)->open(logical, flags, pid, mode, open_opt);
+    ret = (*pfd)->open(ppip, flags, pid, mode, open_opt);
     if (ret != 0 && newly_created) {
         delete (*pfd);
         *pfd = NULL;
@@ -30,108 +31,115 @@ ContainerFileSystem::open(Plfs_fd **pfd, const char *logical, int flags,
 }
 
 int
-ContainerFileSystem::create(const char *logical, mode_t mode,
+ContainerFileSystem::create(struct plfs_physpathinfo *ppip, mode_t mode,
                             int flags, pid_t pid)
 {
     flags = O_WRONLY|O_CREAT|O_TRUNC;
-    return container_create(logical, mode, flags, pid);
+    return container_create(ppip, mode, flags, pid);
 }
 
 int
-ContainerFileSystem::chown(const char *logical, uid_t u, gid_t g)
+ContainerFileSystem::chown(struct plfs_physpathinfo *ppip, uid_t u, gid_t g)
 {
-    return container_chown(logical, u, g);
+    return container_chown(ppip, u, g);
 }
 
 int
-ContainerFileSystem::chmod(const char *logical, mode_t mode)
+ContainerFileSystem::chmod(struct plfs_physpathinfo *ppip, mode_t mode)
 {
-    return container_chmod(logical, mode);
+    return container_chmod(ppip, mode);
 }
 
 int
-ContainerFileSystem::getmode(const char *logical, mode_t *mode)
+ContainerFileSystem::getmode(struct plfs_physpathinfo *ppip, mode_t *mode)
 {
-    return container_mode(logical, mode);
+    return container_mode(ppip, mode);
 }
 
 int
-ContainerFileSystem::access(const char *logical, int mask)
+ContainerFileSystem::access(struct plfs_physpathinfo *ppip, int mask)
 {
-    return container_access(logical, mask);
+    return container_access(ppip, mask);
 }
 
 int
-ContainerFileSystem::rename(const char *logical, const char *to)
+ContainerFileSystem::rename(struct plfs_physpathinfo *ppip,
+                            struct plfs_physpathinfo *ppip_to)
 {
-    return container_rename(logical, to);
+    return container_rename(ppip, ppip_to);
 }
 
 int
-ContainerFileSystem::link(const char *logical, const char *to)
+ContainerFileSystem::link(struct plfs_physpathinfo *ppip,
+                          struct plfs_physpathinfo *ppip_to)
 {
-    return container_link(logical, to);
+    return container_link(ppip, ppip_to);
 }
 
 int
-ContainerFileSystem::utime(const char *logical, struct utimbuf *ut)
+ContainerFileSystem::utime(struct plfs_physpathinfo *ppip, struct utimbuf *ut)
 {
-    return container_utime(logical, ut);
+    return container_utime(ppip, ut);
 }
 
 int
-ContainerFileSystem::getattr(const char *logical, struct stat *stbuf,
+ContainerFileSystem::getattr(struct plfs_physpathinfo *ppip, struct stat *stbuf,
                              int sz_only)
 {
-    return container_getattr(NULL, logical, stbuf, sz_only);
+    return container_getattr(NULL, ppip, stbuf, sz_only);
 }
 
 int
-ContainerFileSystem::trunc(const char *logical, off_t offset, int open_file)
+ContainerFileSystem::trunc(struct plfs_physpathinfo *ppip, off_t offset,
+                           int open_file)
 {
-    return container_trunc(NULL, logical, offset, open_file);
+    return container_trunc(NULL, ppip, offset, open_file);
 }
 
 int
-ContainerFileSystem::unlink(const char *logical)
+ContainerFileSystem::unlink(struct plfs_physpathinfo *ppip)
 {
-    return container_unlink(logical);
+    return container_unlink(ppip);
 }
 
 int
-ContainerFileSystem::mkdir(const char *path, mode_t mode)
+ContainerFileSystem::mkdir(struct plfs_physpathinfo *ppip, mode_t mode)
 {
-    return container_mkdir(path, mode);
+    return container_mkdir(ppip, mode);
 }
 
 int
-ContainerFileSystem::readdir(const char *path, set<string> *entries)
+ContainerFileSystem::readdir(struct plfs_physpathinfo *ppip,
+                             set<string> *entries)
 {
-    return container_readdir(path, entries);
+    return container_readdir(ppip, entries);
 }
 
 int
-ContainerFileSystem::readlink(const char *path, char *buf, size_t bufsize)
+ContainerFileSystem::readlink(struct plfs_physpathinfo *ppip, char *buf,
+                              size_t bufsize)
 {
-    return container_readlink(path, buf, bufsize);
+    return container_readlink(ppip, buf, bufsize);
 }
 
 int
-ContainerFileSystem::rmdir(const char *path)
+ContainerFileSystem::rmdir(struct plfs_physpathinfo *ppip)
 {
-    return container_rmdir(path);
+    return container_rmdir(ppip);
 }
 
 int
-ContainerFileSystem::symlink(const char *path, const char *to)
+ContainerFileSystem::symlink(const char *from,
+                             struct plfs_physpathinfo *ppip_to)
 {
-    return container_symlink(path, to);
+    return container_symlink(from, ppip_to);
 }
 
 int
-ContainerFileSystem::statvfs(const char *path, struct statvfs *stbuf)
+ContainerFileSystem::statvfs(struct plfs_physpathinfo *ppip,
+                             struct statvfs *stbuf)
 {
-    return container_statvfs(path, stbuf);
+    return container_statvfs(ppip, stbuf);
 }
 
 int

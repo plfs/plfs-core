@@ -1773,9 +1773,11 @@ Container::makeDropping(const string& path, struct plfs_backend *b)
 }
 int
 Container::prepareWriter(WriteFile *wf, pid_t pid, mode_t mode,
-                         const string& logical)
+                         const string& bnode, PlfsMount *mntpt,
+                         const string& canbpath, struct plfs_backend *canback)
 {
-    return container_prepare_writer(wf, pid, mode, logical);
+    return container_prepare_writer(wf, pid, mode, bnode, mntpt,
+                                    canbpath, canback);
 }
 // returns 0 or -err
 int
