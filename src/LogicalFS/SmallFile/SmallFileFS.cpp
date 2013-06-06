@@ -155,8 +155,8 @@ SmallFileFS::chown(struct plfs_physpathinfo *ppip, uid_t u, gid_t g)
 {
     PathExpandInfo expinfo;
     int firsttime = 1;
-    int ret;
-    struct plfs_backend *backend;
+    int ret = 0;
+    struct plfs_backend *backend = NULL;
 
     smallfile_expand_path(ppip, expinfo);
     for (int i = 0; i < expinfo.pmount->nback; i++) {

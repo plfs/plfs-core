@@ -244,6 +244,11 @@ if (NOT APPLE)
     set (CMAKE_MODULE_LINKER_FLAGS "-dynamic -Wl,--enable-new-dtags")
 endif()
 
+#yaml-cpp which we call plfs-yaml to avoid conflicts
+add_subdirectory (${CMAKE_CURRENT_SOURCE_DIR}/src/Plfsrc/yaml-cpp ${PLFS_BUILD_DIR}/yaml-cpp)
+include_directories (src/Plfsrc/yaml-cpp/include)
+include_directories (src/Plfsrc/yaml-cpp/boost)
+
 #static and shared both same name
 add_library(plfs_lib SHARED ${SRCDIR})
 SET_TARGET_PROPERTIES(plfs_lib PROPERTIES OUTPUT_NAME plfs)
@@ -252,6 +257,7 @@ set_target_properties(plfs_lib PROPERTIES
         SOVERSION "${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}"
         PROJECT_LABEL "plfs_lib shared")
 
+target_link_libraries (plfs_lib plfs-yaml)
 if (NOT DISABLE_STATIC_LIB)
     add_library(plfs_lib_static STATIC ${SRCDIR})
     #make sure these build first, causes issues in 2.6
@@ -265,6 +271,7 @@ if (NOT DISABLE_STATIC_LIB)
         VERSION "${plfs_VERSION_FULL}"
         SOVERSION "${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}"
         PROJECT_LABEL "plfs_lib static")
+    target_link_libraries(plfs_lib_static plfs-yaml-static)
 else()
     INSTALL(TARGETS plfs_lib
             LIBRARY DESTINATION ${LIBDIR})
@@ -283,11 +290,6 @@ if (Threads_FOUND)
     target_link_libraries (plfs_lib ${CMAKE_THREAD_LIBS_INIT})
 endif (Threads_FOUND)
 
-#yaml-cpp which we call plfs-yaml to avoid conflicts
-add_subdirectory (${CMAKE_CURRENT_SOURCE_DIR}/src/Plfsrc/yaml-cpp ${PLFS_BUILD_DIR}/yaml-cpp)
-target_link_libraries (plfs_lib plfs-yaml)
-include_directories (src/Plfsrc/yaml-cpp/include)
-include_directories (src/Plfsrc/yaml-cpp/boost)
 
 #statvfs
 check_include_files(sys/statvfs.h HAVE_SYS_STATVFS_H)

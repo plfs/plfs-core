@@ -306,7 +306,7 @@ expandPath(string logical, ExpansionInfo *exp_info,
     // choose a backend unless the caller explicitly requested one
     // also set the set of backends to use.  If the plfsrc has separate sets
     // for shadows and for canonical, then use them appropriately
-    int hash_val, backcnt;
+    int hash_val = 0, backcnt = 0;
     struct plfs_backend **backends = NULL;
     switch(hash_method) {
     case EXPAND_CANONICAL:

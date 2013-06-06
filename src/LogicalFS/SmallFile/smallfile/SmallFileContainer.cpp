@@ -116,7 +116,7 @@ SmallFileContainer::get_writer(pid_t pid) {
         pthread_rwlock_unlock(&writers_lock);
         return retval;
     }
-    if (writers.size() >= pmount->max_writers) {
+    if (writers.size() >= (unsigned int) pmount->max_writers) {
         // If there are too many writers already, we borrow one from another
         // process instead of creating a new one ourselves.
         itr = writers.begin();

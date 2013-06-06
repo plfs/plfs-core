@@ -815,7 +815,7 @@ Container::createMetalink(struct plfs_backend *canback,
     string canonical_path_without_id;   /* canonical hostdir bpath w/o id */
     ostringstream oss, shadow;
     size_t i;
-    int ret, id, dir_id;
+    int ret = 0, id = 0, dir_id = 0;
 
     ret = -EIO;  /* to be safe */
 
@@ -844,7 +844,7 @@ Container::createMetalink(struct plfs_backend *canback,
      * our number is busy, we try the next.  if we can't find a free
      * slot, we can just use a hostdir from the canonical container.
      */
-    for (i = 0, dir_id = -1 ; i < pconf->num_hostdirs ; i++) {
+    for ( i = 0, dir_id = -1 ; i < (unsigned int) pconf->num_hostdirs ; i++) {
         /* start with current and go from there, wrapping as needed... */
         id = (current_hostdir + i) % pconf->num_hostdirs;
 
@@ -1859,7 +1859,7 @@ Container::makeHostDir(const ContainerPaths& paths,mode_t mode,
             // loop all possible hostdir # to try to make subdir
             // directory or use the first existing one 
             // (or try to find a valid metalink if all else fails)
-            for(size_t i = 0; i < pconf->num_hostdirs; i ++ ) {
+            for(size_t i = 0; i < (unsigned int) pconf->num_hostdirs; i ++ ) {
                 id = (current_hostdir + i)%pconf->num_hostdirs;
                 oss.str(std::string());
                 oss << canonical_path_without_id << id;

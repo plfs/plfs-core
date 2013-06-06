@@ -122,7 +122,7 @@ logical_from_physical(char * physical_target, std::string &file_location) {
 int 
 main (int argc, char **argv) {
     int i;
-    char * target;
+    char *target = NULL;
     bool found_target = false;
     string dir_suffix = "";
     string metalink_suffix = "";

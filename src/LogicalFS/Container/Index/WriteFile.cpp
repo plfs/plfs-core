@@ -369,7 +369,7 @@ ssize_t
 WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
 {
     int ret = 0;
-    ssize_t written;
+    ssize_t written = 0;
 
     ret = prepareForWrite( pid );
     if ( ret == 0 ) {

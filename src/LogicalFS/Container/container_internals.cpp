@@ -196,6 +196,9 @@ findContainerPaths(const string& bnode, PlfsMount *pmnt,
     return(0);
 }
 
+// some callers pass O_TRUNC in the flags and expect this code to do a truncate
+// it does, so it's all good.  But just be careful to make sure that this code
+// continues to also do a truncate (actually done in Container::create
 int
 container_create(struct plfs_physpathinfo *ppip, mode_t mode, int flags,
                  pid_t pid )
@@ -1457,6 +1460,7 @@ container_open(Container_OpenFile **pfd, struct plfs_physpathinfo *ppip,
     Index     *index   = NULL;
     bool new_writefile = false;
     bool new_index     = false;
+    bool truncated     = false; // don't truncate twice
     /*
     if ( pid == 0 && open_opt && open_opt->pinter == PLFS_MPIIO ) {
         // just one message per MPI open to make sure the version is right
@@ -1474,11 +1478,20 @@ container_open(Container_OpenFile **pfd, struct plfs_physpathinfo *ppip,
     //ret = Container::Access(path.c_str(),flags);
     if ( ret == 0 && flags & O_CREAT ) {
         ret = container_create( ppip, mode, flags, pid );
+        if (ret == 0 && flags & O_TRUNC) { // create did truncate
+            // this assumes that container_create did the truncate!
+            // I think this is fine for now but be careful not to
+            // remove truncate from container_create
+            truncated = true;   
+        }
     }
-    if ( ret == 0 && flags & O_TRUNC ) {
-        // truncating an open file
+    if ( ret == 0 && flags & O_TRUNC && !truncated) {
         ret = container_trunc( NULL, ppip, 0,(int)true );
+        if (ret == 0) {
+            truncated = true;
+        }
     }
+
     if ( ret == 0 && *pfd) {
         plfs_reference_count(*pfd);
     }
