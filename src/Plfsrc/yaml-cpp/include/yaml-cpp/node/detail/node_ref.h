@@ -29,10 +29,10 @@ namespace YAML
 			void mark_defined() { m_pData->mark_defined(); }
 			void set_data(const node_ref& rhs) { m_pData = rhs.m_pData; }
 			
-			void set_type(NodeType::value type) { m_pData->set_type(type); }
-			void set_tag(const std::string& tag) { m_pData->set_tag(tag); }
+			void set_type(NodeType::value ntype) { m_pData->set_type(ntype); }
+			void set_tag(const std::string& ntag) { m_pData->set_tag(ntag); }
 			void set_null() { m_pData->set_null(); }
-			void set_scalar(const std::string& scalar) { m_pData->set_scalar(scalar); }
+			void set_scalar(const std::string& nscalar) { m_pData->set_scalar(nscalar); }
 			
 			// size/iterator
 			std::size_t size() const { return m_pData->size(); }

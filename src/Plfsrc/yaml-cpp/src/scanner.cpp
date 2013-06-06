@@ -383,12 +383,12 @@ namespace YAML
 	// . Does not parse any more tokens.
 	void Scanner::ThrowParserException(const std::string& msg) const
 	{
-		Mark mark = Mark::null_mark();
+		Mark nmark = Mark::null_mark();
 		if(!m_tokens.empty()) {
 			const Token& token = m_tokens.front();
-			mark = token.mark;
+			nmark = token.mark;
 		}
-		throw ParserException(mark, msg);
+		throw ParserException(nmark, msg);
 	}
 }
 

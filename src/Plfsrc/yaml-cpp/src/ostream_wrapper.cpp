@@ -16,30 +16,30 @@ namespace YAML
 	{
 	}
 	
-    void ostream_wrapper::write(const std::string& str)
+    void ostream_wrapper::write(const std::string& nstr)
     {
         if(m_pStream) {
-            m_pStream->write(str.c_str(), str.size());
+            m_pStream->write(nstr.c_str(), nstr.size());
         } else {
-            m_buffer.resize(std::max(m_buffer.size(), m_pos + str.size() + 1));
-            std::copy(str.begin(), str.end(), &m_buffer[m_pos]);
+            m_buffer.resize(std::max(m_buffer.size(), m_pos + nstr.size() + 1));
+            std::copy(nstr.begin(), nstr.end(), &m_buffer[m_pos]);
         }
         
-        for(std::size_t i=0;i<str.size();i++)
-            update_pos(str[i]);
+        for(std::size_t i=0;i<nstr.size();i++)
+            update_pos(nstr[i]);
     }
 
-    void ostream_wrapper::write(const char *str, std::size_t size)
+    void ostream_wrapper::write(const char *nstr, std::size_t size)
     {
         if(m_pStream) {
-            m_pStream->write(str, size);
+            m_pStream->write(nstr, size);
         } else {
             m_buffer.resize(std::max(m_buffer.size(), m_pos + size + 1));
-            std::copy(str, str + size, &m_buffer[m_pos]);
+            std::copy(nstr, nstr + size, &m_buffer[m_pos]);
         }
         
         for(std::size_t i=0;i<size;i++)
-            update_pos(str[i]);
+            update_pos(nstr[i]);
     }
 	
     void ostream_wrapper::update_pos(char ch)
