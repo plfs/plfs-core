@@ -818,7 +818,7 @@ setup_mlog(PlfsConf *pconf)
     // now compare to the default config and update any that differ
     // this is a bit messy/verbose...but is simple to change if need be
     if (temp_conf.mlog_flags != default_conf.mlog_flags)
-        pconf->mlog_flags &= temp_conf.mlog_flags;
+        pconf->mlog_flags = temp_conf.mlog_flags;
     if (temp_conf.mlog_defmask != default_conf.mlog_defmask)
         pconf->mlog_defmask = temp_conf.mlog_defmask;
     if (temp_conf.mlog_file != NULL) {
