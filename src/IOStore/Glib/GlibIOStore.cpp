@@ -33,9 +33,9 @@ GlibIOStore::Open(const char *path, int flags, mode_t mode, int &ret) {
     return NULL;
 }
 
-GlibIOSHandle::GlibIOSHandle(string newpath, unsigned int buffsize) {
+GlibIOSHandle::GlibIOSHandle(string newpath, unsigned int bsize) {
     this->path = newpath;
-    this->buffsize = buffsize;
+    this->buffsize = bsize;
 }
 
 
@@ -125,7 +125,7 @@ GlibIOSHandle::GetDataBuf(void **bufp, size_t length) {
     void *b;
 
     myfd = fileno(this->fp);
-    b = mmap(NULL, length, PROT_READ, MAP_PRIVATE|MAP_NOCACHE, myfd, 0);
+    b = mmap(NULL, length, PROT_READ, MAP_SHARED|MAP_NOCACHE, myfd, 0);
     if (b == MAP_FAILED) {
         return(get_err(-1));
     }

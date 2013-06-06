@@ -64,9 +64,9 @@ namespace YAML
 		m_canBeJSONFlow = false;
 
 		// eat
-		Mark mark = INPUT.mark();
+		Mark nmark = INPUT.mark();
 		INPUT.eat(3);
-		m_tokens.push(Token(Token::DOC_START, mark));
+		m_tokens.push(Token(Token::DOC_START, nmark));
 	}
 
 	// DocEnd
@@ -78,9 +78,9 @@ namespace YAML
 		m_canBeJSONFlow = false;
 
 		// eat
-		Mark mark = INPUT.mark();
+		Mark nmark = INPUT.mark();
 		INPUT.eat(3);
-		m_tokens.push(Token(Token::DOC_END, mark));
+		m_tokens.push(Token(Token::DOC_END, nmark));
 	}
 
 	// FlowStart
@@ -92,12 +92,12 @@ namespace YAML
 		m_canBeJSONFlow = false;
 
 		// eat
-		Mark mark = INPUT.mark();
+		Mark nmark = INPUT.mark();
 		char ch = INPUT.get();
 		FLOW_MARKER flowType = (ch == Keys::FlowSeqStart ? FLOW_SEQ : FLOW_MAP);
 		m_flows.push(flowType);
 		Token::TYPE type = (flowType == FLOW_SEQ ? Token::FLOW_SEQ_START : Token::FLOW_MAP_START);
-		m_tokens.push(Token(type, mark));
+		m_tokens.push(Token(type, nmark));
 	}
 
 	// FlowEnd
@@ -118,17 +118,17 @@ namespace YAML
 		m_canBeJSONFlow = true;
 
 		// eat
-		Mark mark = INPUT.mark();
+		Mark nmark = INPUT.mark();
 		char ch = INPUT.get();
 
 		// check that it matches the start
 		FLOW_MARKER flowType = (ch == Keys::FlowSeqEnd ? FLOW_SEQ : FLOW_MAP);
 		if(m_flows.top() != flowType)
-			throw ParserException(mark, ErrorMsg::FLOW_END);
+			throw ParserException(nmark, ErrorMsg::FLOW_END);
 		m_flows.pop();
 		
 		Token::TYPE type = (flowType ? Token::FLOW_SEQ_END : Token::FLOW_MAP_END);
-		m_tokens.push(Token(type, mark));
+		m_tokens.push(Token(type, nmark));
 	}
 
 	// FlowEntry
@@ -146,9 +146,9 @@ namespace YAML
 		m_canBeJSONFlow = false;
 
 		// eat
-		Mark mark = INPUT.mark();
+		Mark nmark = INPUT.mark();
 		INPUT.eat(1);
-		m_tokens.push(Token(Token::FLOW_ENTRY, mark));
+		m_tokens.push(Token(Token::FLOW_ENTRY, nmark));
 	}
 
 	// BlockEntry
@@ -167,9 +167,9 @@ namespace YAML
 		m_canBeJSONFlow = false;
 
 		// eat
-		Mark mark = INPUT.mark();
+		Mark nmark = INPUT.mark();
 		INPUT.eat(1);
-		m_tokens.push(Token(Token::BLOCK_ENTRY, mark));
+		m_tokens.push(Token(Token::BLOCK_ENTRY, nmark));
 	}
 
 	// Key
@@ -187,9 +187,9 @@ namespace YAML
 		m_simpleKeyAllowed = InBlockContext();
 
 		// eat
-		Mark mark = INPUT.mark();
+		Mark nmark = INPUT.mark();
 		INPUT.eat(1);
-		m_tokens.push(Token(Token::KEY, mark));
+		m_tokens.push(Token(Token::KEY, nmark));
 	}
 
 	// Value
@@ -216,9 +216,9 @@ namespace YAML
 		}
 
 		// eat
-		Mark mark = INPUT.mark();
+		Mark nmark = INPUT.mark();
 		INPUT.eat(1);
-		m_tokens.push(Token(Token::VALUE, mark));
+		m_tokens.push(Token(Token::VALUE, nmark));
 	}
 
 	// AnchorOrAlias
@@ -233,7 +233,7 @@ namespace YAML
 		m_canBeJSONFlow = false;
 
 		// eat the indicator
-		Mark mark = INPUT.mark();
+		Mark nmark = INPUT.mark();
 		char indicator = INPUT.get();
 		alias = (indicator == Keys::Alias);
 
@@ -250,7 +250,7 @@ namespace YAML
 			throw ParserException(INPUT.mark(), alias ? ErrorMsg::CHAR_IN_ALIAS : ErrorMsg::CHAR_IN_ANCHOR);
 
 		// and we're done
-		Token token(alias ? Token::ALIAS : Token::ANCHOR, mark);
+		Token token(alias ? Token::ALIAS : Token::ANCHOR, nmark);
 		token.value = name;
 		m_tokens.push(token);
 	}
@@ -315,7 +315,7 @@ namespace YAML
 		// insert a potential simple key
 		InsertPotentialSimpleKey();
 
-		Mark mark = INPUT.mark();
+		Mark nmark = INPUT.mark();
 		scalar = ScanScalar(INPUT, params);
 
 		// can have a simple key only if we ended the scalar by starting a new line
@@ -326,7 +326,7 @@ namespace YAML
 		//if(Exp::IllegalCharInScalar.Matches(INPUT))
 		//	throw ParserException(INPUT.mark(), ErrorMsg::CHAR_IN_SCALAR);
 
-		Token token(Token::PLAIN_SCALAR, mark);
+		Token token(Token::PLAIN_SCALAR, nmark);
 		token.value = scalar;
 		m_tokens.push(token);
 	}
@@ -355,7 +355,7 @@ namespace YAML
 		// insert a potential simple key
 		InsertPotentialSimpleKey();
 
-		Mark mark = INPUT.mark();
+		Mark nmark = INPUT.mark();
 
 		// now eat that opening quote
 		INPUT.get();
@@ -365,7 +365,7 @@ namespace YAML
 		m_simpleKeyAllowed = false;
 		m_canBeJSONFlow = true;
 
-		Token token(Token::NON_PLAIN_SCALAR, mark);
+		Token token(Token::NON_PLAIN_SCALAR, nmark);
 		token.value = scalar;
 		m_tokens.push(token);
 	}
@@ -383,7 +383,7 @@ namespace YAML
 		params.detectIndent = true;
 
 		// eat block indicator ('|' or '>')
-		Mark mark = INPUT.mark();
+		Mark nmark = INPUT.mark();
 		char indicator = INPUT.get();
 		params.fold = (indicator == Keys::FoldedScalar ? FOLD_BLOCK : DONT_FOLD);
 
@@ -432,7 +432,7 @@ namespace YAML
 		m_simpleKeyAllowed = true;
 		m_canBeJSONFlow = false;
 
-		Token token(Token::NON_PLAIN_SCALAR, mark);
+		Token token(Token::NON_PLAIN_SCALAR, nmark);
 		token.value = scalar;
 		m_tokens.push(token);
 	}
