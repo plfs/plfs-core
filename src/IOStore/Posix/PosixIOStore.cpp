@@ -76,7 +76,7 @@ PosixIOSHandle::GetDataBuf(void **bufp, size_t length) {
     void *b;
     int ret = 0;
 
-    b = mmap(NULL, length, PROT_READ, MAP_PRIVATE|MAP_NOCACHE, this->fd, 0);
+    b = mmap(NULL, length, PROT_READ, MAP_SHARED|MAP_NOCACHE, this->fd, 0);
     if (b == MAP_FAILED) {
         ret = -1;
     }else{

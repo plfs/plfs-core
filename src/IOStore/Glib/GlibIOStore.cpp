@@ -125,7 +125,7 @@ GlibIOSHandle::GetDataBuf(void **bufp, size_t length) {
     void *b;
 
     myfd = fileno(this->fp);
-    b = mmap(NULL, length, PROT_READ, MAP_PRIVATE|MAP_NOCACHE, myfd, 0);
+    b = mmap(NULL, length, PROT_READ, MAP_SHARED|MAP_NOCACHE, myfd, 0);
     if (b == MAP_FAILED) {
         return(get_err(-1));
     }
