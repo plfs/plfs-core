@@ -33,9 +33,9 @@ GlibIOStore::Open(const char *path, int flags, mode_t mode, int &ret) {
     return NULL;
 }
 
-GlibIOSHandle::GlibIOSHandle(string newpath, unsigned int buffsize) {
+GlibIOSHandle::GlibIOSHandle(string newpath, unsigned int bsize) {
     this->path = newpath;
-    this->buffsize = buffsize;
+    this->buffsize = bsize;
 }
 
 

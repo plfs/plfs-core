@@ -375,10 +375,10 @@ UtimeOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
     return store->Utime(path,ut);
 }
 
-RenameOp::RenameOp(const char *to)
+RenameOp::RenameOp(const char *dest)
 {
 
-    this->to = to;
+    this->to = dest;
     this->err = 0;
     this->ret_val = find_all_expansions(this->to, this->dsts);
     this->size = this->dsts.size();
