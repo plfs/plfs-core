@@ -38,7 +38,8 @@ int find_best_mount_point(const char *cleanlogical,
     static PlfsConf *pconf = get_plfs_conf();
     map<string,PlfsMount *>::iterator itr;
     PlfsMount *mymount, *xtry;
-    int hitlen, rv;
+    unsigned int hitlen;
+    int rv;
 
     mymount = NULL;
     hitlen = 0;
