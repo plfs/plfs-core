@@ -69,8 +69,8 @@ Flat_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
         /* we assume that the caller has already set this->back */
         IOSHandle *ofh;
         int ret;
-        ofh = this->back->store->Open(ppip->canbpath.c_str(), flags,
-                                      mode, ret);
+        ofh = ppip->canback->store->Open(ppip->canbpath.c_str(), flags,
+                                         mode, ret);
         if (ofh == NULL) {
             return ret;
         }
@@ -454,13 +454,24 @@ FlatFileSystem::statvfs(struct plfs_physpathinfo *ppip, struct statvfs *stbuf)
 /* ret 0 or -err */
 int
 FlatFileSystem::resolvepath_finish(struct plfs_physpathinfo *ppip) {
-   int hash_val;
+    int at_root, hash_val;
 
-    hash_val = Container::hashValue(ppip->filename);
+    /*
+     * the old code hashed on "/" if there was no filename (e.g. if we
+     * are operating on the top-level mount point).   mimic that here.
+     */
+    at_root = (ppip->filename == NULL);
+    
+    hash_val = Container::hashValue((at_root) ? "/" : ppip->filename);
     hash_val = hash_val % ppip->mnt_pt->ncanback;
     ppip->canback = ppip->mnt_pt->canonical_backends[hash_val];
 
-    /* XXXCDC: verify the case where we are on the bmpoint is ok */
-    ppip->canbpath = ppip->canback->bmpoint + "/" + ppip->bnode;
+    if (at_root) {
+        /* avoid extra "/" if bnode is the empty string */
+        ppip->canbpath = ppip->canback->bmpoint;
+    } else {
+        ppip->canbpath = ppip->canback->bmpoint + "/" + ppip->bnode;
+    }
     return(0);
+    
 }
