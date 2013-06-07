@@ -525,7 +525,7 @@ parse_conf(YAML::Node cnode, string file, PlfsConf *pconf)
             string inc_file = cnode[i]["include"].as<string>();
             YAML::Node inc_node;
             try { inc_node = YAML::LoadFile(inc_file); }
-            catch (exception& e) {
+            catch (exception) {
                 pconf->err_msg = new string("Include file not found.");
                 break;
             }

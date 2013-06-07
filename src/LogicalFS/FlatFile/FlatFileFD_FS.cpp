@@ -76,8 +76,8 @@ int plfs_flatfile_operation(const char *logical, FileOp& op, IOStore *ios) {
 
 /* ret 0 or -err */
 int
-Flat_fd::open(const char *filename, int flags, pid_t pid,
-              mode_t mode, Plfs_open_opt *unused)
+Flat_fd::open(const char *filename, int flags, pid_t /* pid */,
+              mode_t mode, Plfs_open_opt * /* unused */)
 {
     if (backend_fh != NULL) {// This fh has already been opened.
         refs++;
@@ -98,7 +98,8 @@ Flat_fd::open(const char *filename, int flags, pid_t pid,
 }
 
 int
-Flat_fd::close(pid_t pid, uid_t u, int flags, Plfs_close_opt *unused)
+Flat_fd::close(pid_t /* pid */, uid_t /* u */, 
+               int /* flags */, Plfs_close_opt * /* unused */)
 {
     refs--;
     if (refs > 0) {
@@ -121,7 +122,7 @@ Flat_fd::read(char *buf, size_t size, off_t offset)
 
 /* ret 0 or -err */
 ssize_t
-Flat_fd::write(const char *buf, size_t size, off_t offset, pid_t pid)
+Flat_fd::write(const char *buf, size_t size, off_t offset, pid_t /* pid */)
 {
     int ret = this->backend_fh->Pwrite(buf, size, offset);
     FLAT_EXIT(ret);
@@ -137,7 +138,7 @@ Flat_fd::sync()
 
 /* ret 0 or -err */
 int
-Flat_fd::sync(pid_t pid)
+Flat_fd::sync(pid_t /* pid */)
 {
     //XXXCDC: this seems bogus to directly call posix sync(2) here?
     int ret = sync(); 
@@ -146,7 +147,7 @@ Flat_fd::sync(pid_t pid)
 
 /* ret 0 or -err */
 int
-Flat_fd::trunc(const char *xpath, off_t offset)
+Flat_fd::trunc(const char * /* xpath */, off_t offset)
 {
     int ret = this->backend_fh->Ftruncate(offset);
     FLAT_EXIT(ret);
@@ -154,14 +155,14 @@ Flat_fd::trunc(const char *xpath, off_t offset)
 
 /* ret 0 or -err */
 int
-Flat_fd::getattr(const char *xpath, struct stat *stbuf, int sz_only)
+Flat_fd::getattr(const char * /* xpath */, struct stat *stbuf, int /* sz_only */)
 {
     int ret = this->backend_fh->Fstat(stbuf);
     FLAT_EXIT(ret);
 }
 
 int
-Flat_fd::query(size_t *writers, size_t *readers, size_t *bytes_written,
+Flat_fd::query(size_t * /* writers */, size_t * /* readers */, size_t *bytes_written,
                bool *reopen)
 {
     if (bytes_written) {
@@ -216,7 +217,8 @@ FlatFileSystem::open(Plfs_fd **pfd,const char *logical,int flags,pid_t pid,
 // the PLFS version of create won't open the file. So close the
 // file after POSIX creat() is called.
 int
-FlatFileSystem::create(const char *logical, mode_t mode, int flags, pid_t pid )
+FlatFileSystem::create(const char *logical, mode_t mode, 
+                       int /* flags */, pid_t /* pid */)
 {
     FLAT_ENTER;
     //     An open(... O_CREAT) gets turned into a mknod followed by an
@@ -323,7 +325,7 @@ out:
 }
 
 int
-FlatFileSystem::link(const char *logical, const char *to)
+FlatFileSystem::link(const char * /* logical */, const char * /* to */)
 {
     // Hard link is not supported in PLFS file system.
     return -ENOSYS;
@@ -340,7 +342,8 @@ FlatFileSystem::utime( const char *logical, struct utimbuf *ut )
 
 /* ret 0 or -err */
 int
-FlatFileSystem::getattr(const char *logical, struct stat *stbuf,int sz_only)
+FlatFileSystem::getattr(const char *logical, struct stat *stbuf, 
+                        int /* sz_only */)
 {
     FLAT_ENTER;
     ret = flatback->store->Lstat(path.c_str(),stbuf);
@@ -349,7 +352,7 @@ FlatFileSystem::getattr(const char *logical, struct stat *stbuf,int sz_only)
 
 /* ret 0 or -err */
 int
-FlatFileSystem::trunc(const char *logical, off_t offset, int open_file)
+FlatFileSystem::trunc(const char *logical, off_t offset, int /* open_file */)
 {
     FLAT_ENTER;
     ret = flatback->store->Truncate(path.c_str(),offset);

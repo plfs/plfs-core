@@ -93,7 +93,7 @@ SmallFileFS::open(Plfs_fd **pfd, const char *logical, int flags,
 }
 
 int
-SmallFileFS::create(const char *logical, mode_t mode,
+SmallFileFS::create(const char *logical, mode_t /* mode */,
                     int flags, pid_t pid)
 {
     PathExpandInfo expinfo;
@@ -233,12 +233,11 @@ SmallFileFS::rename(const char *from, const char *to)
     ContainerPtr container;
     struct stat stbuf;
     int ret = 0;
-    struct plfs_backend *back1, *back2;
+    struct plfs_backend *back1;
 
     smallfile_expand_path(from, expinfo);
     back1 = expinfo.pmount->backends[0];
     smallfile_expand_path(to, expinfo2);
-    back2 = expinfo2.pmount->backends[0];
     if (expinfo.pmount != expinfo2.pmount) return -EXDEV;
     string physical_file = back1->bmpoint + "/" +
         expinfo.dirpath + "/" + expinfo.filename;
@@ -273,7 +272,7 @@ SmallFileFS::rename(const char *from, const char *to)
 }
 
 int
-SmallFileFS::link(const char *logical, const char *to)
+SmallFileFS::link(const char * /* logical */, const char * /* to */)
 {
     return -ENOSYS;
 }
@@ -347,7 +346,7 @@ SmallFileFS::getattr(const char *logical, struct stat *stbuf,
 }
 
 int
-SmallFileFS::trunc(const char *logical, off_t offset, int open_file)
+SmallFileFS::trunc(const char *logical, off_t offset, int /* open_file */)
 {
     PathExpandInfo expinfo;
     ContainerPtr container;

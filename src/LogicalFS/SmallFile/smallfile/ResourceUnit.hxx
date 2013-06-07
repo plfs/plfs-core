@@ -60,7 +60,7 @@ public:
 protected:
     virtual bool resource_available(int type, void *resource) = 0;
     virtual int add_resource(int type, void *resource) = 0;
-    virtual void release_resource(int type, void *resource) {};
+    virtual void release_resource(int /* type */, void * /* resource */) {};
 
 private:
     pthread_rwlock_t item_lock;

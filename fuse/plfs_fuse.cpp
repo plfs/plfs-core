@@ -488,7 +488,8 @@ int Plfs::f_mknod(const char *path, mode_t mode, dev_t rdev)
 // caller will then call f_mknod, but that doesn't always happen in big
 // untar of tarballs, so I'm gonna try to call f_mknod here
 // the big tarball thing seems to work again with this commented out.... ?
-int Plfs::f_create(const char *path, mode_t mode, struct fuse_file_info *fi)
+int Plfs::f_create(const char *path, mode_t /*  mode */, 
+                   struct fuse_file_info * /* fi */)
 {
     FUSE_PLFS_ENTER;
     //ret = f_mknod( strPath.c_str(), mode, 0 );
@@ -498,7 +499,7 @@ int Plfs::f_create(const char *path, mode_t mode, struct fuse_file_info *fi)
 
 // returns 0 or -err
 // nothing to do for a read file
-int Plfs::f_fsync(const char *path, int datasync, struct fuse_file_info *fi)
+int Plfs::f_fsync(const char *path, int /* datasync */, struct fuse_file_info *fi)
 {
     FUSE_PLFS_ENTER;
     GET_OPEN_FILE;
@@ -1524,7 +1525,7 @@ static int dbg_log_read(char *buf, size_t size, off_t offset)
 /**
  * dbg_msgbufsz: get the message buffer size
  */
-static int dbg_msgbufsz(struct pfuse_debug_driver *dd)
+static int dbg_msgbufsz(struct pfuse_debug_driver * /* dd */)
 {
     return(mlog_mbcount());
 }
@@ -1549,7 +1550,7 @@ static int dbg_msgbuf_read(char *buf, size_t size, off_t offset)
 /**
  * dbg_mlogsize: get the size of the mlog mask info...
  */
-static int dbg_mlogsize(struct pfuse_debug_driver *dd)
+static int dbg_mlogsize(struct pfuse_debug_driver * /* dd */)
 {
     int rv;
     rv = mlog_getmasks(NULL, 0, 0, 1);
@@ -1569,7 +1570,7 @@ static int dbg_mlogmask_read(char *buf, size_t size, off_t offset)
 /**
  * dbg_mlogmask_write: change the current mlog mask...
  */
-static int dbg_mlogmask_write(const char *buf, size_t size, off_t offset)
+static int dbg_mlogmask_write(const char *buf, size_t size, off_t /* offset */)
 {
     mlog_setmasks((char *)buf, size);
     return(size);
@@ -1578,7 +1579,7 @@ static int dbg_mlogmask_write(const char *buf, size_t size, off_t offset)
 /**
  * dbg_mlogreopen_write: user-triggered mlog reopen (write data discarded)
  */
-static int dbg_mlogreopen_write(const char *buf, size_t size, off_t offset)
+static int dbg_mlogreopen_write(const char * /* buf */, size_t size, off_t /* offset */)
 {
     PlfsConf *pc;
     char *newfile, *oldfile;

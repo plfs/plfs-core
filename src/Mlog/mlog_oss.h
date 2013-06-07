@@ -55,7 +55,7 @@ namespace mss {
             std::ostream& operator<< (std::ostream& ( *pf )(std::ostream&));
             std::ostream& operator<< (std::ios& ( *pf )(std::ios&));
             std::ostream& operator<< (std::ios_base& ( *pf )(std::ios_base&));
-
+/*
             friend mlog_oss& operator<< (mlog_oss& out,
                     char c);
             friend mlog_oss& operator<< (mlog_oss& out,
@@ -70,7 +70,7 @@ namespace mss {
                     const unsigned char* s);
             friend mlog_oss& operator<< (mlog_oss& out,
                     const std::ostream& os);
-    };
+*/    };
 
 }
 #endif

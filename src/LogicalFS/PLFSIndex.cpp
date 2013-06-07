@@ -188,7 +188,7 @@ reader_thread( void *va )
 // returns -err or bytes read
 // TODO: rename this to container_reader or something better
 size_t
-plfs_reader(void *pfd, char *buf, size_t size, off_t offset,
+plfs_reader(void * /* pfd */, char *buf, size_t size, off_t offset,
             PLFSIndex *index)
 {
     ssize_t total = 0;  // no bytes read so far

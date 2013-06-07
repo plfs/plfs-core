@@ -903,7 +903,7 @@ plfs_buildtime( )
 int
 plfs_expand_path(const char *logical,char **physical, void **pmountp, void **pbackp) {
   PLFS_ENTER;
-  (void)ret; // suppress compiler warning
+  ret = 0;
 
   *physical = Util::Strdup(path.c_str());
 
@@ -914,7 +914,7 @@ plfs_expand_path(const char *logical,char **physical, void **pmountp, void **pba
   if (pbackp) {
     *pbackp = expansion_info.backend;
   }
-  return 0;
+  return ret;
 }
 
 

@@ -138,7 +138,7 @@ CacheManager<Key, Value>::insert(const Key &key, void *init_para,
         try {
             retval.reset(new Value(init_para));
         }
-        catch (const exception & e) {
+        catch (const exception) {
             pthread_rwlock_unlock(&mlock);
             return retval;
         }

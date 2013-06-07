@@ -159,7 +159,7 @@ namespace fusexx
             static int f_fsyncdir (const char *, int, struct fuse_file_info *) {
                 FUSE_RET
             }
-            static void *f_init (struct fuse_conn_info *conn) {
+            static void *f_init (struct fuse_conn_info * /* conn */) {
                 FUSE_SILENT_RET
             }
             static void  f_destroy (void *) { }

@@ -963,7 +963,7 @@ container_hostdir_rddir(void **index_stream,char *targets,int rank,
  * @return size of hostdir stream entries or -err
  */
 int
-container_hostdir_zero_rddir(void **entries,const char *path,int rank,
+container_hostdir_zero_rddir(void **entries,const char *path,int /* rank */,
                         void *pmount, void *pback)
 {
     PlfsMount *mnt = (PlfsMount *)pmount;
@@ -1147,9 +1147,10 @@ container_index_stream(Plfs_fd **fd_in, char **buffer)
 // TODO: should this function be in this file?
 // TODO: describe this function.  what is it?  what does it do?
 // XXXCDC: need to pass srcback/dstback to worker program
+// XXXDB: why are the src, srcprefix, dest_dir, and dstprefix here at all?
 int
-initiate_async_transfer(const char *src, const char *srcprefix,
-                        const char *dest_dir, const char *dstprefix,
+initiate_async_transfer(const char * /* src */, const char * /* srcprefix */,
+                        const char * /* dest_dir */, const char * /* dstprefix */,
                         const char *syncer_IP)
 {
     int rc;
@@ -1599,10 +1600,10 @@ container_locate(const char *logical, void *files_ptr,
 // this one probably can't work actually since you can't hard link a directory
 // and plfs containers are physical directories
 int
-container_link(const char *logical, const char *to)
+container_link(const char *logical, const char * /* to */)
 {
     PLFS_ENTER2(PLFS_PATH_NOTREQUIRED);
-    *(&ret) = 0;    // suppress warning about unused variable
+    *(&ret) = 0*ret;    // suppress warning about unused variable
     mlog(PLFS_DAPI, "Can't make a hard link to a container." );
     PLFS_EXIT(-ENOSYS);
 }
@@ -1828,7 +1829,7 @@ container_file_version(const char *logical, const char **version)
 {
     PLFS_ENTER;
     struct plfs_pathback pb;
-    (void)ret; // suppress compiler warning
+    ret = ret; // suppress compiler warning
     mode_t mode;
     if (!is_container_file(logical, &mode)) {
         return -ENOENT;

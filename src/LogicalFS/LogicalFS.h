@@ -41,8 +41,8 @@ class
         virtual int rmdir(const char *path) = 0;
         virtual int symlink(const char *path, const char *to) = 0;
         virtual int statvfs(const char *path, struct statvfs *stbuf) = 0;
-        virtual int flush_writes(const char *dir) {return 0;};
-        virtual int invalidate_cache(const char *dir) {return 0;};
+        virtual int flush_writes(const char * /* dir */ ) {return 0;};
+        virtual int invalidate_cache(const char * /* dir */ ) {return 0;};
 };
 
 #endif

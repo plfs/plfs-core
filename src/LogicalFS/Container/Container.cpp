@@ -2045,7 +2045,7 @@ int
 Container::createHelper(const string& expanded_path,
                         struct plfs_backend *canback,
                         const string& hostname,
-                        mode_t mode, int flags, int *extra_attempts,
+                        mode_t mode, int flags, int * /* extra_attempts */,
                         pid_t pid, unsigned mnt_pt_cksum, bool lazy_subdir )
 {
     // this below comment is specific to FUSE

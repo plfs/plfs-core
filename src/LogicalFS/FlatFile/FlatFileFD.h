@@ -28,10 +28,10 @@ class Flat_fd : public Plfs_fd
                   bool *reopen);
         bool is_good();
 
-        int compress_metadata(const char *xpath) {
+        int compress_metadata(const char * /* xpath */) {
             return 0;
         }
-        int incrementOpens(int amount) {
+        int incrementOpens(int /* amount */) {
             return 1;
         }
         void setPath( string p, struct plfs_backend *b ) {
@@ -46,11 +46,11 @@ class Flat_fd : public Plfs_fd
             return 0;
         }
 
-	int getxattr(void *value, const char *key, size_t len) {
+	int getxattr(void * /* value */, const char * /* key */, size_t /* len */) {
 	  return -ENOSYS;
 	}
 
-	int setxattr(const void *value, const char *key, size_t len) {
+	int setxattr(const void * /* value */, const char * /* key */, size_t /* len */) {
 	  return -ENOSYS;
 	}
     private:
