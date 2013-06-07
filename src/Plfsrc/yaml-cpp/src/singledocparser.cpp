@@ -74,17 +74,17 @@ namespace YAML
 		anchor_t anchor;
 		ParseProperties(tag, anchor);
 		
-		const Token& token = m_scanner.peek();
+		const Token& ntoken = m_scanner.peek();
 		
 		// add non-specific tags
 		if(tag.empty())
-			tag = (token.type == Token::NON_PLAIN_SCALAR ? "!" : "?");
+			tag = (ntoken.type == Token::NON_PLAIN_SCALAR ? "!" : "?");
 		
 		// now split based on what kind of node we should be
-		switch(token.type) {
+		switch(ntoken.type) {
 			case Token::PLAIN_SCALAR:
 			case Token::NON_PLAIN_SCALAR:
-				eventHandler.OnScalar(mark, tag, anchor, token.value);
+				eventHandler.OnScalar(mark, tag, anchor, ntoken.value);
 				m_scanner.pop();
 				return;
 			case Token::FLOW_SEQ_START:
@@ -138,19 +138,19 @@ namespace YAML
 			if(m_scanner.empty())
 				throw ParserException(m_scanner.mark(), ErrorMsg::END_OF_SEQ);
 			
-			Token token = m_scanner.peek();
-			if(token.type != Token::BLOCK_ENTRY && token.type != Token::BLOCK_SEQ_END)
-				throw ParserException(token.mark, ErrorMsg::END_OF_SEQ);
+			Token ntoken = m_scanner.peek();
+			if(ntoken.type != Token::BLOCK_ENTRY && ntoken.type != Token::BLOCK_SEQ_END)
+				throw ParserException(ntoken.mark, ErrorMsg::END_OF_SEQ);
 			
 			m_scanner.pop();
-			if(token.type == Token::BLOCK_SEQ_END)
+			if(ntoken.type == Token::BLOCK_SEQ_END)
 				break;
 			
 			// check for null
 			if(!m_scanner.empty()) {
-				const Token& token = m_scanner.peek();
-				if(token.type == Token::BLOCK_ENTRY || token.type == Token::BLOCK_SEQ_END) {
-					eventHandler.OnNull(token.mark, NullAnchor);
+				const Token& nntoken = m_scanner.peek();
+				if(nntoken.type == Token::BLOCK_ENTRY || nntoken.type == Token::BLOCK_SEQ_END) {
+					eventHandler.OnNull(nntoken.mark, NullAnchor);
 					continue;
 				}
 			}
@@ -184,11 +184,11 @@ namespace YAML
 				throw ParserException(m_scanner.mark(), ErrorMsg::END_OF_SEQ_FLOW);
 			
 			// now eat the separator (or could be a sequence end, which we ignore - but if it's neither, then it's a bad node)
-			Token& token = m_scanner.peek();
-			if(token.type == Token::FLOW_ENTRY)
+			Token& ntoken = m_scanner.peek();
+			if(ntoken.type == Token::FLOW_ENTRY)
 				m_scanner.pop();
-			else if(token.type != Token::FLOW_SEQ_END)
-				throw ParserException(token.mark, ErrorMsg::END_OF_SEQ_FLOW);
+			else if(ntoken.type != Token::FLOW_SEQ_END)
+				throw ParserException(ntoken.mark, ErrorMsg::END_OF_SEQ_FLOW);
 		}
 		
 		m_pCollectionStack->PopCollectionType(CollectionType::FlowSeq);
@@ -216,21 +216,21 @@ namespace YAML
 			if(m_scanner.empty())
 				throw ParserException(m_scanner.mark(), ErrorMsg::END_OF_MAP);
 			
-			Token token = m_scanner.peek();
-			if(token.type != Token::KEY && token.type != Token::VALUE && token.type != Token::BLOCK_MAP_END)
-				throw ParserException(token.mark, ErrorMsg::END_OF_MAP);
+			Token ntoken = m_scanner.peek();
+			if(ntoken.type != Token::KEY && ntoken.type != Token::VALUE && ntoken.type != Token::BLOCK_MAP_END)
+				throw ParserException(ntoken.mark, ErrorMsg::END_OF_MAP);
 			
-			if(token.type == Token::BLOCK_MAP_END) {
+			if(ntoken.type == Token::BLOCK_MAP_END) {
 				m_scanner.pop();
 				break;
 			}
 			
 			// grab key (if non-null)
-			if(token.type == Token::KEY) {
+			if(ntoken.type == Token::KEY) {
 				m_scanner.pop();
 				HandleNode(eventHandler);
 			} else {
-				eventHandler.OnNull(token.mark, NullAnchor);
+				eventHandler.OnNull(ntoken.mark, NullAnchor);
 			}
 			
 			// now grab value (optional)
@@ -238,7 +238,7 @@ namespace YAML
 				m_scanner.pop();
 				HandleNode(eventHandler);
 			} else {
-				eventHandler.OnNull(token.mark, NullAnchor);
+				eventHandler.OnNull(ntoken.mark, NullAnchor);
 			}
 		}
 		
@@ -255,19 +255,19 @@ namespace YAML
 			if(m_scanner.empty())
 				throw ParserException(m_scanner.mark(), ErrorMsg::END_OF_MAP_FLOW);
 			
-			Token& token = m_scanner.peek();
+			Token& ntoken = m_scanner.peek();
 			// first check for end
-			if(token.type == Token::FLOW_MAP_END) {
+			if(ntoken.type == Token::FLOW_MAP_END) {
 				m_scanner.pop();
 				break;
 			}
 			
 			// grab key (if non-null)
-			if(token.type == Token::KEY) {
+			if(ntoken.type == Token::KEY) {
 				m_scanner.pop();
 				HandleNode(eventHandler);
 			} else {
-				eventHandler.OnNull(token.mark, NullAnchor);
+				eventHandler.OnNull(ntoken.mark, NullAnchor);
 			}
 			
 			// now grab value (optional)
@@ -275,7 +275,7 @@ namespace YAML
 				m_scanner.pop();
 				HandleNode(eventHandler);
 			} else {
-				eventHandler.OnNull(token.mark, NullAnchor);
+				eventHandler.OnNull(ntoken.mark, NullAnchor);
 			}
             
             if(m_scanner.empty())
@@ -349,22 +349,22 @@ namespace YAML
 	
 	void SingleDocParser::ParseTag(std::string& tag)
 	{
-		Token& token = m_scanner.peek();
+		Token& ntoken = m_scanner.peek();
 		if(!tag.empty())
-			throw ParserException(token.mark, ErrorMsg::MULTIPLE_TAGS);
+			throw ParserException(ntoken.mark, ErrorMsg::MULTIPLE_TAGS);
 		
-		Tag tagInfo(token);
+		Tag tagInfo(ntoken);
 		tag = tagInfo.Translate(m_directives);
 		m_scanner.pop();
 	}
 	
 	void SingleDocParser::ParseAnchor(anchor_t& anchor)
 	{
-		Token& token = m_scanner.peek();
+		Token& ntoken = m_scanner.peek();
 		if(anchor)
-			throw ParserException(token.mark, ErrorMsg::MULTIPLE_ANCHORS);
+			throw ParserException(ntoken.mark, ErrorMsg::MULTIPLE_ANCHORS);
 		
-		anchor = RegisterAnchor(token.value);
+		anchor = RegisterAnchor(ntoken.value);
 		m_scanner.pop();
 	}
 	

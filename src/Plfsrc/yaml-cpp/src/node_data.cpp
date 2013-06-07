@@ -21,20 +21,20 @@ namespace YAML
 			m_isDefined = true;
 		}
 
-		void node_data::set_type(NodeType::value type)
+		void node_data::set_type(NodeType::value ntype)
 		{
-			if(type == NodeType::Undefined) {
-				m_type = type;
+			if(ntype == NodeType::Undefined) {
+				m_type = ntype;
 				m_isDefined = false;
 				return;
 			}
 			
 
 			m_isDefined = true;
-			if(type == m_type)
+			if(ntype == m_type)
 				return;
 			
-			m_type = type;
+			m_type = ntype;
 			
 			switch(m_type) {
 				case NodeType::Null:
@@ -54,9 +54,9 @@ namespace YAML
 			}
 		}
 
-		void node_data::set_tag(const std::string& tag)
+		void node_data::set_tag(const std::string& ntag)
 		{
-			m_tag = tag;
+			m_tag = ntag;
 		}
 		
 		void node_data::set_null()
@@ -65,11 +65,11 @@ namespace YAML
 			m_type = NodeType::Null;
 		}
 		
-		void node_data::set_scalar(const std::string& scalar)
+		void node_data::set_scalar(const std::string& nscalar)
 		{
 			m_isDefined = true;
 			m_type = NodeType::Scalar;
-			m_scalar = scalar;
+			m_scalar = nscalar;
 		}
 
 		// size/iterator

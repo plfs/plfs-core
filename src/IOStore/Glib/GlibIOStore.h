@@ -40,8 +40,8 @@ class GlibIOSHandle: public IOSHandle {
 
 class GlibIOStore: public PosixIOStore {
  public:
-    GlibIOStore(unsigned int buffsize){
-        this->buffsize = buffsize;
+    GlibIOStore(unsigned int bsize){
+        this->buffsize = bsize;
     };
     ~GlibIOStore(){};
     IOSHandle *Open(const char *bpath, int flags, mode_t mode, int &ret);

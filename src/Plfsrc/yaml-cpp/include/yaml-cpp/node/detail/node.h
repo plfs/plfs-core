@@ -59,22 +59,22 @@ namespace YAML
 				m_pRef->set_data(*rhs.m_pRef);
 			}
 				
-			void set_type(NodeType::value type) {
-				if(type != NodeType::Undefined)
+			void set_type(NodeType::value ntype) {
+				if(ntype != NodeType::Undefined)
 					mark_defined();
-				m_pRef->set_type(type);
+				m_pRef->set_type(ntype);
 			}
 			void set_null() {
 				mark_defined();
 				m_pRef->set_null();
 			}
-			void set_scalar(const std::string& scalar) {
+			void set_scalar(const std::string& nscalar) {
 				mark_defined();
-				m_pRef->set_scalar(scalar);
+				m_pRef->set_scalar(nscalar);
 			}
-			void set_tag(const std::string& tag) {
+			void set_tag(const std::string& ntag) {
 				mark_defined();
-				m_pRef->set_tag(tag);
+				m_pRef->set_tag(ntag);
 			}
 
 			// size/iterator
@@ -87,9 +87,9 @@ namespace YAML
 			node_iterator end() { return m_pRef->end(); }
 
 			// sequence
-			void push_back(node& node, shared_memory_holder pMemory) {
-				m_pRef->push_back(node, pMemory);
-				node.add_dependency(*this);
+			void push_back(node& nnode, shared_memory_holder pMemory) {
+				m_pRef->push_back(nnode, pMemory);
+				nnode.add_dependency(*this);
 			}
 			void insert(node& key, node& value, shared_memory_holder pMemory) {
 				m_pRef->insert(key, value, pMemory);
