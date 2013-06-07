@@ -213,7 +213,7 @@ plfs_getattr(Plfs_fd *fd, const char *path, struct stat *st, int size_only)
         stripPrefixPath(path, stripped_path);
 
         ret = plfs_resolvepath(stripped_path, &ppi);
-        if (ret != 0) {
+        if (ret == 0) {
             ret = ppi.mnt_pt->fs_ptr->getattr(&ppi, st, size_only);
         }
     }
