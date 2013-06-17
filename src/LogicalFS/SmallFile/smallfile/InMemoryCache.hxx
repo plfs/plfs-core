@@ -46,11 +46,11 @@ public:
      * do nothing. Otherwise the merge_object() is called with exactly the
      * same parameters.
      */
-    virtual int update(void *record, void *metadata);
+    virtual plfs_error_t update(void *record, void *metadata);
 
 protected:
     virtual bool resource_available(int type, void *resource);
-    virtual int add_resource(int type, void *resource);
+    virtual plfs_error_t add_resource(int type, void *resource);
     /**
      * Initialize the data_source using the parameter passed to require().
      *
@@ -62,16 +62,16 @@ protected:
      *    initialized. This object will delete the RecordReader *, do
      *    not free it yourself after you assign it to '(*reader)'.
      */
-    virtual int init_data_source(void *resource, RecordReader **reader) = 0;
+    virtual plfs_error_t init_data_source(void *resource, RecordReader **reader) = 0;
     /**
      * Merge a record into the cached object.
      *
      * @param object A record read from file or passed from Writer.
      * @param meta Metadata information get from the data_source.
      *
-     * @return On success, 0 is returned. Otherwise error code is returned.
+     * @return On success, PLFS_SUCCESS is returned. Otherwise PLFS_E* is returned.
      */
-    virtual int merge_object(void *object, void *meta) = 0;
+    virtual plfs_error_t merge_object(void *object, void *meta) = 0;
 
 private:
     bool fully_loaded;

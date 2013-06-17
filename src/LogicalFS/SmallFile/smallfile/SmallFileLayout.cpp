@@ -6,17 +6,17 @@
 
 using namespace std;
 
-int
+plfs_error_t
 generate_dropping_name(const string &dirpath, pid_t pid, string &filename)
 {
     ostringstream oss;
-    const char *hostname;
+    char *hostname;
     mlog(SMF_DAPI, "Create dropping files in %s for %lu.", dirpath.c_str(),
          (unsigned long)pid);
-    hostname = Util::hostname();
+    Util::hostname(&hostname);
     if (!hostname) {
         mlog(SMF_ERR, "Failed to get hostname.");
-        return -1;
+        return PLFS_TBD;
     }
     oss.setf(ios::fixed, ios::floatfield);
     oss.setf(ios::showpoint);
@@ -25,31 +25,31 @@ generate_dropping_name(const string &dirpath, pid_t pid, string &filename)
     oss << "." << pid;
     filename = dirpath + DIR_SEPERATOR +
         NAME_PREFIX + oss.str();
-    return 0;
+    return PLFS_SUCCESS;
 }
 
-int
+plfs_error_t
 dropping_name2index(const string &namefile, string &indexfile) {
     size_t found;
     string nameprefix(NAME_PREFIX);
 
     indexfile = namefile;
     found = indexfile.rfind(nameprefix);
-    if (found == string::npos) return -EINVAL;
+    if (found == string::npos) return PLFS_EINVAL;
     indexfile.replace(found, nameprefix.length(), INDEX_PREFIX);
-    return 0;
+    return PLFS_SUCCESS;
 }
 
-int
+plfs_error_t
 dropping_name2data(const string &namefile, string &datafile) {
     size_t found;
     string nameprefix(NAME_PREFIX);
 
     datafile = namefile;
     found = datafile.rfind(nameprefix);
-    if (found == string::npos) return -EINVAL;
+    if (found == string::npos) return PLFS_EINVAL;
     datafile.replace(found, nameprefix.length(), DATA_PREFIX);
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 void

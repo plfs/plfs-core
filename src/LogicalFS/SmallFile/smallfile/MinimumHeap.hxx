@@ -30,11 +30,11 @@ public:
      *
      * @param ptr The pointer to the data source to be added. Do not delete
      *    it yourself if it is successfully pushed to the heap.
-     * @return On success, 0 is returned. If the size has exceeded the max
-     *    size of this heap, -ENOMEM is returned.
+     * @return On success, PLFS_SUCCESS is returned. If the size has exceeded
+     *    the max size of this heap, PLFS_ENOMEM is returned.
      */
-    int push_back(RecordReader *ptr);
-    virtual int pop_front();
+    plfs_error_t push_back(RecordReader *ptr);
+    virtual plfs_error_t pop_front();
     virtual void *front();
     virtual void *metadata();
 };

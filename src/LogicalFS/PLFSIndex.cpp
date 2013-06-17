@@ -28,11 +28,11 @@ typedef struct {
 // tasks needs to be a list and not a queue since sometimes it does pop_back
 // here in order to consolidate sequential reads (which can happen if the
 // index is not buffered on the writes)
-int
+plfs_error_t
 find_read_tasks(PLFSIndex *index, list<ReadTask> *tasks, size_t size,
                 off_t offset, char *buf)
 {
-    int ret;
+    plfs_error_t ret;
     ssize_t bytes_remaining = size;
     ssize_t bytes_traversed = 0;
     int chunk = 0;
@@ -48,7 +48,7 @@ find_read_tasks(PLFSIndex *index, list<ReadTask> *tasks, size_t size,
                                   &(task.chunk_id),
                                   offset+bytes_traversed);
         // make sure it's good
-        if ( ret == 0 ) {
+        if ( ret == PLFS_SUCCESS ) {
             task.length = min(bytes_remaining,(ssize_t)task.length);
             task.buf = &(buf[bytes_traversed]);
             task.logical_offset = offset;
@@ -56,7 +56,7 @@ find_read_tasks(PLFSIndex *index, list<ReadTask> *tasks, size_t size,
             bytes_traversed += task.length;
         }
         // then if there is anything to it, add it to the queue
-        if ( ret == 0 && task.length > 0 ) {
+        if ( ret == PLFS_SUCCESS && task.length > 0 ) {
             mss::mlog_oss oss(INT_DCOMMON);
             oss << chunk << ".1) Found index entry offset "
                 << task.chunk_offset << " len "
@@ -89,17 +89,19 @@ find_read_tasks(PLFSIndex *index, list<ReadTask> *tasks, size_t size,
             tasks->push_back(task);
         }
         // when chunk_length is 0, that means EOF
-    } while(bytes_remaining && ret == 0 && task.length);
+    } while(bytes_remaining && ret == PLFS_SUCCESS && task.length);
     PLFS_EXIT(ret);
 }
-/* ret 0 or -err */
-int
-perform_read_task( ReadTask *task, PLFSIndex *index )
+/* @param res_readlen returns bytes read */
+/* ret PLFS_SUCCESS or PLFS_E* */
+plfs_error_t
+perform_read_task( ReadTask *task, PLFSIndex *index, ssize_t *res_readlen )
 {
-    int ret;
+    plfs_error_t err = PLFS_SUCCESS;
+    ssize_t readlen;
     if ( task->hole ) {
         memset((void *)task->buf, 0, task->length);
-        ret = task->length;
+        readlen = task->length;
     } else {
         if ( task->fh == NULL ) {
             // since the task was made, maybe someone else has stashed it
@@ -113,12 +115,13 @@ perform_read_task( ReadTask *task, PLFSIndex *index )
                 // appropriately when it fails due to metalinks
                 // this is currently working with metalinks.  We resolve
                 // them before we get here
-                task->fh = task->backend->store->Open(task->path.c_str(),
-                                                      O_RDONLY, ret);
-                if ( task->fh == NULL ) {
+                err = task->backend->store->Open(task->path.c_str(),
+                                                 O_RDONLY, &(task->fh));
+                if ( err != PLFS_SUCCESS ) {
                     mlog(INT_ERR, "WTF? Open of %s: %s",
-                         task->path.c_str(), strerror(-ret) );
-                    return ret;
+                         task->path.c_str(), strplfserr(err) );
+                    *res_readlen = -1;
+                    return err;
                 }
                 // now we got the fd, let's stash it in the index so others
                 // might benefit from it later
@@ -143,13 +146,15 @@ perform_read_task( ReadTask *task, PLFSIndex *index )
             }
         }
         /* here's where we actually read container data! */
-        ret = task->fh->Pread(task->buf, task->length, task->chunk_offset );
+        err = task->fh->Pread(task->buf, task->length, task->chunk_offset,
+                              &readlen );
     }
     mss::mlog_oss oss(INT_DCOMMON);
     oss << "\t READ TASK: offset " << task->chunk_offset << " len "
-        << task->length << " fh " << task->fh << ": ret " << ret;
+        << task->length << " fh " << task->fh << ": ret " << readlen;
     oss.commit();
-    PLFS_EXIT(ret);
+    *res_readlen = readlen;
+    PLFS_EXIT(err);
 }
 
 // pop the queue, do some work, until none remains
@@ -172,9 +177,10 @@ reader_thread( void *va )
         if ( ! tasks_remaining ) {
             break;
         }
-        ret = perform_read_task( &task, args->index );
-        if ( ret < 0 ) {
-            break;
+        plfs_error_t err = perform_read_task( &task, args->index, &ret );
+        if ( err != PLFS_SUCCESS ) {
+            ret = (ssize_t)(-err);
+           break;
         } else {
             total += ret;
         }
@@ -185,14 +191,15 @@ reader_thread( void *va )
     pthread_exit((void *) ret);
 }
 
-// returns -err or bytes read
+// @param bytes_read returns bytes read
+// returns PLFS_SUCCESS or PLFS_E*
 // TODO: rename this to container_reader or something better
-size_t
+plfs_error_t
 plfs_reader(void *pfd, char *buf, size_t size, off_t offset,
-            PLFSIndex *index)
+            PLFSIndex *index, ssize_t *bytes_read)
 {
     ssize_t total = 0;  // no bytes read so far
-    ssize_t error = 0;  // no error seen so far
+    plfs_error_t plfs_error = PLFS_SUCCESS;  // no error seen so far
     ssize_t ret = 0;    // for holding temporary return values
     list<ReadTask> tasks;   // a container of read tasks in case the logical
     // read spans multiple chunks so we can thread them
@@ -204,13 +211,14 @@ plfs_reader(void *pfd, char *buf, size_t size, off_t offset,
     // except this thread which can't remove it now since it's using it now
     // plfs_reference_count(pfd);
     index->lock(__FUNCTION__); // in case another FUSE thread in here
-    ret = find_read_tasks(index,&tasks,size,offset,buf);
+    plfs_error_t plfs_ret = find_read_tasks(index,&tasks,size,offset,buf);
     index->unlock(__FUNCTION__); // in case another FUSE thread in here
     // let's leave early if possible to make remaining code cleaner by
     // not worrying about these conditions
     // tasks is empty for a zero length file or an EOF
-    if ( ret != 0 || tasks.empty() ) {
-        PLFS_EXIT(ret);
+    if ( plfs_ret != PLFS_SUCCESS || tasks.empty() ) {
+        *bytes_read = -1;
+        PLFS_EXIT(plfs_ret);
     }
     PlfsConf *pconf = get_plfs_conf();
     if ( tasks.size() > 1 && pconf->threadpool_size > 1 ) {
@@ -223,9 +231,9 @@ plfs_reader(void *pfd, char *buf, size_t size, off_t offset,
              (unsigned long)num_threads,
              (unsigned long)offset);
         ThreadPool threadpool(num_threads,reader_thread, (void *)&args);
-        error = threadpool.threadError();   // returns negative err
-        if ( error ) {
-            mlog(INT_DRARE, "THREAD pool error %s", strerror(-error) );
+        plfs_error = threadpool.threadError();   // returns PLFS_E*
+        if ( plfs_error != PLFS_SUCCESS ) {
+            mlog(INT_DRARE, "THREAD pool error %s", strplfserr(plfs_error) );
         } else {
             vector<void *> *stati    = threadpool.getStati();
             for( size_t t = 0; t < num_threads; t++ ) {
@@ -233,7 +241,7 @@ plfs_reader(void *pfd, char *buf, size_t size, off_t offset,
                 ret = (ssize_t)status;
                 mlog(INT_DCOMMON, "Thread %d returned %d", (int)t,int(ret));
                 if ( ret < 0 ) {
-                    error = ret;
+                    plfs_error = errno_to_plfs_error(-ret);
                 } else {
                     total += ret;
                 }
@@ -244,13 +252,14 @@ plfs_reader(void *pfd, char *buf, size_t size, off_t offset,
         while( ! tasks.empty() ) {
             ReadTask task = tasks.front();
             tasks.pop_front();
-            ret = perform_read_task( &task, index );
-            if ( ret < 0 ) {
-                error = ret;
+            plfs_ret = perform_read_task( &task, index, &ret );
+            if ( plfs_ret != PLFS_SUCCESS ) {
+                plfs_error = plfs_ret;
             } else {
                 total += ret;
             }
         }
     }
-    return( error < 0 ? error : total );
+    *bytes_read = total;
+    return plfs_error;
 }

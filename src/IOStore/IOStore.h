@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include "plfs_error.h"
 
 class IOStore;
 class IOSHandle;
@@ -16,41 +17,40 @@ class IOSDirHandle;
  * IOStore: A pure virtual class for IO manipulation of a backend store
  *
  * return values:
- *   - functions that return signed ints: 0 = success, otherwise -err
- *   - otherwise the success/-err info is returned as a param
+ *   - functions that return plfs_error_t: PLFS_SUCCESS = success, otherwise PLFS_E*
  *
  * this also applies for functions in the IOSHandle and IOSDirHandle classes.
  */
 class IOStore {
  public:
-    virtual int Access(const char *bpath, int mode)=0;
-    virtual int Chown(const char *bpath, uid_t owner, gid_t group)=0;
-    virtual int Chmod(const char *bpath, mode_t mode)=0;
-    int Close(IOSHandle *handle);               /* inlined below */
-    int Closedir(class IOSDirHandle *dhandle);  /* inlined below */
-    virtual int Lchown(const char *bpath, uid_t owner, gid_t group)=0;
-    virtual int Lstat(const char *bpath, struct stat *sb)=0;
-    virtual int Mkdir(const char *bpath, mode_t mode)=0;
+    virtual plfs_error_t Access(const char *bpath, int mode)=0;
+    virtual plfs_error_t Chown(const char *bpath, uid_t owner, gid_t group)=0;
+    virtual plfs_error_t Chmod(const char *bpath, mode_t mode)=0;
+    plfs_error_t Close(IOSHandle *handle);               /* inlined below */
+    plfs_error_t Closedir(class IOSDirHandle *dhandle);  /* inlined below */
+    virtual plfs_error_t Lchown(const char *bpath, uid_t owner, gid_t group)=0;
+    virtual plfs_error_t Lstat(const char *bpath, struct stat *sb)=0;
+    virtual plfs_error_t Mkdir(const char *bpath, mode_t mode)=0;
     /* Chuck, this open takes args that are very POSIX specific */
-    virtual IOSHandle *Open(const char *bpath, int flags, mode_t, int &ret)=0;
-    virtual IOSDirHandle *Opendir(const char *bpath, int &ret)=0;
-    virtual int Rename(const char *frombpath, const char *tobpath)=0;
-    virtual int Rmdir(const char *bpath)=0;
-    virtual int Stat(const char *bpath, struct stat *sb)=0;
-    virtual int Statvfs( const char *path, struct statvfs* stbuf )=0;
-    virtual int Symlink(const char *bpath1, const char *bpath2)=0;
-    virtual ssize_t Readlink(const char *bpath, char *buf, size_t bufsize)=0;
-    virtual int Truncate (const char *bpath, off_t length)=0;
-    virtual int Unlink(const char *bpath)=0;
-    virtual int Utime(const char *bpath, const struct utimbuf *times)=0;
+    virtual plfs_error_t Open(const char *bpath, int flags, mode_t, IOSHandle **res_hand)=0;
+    virtual plfs_error_t Opendir(const char *bpath, IOSDirHandle **res_dhand)=0;
+    virtual plfs_error_t Rename(const char *frombpath, const char *tobpath)=0;
+    virtual plfs_error_t Rmdir(const char *bpath)=0;
+    virtual plfs_error_t Stat(const char *bpath, struct stat *sb)=0;
+    virtual plfs_error_t Statvfs( const char *path, struct statvfs* stbuf )=0;
+    virtual plfs_error_t Symlink(const char *bpath1, const char *bpath2)=0;
+    virtual plfs_error_t Readlink(const char *bpath, char *buf, size_t bufsize, ssize_t *readlen)=0;
+    virtual plfs_error_t Truncate (const char *bpath, off_t length)=0;
+    virtual plfs_error_t Unlink(const char *bpath)=0;
+    virtual plfs_error_t Utime(const char *bpath, const struct utimbuf *times)=0;
     virtual ~IOStore() { }
 
     /* two simple compat APIs that can be inlined by the compiler */
-    class IOSHandle *Creat(const char *bpath, mode_t mode, int &ret) {
-        return(Open(bpath, O_CREAT|O_TRUNC|O_WRONLY, mode, ret));
+    plfs_error_t Creat(const char *bpath, mode_t mode, IOSHandle **res_hand) {
+        return(Open(bpath, O_CREAT|O_TRUNC|O_WRONLY, mode, res_hand));
     };
-    class IOSHandle *Open(const char *bpath, int flags, int &ret) {
-        return(Open(bpath, flags, 0777, ret));
+    plfs_error_t Open(const char *bpath, int flags, IOSHandle **res_hand) {
+        return(Open(bpath, flags, 0777, res_hand));
     };
 };
 
@@ -61,20 +61,20 @@ class IOStore {
  */
 class IOSHandle {
  private:
-    virtual int Close(void)=0;
-    friend int IOStore::Close(IOSHandle *handle);
+    virtual plfs_error_t Close(void)=0;
+    friend plfs_error_t IOStore::Close(IOSHandle *handle);
     
  public:
-    virtual int Fstat(struct stat *sb)=0;
-    virtual int Fsync(void)=0;
-    virtual int Ftruncate(off_t length)=0;
-    virtual int GetDataBuf(void **bufp, size_t length)=0;
-    virtual ssize_t Pread(void *buf, size_t nbytes, off_t offset)=0;
-    virtual ssize_t Pwrite(const void *buf, size_t nbytes, off_t offset)=0;
-    virtual ssize_t Read(void *buf, size_t offset)=0;
-    virtual int ReleaseDataBuf(void *buf, size_t length)=0;
-    virtual off_t Size(void)=0;
-    virtual ssize_t Write(const void *buf, size_t nbytes)=0;
+    virtual plfs_error_t Fstat(struct stat *sb)=0;
+    virtual plfs_error_t Fsync(void)=0;
+    virtual plfs_error_t Ftruncate(off_t length)=0;
+    virtual plfs_error_t GetDataBuf(void **bufp, size_t length)=0;
+    virtual plfs_error_t Pread(void *buf, size_t nbytes, off_t offset, ssize_t *bytes_read)=0;
+    virtual plfs_error_t Pwrite(const void *buf, size_t nbytes, off_t offset, ssize_t *bytes_written)=0;
+    virtual plfs_error_t Read(void *buf, size_t offset, ssize_t *bytes_read)=0;
+    virtual plfs_error_t ReleaseDataBuf(void *buf, size_t length)=0;
+    virtual plfs_error_t Size(off_t *res_offset)=0;
+    virtual plfs_error_t Write(const void *buf, size_t nbytes, ssize_t *bytes_written)=0;
     virtual ~IOSHandle() { }
 };
 
@@ -84,11 +84,11 @@ class IOSHandle {
  */
 class IOSDirHandle {
  private:
-    virtual int Closedir(void)=0;
-    friend int IOStore::Closedir(IOSDirHandle *handle);
+    virtual plfs_error_t Closedir(void)=0;
+    friend plfs_error_t IOStore::Closedir(IOSDirHandle *handle);
     
 public:
-    virtual int Readdir_r(struct dirent *, struct dirent **)=0;
+    virtual plfs_error_t Readdir_r(struct dirent *, struct dirent **)=0;
     virtual ~IOSDirHandle() { }
 };
 
@@ -98,24 +98,24 @@ public:
  * and IOSHandle classes to be defined first, so they have to be
  * down here.
  */
-inline int IOStore::Close(IOSHandle *handle) {
-    int rv;
+inline plfs_error_t IOStore::Close(IOSHandle *handle) {
+    plfs_error_t rv;
     rv = handle->Close();
     delete handle;
     return(rv);
 };
 
-inline int IOStore::Closedir(IOSDirHandle *handle) {
-    int rv;
+inline plfs_error_t IOStore::Closedir(IOSDirHandle *handle) {
+    plfs_error_t rv;
     rv = handle->Closedir();
     delete handle;
     return(rv);
 };
 
 struct PlfsMount;
-class IOStore *plfs_iostore_get(char *phys_path, char **prefixp,
-                                int *prelenp, char **bmpointp,
-                                PlfsMount *pmnt);
-int plfs_iostore_factory(PlfsMount *pmnt, struct plfs_backend *bend);
+plfs_error_t plfs_iostore_get(char *phys_path, char **prefixp,
+                              int *prelenp, char **bmpointp,
+                              PlfsMount *pmnt, IOStore **res_store);
+plfs_error_t plfs_iostore_factory(PlfsMount *pmnt, struct plfs_backend *bend);
 
 #endif

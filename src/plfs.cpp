@@ -14,23 +14,26 @@ debug_enter(const char *func, string msg)
 
 
 void
-debug_exit(const char *func, string msg, int ret)
+debug_exit(const char *func, string msg, plfs_error_t ret)
 {
     mlog(PLFS_DAPI, "EXIT %s: %s -> %d (%s)\n", 
-        func, msg.c_str(),ret,ret>=0?"SUCCESS":strerror(-ret));
+        func, msg.c_str(),ret,ret==PLFS_SUCCESS?"SUCCESS":strplfserr(ret));
 }
 
-LogicalFileSystem *
-plfs_get_logical_fs(const char *path)
+plfs_error_t
+plfs_get_logical_fs(const char *path, LogicalFileSystem **logicalFS)
 {
     mlog(PLFS_DBG, "ENTER %s: %s\n", __FUNCTION__,path);
     bool found = false;
     PlfsConf *pconf = get_plfs_conf();
-    PlfsMount *pmount = find_mount_point(pconf, path, found);
-    if (!found || pmount == NULL) {
-        return NULL;
+    PlfsMount *pmount;
+    plfs_error_t ret = find_mount_point(pconf, path, found, &pmount);
+    if (!found || ret != PLFS_SUCCESS) {
+        *logicalFS = NULL;
+        return ret;
     }
-    return pmount->fs_ptr;
+    *logicalFS = pmount->fs_ptr;
+    return PLFS_SUCCESS;
 }
 
 plfs_filetype
@@ -38,7 +41,8 @@ plfs_get_filetype(const char *path)
 {
     bool found = false;
     PlfsConf *pconf = get_plfs_conf();
-    PlfsMount *pmount = find_mount_point(pconf, path, found);
+    PlfsMount *pmount;
+    find_mount_point(pconf, path, found, &pmount);
     return ((found && pmount) ? pmount->file_type : PFT_UNKNOWN);
 }
 
@@ -100,30 +104,31 @@ is_plfs_path(const char *path){
 
     char stripped_path[PATH_MAX];
     stripPrefixPath(path, stripped_path);
-    LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
-    if (logicalfs == NULL){
+    LogicalFileSystem *logicalfs;
+    if (plfs_get_logical_fs(stripped_path, &logicalfs) != PLFS_SUCCESS) {
         ret = 0;
     }else{
         ret = 1;
     }
-    debug_exit(__FUNCTION__,path,ret);
+    debug_exit(__FUNCTION__,path,PLFS_SUCCESS);
     return ret;
 }
 
-int
+plfs_error_t
 plfs_access(const char *path, int mask)
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     debug_enter(__FUNCTION__,path);
     char stripped_path[PATH_MAX];
     stripPrefixPath(path, stripped_path);
-    LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
-    if (logicalfs == NULL) {
+    LogicalFileSystem *logicalfs;
+    ret = plfs_get_logical_fs(stripped_path, &logicalfs);
+    if (ret != PLFS_SUCCESS) {
         if (plfs_is_mnt_ancestor(stripped_path) == true){
-            ret = 0;
+            ret = PLFS_SUCCESS;
         }
         else{
-            ret = -EINVAL;
+            ret = PLFS_EINVAL;
         }
     }else { 
         ret = logicalfs->access(stripped_path, mask);
@@ -132,16 +137,17 @@ plfs_access(const char *path, int mask)
     return ret;
 }
 
-int
+plfs_error_t
 plfs_chmod(const char *path, mode_t mode)
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     debug_enter(__FUNCTION__,path);
     char stripped_path[PATH_MAX];
     stripPrefixPath(path, stripped_path);
-    LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
-    if (logicalfs == NULL) {
-        ret = -EINVAL;
+    LogicalFileSystem *logicalfs;
+    ret = plfs_get_logical_fs(stripped_path, &logicalfs);
+    if (ret != PLFS_SUCCESS) {
+        ret = PLFS_EINVAL;
     }else{
         ret = logicalfs->chmod(stripped_path, mode);
     }
@@ -149,16 +155,17 @@ plfs_chmod(const char *path, mode_t mode)
     return ret;
 }
 
-int
+plfs_error_t
 plfs_chown(const char *path, uid_t u, gid_t g)
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     debug_enter(__FUNCTION__,path);
     char stripped_path[PATH_MAX];
     stripPrefixPath(path, stripped_path);
-    LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
-    if (logicalfs == NULL) {
-        ret = -EINVAL;
+    LogicalFileSystem *logicalfs;
+    ret = plfs_get_logical_fs(stripped_path, &logicalfs);
+    if (ret != PLFS_SUCCESS) {
+        ret = PLFS_EINVAL;
     }else{
         ret = logicalfs->chown(stripped_path, u, g);
     }
@@ -167,30 +174,31 @@ plfs_chown(const char *path, uid_t u, gid_t g)
 
 }
 
-int
+plfs_error_t
 plfs_close(Plfs_fd *fd, pid_t pid, uid_t u, int open_flags,
-           Plfs_close_opt *close_opt)
+           Plfs_close_opt *close_opt, int *num_ref)
 {
     string debug_out = fd->getPath();
     debug_enter(__FUNCTION__,debug_out);
-    int ret = fd->close(pid, u, open_flags, close_opt);
+    plfs_error_t ret = fd->close(pid, u, open_flags, close_opt, num_ref);
     debug_exit(__FUNCTION__,debug_out,ret);
-    if (ret <= 0) {
+    if (*num_ref <= 0) {
         delete fd;
     }
     return ret;
 }
 
-int
+plfs_error_t
 plfs_create(const char *path, mode_t mode, int flags, pid_t pid)
 {
     debug_enter(__FUNCTION__,path);
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     char stripped_path[PATH_MAX];
     stripPrefixPath(path, stripped_path);
-    LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
-    if (logicalfs == NULL) {
-        ret = -EINVAL;
+    LogicalFileSystem *logicalfs;
+    ret = plfs_get_logical_fs(stripped_path, &logicalfs);
+    if (ret != PLFS_SUCCESS) {
+        ret = PLFS_EINVAL;
     }else{   
         ret = logicalfs->create(stripped_path, mode, flags, pid);
     }
@@ -198,22 +206,23 @@ plfs_create(const char *path, mode_t mode, int flags, pid_t pid)
     return ret;
 }
 
-int
+plfs_error_t
 plfs_getattr(Plfs_fd *fd, const char *path, struct stat *st, int size_only)
 {
     debug_enter(__FUNCTION__,path);
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     if (fd) {
         ret = plfs_sync(fd);   // sync before attr
-        if (ret == 0) {
+        if (ret == PLFS_SUCCESS) {
             ret = fd->getattr(path, st, size_only);
         }
     } else {
         char stripped_path[PATH_MAX];
         stripPrefixPath(path, stripped_path);
-        LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
-        if (logicalfs == NULL) {
-            ret =  -EINVAL;
+        LogicalFileSystem *logicalfs;
+        ret = plfs_get_logical_fs(stripped_path, &logicalfs);
+        if (ret != PLFS_SUCCESS) {
+            ret = PLFS_EINVAL;
         }else{
             ret = logicalfs->getattr(stripped_path, st, size_only);
         }
@@ -222,18 +231,19 @@ plfs_getattr(Plfs_fd *fd, const char *path, struct stat *st, int size_only)
     return ret;
 }
 
-int
+plfs_error_t
 plfs_link(const char *path, const char *to)
 {
     debug_enter(__FUNCTION__,path);
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     char stripped_path[PATH_MAX];
     stripPrefixPath(path, stripped_path);
     char stripped_to[PATH_MAX];
     stripPrefixPath(to, stripped_to);
-    LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_to);
-    if (logicalfs == NULL) {
-        ret = -EINVAL;
+    LogicalFileSystem *logicalfs;
+    ret = plfs_get_logical_fs(stripped_to, &logicalfs);
+    if (ret != PLFS_SUCCESS) {
+        ret = PLFS_EINVAL;
     }else{
         ret = logicalfs->link(stripped_path, stripped_to);
     }
@@ -241,16 +251,17 @@ plfs_link(const char *path, const char *to)
     return ret;
 }
 
-int
+plfs_error_t
 plfs_mode(const char *path, mode_t *mode)
 {
     debug_enter(__FUNCTION__,path);
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     char stripped_path[PATH_MAX];
     stripPrefixPath(path, stripped_path);
-    LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
-    if (logicalfs == NULL) {
-        ret = -EINVAL;
+    LogicalFileSystem *logicalfs;
+    ret = plfs_get_logical_fs(stripped_path, &logicalfs);
+    if (ret != PLFS_SUCCESS) {
+        ret = PLFS_EINVAL;
     }else{
         ret = logicalfs->getmode(stripped_path, mode);
     }
@@ -258,16 +269,17 @@ plfs_mode(const char *path, mode_t *mode)
     return ret;
 }
 
-int
+plfs_error_t
 plfs_mkdir(const char *path, mode_t mode)
 {
     debug_enter(__FUNCTION__,path);
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     char stripped_path[PATH_MAX];
     stripPrefixPath(path, stripped_path);
-    LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
-    if (logicalfs == NULL) {
-        ret = -EINVAL;
+    LogicalFileSystem *logicalfs;
+    ret = plfs_get_logical_fs(stripped_path, &logicalfs);
+    if (ret != PLFS_SUCCESS) {
+        ret = PLFS_EINVAL;
     }else{
         ret = logicalfs->mkdir(stripped_path, mode);
     }
@@ -275,21 +287,22 @@ plfs_mkdir(const char *path, mode_t mode)
     return ret;
 }
 
-int
+plfs_error_t
 plfs_open(Plfs_fd **pfd, const char *path, int flags, pid_t pid, mode_t m,
           Plfs_open_opt *open_opt)
 {
     assert( *pfd || path );
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     debug_enter(__FUNCTION__,(*pfd) ? (*pfd)->getPath(): path);
     char stripped_path[PATH_MAX];
     stripPrefixPath(path, stripped_path);
     if (*pfd) {
         ret = (*pfd)->open(stripped_path, flags, pid, m, open_opt);
     } else {
-        LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
-        if (logicalfs == NULL) {
-            ret = -EINVAL;
+        LogicalFileSystem *logicalfs;
+        ret = plfs_get_logical_fs(stripped_path, &logicalfs);
+        if (ret != PLFS_SUCCESS) {
+            ret = PLFS_EINVAL;
         } else {
             ret = logicalfs->open(pfd, stripped_path, flags, pid, m, open_opt);
         }
@@ -298,13 +311,13 @@ plfs_open(Plfs_fd **pfd, const char *path, int flags, pid_t pid, mode_t m,
     return ret;
 }
 
-int
+plfs_error_t
 plfs_query(Plfs_fd *fd, size_t *writers, size_t *readers,
            size_t *bytes_written, int *lazy_stat)
 {
     debug_enter(__FUNCTION__,fd->getPath());
     bool reopen;
-    int  ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     assert( fd != NULL);
     ret = fd->query(writers, readers, bytes_written, &reopen);
     if (lazy_stat) {
@@ -316,14 +329,14 @@ plfs_query(Plfs_fd *fd, size_t *writers, size_t *readers,
     return ret;
 }
 
-ssize_t
-plfs_read(Plfs_fd *fd, char *buf, size_t size, off_t offset)
+plfs_error_t
+plfs_read(Plfs_fd *fd, char *buf, size_t size, off_t offset, ssize_t *bytes_read)
 {
     mss::mlog_oss oss;
     oss << fd->getPath() << " -> " <<offset << ", " << size;
     debug_enter(__FUNCTION__,oss.str());
     memset(buf, (int)'z', size);
-    ssize_t ret = fd->read(buf, size, offset);
+    plfs_error_t ret = fd->read(buf, size, offset, bytes_read);
     debug_exit(__FUNCTION__,oss.str(),ret);
     return ret;
 }
@@ -334,15 +347,15 @@ typedef struct {
     string path;
 } plfs_dir;
 
-int 
+plfs_error_t
 plfs_opendir_c(const char *path, Plfs_dirp **pdirp) {
     debug_enter(__FUNCTION__,path);
     plfs_dir *pdir = new plfs_dir;
     *pdirp = (Plfs_dirp *)pdir;
     char stripped_path[PATH_MAX];
     stripPrefixPath(path, stripped_path);
-    int ret = plfs_readdir(stripped_path, (void*)&(pdir->entries));
-    if (ret != 0) {
+    plfs_error_t ret = plfs_readdir(stripped_path, (void*)&(pdir->entries));
+    if (ret != PLFS_SUCCESS) {
         delete pdir;
         *pdirp = NULL;
     } else {
@@ -353,29 +366,29 @@ plfs_opendir_c(const char *path, Plfs_dirp **pdirp) {
     return ret;
 }
 
-int
+plfs_error_t
 plfs_closedir_c(Plfs_dirp *pdirp) {
     plfs_dir *pdir = (plfs_dir*)pdirp;
     string path = pdir->path;
     debug_enter(__FUNCTION__,path);
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     delete pdir;
     debug_exit(__FUNCTION__,path,ret);
     return ret;
 }
 
-int 
+plfs_error_t
 plfs_readdir_c(Plfs_dirp *pdirp, char *dname, size_t bufsz) {
     plfs_dir *pdir = (plfs_dir*)pdirp;
     debug_enter(__FUNCTION__,pdir->path);
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     if (pdir->itr == pdir->entries.end()) {
         dname[0] = '\0';
     } else {
         string path = *(pdir->itr);
         if (path.size() >= bufsz) {
             // user provided insufficient space into which to write dname
-            ret = -ENOMEM;
+            ret = PLFS_ENOMEM;
             dname[0] = '\0';
         } else {
             strncpy(dname,path.c_str(),bufsz);
@@ -388,16 +401,17 @@ plfs_readdir_c(Plfs_dirp *pdirp, char *dname, size_t bufsz) {
 }
 
 
-int
+plfs_error_t
 plfs_readdir(const char *path, void *buf)
 {
     debug_enter(__FUNCTION__,path);
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     char stripped_path[PATH_MAX];
     stripPrefixPath(path, stripped_path);
-    LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
-    if (logicalfs == NULL) {
-        ret = -EINVAL;
+    LogicalFileSystem *logicalfs;
+    ret = plfs_get_logical_fs(stripped_path, &logicalfs);
+    if (ret != PLFS_SUCCESS) {
+        ret = PLFS_EINVAL;
     }else{
         ret = logicalfs->readdir(stripped_path, (set<string>*)buf);
     }
@@ -405,27 +419,28 @@ plfs_readdir(const char *path, void *buf)
     return ret;
 }
 
-int
-plfs_readlink(const char *path, char *buf, size_t bufsize)
+plfs_error_t
+plfs_readlink(const char *path, char *buf, size_t bufsize, int *bytes)
 {
     debug_enter(__FUNCTION__,path); 
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     char stripped_path[PATH_MAX];
     stripPrefixPath(path, stripped_path);
-    LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
-    if (logicalfs == NULL) {
-        ret = -EINVAL;
+    LogicalFileSystem *logicalfs;
+    ret = plfs_get_logical_fs(stripped_path, &logicalfs);
+    if (ret != PLFS_SUCCESS) {
+        ret = PLFS_EINVAL;
     }else{
-        ret = logicalfs->readlink(stripped_path, buf, bufsize);
+        ret = logicalfs->readlink(stripped_path, buf, bufsize, bytes);
     }
     debug_exit(__FUNCTION__,path,ret); 
     return ret;
 }
 
-int
+plfs_error_t
 plfs_rename(const char *from, const char *to)
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     mss::mlog_oss oss;
     oss << from << " -> " << to;
     char stripped_from[PATH_MAX];
@@ -434,9 +449,10 @@ plfs_rename(const char *from, const char *to)
     stripPrefixPath(to, stripped_to);
 
     debug_enter(__FUNCTION__,oss.str());
-    LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_from);
-    if (logicalfs == NULL) {
-        ret = -EINVAL;
+    LogicalFileSystem *logicalfs;
+    ret = plfs_get_logical_fs(stripped_from, &logicalfs);
+    if (ret != PLFS_SUCCESS) {
+        ret = PLFS_EINVAL;
     }else{
         ret = logicalfs->rename(stripped_from, stripped_to);
     }
@@ -444,16 +460,17 @@ plfs_rename(const char *from, const char *to)
     return ret;
 }
 
-int
+plfs_error_t
 plfs_rmdir(const char *path)
 {
     debug_enter(__FUNCTION__,path);
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     char stripped_path[PATH_MAX];
     stripPrefixPath(path, stripped_path);
-    LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
-    if (logicalfs == NULL) {
-        ret = -EINVAL;
+    LogicalFileSystem *logicalfs;
+    ret = plfs_get_logical_fs(stripped_path, &logicalfs);
+    if (ret != PLFS_SUCCESS) {
+        ret = PLFS_EINVAL;
     }else{
         ret = logicalfs->rmdir(stripped_path);
     }
@@ -461,16 +478,17 @@ plfs_rmdir(const char *path)
     return ret;
 }
 
-int
+plfs_error_t
 plfs_statvfs(const char *path, struct statvfs *stbuf)
 {
     debug_enter(__FUNCTION__,path);
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     char stripped_path[PATH_MAX];
     stripPrefixPath(path, stripped_path);
-    LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
-    if (logicalfs == NULL) {
-        ret = -EINVAL;
+    LogicalFileSystem *logicalfs;
+    ret = plfs_get_logical_fs(stripped_path, &logicalfs);
+    if (ret != PLFS_SUCCESS) {
+        ret = PLFS_EINVAL;
     }else{
         ret = logicalfs->statvfs(stripped_path, stbuf);
     }
@@ -478,10 +496,10 @@ plfs_statvfs(const char *path, struct statvfs *stbuf)
     return ret;
 }
 
-int
+plfs_error_t
 plfs_symlink(const char *from, const char *to)
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     mss::mlog_oss oss;
     oss << from << " -> " << to;
 
@@ -491,9 +509,10 @@ plfs_symlink(const char *from, const char *to)
     stripPrefixPath(to, stripped_to);
 
     debug_enter(__FUNCTION__,oss.str());
-    LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_to);
-    if (logicalfs == NULL) {
-        ret = -EINVAL;
+    LogicalFileSystem *logicalfs;
+    ret = plfs_get_logical_fs(stripped_to, &logicalfs);
+    if (ret != PLFS_SUCCESS) {
+        ret = PLFS_EINVAL;
     }else{
         ret = logicalfs->symlink(stripped_from, stripped_to);
     }
@@ -501,10 +520,10 @@ plfs_symlink(const char *from, const char *to)
     return ret;
 }
 
-int 
+plfs_error_t
 plfs_sync(Plfs_fd *fd) {
     debug_enter(__FUNCTION__,fd->getPath());
-    int ret = fd->sync();
+    plfs_error_t ret = fd->sync();
     debug_exit(__FUNCTION__,fd->getPath(),ret);
     return ret;
 }
@@ -521,20 +540,21 @@ plfs_sync(Plfs_fd *fd, pid_t pid)
 }
 */
 
-int
+plfs_error_t
 plfs_trunc(Plfs_fd *fd, const char *path, off_t offset, int open_file)
 {
     debug_enter(__FUNCTION__,fd ? fd->getPath():path);
-    int ret;
+    plfs_error_t ret;
     char stripped_path[PATH_MAX];
     stripPrefixPath(path, stripped_path);
     if (fd) {
         ret = fd->trunc(stripped_path, offset);
     }
     else{
-        LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
-        if (logicalfs == NULL) {
-            ret = -EINVAL;
+        LogicalFileSystem *logicalfs;
+        ret = plfs_get_logical_fs(stripped_path, &logicalfs);
+        if (ret != PLFS_SUCCESS) {
+            ret = PLFS_EINVAL;
         } else {
             ret = logicalfs->trunc(stripped_path, offset, open_file);
         }
@@ -543,16 +563,17 @@ plfs_trunc(Plfs_fd *fd, const char *path, off_t offset, int open_file)
     return ret;
 }
 
-int
+plfs_error_t
 plfs_unlink(const char *path)
 {
     debug_enter(__FUNCTION__,path);
-    int ret;
+    plfs_error_t ret;
     char stripped_path[PATH_MAX];
     stripPrefixPath(path, stripped_path);
-    LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
-    if (logicalfs == NULL) {
-        ret = -EINVAL;
+    LogicalFileSystem *logicalfs;
+    ret = plfs_get_logical_fs(stripped_path, &logicalfs);
+    if (ret != PLFS_SUCCESS) {
+        ret = PLFS_EINVAL;
     } else {
         ret = logicalfs->unlink(stripped_path);
     }
@@ -560,16 +581,17 @@ plfs_unlink(const char *path)
     return ret;
 }
 
-int
+plfs_error_t
 plfs_utime(const char *path, struct utimbuf *ut)
 {
     debug_enter(__FUNCTION__,path);
-    int ret;
+    plfs_error_t ret;
     char stripped_path[PATH_MAX];
     stripPrefixPath(path, stripped_path);
-    LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
-    if (logicalfs == NULL) {
-        ret = -EINVAL;
+    LogicalFileSystem *logicalfs;
+    ret = plfs_get_logical_fs(stripped_path, &logicalfs);
+    if (ret != PLFS_SUCCESS) {
+        ret = PLFS_EINVAL;
     } else {
         ret = logicalfs->utime(stripped_path, ut);
     }
@@ -577,56 +599,60 @@ plfs_utime(const char *path, struct utimbuf *ut)
     return ret;
 }
 
-ssize_t
+plfs_error_t
 plfs_write(Plfs_fd *fd, const char *buf, size_t size,
-           off_t offset, pid_t pid)
+           off_t offset, pid_t pid, ssize_t *bytes_written)
 {
     mss::mlog_oss oss(PLFS_DAPI);
     oss << fd->getPath() << " -> " <<offset << ", " << size;
     debug_enter(__FUNCTION__,oss.str());
-    ssize_t wret = 0;
+    plfs_error_t wret = PLFS_SUCCESS;
     if (size > 0){
-        wret = fd->write(buf, size, offset, pid);
+         wret = fd->write(buf, size, offset, pid, bytes_written);
     }
-    debug_exit(__FUNCTION__,oss.str(),(int)wret);
+    debug_exit(__FUNCTION__,oss.str(),wret);
     return wret;
 }
 
 // Should these functions be exposed to FUSE or ADIO?
-int
+plfs_error_t
 plfs_flatten_index(Plfs_fd *fd, const char *logical)
 {
     debug_enter(__FUNCTION__,fd->getPath());
-    int ret = fd->compress_metadata(logical);
+    plfs_error_t ret = fd->compress_metadata(logical);
     debug_exit(__FUNCTION__,fd->getPath(),ret);
     return ret;
 }
 
 /* Get the extended attribute */
-int plfs_getxattr(Plfs_fd *fd, void *value, const char *key, size_t len) {
+plfs_error_t
+plfs_getxattr(Plfs_fd *fd, void *value, const char *key, size_t len) {
     debug_enter(__FUNCTION__,fd->getPath());
-    int ret = fd->getxattr(value, key, len);
+    plfs_error_t ret = fd->getxattr(value, key, len);
     debug_exit(__FUNCTION__,fd->getPath(),ret);
     return ret;
 }
 
 /* Set the exteded attribute */ 
-int plfs_setxattr(Plfs_fd *fd, const void *value, const char *key, size_t len) {
+plfs_error_t
+plfs_setxattr(Plfs_fd *fd, const void *value, const char *key, size_t len) {
     debug_enter(__FUNCTION__,fd->getPath());
-    int ret = fd->setxattr(value, key, len);
+    plfs_error_t ret = fd->setxattr(value, key, len);
     debug_exit(__FUNCTION__,fd->getPath(),ret);
     return ret;
 }
 
-int plfs_flush_writes(const char *path)
+plfs_error_t plfs_flush_writes(const char *path)
 {
     debug_enter(__FUNCTION__,path);
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     char stripped_path[PATH_MAX];
     stripPrefixPath(path, stripped_path);
-    LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
-    if (logicalfs == NULL) {
-        ret = -EINVAL;
+
+    LogicalFileSystem *logicalfs;
+    ret = plfs_get_logical_fs(stripped_path, &logicalfs);
+    if (ret != PLFS_SUCCESS) {
+        ret = PLFS_EINVAL;
     } else {
         ret = logicalfs->flush_writes(stripped_path);
     }
@@ -634,15 +660,16 @@ int plfs_flush_writes(const char *path)
     return ret;
 }
 
-int plfs_invalidate_read_cache(const char *path)
+plfs_error_t plfs_invalidate_read_cache(const char *path)
 {
     debug_enter(__FUNCTION__,path);
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     char stripped_path[PATH_MAX];
     stripPrefixPath(path, stripped_path);
-    LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
-    if (logicalfs == NULL) {
-        ret = -EINVAL;
+    LogicalFileSystem *logicalfs;
+    ret = plfs_get_logical_fs(stripped_path, &logicalfs);
+    if (ret != PLFS_SUCCESS) {
+        ret = PLFS_EINVAL;
     } else {
         ret = logicalfs->invalidate_cache(stripped_path);
     }

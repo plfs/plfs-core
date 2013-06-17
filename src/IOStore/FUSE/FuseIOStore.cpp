@@ -31,14 +31,13 @@ using namespace std;
 #define FUSE_IO_EXIT(X, Y) \
     mlog(FUSEIO_INFO,"%s Exiting %s: %s - %lld\n", __FILE__, __FUNCTION__, X, (long long int)Y);
 /*
- * IOStore functions that return signed int should return 0 on success
- * and -err on error.   The FUSE API uses 0 for success, -1 for failure
- * with the error code in the global error number variable.   This macro
- * translates FUSE to IOStore.
+ * IOStore functions that return plfs_error_t should return PLFS_SUCCESS on success
+ * and PLFS_E* on error.   The FUSE API uses 0 for success, -err for failure
+ * This macro translates FUSE to IOStore.
  */
-#define get_err(X) (X)  /* error# ok */
+#define get_err(X) (((X) >= 0) ? PLFS_SUCCESS : errno_to_plfs_error(-X))  /* error# ok */
 
-int
+plfs_error_t
 FuseIOSHandle::Close() {
     FUSE_IO_ENTER(this->bpath.c_str());
     int rv;
@@ -58,7 +57,7 @@ FuseIOSHandle::FuseIOSHandle(const struct fuse_file_info &fi,
     FUSE_IO_EXIT(newbpath.c_str(),0);
 }
 
-int
+plfs_error_t
 FuseIOSHandle::Fstat(struct stat* buf) {
     FUSE_IO_ENTER(this->bpath.c_str());
     int rv;
@@ -67,7 +66,7 @@ FuseIOSHandle::Fstat(struct stat* buf) {
     return(get_err(rv));
 }
 
-int
+plfs_error_t
 FuseIOSHandle::Fsync() {
     FUSE_IO_ENTER(this->bpath.c_str());
     int rv;
@@ -76,7 +75,7 @@ FuseIOSHandle::Fsync() {
     return(get_err(rv));
 }
 
-int
+plfs_error_t
 FuseIOSHandle::Ftruncate(off_t length) {
     FUSE_IO_ENTER(this->bpath.c_str());
     int rv;
@@ -85,7 +84,7 @@ FuseIOSHandle::Ftruncate(off_t length) {
     return(get_err(rv));
 }
 
-int
+plfs_error_t
 FuseIOSHandle::GetDataBuf(void **bufp, size_t length) {
     FUSE_IO_ENTER(this->bpath.c_str());
     void *b;
@@ -96,7 +95,7 @@ FuseIOSHandle::GetDataBuf(void **bufp, size_t length) {
         ret = -ENOMEM;
     }else{
         ssize_t readlen;
-        readlen = this->Pread(b, length, 0);
+        this->Pread(b, length, 0, &readlen);
         if (readlen == (ssize_t)length) {
             *bufp = b;
         }else{
@@ -108,66 +107,73 @@ FuseIOSHandle::GetDataBuf(void **bufp, size_t length) {
     return(get_err(ret));
 }
 
-ssize_t
-FuseIOSHandle::Pread(void* buf, size_t count, off_t offset) {
+plfs_error_t
+FuseIOSHandle::Pread(void* buf, size_t count, off_t offset, ssize_t *bytes_read) {
     FUSE_IO_ENTER(this->bpath.c_str());
     ssize_t rv;
     rv = this->fuse_ops->read(this->bpath.c_str(), (char *)buf, count, offset,
                               &this->fuse_fi);
     FUSE_IO_EXIT(this->bpath.c_str(),rv);
+    *bytes_read = rv;
     return(get_err(rv));
 }
 
-ssize_t
-FuseIOSHandle::Pwrite(const void* buf, size_t count, off_t offset) {
+plfs_error_t
+FuseIOSHandle::Pwrite(const void* buf, size_t count,
+                      off_t offset, ssize_t *bytes_written) {
     FUSE_IO_ENTER(this->bpath.c_str());
     ssize_t rv;
     rv = this->fuse_ops->write(this->bpath.c_str(), (const char *)buf, count,
                                offset, &this->fuse_fi);
     FUSE_IO_EXIT(this->bpath.c_str(),rv);
+    *bytes_written = rv;
     return(get_err(rv));
 }
 
-ssize_t
-FuseIOSHandle::Read(void *buf, size_t count) {
+plfs_error_t
+FuseIOSHandle::Read(void *buf, size_t count, ssize_t *bytes_read) {
     ssize_t rv;
-    rv = this->Pread(buf, count, this->current_pos);
+    plfs_error_t ret;
+    ret = this->Pread(buf, count, this->current_pos, &rv);
     if (rv > 0) this->current_pos += rv;
-    return(rv);
+    *bytes_read = rv;
+    return(ret);
 }
 
-int
+plfs_error_t
 FuseIOSHandle::ReleaseDataBuf(void *addr, size_t length)
 {
     FUSE_IO_ENTER(this->bpath.c_str());
     if (addr) free(addr);
     FUSE_IO_EXIT(this->bpath.c_str(),0);
-    return(0);
+    return PLFS_SUCCESS;
 }
 
-off_t
-FuseIOSHandle::Size() {
+plfs_error_t
+FuseIOSHandle::Size(off_t *res_offset) {
     struct stat stbuf;
-    int rv = this->Fstat(&stbuf);
-    if (rv == 0) return stbuf.st_size;
-    return (off_t)-1;
+    plfs_error_t ret = this->Fstat(&stbuf);
+    if (ret == PLFS_SUCCESS) *res_offset = stbuf.st_size;
+    return ret;
 }
 
-ssize_t
-FuseIOSHandle::Write(const void* buf, size_t len) {
+plfs_error_t
+FuseIOSHandle::Write(const void* buf, size_t len, ssize_t *bytes_written) {
     ssize_t rv;
-    rv = this->Pwrite(buf, len, this->current_pos);
+    plfs_error_t ret;
+    ret = this->Pwrite(buf, len, this->current_pos, &rv);
     if (rv > 0) this->current_pos += rv;
-    return(rv);
+    *bytes_written = rv;
+    return(ret);
 }
 
-int
+plfs_error_t
 FuseIOSDirHandle::Closedir() {
     FUSE_IO_ENTER(this->bpath.c_str());
     this->names.clear();
     this->loaded = false;
     FUSE_IO_EXIT(this->bpath.c_str(), 0);
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 FuseIOSDirHandle::FuseIOSDirHandle(string newbpath,
@@ -202,12 +208,12 @@ FuseIOSDirHandle::loadDentries() {
     return ret;
 }
 
-int
+plfs_error_t
 FuseIOSDirHandle::Readdir_r(struct dirent *dst, struct dirent **dret) {
     FUSE_IO_ENTER(this->bpath.c_str());
     if (!this->loaded) {
         int ret = this->loadDentries();
-        if (ret) return ret;
+        if (ret) return errno_to_plfs_error(-ret);
         this->loaded = true;
         this->itr = this->names.begin();
     }
@@ -215,21 +221,21 @@ FuseIOSDirHandle::Readdir_r(struct dirent *dst, struct dirent **dret) {
         /* Reach the end of the directory */
         *dret = NULL;
     } else {
-        if (this->itr->length() > 255) return -ENAMETOOLONG;
+        if (this->itr->length() > 255) return PLFS_ENAMETOOLONG;
         strcpy(dst->d_name, this->itr->c_str());
         dst->d_type = DT_UNKNOWN;
         *dret = dst;
         this->itr++;
     }
     FUSE_IO_EXIT(this->bpath.c_str(), 0);
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 FuseIOStore::FuseIOStore(struct fuse_operations *ops) : fuse_ops(ops) {
     private_data = ops->init(NULL);
 }
 
-int
+plfs_error_t
 FuseIOStore::Access(const char *path, int amode) {
     FUSE_IO_ENTER(path);
     int rv = 0;
@@ -238,7 +244,7 @@ FuseIOStore::Access(const char *path, int amode) {
     return(get_err(rv));
 }
 
-int
+plfs_error_t
 FuseIOStore::Chmod(const char* path, mode_t mode) {
     FUSE_IO_ENTER(path);
     int rv;
@@ -247,7 +253,7 @@ FuseIOStore::Chmod(const char* path, mode_t mode) {
     return(get_err(rv));
 }
 
-int
+plfs_error_t
 FuseIOStore::Chown(const char *path, uid_t owner, gid_t group) {
     FUSE_IO_ENTER(path);
     int rv;
@@ -256,7 +262,7 @@ FuseIOStore::Chown(const char *path, uid_t owner, gid_t group) {
     return(get_err(rv));
 }
 
-int
+plfs_error_t
 FuseIOStore::Lchown(const char *path, uid_t owner, gid_t group) {
     FUSE_IO_ENTER(path);
     int rv = 0;
@@ -265,7 +271,7 @@ FuseIOStore::Lchown(const char *path, uid_t owner, gid_t group) {
     return(get_err(rv));
 }
 
-int
+plfs_error_t
 FuseIOStore::Lstat(const char* path, struct stat* buf) {
     FUSE_IO_ENTER(path);
     int rv;
@@ -274,7 +280,7 @@ FuseIOStore::Lstat(const char* path, struct stat* buf) {
     return(get_err(rv));
 }
 
-int
+plfs_error_t
 FuseIOStore::Mkdir(const char* path, mode_t mode) {
     FUSE_IO_ENTER(path);
     int rv;
@@ -283,9 +289,10 @@ FuseIOStore::Mkdir(const char* path, mode_t mode) {
     return(get_err(rv));
 }
 
-class IOSHandle *
-FuseIOStore::Open(const char *bpath, int flags, mode_t mode, int &ret) {
+plfs_error_t
+FuseIOStore::Open(const char *bpath, int flags, mode_t mode, IOSHandle **res_hand) {
     FUSE_IO_ENTER(bpath);
+    int ret;
     FuseIOSHandle *hand = NULL;
     struct fuse_file_info fi;
     fi.flags = flags;
@@ -302,19 +309,22 @@ FuseIOStore::Open(const char *bpath, int flags, mode_t mode, int &ret) {
         }
     }
     FUSE_IO_EXIT(bpath, ret);
-    return(hand);
+    *res_hand = hand;
+    return errno_to_plfs_error(-ret);
 }
 
-class IOSDirHandle *
-FuseIOStore::Opendir(const char *bpath,int &ret) {
+plfs_error_t
+FuseIOStore::Opendir(const char *bpath, IOSDirHandle **res_dhand) {
     FUSE_IO_ENTER(bpath);
+    int ret;
     FuseIOSDirHandle *dhand;
     dhand = new FuseIOSDirHandle(bpath, this->fuse_ops);
     FUSE_IO_EXIT(bpath,ret);
-    return(dhand);
+    *res_dhand = dhand;
+    return PLFS_SUCCESS;
 }
 
-int
+plfs_error_t
 FuseIOStore::Rename(const char *oldpath, const char *newpath) {
     FUSE_IO_ENTER(oldpath);
     int rv;
@@ -323,7 +333,7 @@ FuseIOStore::Rename(const char *oldpath, const char *newpath) {
     return(get_err(rv));
 }
 
-int
+plfs_error_t
 FuseIOStore::Rmdir(const char* path) {
     FUSE_IO_ENTER(path);
     int rv;
@@ -332,7 +342,7 @@ FuseIOStore::Rmdir(const char* path) {
     return(get_err(rv));
 }
 
-int
+plfs_error_t
 FuseIOStore::Stat(const char* path, struct stat* buf) {
     FUSE_IO_ENTER(path);
     int rv;
@@ -341,7 +351,7 @@ FuseIOStore::Stat(const char* path, struct stat* buf) {
     return(get_err(rv));
 }
 
-int
+plfs_error_t
 FuseIOStore::Statvfs( const char *path, struct statvfs* stbuf ) {
     FUSE_IO_ENTER(path);
     int rv;
@@ -354,7 +364,7 @@ FuseIOStore::Statvfs( const char *path, struct statvfs* stbuf ) {
  * IOFSL requires that both oldpath and newpath start with '/'.
  * Otherwise, it will reply -ENOSYS.
  */
-int
+plfs_error_t
 FuseIOStore::Symlink(const char* oldpath, const char* newpath) {
     FUSE_IO_ENTER(oldpath);
     int rv;
@@ -363,8 +373,8 @@ FuseIOStore::Symlink(const char* oldpath, const char* newpath) {
     return(get_err(rv));
 }
 
-ssize_t
-FuseIOStore::Readlink(const char*link, char *buf, size_t bufsize) {
+plfs_error_t
+FuseIOStore::Readlink(const char* link, char *buf, size_t bufsize, ssize_t *readlen) {
     FUSE_IO_ENTER(link);
     ssize_t rv;
     rv = this->fuse_ops->readlink(link, buf, bufsize);
@@ -373,11 +383,12 @@ FuseIOStore::Readlink(const char*link, char *buf, size_t bufsize) {
      * However the FUSE readlink() will return 0 for success. So
      * do the translation here.
      */
-    if (rv == 0) return strlen(buf);
+    *readlen = -1;
+    if (rv == 0) *readlen = strlen(buf);
     return(get_err(rv));
 }
 
-int
+plfs_error_t
 FuseIOStore::Truncate(const char* path, off_t length) {
     FUSE_IO_ENTER(path);
     int rv;
@@ -386,7 +397,7 @@ FuseIOStore::Truncate(const char* path, off_t length) {
     return(get_err(rv));
 }
 
-int
+plfs_error_t
 FuseIOStore::Unlink(const char* path) {
     FUSE_IO_ENTER(path);
     int rv;
@@ -395,7 +406,7 @@ FuseIOStore::Unlink(const char* path) {
     return(get_err(rv));
 }
 
-int
+plfs_error_t
 FuseIOStore::Utime(const char* path, const struct utimbuf *times) {
     FUSE_IO_ENTER(path);
     int rv;

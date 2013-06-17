@@ -19,7 +19,9 @@ void ADIOI_PLFS_WriteContig(ADIO_File fd, void *buf, int count,
                             int *error_code)
 {
     /* --BEGIN CRAY MODIFICATION-- */
-    int err=-1, datatype_size, rank;
+    plfs_error_t err = PLFS_TBD;
+    int datatype_size, rank;
+    ssize_t bytes_written;
     ADIO_Offset len;
     /* --END CRAY MODIFICATION-- */
     ADIO_Offset myoff;
@@ -44,20 +46,20 @@ MPIIO_TIMER_START(WSYSIO);
     }
     plfs_debug( "%s: offset %ld len %ld rank %d\n",
                 myname, (long)myoff, (long)len, rank );
-    err = plfs_write( fd->fs_ptr, buf, len, myoff, rank );
+    err = plfs_write( fd->fs_ptr, buf, len, myoff, rank, &bytes_written );
 #ifdef HAVE_STATUS_SET_BYTES
-    if (err >= 0 ) {
-        MPIR_Status_set_bytes(status, datatype, err);
+    if (err == PLFS_SUCCESS ) {
+        MPIR_Status_set_bytes(status, datatype, (int)bytes_written);
     }
 #endif
-    if (err < 0 ) {
+    if (err != PLFS_SUCCESS ) {
         *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
                                            myname, __LINE__, MPI_ERR_IO,
                                            "**io",
-                                           "**io %s", strerror(-err));
+                                           "**io %s", strplfserr(err));
     } else {
         if (file_ptr_type == ADIO_INDIVIDUAL) {
-            fd->fp_ind += err;
+            fd->fp_ind += bytes_written;
         }
         *error_code = MPI_SUCCESS;
     }

@@ -10,18 +10,19 @@
 
 void ADIOI_PLFS_Flush(ADIO_File fd, int *error_code)
 {
-    int err, rank;
+    plfs_error_t err;
+    int rank;
     static char myname[] = "ADIOI_PLFS_FLUSH";
     plfs_debug( "%s: begin\n", myname );
     MPI_Comm_rank(fd->comm, &rank);
     // even though this is a collective routine, everyone must flush here
     // because everyone has there own data file handle
     err = plfs_sync(fd->fs_ptr);
-    if (err < 0) {
+    if (err != PLFS_SUCCESS) {
         *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
                                            myname, __LINE__, MPI_ERR_IO,
                                            "**io",
-                                           "**io %s", strerror(-err));
+                                           "**io %s", strplfserr(err));
     } else {
         *error_code = MPI_SUCCESS;
     }
