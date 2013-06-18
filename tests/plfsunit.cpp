@@ -165,7 +165,13 @@ PlfsUnit::chmodTest() {
         CPPUNIT_ASSERT_EQUAL(0, ret);
         ret = plfs_mode(pathname, &result);
         CPPUNIT_ASSERT_EQUAL(0, ret);
-        CPPUNIT_ASSERT_EQUAL(mode, (mode_t)(result & 0777));
+        mode_t expected_mode = mode;
+        if (plfs_get_filetype(pathname) == CONTAINER) {
+            if (mode & S_IRGRP || mode & S_IWGRP) expected_mode |= S_IXGRP;
+            if (mode & S_IROTH || mode & S_IWOTH) expected_mode |= S_IXOTH;
+            expected_mode |= S_IRUSR | S_IXUSR | S_IWUSR;
+        }
+        CPPUNIT_ASSERT_EQUAL(expected_mode, (mode_t)(result & 0777));
     }
     ret = plfs_unlink(pathname);
     CPPUNIT_ASSERT_EQUAL(0, ret);
