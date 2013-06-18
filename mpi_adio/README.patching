@@ -47,7 +47,7 @@ to the ROMIO layer or the build system (such as MVAPICH2).
    Note that <mpi>-<version>-plfs-prep.patch may not exist for every version.
    There are prep.patch files that work for more than one version of an MPI
    implementation. These will have an 'x' in the version string to help signify
-   which versions a particualr patch can be applied to. For example,
+   which versions a particular patch can be applied to. For example,
    ompi-1.4.x-plfs-pre.patch can be applied to any 1.4.x release such as 1.4.3
    or 1.4.5. Please see what patches are available for the desired MPI
    implementation by looking in patches/<mpi> where <mpi> is the desired MPI.
