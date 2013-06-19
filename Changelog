@@ -73,6 +73,11 @@ overhead burden that is not necessary. The implementation recognizes their
 existence without actually creating the underlying physical representation if
 there is no data to store.
 
+* Add Werror and Wshadow to default build process
+In order to help keep code to the guidelines outlined in README.developer,
+Werror and Wshadow are now used by default in the build process. Code cleanup
+resulted from this change.
+
 * ADIO Support for newer MPICH
 PLFS-prep patches now exist for MPICH2-1.5 and MPICH-3.0.3. With the release
 of MPICH2-1.5, the MPICH folks completely redid their build system. The
