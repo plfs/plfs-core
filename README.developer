@@ -20,6 +20,9 @@ treated as errors:
 -DCMAKE_C_FLAGS="-Wall -Werror -Wshadow"
 -DCMAKE_CXX_FLAGS="-Wall -Werror -Wshadow"
 
+It should be noted that for the default build, these compile flags are enabled
+by default.
+
 5) Everything must be code-reviewed before being committed to the master
 branch on github
 The official master branch of PLFS will be referred to as plfs/plfs-core. In
