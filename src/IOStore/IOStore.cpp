@@ -3,6 +3,7 @@
 #include "plfs_private.h"
 #include "Util.h"
 #include "mlog.h"
+#include "URI.h"
 
 #include "PosixIOStore.h"
 #include "GlibIOStore.h"
@@ -45,49 +46,45 @@ class IOStore *plfs_iostore_get(char *phys_path, char **prefixp,
                                 int *prelenp, char **bmpointp, 
                                 PlfsMount *pmnt) {
 
-    /* special handling for posix (allows shorthand) */
-    if (phys_path[0] == '/' ||
-        strncmp(phys_path, "posix:", sizeof("posix:")-1) == 0) {
+    *prefixp = phys_path;
+    /* special handling for posix shorthand */
+    if (phys_path[0] == '/') {
         /* use the null string short cut prefix */
-        *prefixp = phys_path;
         *prelenp = 0;
-        *bmpointp = (phys_path[0] == '/') ? phys_path :
-            (phys_path + sizeof("posix:")-1);
+        *bmpointp = phys_path;
         return(&PosixIO);
     }
 
-    /* the only time we strip off the scheme/protocol is for posix */
-    *prefixp = phys_path;
+    URI uri(phys_path);
 
-    if (strncmp(phys_path, "glib:", sizeof("glib:")-1) == 0) {
+    if (uri.getError()) return NULL;
+    if (uri.getScheme() == "glib:") {
         *prelenp = 0;
-        *bmpointp = phys_path + (sizeof("glib:")-1);
+        *bmpointp = phys_path + (sizeof("glib://")-1);
         return(new GlibIOStore(pmnt->glib_buffer_mbs));
-    }
-        
+    } else if (uri.getScheme() == "posix:") {
+        *prelenp = 0;
+        *bmpointp = phys_path + (sizeof("posix://")-1);
+        return (&PosixIO);
 #ifdef USE_HDFS
-    if (strncmp(phys_path, "hdfs://", sizeof("hdfs://")-1) == 0) {
+    } else if (uri.getScheme() == "hdfs:") {
         class IOStore *rv;
         rv = HDFSIOStore::HDFSIOStore_xnew(phys_path, prelenp, bmpointp);
         return(rv);
-    }
 #endif
-
 #ifdef USE_PVFS
-    if (strncmp(phys_path, "pvfs://", sizeof("pvfs://")-1) == 0) {
+    } else if (uri.getScheme() == "pvfs:") {
         class IOStore *rv;
         rv = PVFSIOStore::PVFSIOStore_xnew(phys_path, prelenp, bmpointp);
         return(rv);
-     }
 #endif
-
 #ifdef USE_IOFSL
-    if (strncmp(phys_path, "iofsl:", sizeof("iofsl:")-1) == 0) {
+    } else if (uri.getScheme() == "iofsl:") {
         *prelenp = sizeof("iofsl:")-1;
         *bmpointp = phys_path + *prelenp;
         return(new IOFSLIOStore());
-    }
 #endif
+    }
 
     return(NULL);
 }
