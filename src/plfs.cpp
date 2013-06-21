@@ -23,23 +23,28 @@ debug_exit(const char *func, string msg, int ret)
 LogicalFileSystem *
 plfs_get_logical_fs(const char *path)
 {
-    mlog(PLFS_DBG, "ENTER %s: %s\n", __FUNCTION__,path);
-    bool found = false;
-    PlfsConf *pconf = get_plfs_conf();
-    PlfsMount *pmount = find_mount_point(pconf, path, found);
-    if (!found || pmount == NULL) {
-        return NULL;
+    mlog(PLFS_DBG, "ENTER %s: %s", __FUNCTION__, path);
+    LogicalFileSystem *ret = NULL;
+    struct plfs_physpathinfo ppi;
+
+    if (plfs_resolvepath(path, &ppi) == 0) {
+        ret = ppi.mnt_pt->fs_ptr;
     }
-    return pmount->fs_ptr;
+    return ret;
+
 }
 
 plfs_filetype
 plfs_get_filetype(const char *path)
 {
-    bool found = false;
-    PlfsConf *pconf = get_plfs_conf();
-    PlfsMount *pmount = find_mount_point(pconf, path, found);
-    return ((found && pmount) ? pmount->file_type : PFT_UNKNOWN);
+    plfs_filetype ret = PFT_UNKNOWN;
+    struct plfs_physpathinfo ppi;
+
+    if (plfs_resolvepath(path, &ppi) == 0) {
+        ret = ppi.mnt_pt->file_type;
+    }
+
+    return(ret);
 }
 
 bool
