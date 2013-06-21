@@ -304,15 +304,20 @@ int Plfs::init( int *argc, char **argv )
             pconf->direct_io = 1;
         }
         if ( argv[i][0] != '-' && ! mnt_pt_found ) {
-            string mnt_pt = argv[i];
-            pmnt = find_mount_point(pconf,mnt_pt,mnt_pt_found);
-            if ( ! mnt_pt_found || pmnt == NULL) {
+            int rv;
+            char *mnt_pt;
+            struct plfs_physpathinfo ppi;
+            
+            mnt_pt = argv[i];
+            /* this check mount and also does a plfs_attach */
+            rv = plfs_resolvepath(mnt_pt, &ppi);
+            if (rv) {
                 fprintf(stderr,"FATAL mount point error: %s %s\n",
-                        argv[i],
-                        (mnt_pt_found) ? "attach error" : "not found" );
+                        mnt_pt, strerror(-rv));
                 plfs_dump_config(false, false);
-                return((mnt_pt_found) ? -EIO : -ECONNREFUSED);
+                return(rv);
             }
+            pmnt = ppi.mnt_pt;
             mnt_pt_found = true;
         }
     }
