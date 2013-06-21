@@ -125,6 +125,42 @@ int plfs_resolvepath(const char *logical, struct plfs_physpathinfo *ppip) {
     return(rv);
 }
 
+/**
+ * plfs_expand_path: this is a C API for the MPI open optimization code
+ * (that code cannot use plfs_resovlepath because the plfs_physpathinfo
+ * struct contains a C++ string...).
+ *
+ * @param logical the logical path we are looking up
+ * @param physical the resulting physical path (malloc'd, caller frees)
+ * @param pmountp pointer to plfsmount placed here
+ * @param pbackp pointer canonicalbackend placed here
+ * @return 0 or -err
+ */
+int
+plfs_expand_path(const char *logical,char **physical,
+                 void **pmountp, void **pbackp) {
+    int ret = 0;
+    struct plfs_physpathinfo ppi;
+    char stripped_path[PATH_MAX];
+    stripPrefixPath(logical, stripped_path);
+
+    ppi.canback = NULL; /* to be safe */
+    ret = plfs_resolvepath(stripped_path, &ppi);
+    if (ret == 0) {
+        *physical = Util::Strdup(ppi.bnode.c_str());
+        if (*physical == NULL) {
+            ret = -ENOMEM;
+        }
+        if (pmountp) {
+            *pmountp = ppi.mnt_pt;
+        }
+        if (pbackp) {
+            *pbackp = ppi.canback;
+        }
+    }
+
+    return(ret);
+}
 
 /**
  * find_mount_point: find the PLFS mount point for a given logical path.
@@ -1036,24 +1072,6 @@ plfs_buildtime( )
 {
     return __DATE__;
 }
-
-int
-plfs_expand_path(const char *logical,char **physical, void **pmountp, void **pbackp) {
-  PLFS_ENTER;
-  (void)ret; // suppress compiler warning
-
-  *physical = Util::Strdup(path.c_str());
-
-  if (pmountp) {
-    *pmountp = expansion_info.mnt_pt;
-  }
-
-  if (pbackp) {
-    *pbackp = expansion_info.backend;
-  }
-  return 0;
-}
-
 
 uid_t
 plfs_getuid()
