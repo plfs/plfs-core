@@ -8,11 +8,13 @@
 // to save a bit of space (probably an unnecessary optimization but anyway)
 // it just includes an offset into the backend arrary
 // these helper functions just dig out the string
+/* XXXCDC:OBSO */
 const string&
 get_backend(const ExpansionInfo& exp, size_t which)
 {
     return exp.mnt_pt->backends[which]->bmpoint;
 }
+/* XXXCDC:OBSO */
 const string&
 get_backend(const ExpansionInfo& exp)
 {
@@ -40,6 +42,7 @@ int find_best_mount_point(const char *cleanlogical,
     PlfsMount *mymount, *xtry;
     unsigned int hitlen;
     int rv;
+    size_t xtrylen;
 
     mymount = NULL;
     hitlen = 0;
@@ -49,12 +52,13 @@ int find_best_mount_point(const char *cleanlogical,
     for (hitlen = 0, itr = pconf->mnt_pts.begin();
          itr != pconf->mnt_pts.end(); itr++) {
         xtry = itr->second;
-        if (hitlen > xtry->mnt_pt.length())  /* already found better match */
+        xtrylen = xtry->mnt_pt.length();
+        if (hitlen > xtrylen)  /* already found better match */
             continue;
-        if (strncmp(cleanlogical,
-                    xtry->mnt_pt.c_str(), xtry->mnt_pt.length()) == 0) {
+        if (strncmp(cleanlogical, xtry->mnt_pt.c_str(), xtrylen) == 0 &&
+            (cleanlogical[xtrylen] == '\0' || cleanlogical[xtrylen] == '/')) {
             mymount = xtry;
-            hitlen = xtry->mnt_pt.length();
+            hitlen = xtrylen;
         }
     }
  done:
