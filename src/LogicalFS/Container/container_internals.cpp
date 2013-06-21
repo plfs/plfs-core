@@ -44,9 +44,6 @@ size_t container_gethostdir_id(char *hostname)
     return Container::getHostDirId(hostname);
 }
 
-/*
- * Nothing was calling this function, so I deleted it.
- *
 int
 container_dump_index_size()
 {
@@ -54,7 +51,6 @@ container_dump_index_size()
     cout << "An index entry is size " << sizeof(e) << endl;
     return (int)sizeof(e);
 }
- */
 
 // returns 0 or -err
 int

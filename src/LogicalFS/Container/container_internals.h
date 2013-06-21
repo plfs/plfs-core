@@ -16,11 +16,7 @@ int container_create( const char *path, mode_t mode, int flags, pid_t pid );
 int container_dump_index( FILE *fp, const char *path, 
                     int compress, int uniform_restart, pid_t uniform_rank );
 
-/*
- * Nothing was calling this function, so I deleted it.
- *
 int container_dump_index_size()
- */
 
 int container_file_version(const char *logical, const char **version);
 
