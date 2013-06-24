@@ -90,7 +90,7 @@ find_read_tasks(PLFSIndex *index, list<ReadTask> *tasks, size_t size,
         }
         // when chunk_length is 0, that means EOF
     } while(bytes_remaining && ret == 0 && task.length);
-    PLFS_EXIT(ret);
+    return(ret);
 }
 /* ret 0 or -err */
 int
@@ -149,7 +149,7 @@ perform_read_task( ReadTask *task, PLFSIndex *index )
     oss << "\t READ TASK: offset " << task->chunk_offset << " len "
         << task->length << " fh " << task->fh << ": ret " << ret;
     oss.commit();
-    PLFS_EXIT(ret);
+    return(ret);
 }
 
 // pop the queue, do some work, until none remains
@@ -210,7 +210,7 @@ plfs_reader(void *pfd, char *buf, size_t size, off_t offset,
     // not worrying about these conditions
     // tasks is empty for a zero length file or an EOF
     if ( ret != 0 || tasks.empty() ) {
-        PLFS_EXIT(ret);
+        return(ret);
     }
     PlfsConf *pconf = get_plfs_conf();
     if ( tasks.size() > 1 && pconf->threadpool_size > 1 ) {
