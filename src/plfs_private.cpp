@@ -661,31 +661,6 @@ generate_backpaths(struct plfs_physpathinfo *ppip,
     return(0);
 }
 
-// a helper routine that returns a list of all possible expansions
-// for a logical path (canonical is at index 0, shadows at the rest)
-// also works for directory operations which need to iterate on all
-// it may well return some paths which don't actually exist
-// some callers assume that the ordering is consistent.  Don't change.
-// also, the order returned is the same as the ordering of the backends.
-// returns 0 or -err
-int
-find_all_expansions(const char *logical, vector<plfs_pathback> &containers)
-{
-    PLFS_ENTER;
-    ExpansionInfo exp_info;
-    struct plfs_pathback pb;
-    for(int i = 0; i < expansion_info.mnt_pt->nback; i++) {
-        path = expandPath(logical,&exp_info,EXPAND_TO_I,i,0);
-        if(exp_info.Errno) {
-            PLFS_EXIT(exp_info.Errno);
-        }
-        pb.bpath = path;
-        pb.back = exp_info.backend;
-        containers.push_back(pb);
-    }
-    PLFS_EXIT(ret);
-}
-
 // helper routine for plfs_dump_config
 // changes ret to new error or leaves it alone
 int

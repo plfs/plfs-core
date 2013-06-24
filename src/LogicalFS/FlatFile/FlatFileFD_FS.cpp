@@ -297,12 +297,9 @@ FlatFileSystem::rename(struct plfs_physpathinfo *ppip,
     // will be restored and -NOTEMPTY returned.
     //
     } else if (S_ISDIR(stbuf.st_mode)) {
-        /*
-         * XXXCDC: this should be checked to make sure it work.
-         */
         ret = FlatFileSystem::unlink(ppip_to);
         if (ret != -ENOTEMPTY) {
-            RenameOp op(ppip_to->canbpath.c_str());
+            RenameOp op(ppip_to);
             ret=plfs_flatfile_operation(ppip,op,ppip->canback->store);
             mlog(PLFS_DCOMMON, "Dir rename return value : %d", ret);
         }

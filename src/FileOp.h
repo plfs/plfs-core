@@ -181,13 +181,12 @@ class
     RenameOp : public FileOp
 {
     public:
-        RenameOp(const char *);
+        RenameOp(struct plfs_physpathinfo *ppip_to);
         int do_op(const char *, unsigned char, IOStore *);
         const char *name() {
             return "RenameOp";
         }
     private:
-        const char * to;
         int err;
         int indx;
         int ret_val;

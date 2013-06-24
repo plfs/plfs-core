@@ -75,7 +75,6 @@ PlfsMount *find_mount_point_using_tokens(PlfsConf *, vector <string> &, bool&);
 
 int generate_backpaths(struct plfs_physpathinfo *ppip,
                        vector<plfs_pathback> &containers);
-int find_all_expansions(const char *logical,vector<plfs_pathback> &containers);
 
 // a helper function that expands %t, %p, %h in mlog file name
 string expand_macros(const char *target);
