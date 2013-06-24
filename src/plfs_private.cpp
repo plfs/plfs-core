@@ -4,23 +4,6 @@
 #include "Util.h"
 #include "LogMessage.h"
 
-// the expansion info doesn't include a string for the backend
-// to save a bit of space (probably an unnecessary optimization but anyway)
-// it just includes an offset into the backend arrary
-// these helper functions just dig out the string
-/* XXXCDC:OBSO */
-const string&
-get_backend(const ExpansionInfo& exp, size_t which)
-{
-    return exp.mnt_pt->backends[which]->bmpoint;
-}
-/* XXXCDC:OBSO */
-const string&
-get_backend(const ExpansionInfo& exp)
-{
-    return exp.backend->bmpoint;
-}
-
 /**
  * find_best_mount_point: find the best matching mount point (e.g.
  * choose /mnt/a/b/c over /mnt/a because it is a longer match).
@@ -164,25 +147,6 @@ plfs_expand_path(const char *logical,char **physical,
     }
 
     return(ret);
-}
-
-/**
- * find_mount_point: find the PLFS mount point for a given logical path.
- * note that we can return NULL even if found is set to true, this
- * indicates some sort of error getting to a filesystem we know about.
- *
- * @param pconf the current configuration
- * @param logical the path we are considering
- * @param found set to true if we found the mount point
- * @return the mount point or null on error
- */
-PlfsMount *
-find_mount_point(PlfsConf *pconf, const string& logical, bool& found)
-{
-    mlog(INT_DAPI,"Searching for mount point matching %s", logical.c_str());
-    vector<string> logical_tokens;
-    Util::fast_tokenize(logical.c_str(),logical_tokens);
-    return find_mount_point_using_tokens(pconf,logical_tokens,found);
 }
 
 PlfsMount *
@@ -951,27 +915,6 @@ plfs_backends_op(struct plfs_physpathinfo *ppip, FileOp& op)
         mlog(INT_DCOMMON, "%s on %s: %d",op.name(),itr->bpath.c_str(),ret);
     }
     return(ret);
-}
-
-// this applies a function to a directory path on each backend
-// currently used by readdir, rmdir, mkdir
-// this doesn't require the dirs to already exist
-// returns 0 or -err
-// XXXCDC: depreciate in favor of plfs_backends_op?
-int
-plfs_iterate_backends(const char *logical, FileOp& op)
-{
-    int ret = 0;
-    vector<plfs_pathback> exps;
-    vector<plfs_pathback>::iterator itr;
-    if ( (ret = find_all_expansions(logical,exps)) != 0 ) {
-        PLFS_EXIT(ret);
-    }
-    for(itr = exps.begin(); itr != exps.end() && ret == 0; itr++ ) {
-        ret = op.op(itr->bpath.c_str(),DT_DIR,itr->back->store);
-        mlog(INT_DCOMMON, "%s on %s: %d",op.name(),itr->bpath.c_str(),ret);
-    }
-    PLFS_EXIT(ret);
 }
 
 void

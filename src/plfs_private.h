@@ -71,7 +71,6 @@ typedef struct ExpansionInfo {
 
 int find_best_mount_point(const char *cleanlogical, PlfsMount **mpp,
                           int *mlen);
-PlfsMount *find_mount_point(PlfsConf *pconf, const string& path, bool& found);
 PlfsMount *find_mount_point_using_tokens(PlfsConf *, vector <string> &, bool&);
 
 int generate_backpaths(struct plfs_physpathinfo *ppip,
@@ -88,11 +87,7 @@ string expandPath(string logical, ExpansionInfo *exp_info,
 int mkdir_dash_p(const string& path, bool parent_only, IOStore *);
 
 int plfs_backends_op(struct plfs_physpathinfo *ppip, FileOp& op);
-int plfs_iterate_backends(const char *logical, FileOp& op);
 int plfs_resolvepath(const char *logical, struct plfs_physpathinfo *ppip);
-
-const string& get_backend(const ExpansionInfo& exp);
-const string& get_backend(const ExpansionInfo& exp, size_t which);
 
 /* plfs_init
     it just warms up the plfs structures used in expandPath
