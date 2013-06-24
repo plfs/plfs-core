@@ -93,7 +93,6 @@ class Util
         static ssize_t Writen(const void *, size_t, IOSHandle *);
         static string toString();
         static string openFlagsToString( int );
-        static string expandPath( string path, string hostname );
         static void addTime( string, double, bool );
         static char *hostname();
         static int traverseDirectoryTree(const char *physical,
