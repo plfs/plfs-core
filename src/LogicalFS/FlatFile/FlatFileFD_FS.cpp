@@ -60,8 +60,8 @@ static int plfs_flatfile_operation(struct plfs_physpathinfo *ppip,
 
 /* ret 0 or -err */
 int
-Flat_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
-              mode_t mode, Plfs_open_opt *unused)
+Flat_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t /* pid */,
+              mode_t mode, Plfs_open_opt * /* unused */)
 {
     if (backend_fh != NULL) {// This fh has already been opened.
         refs++;
@@ -85,7 +85,8 @@ Flat_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
 }
 
 int
-Flat_fd::close(pid_t pid, uid_t u, int flags, Plfs_close_opt *unused)
+Flat_fd::close(pid_t /* pid */, uid_t /* u */, 
+               int /* flags */, Plfs_close_opt * /* unused */)
 {
     refs--;
     if (refs > 0) {
@@ -108,7 +109,7 @@ Flat_fd::read(char *buf, size_t size, off_t offset)
 
 /* ret 0 or -err */
 ssize_t
-Flat_fd::write(const char *buf, size_t size, off_t offset, pid_t pid)
+Flat_fd::write(const char *buf, size_t size, off_t offset, pid_t /* pid */)
 {
     int ret = this->backend_fh->Pwrite(buf, size, offset);
     return(ret);
@@ -124,7 +125,7 @@ Flat_fd::sync()
 
 /* ret 0 or -err */
 int
-Flat_fd::sync(pid_t pid)
+Flat_fd::sync(pid_t /* pid */)
 {
     int ret = this->sync(); 
     return(ret);
@@ -140,14 +141,14 @@ Flat_fd::trunc(off_t offset)
 
 /* ret 0 or -err */
 int
-Flat_fd::getattr(struct stat *stbuf, int sz_only)
+Flat_fd::getattr(struct stat *stbuf, int /* sz_only */)
 {
     int ret = this->backend_fh->Fstat(stbuf);
     return(ret);
 }
 
 int
-Flat_fd::query(size_t *writers, size_t *readers, size_t *bytes_written,
+Flat_fd::query(size_t * /* writers */, size_t * /* readers */, size_t *bytes_written,
                bool *reopen)
 {
     if (bytes_written) {
@@ -199,7 +200,7 @@ FlatFileSystem::open(Plfs_fd **pfd,struct plfs_physpathinfo *ppip,
 // file after POSIX creat() is called.
 int
 FlatFileSystem::create(struct plfs_physpathinfo *ppip, mode_t mode,
-                       int flags, pid_t pid )
+                       int /* flags */, pid_t /* pid */)
 {
     int ret = 0;
     //     An open(... O_CREAT) gets turned into a mknod followed by an
@@ -313,8 +314,8 @@ out:
 }
 
 int
-FlatFileSystem::link(struct plfs_physpathinfo *ppip,
-                     struct plfs_physpathinfo *ppip_to)
+FlatFileSystem::link(struct plfs_physpathinfo * /* ppip */,
+                     struct plfs_physpathinfo * /* ppip_to */)
 {
     // Hard link is not supported in PLFS file system.
     return -ENOSYS;
@@ -332,7 +333,7 @@ FlatFileSystem::utime(struct plfs_physpathinfo *ppip, struct utimbuf *ut )
 /* ret 0 or -err */
 int
 FlatFileSystem::getattr(struct plfs_physpathinfo *ppip,
-                        struct stat *stbuf, int sz_only)
+                        struct stat *stbuf, int /* sz_only */)
 {
     int ret = 0;
     ret = ppip->canback->store->Lstat(ppip->canbpath.c_str(),stbuf);
@@ -342,7 +343,7 @@ FlatFileSystem::getattr(struct plfs_physpathinfo *ppip,
 /* ret 0 or -err */
 int
 FlatFileSystem::trunc(struct plfs_physpathinfo *ppip, off_t offset,
-                      int open_file)
+                      int /* open_file */)
 {
     int ret = 0;
     ret = ppip->canback->store->Truncate(ppip->canbpath.c_str(),offset);

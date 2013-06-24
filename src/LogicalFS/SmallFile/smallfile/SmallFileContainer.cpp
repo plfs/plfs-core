@@ -67,7 +67,7 @@ SmallFileContainer::makeTopLevelDir(struct plfs_backend *backend,
 }
 
 int
-SmallFileContainer::init_data_source(void *resource, RecordReader **reader) {
+SmallFileContainer::init_data_source(void * /* resource */, RecordReader **reader) {
     for (int i = 0; i < pmount->nback; i++)
     {
         // Read all dropping.name.x from every backends.

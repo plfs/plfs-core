@@ -21,7 +21,7 @@ public:
     virtual int pop_front();
 protected:
     /* Index file has fixed-length records */
-    virtual int record_size(void *unused) { return sizeof(struct IndexEntry);};
+    virtual int record_size(void * /* unused */) { return sizeof(struct IndexEntry);};
 private:
     index_mapping_t fid_did;
 };

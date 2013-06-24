@@ -207,7 +207,7 @@ class Container
                                  pid_t,unsigned,
                                  bool lazy_subdir);
         static int makeTopLevel(const string&, struct plfs_backend *,
-                                const string&, mode_t, pid_t,
+                                const string&, mode_t, int flags, pid_t,
                                 unsigned, bool lazy_subdir);
         static string getChunkPath( const string&, const string&,
                                     int pid, const char *, double );

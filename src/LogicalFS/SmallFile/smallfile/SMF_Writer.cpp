@@ -28,7 +28,7 @@ SMF_Writer::~SMF_Writer() {
 }
 
 bool
-SMF_Writer::resource_available(int type, void *resource) {
+SMF_Writer::resource_available(int type, void * /* resource */) {
     switch (type) {
     case WRITER_OPENNAMEFILE:
         return name_file.is_opened();
@@ -43,7 +43,7 @@ SMF_Writer::resource_available(int type, void *resource) {
 }
 
 int
-SMF_Writer::add_resource(int type, void *resource) {
+SMF_Writer::add_resource(int type, void * /* resource */) {
     int ret = 0;
     bool clear_filename = false;
 
@@ -171,7 +171,7 @@ SMF_Writer::rename(const string &from, const string &to, InMemoryCache *meta) {
 
 ssize_t
 SMF_Writer::write(const FileID fileid, const void *buf, off_t offset,
-              size_t length, InMemoryCache *meta, InMemoryCache *index)
+              size_t length, InMemoryCache * /* meta */, InMemoryCache *index)
 {
     off_t physical_offset;
     int ret;
@@ -195,8 +195,8 @@ SMF_Writer::write(const FileID fileid, const void *buf, off_t offset,
 }
 
 int
-SMF_Writer::truncate(const FileID fileid, off_t offset, InMemoryCache *meta,
-                 InMemoryCache *index)
+SMF_Writer::truncate(const FileID fileid, off_t offset, 
+                     InMemoryCache * /* meta */, InMemoryCache *index)
 {
     int ret;
     struct IndexEntry entry;

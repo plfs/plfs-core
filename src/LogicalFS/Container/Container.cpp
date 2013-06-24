@@ -1554,9 +1554,9 @@ Container::getattr( const string& path, struct plfs_backend *canback,
 // returns -err or 0
 int
 Container::makeTopLevel( const string& expanded_path,
-                         struct plfs_backend *canback, 
-                         const string& hostname, mode_t mode, pid_t pid,
-                         unsigned mnt_pt_checksum, bool lazy_subdir )
+                         struct plfs_backend *canback,
+                         const string& hostname, mode_t mode, int flags,
+                         pid_t pid, unsigned mnt_pt_checksum, bool lazy_subdir )
 {
     int rv;
     /*
@@ -1656,8 +1656,8 @@ Container::makeTopLevel( const string& expanded_path,
             // if it's something like EEXIST or ENOTEMPTY or EISDIR
             // then that probably means the same thing
             //if ( ! isContainer( expanded_path ) )
-            if ( saverv != -EEXIST && saverv != -ENOTEMPTY
-                    && saverv != -EISDIR ) {
+            if ( flags & O_EXCL || (saverv != -EEXIST && saverv != -ENOTEMPTY
+                    && saverv != -EISDIR) ) {
                 mlog(CON_DRARE, "rename %s to %s failed: %s",
                      tmpName.c_str(), expanded_path.c_str(),
                      strerror(-saverv));
@@ -2047,7 +2047,7 @@ int
 Container::createHelper(const string& expanded_path,
                         struct plfs_backend *canback,
                         const string& hostname,
-                        mode_t mode, int flags, int *extra_attempts,
+                        mode_t mode, int flags, int * /* extra_attempts */,
                         pid_t pid, unsigned mnt_pt_cksum, bool lazy_subdir )
 {
     // this below comment is specific to FUSE
@@ -2075,6 +2075,13 @@ Container::createHelper(const string& expanded_path,
         return res;
     }
     existing_container = res;
+    //creat with O_EXCL fails if file exists
+    if (existing_container && flags & O_EXCL){
+        res = -EEXIST;
+        mlog(CON_INFO, "Failed to create %s exclusively bec it exists\n",
+                expanded_path.c_str());
+        return res;
+    }
     //creat specifies that we truncate if the file exists
     if (existing_container && flags & O_TRUNC){
         res = Container::Truncate(expanded_path, 0, canback);
@@ -2087,7 +2094,7 @@ Container::createHelper(const string& expanded_path,
     mlog(CON_DCOMMON, "Making top level container %s %x",
          expanded_path.c_str(),mode);
     begin_time = time(NULL);
-    res = makeTopLevel( expanded_path, canback, hostname, mode, pid,
+    res = makeTopLevel( expanded_path, canback, hostname, mode, flags, pid,
                         mnt_pt_cksum, lazy_subdir );
     end_time = time(NULL);
     if ( end_time - begin_time > 2 ) {

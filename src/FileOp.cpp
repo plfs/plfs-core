@@ -63,12 +63,11 @@ int Access( const string& path, IOStore *store, int mask )
     mode_t open_mode = 0;
     int ret;
     IOSHandle *fh;
-    bool mode_set=false;
-
     mlog(FOP_DAPI, "%s Check existence of %s", __FUNCTION__, path.c_str());
 
     ret = store->Access( path.c_str(), F_OK );
     if ( ret == 0 ) {
+        bool mode_set=false;
         // at this point, we know the file exists
         if(checkMask(mask,W_OK|R_OK)) {
             open_mode = O_RDWR;
@@ -80,7 +79,7 @@ int Access( const string& path, IOStore *store, int mask )
             open_mode = O_WRONLY;
             mode_set=true;
         } else if(checkMask(mask,F_OK)) {
-            return 0;   // we already know this
+            return mode_set;   // we already know this
         }
         assert(mode_set);
         mlog(FOP_DCOMMON, "The file exists attempting open");
@@ -398,7 +397,7 @@ RenameOp::RenameOp(struct plfs_physpathinfo *ppip_to)
 
 /* ret 0 or -err */
 int
-RenameOp::do_op(const char *path, unsigned char isfile, IOStore *store )
+RenameOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store )
 {
     int ret;
 

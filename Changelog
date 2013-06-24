@@ -1,3 +1,90 @@
+~~~ Version 2.4
+* PLFS Segfault Without PLFSRC
+Issue #69: A call to any PLFS library function without a valid PLFSRC file
+available results in a segfault. Now the functions note that there is no
+PLFSRC file and exit.
+
+* Read Returns Zero Bytes
+Issue #73: The issue has a reproducer that would cause the problem for 32-bit
+architectures. We aren’t aware of anyone using 32-bit architectures, and it
+doesn’t repeat for 64-bit architectures. We have added the reproducer to the
+regression suite.
+
+* PLFS Daemon Crashes Logged
+Issue #163: There have been occasions where the PLFS daemon (a FUSE-based
+application daemon) crashes and we don’t know why. All crashes are trapped and
+as much information as is available is logged. This should help discover the
+sources of crashes, should they occur in the future.
+
+* PLFS Library Removes “plfs:” MPI/IO Prefix
+Issue #172: The path names weren’t handled consistently. The PLFS library
+doesn’t need the “plfs:” prefix. That is currently only needed by the MPI/IO
+patch to tell MPI/IO that this is a PLFS target and to route the calls to
+PLFS. Now all PLFS library routines strip the “plfs:” from the file
+specification. Additionally, a new function, is_plfs_path, can take any path
+name and return True (1) or False (0).
+
+*Rename Test Failure
+Issue #174: Mount points with multiple backends would fail to rename a file
+using the POSIX interface. This error is fixed. Renaming works in all cases
+and the regression test suite tests all cases to ensure it continues to work.
+
+* Defer Data/Index File Creation Until Written
+Issues #177, #188: For efficiency, we don’t create files until they have data
+written to them. The PLFSRC file can define “lazy_droppings 0” to disable this
+and have all files created when they are created, whether or not any data is
+ever written to them.
+
+* Latest Data for Small File Mode Not Available
+Issue #178: When testing where certain processes created files and others
+stat’d them, it was discovered that the files weren’t flushed to storage on
+close. This was part of the design that is not POSIX standard-compliant to
+make small files efficient. plfs_flush_writes( char *path ) and
+plfs_invalidate_read_cache( char *path ) were implemented so that users could
+force flushing data to storage and getting the latest data from storage when
+the application knows this is required.
+
+* Implement MPI/IO Hint for Uniform Restart
+Issue #179: Uniform Restart assumes that a file will be read by the same
+number of processes as were used to write it. This allows each process to read
+only the section of the index for that process, thus not filling memory with
+other processes’ part of the index. This is useful for very large files.
+However, we want to be able to choose when to do this or not with the same
+PLFS version. So, there is now a hint that is passed to MPI/IO telling it
+whether or not to assume uniform restart.
+
+* Corrected Documentation and Cleaned-Up PLFS API
+Issue #185: Several functions listed in plfs.h were actually implemented in
+internal C/C++ source files, not in plfs.cpp. Those function specifications
+were moved to the appropriate include files. plfs.h only contains functions
+that are intended for PLFS client users to call. Man pages were updated to
+document all plfs.h functions. Man pages were also updated to document the new
+YAML parsing of the PLFSRC file and CMake use for build.
+
+* Include File config.h Error
+Issue #186: config.h was included in plfs.h, causing compile/link time
+warnings. plfs.h was changed so that the cmake process determines the macros
+that need to be there when the build is done, based on configuration
+parameters.
+
+* Don’t Create Zero-Length Files
+Issue #188: Doing the actual creation of files that are zero-length incurs an
+overhead burden that is not necessary. The implementation recognizes their
+existence without actually creating the underlying physical representation if
+there is no data to store.
+
+* Add Werror and Wshadow to default build process
+In order to help keep code to the guidelines outlined in README.developer,
+Werror and Wshadow are now used by default in the build process. Code cleanup
+resulted from this change.
+
+* ADIO Support for newer MPICH
+PLFS-prep patches now exist for MPICH2-1.5 and MPICH-3.0.3. With the release
+of MPICH2-1.5, the MPICH folks completely redid their build system. The
+make_ad_plfs_patch script has been updated to relfect this change. This means
+that versions before MPICH2-1.5 can no longer be completely patched by using
+make_ad_plfs_patch. Details are in mpi_adio/README.patching.
+
 ~~~ Version 2.3
 * IOStore
 Issue #120: IOStore is the virtual layer that acts as an interface to physical

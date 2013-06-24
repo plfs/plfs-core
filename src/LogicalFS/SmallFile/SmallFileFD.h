@@ -47,9 +47,10 @@ class Small_fd : public Plfs_fd, public PLFSIndex
         void setPath(string p, struct plfs_backend *b);
         const char *getPath();
         int renamefd(struct plfs_physpathinfo *ppip_to);
-        int getxattr(void *val, const char *key, size_t len) {return -ENOSYS;};
-        int setxattr(const void *value, const char *key, size_t len)
-        {return -ENOSYS;};
+        int getxattr(void * /* val */, const char * /* key */, 
+                     size_t /* len */) {return -ENOSYS;};
+        int setxattr(const void * /* value */, const char * /* key */, 
+                     size_t /* len */) {return -ENOSYS;};
 
     private:
         ContainerPtr container;

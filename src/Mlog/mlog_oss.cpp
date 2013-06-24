@@ -131,14 +131,24 @@ std::ostream& mss::mlog_oss::operator<< (
     return oss;
 }
 
-mss::mlog_oss& mss::operator<< (mss::mlog_oss& out, char c ) {
+/*
+template <typename T> 
+mss::mlog_oss& operator<< (mss::mlog_oss& out, T val) {
+    if (!out.getNoLog()) {
+        out.insert(val);
+    }
+    return out;
+}
+*/
+/*
+mss::mlog_oss& operator<< (mss::mlog_oss& out, char c ) {
     if (!out.getNoLog()) {
         out.insert(c);
     }
     return out;
 }
 
-mss::mlog_oss& mss::operator<< (mss::mlog_oss& out,
+mss::mlog_oss& operator<< (mss::mlog_oss& out,
         signed char c ) {
     if (!out.getNoLog()) {
         out.insert(c);
@@ -146,7 +156,7 @@ mss::mlog_oss& mss::operator<< (mss::mlog_oss& out,
     return out;
 }
 
-mss::mlog_oss& mss::operator<< (mss::mlog_oss& out, 
+mss::mlog_oss& operator<< (mss::mlog_oss& out, 
         unsigned char c ) {
     if (!out.getNoLog()) {
         out.insert(c);
@@ -154,7 +164,7 @@ mss::mlog_oss& mss::operator<< (mss::mlog_oss& out,
     return out;
 }
 
-mss::mlog_oss& mss::operator<< (mss::mlog_oss& out, 
+mss::mlog_oss& operator<< (mss::mlog_oss& out, 
         const char * s) {
     if (!out.getNoLog()) {
         out.insert(s);
@@ -162,7 +172,7 @@ mss::mlog_oss& mss::operator<< (mss::mlog_oss& out,
     return out;
 }
 
-mss::mlog_oss& mss::operator<< (mss::mlog_oss& out,
+mss::mlog_oss& operator<< (mss::mlog_oss& out,
         const signed char * s) {
     if (!out.getNoLog()) {
         out.insert(s);
@@ -170,7 +180,7 @@ mss::mlog_oss& mss::operator<< (mss::mlog_oss& out,
     return out;
 }
 
-mss::mlog_oss& mss::operator<< (mss::mlog_oss& out,
+mss::mlog_oss& operator<< (mss::mlog_oss& out,
         const unsigned char* s) {
     if (!out.getNoLog()) {
         out.insert(s);
@@ -178,10 +188,11 @@ mss::mlog_oss& mss::operator<< (mss::mlog_oss& out,
     return out;
 }
 
-mss::mlog_oss& mss::operator<< (mss::mlog_oss& out,
+mss::mlog_oss& operator<< (mss::mlog_oss& out,
         const std::ostream& in) {
     if (!out.getNoLog()) {
         out.insert_os(in);
     }
     return out;
 }
+*/

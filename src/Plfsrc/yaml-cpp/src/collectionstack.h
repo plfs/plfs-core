@@ -25,7 +25,7 @@ namespace YAML
 		}
 		
 		void PushCollectionType(CollectionType::value type) { collectionStack.push(type); }
-		void PopCollectionType(CollectionType::value type) { assert(type == GetCurCollectionType()); collectionStack.pop(); }
+		void PopCollectionType(CollectionType::value type) { if(type == GetCurCollectionType()) collectionStack.pop(); }
 		
 	private:
 		std::stack<CollectionType::value> collectionStack;

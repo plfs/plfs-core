@@ -1045,7 +1045,7 @@ container_hostdir_rddir(void **index_stream,char *targets,int rank,
  * @return size of hostdir stream entries or -err
  */
 int
-container_hostdir_zero_rddir(void **entries,const char *path,int rank,
+container_hostdir_zero_rddir(void **entries,const char *path,int /* rank */,
                         void *pmount, void *pback)
 {
     PlfsMount *mnt = (PlfsMount *)pmount;
@@ -1229,9 +1229,10 @@ container_index_stream(Plfs_fd **fd_in, char **buffer)
 // TODO: should this function be in this file?
 // TODO: describe this function.  what is it?  what does it do?
 // XXXCDC: need to pass srcback/dstback to worker program
+// XXXDB: why are the src, srcprefix, dest_dir, and dstprefix here at all?
 int
-initiate_async_transfer(const char *src, const char *srcprefix,
-                        const char *dest_dir, const char *dstprefix,
+initiate_async_transfer(const char * /* src */, const char * /* srcprefix */,
+                        const char * /* dest_dir */, const char * /* dstprefix */,
                         const char *syncer_IP)
 {
     int rc;

@@ -133,7 +133,7 @@ SmallFileFS::open(Plfs_fd **pfd, struct plfs_physpathinfo *ppip,
 }
 
 int
-SmallFileFS::create(struct plfs_physpathinfo *ppip, mode_t mode,
+SmallFileFS::create(struct plfs_physpathinfo *ppip, mode_t /* mode */,
                     int flags, pid_t pid)
 {
     PathExpandInfo expinfo;
@@ -277,12 +277,11 @@ SmallFileFS::rename(struct plfs_physpathinfo *ppip,
     ContainerPtr container;
     struct stat stbuf;
     int ret = 0;
-    struct plfs_backend *back1, *back2;
+    struct plfs_backend *back1;
 
     smallfile_expand_path(ppip, expinfo);
     back1 = expinfo.pmount->backends[0];
     smallfile_expand_path(ppip_to, expinfo2);
-    back2 = expinfo2.pmount->backends[0];
     /* plfs_resolvepath should prevent EXDEV from reaching us, I think? */
     if (expinfo.pmount != expinfo2.pmount) return -EXDEV;
     string physical_file = back1->bmpoint + "/" +
@@ -318,8 +317,8 @@ SmallFileFS::rename(struct plfs_physpathinfo *ppip,
 }
 
 int
-SmallFileFS::link(struct plfs_physpathinfo *ppip,
-                  struct plfs_physpathinfo *ppip_to)
+SmallFileFS::link(struct plfs_physpathinfo * /* ppip */,
+                  struct plfs_physpathinfo * /* ppip_to */)
 {
     return -ENOSYS;
 }
@@ -393,7 +392,8 @@ SmallFileFS::getattr(struct plfs_physpathinfo *ppip, struct stat *stbuf,
 }
 
 int
-SmallFileFS::trunc(struct plfs_physpathinfo *ppip, off_t offset, int open_file)
+SmallFileFS::trunc(struct plfs_physpathinfo *ppip, off_t offset, 
+                   int /* open_file */)
 {
     PathExpandInfo expinfo;
     ContainerPtr container;

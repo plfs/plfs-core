@@ -3,8 +3,8 @@
 #include <SmallFileIndex.hxx>
 
 int
-Small_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
-               mode_t mode, Plfs_open_opt *open_opt)
+Small_fd::open(struct plfs_physpathinfo * /* ppip */, int flags, pid_t pid,
+               mode_t /* mode */, Plfs_open_opt * /* open_opt */)
 {
     refs++;
     open_flags = flags & 0xf;
@@ -14,7 +14,8 @@ Small_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
 }
 
 int
-Small_fd::close(pid_t pid, uid_t u, int flags, Plfs_close_opt *close_opt)
+Small_fd::close(pid_t /* pid */, uid_t /* u */, int /* flags */, 
+                Plfs_close_opt * /* close_opt */)
 {
     assert(refs > 0);
     refs--;
@@ -31,12 +32,12 @@ Small_fd::read(char *buf, size_t size, off_t offset)
 }
 
 int
-Small_fd::renamefd(struct plfs_physpathinfo *ppip_to) {
+Small_fd::renamefd(struct plfs_physpathinfo * /* ppip_to */) {
     return 0;
 }
 
 ssize_t
-Small_fd::write(const char *buf, size_t size, off_t offset, pid_t pid)
+Small_fd::write(const char *buf, size_t size, off_t offset, pid_t /* pid */)
 {
     ssize_t ret = -EBADF;
 
@@ -68,7 +69,7 @@ Small_fd::sync()
 }
 
 int
-Small_fd::sync(pid_t pid)
+Small_fd::sync(pid_t /* pid */)
 {
     this->sync();
     return 0;
@@ -131,8 +132,8 @@ Small_fd::getattr(struct stat *stbuf, int sz_only)
 }
 
 int
-Small_fd::query(size_t *writers, size_t *readers, size_t *bytes_written,
-                    bool *reopen)
+Small_fd::query(size_t * /* writers */, size_t * /* readers */, 
+                size_t * /* bytes_written */, bool * /* reopen */)
 {
     return 0;
 }
@@ -144,19 +145,19 @@ Small_fd::is_good()
 }
 
 int
-Small_fd::incrementOpens(int amount)
+Small_fd::incrementOpens(int /* amount */)
 {
     return 0;
 }
 
 void
-Small_fd::setPath(string p, struct plfs_backend *back)
+Small_fd::setPath(string p, struct plfs_backend * /* back */)
 {
     path_ = p;
 }
 
 int
-Small_fd::compress_metadata(const char *path)
+Small_fd::compress_metadata(const char * /* path */)
 {
     return 0;
 }
@@ -182,11 +183,11 @@ Small_fd::~Small_fd() {
 }
 
 void
-Small_fd::lock(const char *function) {
+Small_fd::lock(const char * /* function */) {
     pthread_mutex_lock(&container->chunk_lock);
 }
 void
-Small_fd::unlock(const char *function) {
+Small_fd::unlock(const char * /* function */) {
     pthread_mutex_unlock(&container->chunk_lock);
 }
 

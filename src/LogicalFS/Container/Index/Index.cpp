@@ -756,7 +756,7 @@ int Index::debug_from_stream(void *addr)
 
 // this writes a flattened in-memory global index to a physical file
 // returns 0 or -err
-int Index::global_to_file(IOSHandle *xfh, struct plfs_backend *canback)
+int Index::global_to_file(IOSHandle *xfh, struct plfs_backend * /* canback */)
 {
     void *buffer;
     size_t length;
