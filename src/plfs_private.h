@@ -9,21 +9,6 @@ using namespace std;
 
 #define SVNVERS $Rev$
 
-// some functions require that the path passed be a PLFS path
-// some (like symlink) don't
-enum
-requirePlfsPath {
-    PLFS_PATH_REQUIRED,
-    PLFS_PATH_NOTREQUIRED,
-};
-
-enum
-expansionMethod {
-    EXPAND_CANONICAL,
-    EXPAND_SHADOW,
-    EXPAND_TO_I,
-};
-
 /**
  * plfs_pathinfo: the upper-level PLFS code uses this structure to cache
  * the results of translating a logical path into a physical path (e.g.
@@ -43,35 +28,8 @@ struct plfs_physpathinfo {
     string canbpath;                /* path on canonical backend */
 };
 
-#define PLFS_ENTER PLFS_ENTER2(PLFS_PATH_REQUIRED)
-
-#define PLFS_ENTER2(X) \
- int ret = 0;\
- ExpansionInfo expansion_info; \
- plfs_conditional_init(); \
- string path = expandPath(logical,&expansion_info,EXPAND_CANONICAL,-1,0); \
- mlog(INT_DAPI, "EXPAND in %s: %s->%s",__FUNCTION__,logical,path.c_str()); \
- if (expansion_info.expand_error && X==PLFS_PATH_REQUIRED) { \
-     PLFS_EXIT(-ENOENT); \
- } \
- if (expansion_info.Errno && X==PLFS_PATH_REQUIRED) { \
-     PLFS_EXIT(expansion_info.Errno); \
- }
-
-#define PLFS_EXIT(X) return(X);
-
-typedef struct ExpansionInfo {
-    bool is_mnt_pt;
-    bool expand_error;
-    PlfsMount *mnt_pt;
-    int Errno;  // don't want to shadow the global var
-    string expanded;
-    struct plfs_backend *backend;
-} ExpansionInfo;
-
 int find_best_mount_point(const char *cleanlogical, PlfsMount **mpp,
                           int *mlen);
-PlfsMount *find_mount_point_using_tokens(PlfsConf *, vector <string> &, bool&);
 
 int generate_backpaths(struct plfs_physpathinfo *ppip,
                        vector<plfs_pathback> &containers);
@@ -79,10 +37,8 @@ int generate_backpaths(struct plfs_physpathinfo *ppip,
 // a helper function that expands %t, %p, %h in mlog file name
 string expand_macros(const char *target);
 
-string stripPrefixPath(string *path);
-void stripPrefixPath(const char *path, char *stripped_path);
-string expandPath(string logical, ExpansionInfo *exp_info,
-                  expansionMethod hash_method, int which_backend, int depth);
+const char *skipPrefixPath(const char *path);
+
 int mkdir_dash_p(const string& path, bool parent_only, IOStore *);
 
 int plfs_backends_op(struct plfs_physpathinfo *ppip, FileOp& op);

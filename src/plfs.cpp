@@ -103,8 +103,8 @@ is_plfs_path(const char *path){
     debug_enter(__FUNCTION__,path);
     int ret = 0;
 
-    char stripped_path[PATH_MAX];
-    stripPrefixPath(path, stripped_path);
+    const char *stripped_path;
+    stripped_path = skipPrefixPath(path);
     LogicalFileSystem *logicalfs = plfs_get_logical_fs(stripped_path);
     if (logicalfs == NULL){
         ret = 0;
@@ -121,8 +121,8 @@ plfs_access(const char *path, int mask)
     int ret = 0;
     struct plfs_physpathinfo ppi;
     debug_enter(__FUNCTION__,path);
-    char stripped_path[PATH_MAX];
-    stripPrefixPath(path, stripped_path);
+    const char *stripped_path;
+    stripped_path = skipPrefixPath(path);
 
     ret = plfs_resolvepath(stripped_path, &ppi);
     if (ret != 0) {
@@ -142,8 +142,8 @@ plfs_chmod(const char *path, mode_t mode)
     int ret = 0;
     struct plfs_physpathinfo ppi;
     debug_enter(__FUNCTION__,path);
-    char stripped_path[PATH_MAX];
-    stripPrefixPath(path, stripped_path);
+    const char *stripped_path;
+    stripped_path = skipPrefixPath(path);
 
     ret = plfs_resolvepath(stripped_path, &ppi);
     if (ret == 0) {
@@ -159,8 +159,8 @@ plfs_chown(const char *path, uid_t u, gid_t g)
     int ret = 0;
     struct plfs_physpathinfo ppi;
     debug_enter(__FUNCTION__,path);
-    char stripped_path[PATH_MAX];
-    stripPrefixPath(path, stripped_path);
+    const char *stripped_path;
+    stripped_path = skipPrefixPath(path);
 
     ret = plfs_resolvepath(stripped_path, &ppi);
     if (ret == 0) {
@@ -191,8 +191,8 @@ plfs_create(const char *path, mode_t mode, int flags, pid_t pid)
     int ret = 0;
     struct plfs_physpathinfo ppi;
     debug_enter(__FUNCTION__,path);
-    char stripped_path[PATH_MAX];
-    stripPrefixPath(path, stripped_path);
+    const char *stripped_path;
+    stripped_path = skipPrefixPath(path);
 
     ret = plfs_resolvepath(stripped_path, &ppi);
     if (ret == 0) {
@@ -214,8 +214,8 @@ plfs_getattr(Plfs_fd *fd, const char *path, struct stat *st, int size_only)
         }
     } else {
         struct plfs_physpathinfo ppi;
-        char stripped_path[PATH_MAX];
-        stripPrefixPath(path, stripped_path);
+        const char *stripped_path;
+        stripped_path = skipPrefixPath(path);
 
         ret = plfs_resolvepath(stripped_path, &ppi);
         if (ret == 0) {
@@ -232,9 +232,9 @@ plfs_link(const char *path, const char *to)
     int ret = 0;
     struct plfs_physpathinfo ppi, ppi_to;
     debug_enter(__FUNCTION__,path);
-    char stripped_path[PATH_MAX], stripped_to[PATH_MAX];
-    stripPrefixPath(path, stripped_path);
-    stripPrefixPath(to, stripped_to);
+    const char *stripped_path, *stripped_to;
+    stripped_path = skipPrefixPath(path);
+    stripped_to = skipPrefixPath(to);
 
     ret = plfs_resolvepath(stripped_path, &ppi);
     if (ret)
@@ -259,8 +259,8 @@ plfs_mode(const char *path, mode_t *mode)
     int ret = 0;
     struct plfs_physpathinfo ppi;
     debug_enter(__FUNCTION__,path);
-    char stripped_path[PATH_MAX];
-    stripPrefixPath(path, stripped_path);
+    const char *stripped_path;
+    stripped_path = skipPrefixPath(path);
 
     ret = plfs_resolvepath(stripped_path, &ppi);
     if (ret == 0) {
@@ -276,8 +276,8 @@ plfs_mkdir(const char *path, mode_t mode)
     int ret = 0;
     struct plfs_physpathinfo ppi;
     debug_enter(__FUNCTION__,path);
-    char stripped_path[PATH_MAX];
-    stripPrefixPath(path, stripped_path);
+    const char *stripped_path;
+    stripped_path = skipPrefixPath(path);
 
     ret = plfs_resolvepath(stripped_path, &ppi);
     if (ret == 0) {
@@ -295,15 +295,15 @@ plfs_open(Plfs_fd **pfd, const char *path, int flags, pid_t pid, mode_t m,
     int ret = 0;
     struct plfs_physpathinfo ppi;
     debug_enter(__FUNCTION__,(*pfd) ? (*pfd)->getPath(): path);
-    char stripped_path[PATH_MAX];
+    const char *stripped_path;
     /*
-     * XXXCDC: calling strip but path could be null?  can this happen
-     * anymore? or is path never going to be null.  if strip is ok,
+     * XXXCDC: calling skip but path could be null?  can this happen
+     * anymore? or is path never going to be null.  if skip is ok,
      * then might as well go on and calle resolvepath, but does that
      * make sense?  what is the semantics we really need here and what
      * is old leftover API structure that can be cleaned up?
      */
-    stripPrefixPath(path, stripped_path);
+    stripped_path = skipPrefixPath(path);
     ret = plfs_resolvepath(stripped_path, &ppi);
     if (ret == 0) {
         if (*pfd) {
@@ -362,8 +362,8 @@ plfs_opendir_c(const char *path, Plfs_dirp **pdirp) {
      * and plfs_readdir() does a stripPrefixPath()... do we really need
      * to do it twice (here and there)?
      */
-    char stripped_path[PATH_MAX];
-    stripPrefixPath(path, stripped_path);
+    const char *stripped_path;
+    stripped_path = skipPrefixPath(path);
     int ret = plfs_readdir(stripped_path, (void*)&(pdir->entries));
     if (ret != 0) {
         delete pdir;
@@ -417,8 +417,8 @@ plfs_readdir(const char *path, void *buf)
     int ret = 0;
     struct plfs_physpathinfo ppi;
     debug_enter(__FUNCTION__,path);
-    char stripped_path[PATH_MAX];
-    stripPrefixPath(path, stripped_path);
+    const char *stripped_path;
+    stripped_path = skipPrefixPath(path);
 
     ret = plfs_resolvepath(stripped_path, &ppi);
     if (ret == 0) {
@@ -434,8 +434,8 @@ plfs_readlink(const char *path, char *buf, size_t bufsize)
     int ret = 0;
     struct plfs_physpathinfo ppi;
     debug_enter(__FUNCTION__,path); 
-    char stripped_path[PATH_MAX];
-    stripPrefixPath(path, stripped_path);
+    const char *stripped_path;
+    stripped_path = skipPrefixPath(path);
 
     ret = plfs_resolvepath(stripped_path, &ppi);
     if (ret == 0) {
@@ -454,10 +454,10 @@ plfs_rename(const char *from, const char *to)
     oss << from << " -> " << to;
     debug_enter(__FUNCTION__,oss.str());
 
-    char stripped_from[PATH_MAX];
-    stripPrefixPath(from, stripped_from);
-    char stripped_to[PATH_MAX];
-    stripPrefixPath(to, stripped_to);
+    const char *stripped_from;
+    stripped_from = skipPrefixPath(from);
+    const char *stripped_to;
+    stripped_to = skipPrefixPath(to);
 
     ret = plfs_resolvepath(stripped_from, &ppi);
     if (ret)
@@ -483,8 +483,8 @@ plfs_rmdir(const char *path)
     int ret = 0;
     struct plfs_physpathinfo ppi;
     debug_enter(__FUNCTION__,path);
-    char stripped_path[PATH_MAX];
-    stripPrefixPath(path, stripped_path);
+    const char *stripped_path;
+    stripped_path = skipPrefixPath(path);
 
     ret = plfs_resolvepath(stripped_path, &ppi);
     if (ret == 0) {
@@ -500,8 +500,8 @@ plfs_statvfs(const char *path, struct statvfs *stbuf)
     int ret = 0;
     struct plfs_physpathinfo ppi;
     debug_enter(__FUNCTION__,path);
-    char stripped_path[PATH_MAX];
-    stripPrefixPath(path, stripped_path);
+    const char *stripped_path;
+    stripped_path = skipPrefixPath(path);
 
     ret = plfs_resolvepath(stripped_path, &ppi);
     if (ret == 0) {
@@ -520,10 +520,10 @@ plfs_symlink(const char *from, const char *to)
     oss << from << " -> " << to;
     debug_enter(__FUNCTION__,oss.str());
 
-    char stripped_from[PATH_MAX];
-    stripPrefixPath(from, stripped_from);
-    char stripped_to[PATH_MAX];
-    stripPrefixPath(to, stripped_to);
+    const char *stripped_from;
+    stripped_from = skipPrefixPath(from);
+    const char *stripped_to;
+    stripped_to = skipPrefixPath(to);
 
     ret = plfs_resolvepath(stripped_to, &ppi);
     if (ret == 0) {
@@ -558,8 +558,8 @@ plfs_trunc(Plfs_fd *fd, const char *path, off_t offset, int open_file)
 {
     debug_enter(__FUNCTION__,fd ? fd->getPath():path);
     int ret;
-    char stripped_path[PATH_MAX];
-    stripPrefixPath(path, stripped_path);
+    const char *stripped_path;
+    stripped_path = skipPrefixPath(path);
     if (fd) {
         ret = fd->trunc(offset);
     }
@@ -581,8 +581,8 @@ plfs_unlink(const char *path)
     int ret = 0;
     struct plfs_physpathinfo ppi;
     debug_enter(__FUNCTION__,path);
-    char stripped_path[PATH_MAX];
-    stripPrefixPath(path, stripped_path);
+    const char *stripped_path;
+    stripped_path = skipPrefixPath(path);
 
     ret = plfs_resolvepath(stripped_path, &ppi);
     if (ret == 0) {
@@ -598,8 +598,8 @@ plfs_utime(const char *path, struct utimbuf *ut)
     int ret = 0;
     struct plfs_physpathinfo ppi;
     debug_enter(__FUNCTION__,path);
-    char stripped_path[PATH_MAX];
-    stripPrefixPath(path, stripped_path);
+    const char *stripped_path;
+    stripped_path = skipPrefixPath(path);
 
     ret = plfs_resolvepath(stripped_path, &ppi);
     if (ret == 0) {
@@ -654,9 +654,9 @@ int plfs_flush_writes(const char *path)
 {
     int ret = 0;
     struct plfs_physpathinfo ppi;
-    char stripped_path[PATH_MAX];
+    const char *stripped_path;
     debug_enter(__FUNCTION__,path);
-    stripPrefixPath(path, stripped_path);
+    stripped_path = skipPrefixPath(path);
 
     ret = plfs_resolvepath(stripped_path, &ppi);
     if (ret == 0) {
@@ -670,9 +670,9 @@ int plfs_invalidate_read_cache(const char *path)
 {
     int ret = 0;
     struct plfs_physpathinfo ppi;
-    char stripped_path[PATH_MAX];
+    const char *stripped_path;
     debug_enter(__FUNCTION__,path);
-    stripPrefixPath(path, stripped_path);
+    stripped_path = skipPrefixPath(path);
 
     ret = plfs_resolvepath(stripped_path, &ppi);
     if (ret == 0) {

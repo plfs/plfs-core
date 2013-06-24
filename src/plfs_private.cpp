@@ -128,8 +128,8 @@ plfs_expand_path(const char *logical,char **physical,
                  void **pmountp, void **pbackp) {
     int ret = 0;
     struct plfs_physpathinfo ppi;
-    char stripped_path[PATH_MAX];
-    stripPrefixPath(logical, stripped_path);
+    const char *stripped_path;
+    stripped_path = skipPrefixPath(logical);
 
     ppi.canback = NULL; /* to be safe */
     ret = plfs_resolvepath(stripped_path, &ppi);
@@ -149,198 +149,12 @@ plfs_expand_path(const char *logical,char **physical,
     return(ret);
 }
 
-PlfsMount *
-find_mount_point_using_tokens(PlfsConf *pconf,
-                              vector<string> &logical_tokens, bool& found)
-{
-    map<string,PlfsMount *>::iterator itr;
-    PlfsMount *rv;
-    for(itr=pconf->mnt_pts.begin(); itr!=pconf->mnt_pts.end(); itr++) {
-        if (itr->second->mnt_tokens.size() > logical_tokens.size() ) {
-            continue;
-        }
-        for(unsigned i = 0; i < itr->second->mnt_tokens.size(); i++) {
-            /*
-            mlog(INT_DCOMMON, "%s: %s =?= %s", __FUNCTION__,
-                  itr->second->mnt_tokens[i].c_str(),logical_tokens[i].c_str());
-            */
-            if (itr->second->mnt_tokens[i] != logical_tokens[i]) {
-                found = false;
-                break;  // return to outer loop, try a different mount point
-            } else {
-                found = true; // so far so good
-            }
-        }
-        // if we make it here, every token in the mount point matches the
-        // corresponding token in the incoming logical path
-        if (found) {
-            rv = itr->second;
-            if (rv->attached == 0 && plfs_attach(rv) < 0) {
-                return(NULL);
-            }
-            return rv;
-        }
+// This function takes a path and skips over the adio prefix
+const char *skipPrefixPath(const char *path) {
+    if (strncmp("plfs:", path, sizeof("plfs:")-1) == 0) {
+        return(path + sizeof("plfs:")-1);
     }
-    found = false;
-    return NULL;
-}
-// These functions take a path and strips the adio prefix from it
-// they work if you pass in a char * or a string
-string
-stripPrefixPath(string path){
-    // rip off an adio prefix if passed
-    string adio_prefix("plfs:");
-    if (path.substr(0, adio_prefix.size()) == adio_prefix){
-        path = path.substr(adio_prefix.size());
-        mlog(INT_DCOMMON, "Ripping %s -> %s", adio_prefix.c_str(),path.c_str());
-    }
-    return path;
-}
-
-void
-stripPrefixPath(const char *path, char *stripped_path){
-    //a version for char * and c applications
-    string path_str(path);
-    path_str = stripPrefixPath(path_str);
-    strcpy(stripped_path, path_str.c_str());
-}
-
-// takes a logical path and returns a physical one
-// the expansionMethod controls whether it returns the canonical path or a
-// shadow path or a simple expansion to the i'th backend which is used for
-// iterating across the backends
-//
-// this version of plfs which allows shadow_backends and canonical_backends
-// directives in the plfsrc is an easy way to put canonical containers on
-// slow globally visible devices and shadow containers on faster local devices
-// but it currently does pretty much require that in order to read that all
-// backends are mounted (this is for scr-plfs-ssdn-emc project).  will need
-// to be relaxed.
-
-string
-expandPath(string logical, ExpansionInfo *exp_info,
-           expansionMethod hash_method, int which_backend, int depth)
-{
-    // set default return values in exp_info
-    exp_info->is_mnt_pt = false;
-    exp_info->expand_error = false;
-    exp_info->mnt_pt = NULL;
-    exp_info->Errno = 0;
-    exp_info->expanded = "UNINITIALIZED";
-    // get our initial conf
-    static PlfsConf *pconf = NULL;
-    if (!pconf) {
-        pconf = get_plfs_conf();
-        if (!pconf) {
-            exp_info->expand_error = true;
-            exp_info->Errno = -ENODATA; // real error return
-            return "MISSING PLFSRC";  // ugly, but real error is returned above
-        }
-    }
-    if ( pconf->err_msg ) {
-        mlog(INT_ERR, "PlfsConf error: %s", pconf->err_msg->c_str());
-        exp_info->expand_error = true;
-        exp_info->Errno = -EINVAL;
-        return "INVALID";
-    }
-    logical = stripPrefixPath(logical);
-    // find the appropriate PlfsMount from the PlfsConf
-    bool mnt_pt_found = false;
-    vector<string> logical_tokens;
-    Util::fast_tokenize(logical.c_str(),logical_tokens);
-    PlfsMount *pm = find_mount_point_using_tokens(pconf,logical_tokens,
-                    mnt_pt_found);
-    if(!mnt_pt_found || pm == NULL) {
-        if (!mnt_pt_found && depth==0 && logical[0]!='/') {
-            // here's another weird thing
-            // sometimes users want to do cd /mnt/plfs/johnbent/dir
-            // plfs_version ./file
-            // well the expansion fails.  So try to figure out the full
-            // path and try again
-            char fullpath[PATH_MAX+1];
-            fullpath[0] = '\0';
-            realpath(logical.c_str(),fullpath);
-            if (strlen(fullpath)) {
-                mlog (INT_WARN,
-                      "WARNING: Couldn't find PLFS file %s. \
-                      Retrying with %s\n",
-                      logical.c_str(),fullpath);
-                return(expandPath(fullpath,exp_info,hash_method,
-                                  which_backend,depth+1));
-            } // else fall through to error below
-        }
-        if (mnt_pt_found) {
-            mlog (INT_WARN,"WARNING: %s: PLFS unable to attach to backing fs",
-                  logical.c_str());
-        } else {
-            mlog (INT_WARN,"WARNING: %s is not on a PLFS mount",
-                  logical.c_str());
-        }
-        exp_info->expand_error = true;
-        exp_info->Errno = -EPROTOTYPE;
-        // we used to return a bogus string as an error indication
-        // but it's screwing things up now that we're trying to make it
-        // so that container_access can return OK for things like /mnt
-        // because we have a user code that wants to check access on a file
-        // like /mnt/plfs/johnbent/dir/file
-        // so they slowly first check access on /mnt, then /mnt/plfs, etc
-        // the access check on /mnt fails since /mnt is not on a plfs mount
-        // but we want to let it succeed.  By the way, this is only necessary
-        // on machines that have PLFS-MPI and not PLFS-FUSE.  So definitely
-        // a bit of a one-off kludge.  Hopefully this doesn't mess other stuff
-        //return "PLFS_NO_MOUNT_POINT_FOUND";
-        return logical; // just pass back whatever they gave us
-    }
-    exp_info->mnt_pt = pm; // found a mount point, save it for caller to use
-    // set remaining to the part of logical after the mnt_pt
-    // however, don't hash on remaining, hashing on the full path is very bad
-    // if a parent dir is renamed, then children files are orphaned
-    string remaining = "";
-    string filename = "/";
-    mlog(INT_DCOMMON, "Trim mnt %s from path %s",pm->mnt_pt.c_str(),
-         logical.c_str());
-    for(unsigned i = pm->mnt_tokens.size(); i < logical_tokens.size(); i++ ) {
-        remaining += "/";
-        remaining += logical_tokens[i];
-        if (i+1==logical_tokens.size()) {
-            filename = logical_tokens[i];
-        }
-    }
-    mlog(INT_DCOMMON, "Remaining path is %s (hash on %s)",
-         remaining.c_str(),filename.c_str());
-    // choose a backend unless the caller explicitly requested one
-    // also set the set of backends to use.  If the plfsrc has separate sets
-    // for shadows and for canonical, then use them appropriately
-    int hash_val = 0, backcnt = 0;
-    struct plfs_backend **backends = NULL;
-    switch(hash_method) {
-    case EXPAND_CANONICAL:
-        hash_val = Container::hashValue(filename.c_str());
-        backends = pm->canonical_backends;
-        backcnt = pm->ncanback;
-        break;
-    case EXPAND_SHADOW:
-        hash_val = Container::hashValue(Util::hostname());
-        backends = pm->shadow_backends;
-        backcnt = pm->nshadowback;
-        break;
-    case EXPAND_TO_I:
-        hash_val = which_backend; // user specified
-        backends = pm->backends;
-        backcnt = pm->nback;
-        break;
-    default:
-        hash_val = -1;
-        assert(0);
-        break;
-    }
-    hash_val = (hash_val % backcnt);  /* don't index out of array */
-    exp_info->backend  = backends[hash_val];
-    exp_info->expanded = exp_info->backend->bmpoint + "/" + remaining;
-    mlog(INT_DCOMMON, "%s: %s -> %s (%d.%d)", __FUNCTION__,
-         logical.c_str(), exp_info->expanded.c_str(),
-         hash_method,hash_val);
-    return exp_info->expanded;
+    return(path);
 }
 
 /*
@@ -948,11 +762,19 @@ plfs_conditional_init() {
 
 bool
 plfs_warm_path_resolution(PlfsConf *pconf) { 
+    int rv;
+    struct plfs_physpathinfo ppi;
     map<string,PlfsMount*>::iterator itr = pconf->mnt_pts.begin();
     if (itr==pconf->mnt_pts.end()) return false;
-    ExpansionInfo exp_info;
-    expandPath(itr->first,&exp_info,EXPAND_SHADOW,-1,0);
-    return(exp_info.expand_error ? false : true);
+    /*
+     * XXX: this is going to force a plfs_attach to the first PLFS
+     * mount listed in pconf->mnt_pts even if we are not using it.
+     * that could be wasteful or slow us down (e.g. suppose the
+     * first item in mnt_pts is has HDFS, PVFS, etc. backends, then
+     * we'll connect to those even if we are not using them).
+     */
+    rv = plfs_resolvepath(itr->first.c_str(), &ppi);
+    return(rv != 0 ? false : true);
 }
 
 // this init's the library if it hasn't been done yet
