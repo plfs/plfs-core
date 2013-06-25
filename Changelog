@@ -1,4 +1,49 @@
 ~~~ Version 2.4
+PLFS 2.4 introduces many new features and enhancements in addition to the bug 
+fixes listed further below.  Improvements include (in no particular order):
+
+
+Three new IOStore protocols; FUSE, HDFS, and PVFS are supported natively by 
+PLFS.
+
+CMake has replaced Autotools as the build system for faster and easier 
+configuration and compilation. Documentation on the new build process is in 
+README.install in the root of the source tree.
+
+PLFS configuration has moved from the old custom format to a new YAML 1.2 
+compliant specification that allows for easier configuration and management.  
+Documentation on the new format is listed in the plfsrc man page located in 
+man/man5/plfsrc.5in (or "man plfsrc" if you've installed PLFS 2.4 to somewhere 
+in your PATH).
+
+The GLib IOStore has been updated to provide a configurable buffer size that 
+improves small write performance dramatically on many systems.
+
+The new "Small File Mode" for 1-N writing dramatically improves file creation 
+performance. Combined with the Glib IOStore buffering, 1-N mode essentially 
+allows for bandwidth-constrained file creation performance rather than 
+metadata-constrained.
+
+Various code-corrections and optimizations improve performance for many 
+workloads in N-1, N-N, and 1-N modes.
+
+The ADIO layer has been cleaned up for consistency. This change requires a 
+rebuild of MPI with the new ad_plfs code.
+
+OpenMPI 1.7.x is now supported.  Patch notes are available in 
+mpi_adio/README.patching.
+
+Contiguous index entry compression can be disabled if desired, see the plfsrc 
+man page for details.
+
+Intel and PGI compilers are now usable, but not extensively tested.
+
+A new MPIIO hint has been added to allow "uniform restart" mode to reduce 
+memory usage when reading back a file with the same number of processors as it 
+was written with. Details are in mpi_adio/ad_plfs/ad_plfs_hints.c.
+
+
+Bug Fixes:
 * PLFS Segfault Without PLFSRC
 Issue #69: A call to any PLFS library function without a valid PLFSRC file
 available results in a segfault. Now the functions note that there is no
