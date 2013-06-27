@@ -92,7 +92,9 @@ expand_macros(const char *target) {
         } else {
             switch(target[++i]) {
                 case 'h':
-                    oss << Util::hostname();
+                    char *hname;
+                    Util::hostname(&hname);
+                    oss << hname;
                     break;
                 case 'p':
                     oss << getpid();
@@ -374,9 +376,21 @@ namespace YAML {
    struct convert<PlfsMount> {
        static bool decode(const Node& node, PlfsMount& pmntp) {
            if (node["mount_point"]) {
+
                set_default_mount(&pmntp);
-               pmntp.mnt_pt = node["mount_point"].as<string>();
-               Util::fast_tokenize(pmntp.mnt_pt.c_str(),pmntp.mnt_tokens);
+               const char *myvalue, *clean;
+               myvalue = node["mount_point"].as<string>().c_str();
+               clean = NULL;
+               if (Util::sanitize_path(myvalue, &clean, 1) != 0) {
+                   pmntp.err_msg = 
+                       new string("sanitize_path failed (mem err?)");
+               } else {
+                   pmntp.mnt_pt = clean; /* c++ strdup */
+                   if (clean != myvalue)
+                       free((void *)clean);   
+                   Util::fast_tokenize(pmntp.mnt_pt.c_str(),pmntp.mnt_tokens);
+               }
+
                if(node["max_smallfile_containers"]) {
                    if(!conv(node["max_smallfile_containers"],
                             pmntp.max_smallfile_containers) ||
@@ -806,7 +820,7 @@ setup_mlog(PlfsConf *pconf)
     // now compare to the default config and update any that differ
     // this is a bit messy/verbose...but is simple to change if need be
     if (temp_conf.mlog_flags != default_conf.mlog_flags)
-        pconf->mlog_flags &= temp_conf.mlog_flags;
+        pconf->mlog_flags = temp_conf.mlog_flags;
     if (temp_conf.mlog_defmask != default_conf.mlog_defmask)
         pconf->mlog_defmask = temp_conf.mlog_defmask;
     if (temp_conf.mlog_file != NULL) {

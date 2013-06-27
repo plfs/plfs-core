@@ -18,12 +18,15 @@ using namespace std;
 // anyway, this should all happen above WriteFile and be transparent to
 // WriteFile.  This comment is for educational purposes only.
 WriteFile::WriteFile(string path, string newhostname, mode_t newmode,
-                     size_t buffer_mbs, int pid, string logical,
-                     struct plfs_backend *backend) : Metadata::Metadata()
+                     size_t buffer_mbs, int pid, string mybnode,
+                     struct plfs_backend *backend,
+                     PlfsMount *pmnt) : Metadata::Metadata()
 {
     this->container_path    = path;
+    this->canback           = backend;
     this->subdir_path       = path;     /* not really a subdir */
-    this->subdirback        = backend;
+    this->subdirback        = backend;  /* can change if we switch to shadow */
+    this->wrpmnt            = pmnt;
     this->hostname          = newhostname;
     this->index             = NULL;
     this->mode              = newmode;
@@ -33,7 +36,7 @@ WriteFile::WriteFile(string path, string newhostname, mode_t newmode,
     this->index_buffer_mbs  = buffer_mbs;
     this->max_writers       = 0;
     this->open_pid          = pid;
-    this->logical_path      = logical;
+    this->bnode             = mybnode;
     pthread_mutex_init( &data_mux, NULL );
     pthread_mutex_init( &index_mux, NULL );
 }
@@ -42,6 +45,20 @@ void WriteFile::setContainerPath ( string p )
 {
     this->container_path    = p;
     this->has_been_renamed = true;
+}
+
+void WriteFile::setPhysPath(struct plfs_physpathinfo *ppip_to) {
+    /*
+     * XXXCDC: this used to update the logical_path.  now we've got
+     * more data that could be updated, but it isn't clear how this
+     * worked in the old case either?  the old one didn't update
+     * subdir_path/subdirback.  should we?
+     */
+    this->bnode = ppip_to->bnode;
+    this->container_path = ppip_to->canbpath;
+    this->canback = ppip_to->canback;
+    /* XXXCDC subdirpath */
+    /* XXXCDC subdirback */
 }
 
 /**
@@ -75,10 +92,10 @@ WriteFile::~WriteFile()
 }
 
 
-/* ret 0 or -err */
-int WriteFile::sync()
+/* ret PLFS_SUCCESS or PLFS_E* */
+plfs_error_t WriteFile::sync()
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
 
     // No writers yet? nothing to sync.
     if ( fhs.empty() ) {
@@ -87,10 +104,10 @@ int WriteFile::sync()
 
     // iterate through and sync all open fds
     Util::MutexLock( &data_mux, __FUNCTION__ );
-    map<pid_t, OpenFh >::iterator pids_itr;
-    for( pids_itr = fhs.begin(); pids_itr != fhs.end() && ret==0; pids_itr++ ) {
+    map< pid_t, OpenFh >::iterator pids_itr;
+    for( pids_itr = fhs.begin(); pids_itr != fhs.end() && ret==PLFS_SUCCESS; pids_itr++ ) {
         ret = pids_itr->second.fh->Fsync();
-        if ( ret != 0 ) {
+        if ( ret != PLFS_SUCCESS ) {
             break;
         }
     }
@@ -98,10 +115,10 @@ int WriteFile::sync()
 
     // now sync the index
     Util::MutexLock( &index_mux, __FUNCTION__ );
-    if ( ret == 0 ) {
+    if ( ret == PLFS_SUCCESS ) {
         index->flush();
     }
-    if ( ret == 0 ) {
+    if ( ret == PLFS_SUCCESS ) {
         IOSHandle *syncfh;
         struct plfs_backend *ib;
         syncfh = index->getFh(&ib);
@@ -112,10 +129,10 @@ int WriteFile::sync()
     return ret;
 }
 
-/* ret 0 or -err */
-int WriteFile::sync( pid_t pid )
+/* ret PLFS_SUCCESS or PLFS_E* */
+plfs_error_t WriteFile::sync( pid_t pid )
 {
-    int ret=0;
+    plfs_error_t ret = PLFS_SUCCESS;
     OpenFh *ofh = getFh( pid );
     if ( ofh == NULL ) {
         // ugh, sometimes FUSE passes in weird pids, just ignore this
@@ -123,10 +140,10 @@ int WriteFile::sync( pid_t pid )
     } else {
         ret = ofh->fh->Fsync();
         Util::MutexLock( &index_mux, __FUNCTION__ );
-        if ( ret == 0 ) {
+        if ( ret == PLFS_SUCCESS ) {
             index->flush();
         }
-        if ( ret == 0 ) {
+        if ( ret == PLFS_SUCCESS ) {
             IOSHandle *syncfh;
             struct plfs_backend *ib;
             syncfh = index->getFh(&ib);
@@ -145,30 +162,30 @@ int WriteFile::sync( pid_t pid )
 // @defer_open, if true, do not really open droppings if not opened yet
 // @writers, returns number of concurrent writers
 //
-// Returns 0 if ofh already exists or if user wants to open and open succeeds.
-// If lazy_open, always return 0.
+// Returns PLFS_SUCCESS if ofh already exists or if user wants to open and open succeeds.
+// If lazy_open, always return PLFS_SUCCESS.
 //
 // The life cycle of an ofh is:
 // At open, all possible writers take a reference on ofh, which may not be
 // created yet. Whoever first writes creates the ofh and put it in fhs map.
 // During close, the last closer of the ofh gets the chance to destroy the ofh.
-int WriteFile::addWriter( pid_t pid, bool for_open, bool defer_open, int& writers )
+plfs_error_t WriteFile::addWriter( pid_t pid, bool for_open, bool defer_open, int& writers )
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     Util::MutexLock( &data_mux, __FUNCTION__ );
     struct OpenFh *ofh = getFh( pid );
     if ( ofh == NULL && !defer_open ) {
         // note: this uses subdirback from object to open
         IOSHandle *fh;
-        fh = openDataFile( subdir_path, hostname, pid, DROPPING_MODE, ret );
-        if ( fh != NULL ) {
+        ret = openDataFile( subdir_path, hostname, pid, DROPPING_MODE, &fh );
+        if ( ret == PLFS_SUCCESS ) {
             struct OpenFh xofh;
             xofh.fh = fh;
             fhs[pid] = xofh;
         } // else, ret was already set
     }
 
-    if ( ret == 0 && for_open ) {
+    if ( ret == PLFS_SUCCESS && for_open ) {
         // We now decouple ofh reference counting from its instantiation. Any
         // write-opener now takes a ref count (saved in the fhs_writes map) and
         // ofh is created by the first real writer in its first write/truncate
@@ -259,26 +276,27 @@ struct OpenFh *WriteFile::getFh( pid_t pid ) {
     return ofh;
 }
 
-/* ret 0 or -err */
+/* ret PLFS_SUCCESS or PLFS_E* */
 /* uses this->subdirback for close */
-int WriteFile::closeFh(IOSHandle *fh)
+plfs_error_t WriteFile::closeFh(IOSHandle *fh)
 {
     map<IOSHandle *,string>::iterator paths_itr;
     paths_itr = paths.find( fh );
     string path = ( paths_itr == paths.end() ? "ENOENT?" : paths_itr->second );
-    int ret = this->subdirback->store->Close(fh);
+    plfs_error_t ret = this->subdirback->store->Close(fh);
     mlog(WF_DAPI, "%s:%s closed fh %p for %s: %d %s",
          __FILE__, __FUNCTION__, fh, path.c_str(), ret,
-         ( ret != 0 ? strerror(-ret) : "success" ) );
+         ( ret != PLFS_SUCCESS ? strplfserr(ret) : "success" ) );
     paths.erase ( fh );
     return ret;
 }
 
-// returns -err or number of writers
-int
-WriteFile::removeWriter( pid_t pid )
+/* @param ret_writers returns number of writers or -1 if error */
+/* return PLFS_SUCCESS or PLFS_E* */
+plfs_error_t
+WriteFile::removeWriter( pid_t pid, int *ret_writers )
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
 
     Util::MutexLock( &data_mux, __FUNCTION__ );
     int writers = incrementOpens(-1);
@@ -295,17 +313,18 @@ WriteFile::removeWriter( pid_t pid )
 
     mlog(WF_DAPI, "%s (%d) on %s now has %d writers: %d",
          __FUNCTION__, pid, container_path.c_str(), writers, ret );
-    return ( ret == 0 ? writers : ret );
+    *ret_writers = ( ret == PLFS_SUCCESS ) ? writers : -1;
+    return ret;
 }
 
-// return 0 on success. -err on error
-int
+// return PLFS_SUCCESS on success. PLFS_E* on error
+plfs_error_t
 WriteFile::extend( off_t offset )
 {
     // make a fake write. We may be the first writer.
-    int ret;
+    plfs_error_t ret;
     ret = prepareForWrite();
-    if ( ret == 0 ) {
+    if ( ret == PLFS_SUCCESS ) {
         index->addWrite( offset, 0, open_pid, createtime, createtime );
         addWrite( offset, 0 );   // maintain metadata
     }
@@ -313,11 +332,11 @@ WriteFile::extend( off_t offset )
     return ret;
 }
 
-// return 0 on success. -err on error
-int
+// return PLFS_SUCCESS on success. PLFS_E* on error
+plfs_error_t
 WriteFile::prepareForWrite( pid_t pid )
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     OpenFh *ofh;
 
     ofh = getFh( pid );
@@ -325,18 +344,21 @@ WriteFile::prepareForWrite( pid_t pid )
         // After changing to avoid creating empty data dropping and
         // index files in open, we defer the creation until first
         // write, which is here.
-        ret = Container::prepareWriter( this, pid, mode, logical_path );
+        int num_writers;
+        ret = Container::prepareWriter(this, pid, mode, this->bnode,
+                                       this->wrpmnt, this->container_path,
+                                       this->canback, &num_writers);
     }
 
     // we also defer creating index dropping. so index may be NULL.
-    if ( ret >= 0 && index == NULL ) {
+    if ( ret == PLFS_SUCCESS && index == NULL ) {
         ret = openIndex( pid );
-        if ( ret < 0 ) {
+        if ( ret != PLFS_SUCCESS ) {
             mlog( WF_ERR, "%s open index failed", __FUNCTION__ );
         }
     }
 
-    return (ret >= 0) ? 0 : ret;
+    return ret;
 }
 
 // we are currently doing synchronous index writing.
@@ -345,27 +367,32 @@ WriteFile::prepareForWrite( pid_t pid )
 // entire duration of the write, but that means our appended index will
 // have a lot duplicate information. buffer the index and flush on the close
 //
-// returns bytes written or -err
-ssize_t
-WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
+// @param bytes_written return bytes written
+// returns PLFS_SUCCESS or PLFS_E*
+plfs_error_t
+WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid, ssize_t *bytes_written)
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     ssize_t written = 0;
 
     ret = prepareForWrite( pid );
-    if ( ret == 0 ) {
+    if ( ret == PLFS_SUCCESS ) {
         OpenFh *ofh = getFh( pid );
         IOSHandle *wfh = ofh->fh;
         // write the data file
         double begin, end;
         begin = Util::getTime();
-        ret = written = ( size ? wfh->Write(buf, size ) : 0 );
+        if (size == 0) {
+            written = 0;
+        } else {
+            ret = wfh->Write(buf, size, &written );
+        }
         end = Util::getTime();
         // then the index
-        if ( ret >= 0 ) {
+        if ( ret == PLFS_SUCCESS ) {
             write_count++;
             Util::MutexLock(   &index_mux , __FUNCTION__);
-            index->addWrite( offset, ret, pid, begin, end );
+            index->addWrite( offset, written, pid, begin, end );
             // TODO: why is 1024 a magic number?
             int flush_count = 1024;
             if (write_count%flush_count==0) {
@@ -377,21 +404,21 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid)
                          "no longer buffering");
                 }
             }
-            if (ret >= 0) {
+            if (ret == PLFS_SUCCESS) {
                 addWrite(offset, size);    // track our own metadata
             }
             Util::MutexUnlock( &index_mux, __FUNCTION__ );
         }
     }
-    // return bytes written or error
-    return((ret >= 0) ? written : ret);
+    *bytes_written = written;
+    return ret;
 }
 
 // this assumes that the hostdir exists and is full valid path
-// returns 0 or -err
-int WriteFile::openIndex( pid_t pid )
+// returns PLFS_SUCCESS or PLFS_E*
+plfs_error_t WriteFile::openIndex( pid_t pid )
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
 
     Util::MutexLock( &index_mux, __FUNCTION__ );
     if ( index != NULL ) {
@@ -402,9 +429,10 @@ int WriteFile::openIndex( pid_t pid )
 
     string index_path;
     /* note: this uses subdirback from obj to open */
-    IOSHandle *fh = openIndexFile(subdir_path, hostname, pid, DROPPING_MODE,
-                                  &index_path, ret);
-    if ( fh != NULL ) {
+    IOSHandle *fh;
+    ret = openIndexFile(subdir_path, hostname, pid, DROPPING_MODE,
+                        &index_path, &fh);
+    if ( ret == PLFS_SUCCESS ) {
         //XXXCDC:iostore need to pass the backend down into index?
         index = new Index(container_path, subdirback, fh);
         mlog(WF_DAPI, "In open Index path is %s",index_path.c_str());
@@ -418,11 +446,11 @@ int WriteFile::openIndex( pid_t pid )
     return ret;
 }
 
-int WriteFile::closeIndex( )
+plfs_error_t WriteFile::closeIndex( )
 {
     IOSHandle *closefh;
     struct plfs_backend *ib;
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
 
     // index is not opened
     if ( index == NULL ) {
@@ -441,8 +469,8 @@ int WriteFile::closeIndex( )
     return ret;
 }
 
-// returns 0 or -err
-int WriteFile::Close()
+// returns PLFS_SUCCESS or PLFS_E*
+plfs_error_t WriteFile::Close()
 {
     int failures = 0;
     Util::MutexLock(   &data_mux , __FUNCTION__);
@@ -450,74 +478,78 @@ int WriteFile::Close()
     // these should already be closed here
     // from each individual pid's close but just in case
     for( itr = fhs.begin(); itr != fhs.end(); itr++ ) {
-        if ( closeFh( itr->second.fh ) != 0 ) {
+        if ( closeFh( itr->second.fh ) != PLFS_SUCCESS ) {
             failures++;
         }
     }
     fhs.clear();
     Util::MutexUnlock( &data_mux, __FUNCTION__ );
-    return ( failures ? -EIO : 0 );
+    return ( failures ? PLFS_EIO : PLFS_SUCCESS );
 }
 
-// returns 0 or -err
-int WriteFile::truncate( off_t offset )
+// returns PLFS_SUCCESS or PLFS_E*
+plfs_error_t WriteFile::truncate( off_t offset )
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     Metadata::truncate( offset );
     // we may be the first writer...
     if ( index == NULL ) {
         ret = prepareForWrite();
-        if ( ret < 0 ) {
+        if ( ret != PLFS_SUCCESS ) {
             return ret;
         }
     }
     index->truncateHostIndex( offset );
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 /* uses this->subdirback to open */
-IOSHandle *WriteFile::openIndexFile(string path, string host, pid_t p,
-                                    mode_t m, string *index_path, int &ret)
+plfs_error_t WriteFile::openIndexFile(string path, string host, pid_t p, mode_t m,
+                                      string *index_path, IOSHandle **ret_hand)
 {
     *index_path = Container::getIndexPath(path,host,p,createtime);
-    return openFile(*index_path,m,ret);
+    return openFile(*index_path,m,ret_hand);
 }
 
 /* uses this->subdirback to open */
-IOSHandle *WriteFile::openDataFile(string path, string host, pid_t p, mode_t m,
-        int &ret)
+plfs_error_t WriteFile::openDataFile(string path, string host, pid_t p,
+                                     mode_t m, IOSHandle **ret_hand)
 {
-    return openFile(Container::getDataPath(path,host,p,createtime),m,ret);
+    return openFile(Container::getDataPath(path,host,p,createtime),m,ret_hand);
 }
 
-// returns an fh or null
-IOSHandle *WriteFile::openFile(string physicalpath, mode_t xmode, int &ret )
+/* @param ret_hand returns an fh or null */
+plfs_error_t
+WriteFile::openFile(string physicalpath, mode_t xmode, IOSHandle **ret_hand )
 {
     mode_t old_mode=umask(0);
     int flags = O_WRONLY | O_APPEND | O_CREAT;
     IOSHandle *fh;
-    fh = this->subdirback->store->Open(physicalpath.c_str(), flags, xmode, ret);
+    plfs_error_t rv;
+    rv = this->subdirback->store->Open(physicalpath.c_str(), flags, xmode, &fh);
     mlog(WF_DAPI, "%s.%s open %s : %p %s",
          __FILE__, __FUNCTION__,
          physicalpath.c_str(),
-         fh, ( fh == NULL ? strerror(-ret) : "SUCCESS" ) );
+         fh, ( rv == PLFS_SUCCESS ? "SUCCESS" : strplfserr(rv) ) );
+
     if ( fh != NULL ) {
         paths[fh] = physicalpath;    // remember so restore works
     }
     umask(old_mode);
-    return(fh);
+    *ret_hand = fh;
+    return rv;
 }
 
 // we call this after any calls to f_truncate
 // if fuse::f_truncate is used, we will have open handles that get messed up
 // in that case, we need to restore them
 // what if rename is called and then f_truncate?
-// return 0 or -err
-int WriteFile::restoreFds( bool droppings_were_truncd )
+// returns PLFS_SUCCESS or PLFS_E*
+plfs_error_t WriteFile::restoreFds( bool droppings_were_truncd )
 {
     map<IOSHandle *,string>::iterator paths_itr;
     map<pid_t, OpenFh >::iterator pids_itr;
-    int ret = -ENOSYS;
+    plfs_error_t ret = PLFS_ENOSYS;
     // "has_been_renamed" is set at "addWriter, setPath" executing path.
     // This assertion will be triggered when user open a file with write mode
     // and do truncate. Has nothing to do with upper layer rename so I comment
@@ -537,15 +569,15 @@ int WriteFile::restoreFds( bool droppings_were_truncd )
         restfh = index->getFh(&ib);
         paths_itr = paths.find( restfh );
         if ( paths_itr == paths.end() ) {
-            return -ENOENT;
+            return PLFS_ENOENT;
         }
         string indexpath = paths_itr->second;
         /* note: this uses subdirback from object */
-        if ( (ret=closeFh( restfh )) != 0 ) {
+        if ( (ret=closeFh( restfh )) != PLFS_SUCCESS ) {
             return ret; 
         }
         /* note: this uses subdirback from object */
-        if ( (retfh = openFile( indexpath, mode, ret )) < 0 ) {
+        if ( (ret = openFile( indexpath, mode, &retfh)) != PLFS_SUCCESS ) {
             return ret; 
         }
         index->resetFh( retfh );
@@ -559,16 +591,16 @@ int WriteFile::restoreFds( bool droppings_were_truncd )
     for( pids_itr = fhs.begin(); pids_itr != fhs.end(); pids_itr++ ) {
         paths_itr = paths.find( pids_itr->second.fh );
         if ( paths_itr == paths.end() ) {
-            return -ENOENT;
+            return PLFS_ENOENT;
         }
         string datapath = paths_itr->second;
         /* note: this uses subdirback from object */
-        if ( (ret = closeFh( pids_itr->second.fh )) != 0 ) {
+        if ( (ret = closeFh( pids_itr->second.fh )) != PLFS_SUCCESS ) {
             return ret; 
         }
         /* note: this uses subdirback from object */
-        pids_itr->second.fh = openFile( datapath, mode, ret );
-        if ( pids_itr->second.fh == NULL ) {
+        ret = openFile( datapath, mode, &pids_itr->second.fh );
+        if ( ret != PLFS_SUCCESS ) {
             return ret; 
         }
     }
@@ -576,5 +608,5 @@ int WriteFile::restoreFds( bool droppings_were_truncd )
     // function had so much error handling, I just cut out early on any
     // error.  therefore, if we get here, it's happy days!
     mlog(WF_DAPI, "Exiting %s",__FUNCTION__);
-    return 0;
+    return PLFS_SUCCESS;
 }

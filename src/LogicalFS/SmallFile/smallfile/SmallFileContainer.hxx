@@ -38,19 +38,19 @@ public:
     SmallFileContainer(void *init_para);
     ~SmallFileContainer();
 
-    int readdir(set<string> *res);
+    plfs_error_t readdir(set<string> *res);
     bool file_exist(const string &filename);
     IndexPtr get_index(const string &filename);
     void get_data_file(ssize_t did, string &pathname, struct plfs_backend **);
 
-    int create(const string &filename, pid_t pid);
-    int rename(const string &from, const string &to, pid_t pid);
-    int remove(const string &filename, pid_t pid);
-    int utime(const string &filename, struct utimbuf *ut, pid_t pid);
+    plfs_error_t create(const string &filename, pid_t pid);
+    plfs_error_t rename(const string &from, const string &to, pid_t pid);
+    plfs_error_t remove(const string &filename, pid_t pid);
+    plfs_error_t utime(const string &filename, struct utimbuf *ut, pid_t pid);
 
-    int delete_if_empty();
+    plfs_error_t delete_if_empty();
     WriterPtr get_writer(pid_t pid);
-    int sync_writers(int sync_level);
+    plfs_error_t sync_writers(int sync_level);
 
     NamesMapping files;
     CacheManager<string, SmallFileIndex> index_cache;
@@ -58,8 +58,8 @@ public:
     pthread_mutex_t chunk_lock; /**< Protects the chunk_map */
 
 protected:
-    virtual int init_data_source(void *resource, RecordReader **reader);
-    virtual int merge_object(void *object, void *meta);
+    virtual plfs_error_t init_data_source(void *resource, RecordReader **reader);
+    virtual plfs_error_t merge_object(void *object, void *meta);
 
 private:
     PlfsMount *pmount;
@@ -69,7 +69,7 @@ private:
     map<pid_t, WriterPtr> writers;
     pthread_rwlock_t writers_lock;
 
-    int makeTopLevelDir(plfs_backend *, const string &, const string &);
+    plfs_error_t makeTopLevelDir(plfs_backend *, const string &, const string &);
     void clear_chunk_cache();
 };
 

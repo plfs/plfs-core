@@ -31,60 +31,65 @@ class WriteFile : public Metadata
 {
     public:
         WriteFile(string, string, mode_t, size_t index_buffer_mbs, pid_t,
-                  string, struct plfs_backend *);
+                  string, struct plfs_backend *, PlfsMount *);
         ~WriteFile();
 
-        int openIndex( pid_t );
-        int closeIndex();
+        plfs_error_t openIndex( pid_t );
+        plfs_error_t closeIndex();
 
-        int addWriter( pid_t, bool, bool, int& );
-        int removeWriter( pid_t );
+        plfs_error_t addWriter( pid_t, bool, bool, int& );
+        plfs_error_t removeWriter( pid_t, int * );
         size_t numWriters();
         size_t maxWriters() {
             return max_writers;
         }
 
-        int truncate( off_t );
-        int extend( off_t );
+        plfs_error_t truncate( off_t );
+        plfs_error_t extend( off_t );
 
-        ssize_t write( const char *, size_t, off_t, pid_t );
+        plfs_error_t write( const char *, size_t, off_t, pid_t, ssize_t * );
 
-        int sync( );
-        int sync( pid_t pid );
+        plfs_error_t sync( );
+        plfs_error_t sync( pid_t pid );
 
         void setContainerPath(string path);
         void setSubdirPath (string path, struct plfs_backend *wrback);
 
-        int restoreFds(bool droppings_were_truncd);
+        plfs_error_t restoreFds(bool droppings_were_truncd);
         Index *getIndex() {
             return index;
         }
-        void setLogical( const string& logical ) {
-            logical_path = logical;
-        }
+        void setPhysPath(struct plfs_physpathinfo *ppip_to);
 
         double createTime() {
             return createtime;
         }
 
     private:
-        IOSHandle *openIndexFile( string path, string host, pid_t, mode_t,
-                                  string *index_path, int &ret);
-        IOSHandle *openDataFile(string path,string host,pid_t,mode_t,int &ret );
-        IOSHandle *openFile( string, mode_t mode, int &ret );
-        int Close( );
-        int closeFh( IOSHandle *fh );
+        plfs_error_t openIndexFile( string path, string host, pid_t, mode_t,
+                                    string *index_path, IOSHandle **ret_hand);
+        plfs_error_t openDataFile(string path,string host,pid_t,mode_t,IOSHandle **ret_hand );
+        plfs_error_t openFile( string, mode_t mode, IOSHandle **ret_hand );
+        plfs_error_t Close( );
+        plfs_error_t closeFh( IOSHandle *fh );
         struct OpenFh *getFh( pid_t pid );
-        int prepareForWrite( pid_t pid );
-        int prepareForWrite( ) {
+        plfs_error_t prepareForWrite( pid_t pid );
+        plfs_error_t prepareForWrite( ) {
             return prepareForWrite( open_pid );
         }
 
         pid_t open_pid;
-        string logical_path;
-        string container_path;
-        string subdir_path;
-        struct plfs_backend *subdirback;
+        /*
+         * XXX: it would be nice if we could minimize the amount of
+         * path information we are caching in this object... this has
+         * gotten fat due to the introduction of prepareWriter.
+         */
+        string bnode;           /* path without any mountpoint info */
+        string container_path;  /* path to container (canonical?) */
+        struct plfs_backend *canback;  /* canonical backend (XXX) */
+        string subdir_path;     /* path to subdir our droppings live on */
+        struct plfs_backend *subdirback;   /* dropping backend */
+        PlfsMount *wrpmnt;      /* mount we are writing to */
         string hostname;
         map< pid_t, OpenFh  > fhs;
         map< pid_t, int > fhs_writers;

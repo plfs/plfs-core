@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <utime.h>
+#include "plfs_error.h"
 
 //cmake defined variables
 @STATVFS@
@@ -57,11 +58,7 @@ typedef void *Plfs_dirp;
        All PLFS function declarations in this file are in alphabetical order.
        Please retain this as edits are made.
 
-       All PLFS functions are either approximations of POSIX file IO calls or
-       utility functions.
-
-       Most PLFS functions return 0 or -err, except write and read which
-       return the number of bytes or -err
+       Most PLFS functions return plfs_error_t(PLFS_SUCCESS or PLFS_E*)
 
        Many of the utility functions are shared by the ADIO and the FUSE layers
        of PLFS.  Typical applications should try to use those layers.  However,
@@ -85,62 +82,63 @@ typedef void *Plfs_dirp;
     */
     int is_plfs_path( const char *path);
 
-    int plfs_access( const char *path, int mask );
+    plfs_error_t plfs_access( const char *path, int mask );
 
-    int plfs_chmod( const char *path, mode_t mode );
+    plfs_error_t plfs_chmod( const char *path, mode_t mode );
 
-    int plfs_chown( const char *path, uid_t, gid_t );
+    plfs_error_t plfs_chown( const char *path, uid_t, gid_t );
 
-    int plfs_close(Plfs_fd *,pid_t,uid_t,int open_flags,
-                   Plfs_close_opt *close_opt);
+    plfs_error_t plfs_close(Plfs_fd *,pid_t,uid_t,int open_flags,
+                            Plfs_close_opt *close_opt, int *num_ref);
 
     /* plfs_create
        you don't need to call this, you can also pass O_CREAT to plfs_open
     */
-    int plfs_create( const char *path, mode_t mode, int flags, pid_t pid );
+    plfs_error_t plfs_create( const char *path, mode_t mode, int flags, pid_t pid );
 
     // Bool sneaked in here
 
-    int plfs_flatten_index( Plfs_fd *, const char *path );
+    plfs_error_t plfs_flatten_index( Plfs_fd *, const char *path );
 
     /* Plfs_fd can be NULL
         int size_only is whether the only attribute of interest is
         filesize.  This is sort of like stat-lite or lazy stat
      */
-    int plfs_getattr(Plfs_fd *, const char *path, struct stat *st,
-                     int size_only);
+    plfs_error_t plfs_getattr(Plfs_fd *, const char *path, struct stat *st,
+                              int size_only);
 
     /* Get the extended attribute */
-    int plfs_getxattr(Plfs_fd *fd, void *value, const char *key, size_t len); 
+    plfs_error_t plfs_getxattr(Plfs_fd *fd, void *value, const char *key, size_t len);
 
     /* Set the exteded attribute */ 
-    int plfs_setxattr(Plfs_fd *fd, const void *value, const char *key);
+    plfs_error_t plfs_setxattr(Plfs_fd *fd, const void *value, const char *key);
 
-    int plfs_link( const char *path, const char *to );
+    plfs_error_t plfs_link( const char *path, const char *to );
 
-    int plfs_mkdir( const char *path, mode_t );
+    plfs_error_t plfs_mkdir( const char *path, mode_t );
 
     /*
        query the mode that was used to create the file
        this should only be called on a plfs file
     */
-    int plfs_mode( const char *path, mode_t *mode );
+    plfs_error_t plfs_mode( const char *path, mode_t *mode );
 
     /* plfs_open
        To open a file for the first time, set your Plfs_fd to NULL
        and then pass it by address.
        To re-open an existing file, you can pass back in the Plfs_fd
     */
-    int plfs_open( Plfs_fd **, const char *path,
-                   int flags, pid_t pid, mode_t , Plfs_open_opt *open_opt);
+    plfs_error_t plfs_open( Plfs_fd **, const char *path, int flags,
+                            pid_t pid, mode_t , Plfs_open_opt *open_opt);
 
     /* query a plfs_fd about how many writers and readers are using it,
      * and the bytes written by user, the lazy_stat flag.
      */
-    int plfs_query( Plfs_fd *, size_t *writers, size_t *readers,
-                    size_t *bytes_written, int *lazy_stat);
+    plfs_error_t plfs_query( Plfs_fd *, size_t *writers, size_t *readers,
+                             size_t *bytes_written, int *lazy_stat);
 
-    ssize_t plfs_read( Plfs_fd *, char *buf, size_t size, off_t offset );
+    plfs_error_t plfs_read( Plfs_fd *, char *buf, size_t size, off_t offset,
+                            ssize_t *bytes_read );
 
     /* plfs_readdir
      * the void * needs to be a pointer to a vector<string> but void * is
@@ -149,49 +147,50 @@ typedef void *Plfs_dirp;
      * this version does not call plfs_opendir / plfs_closedir
      * see plfs_opendir_c/plfs_readdir_c/plfs_closedir_c for C codes
      */
-    int plfs_readdir( const char *path, void * );
+    plfs_error_t plfs_readdir( const char *path, void * );
 
     /* this is the way that C programs do a plfs readdir 
      * dname is the buffer that the caller provides into which we write
-     * the name of each entry, plfs_readdir_c returns 0 or success 
+     * the name of each entry, plfs_readdir_c returns PLFS_SUCCESS on success
      * EOD is indicated with a zero-length dname
      */
-    int plfs_opendir_c( const char *path, Plfs_dirp **plfs_dir );
-    int plfs_readdir_c(Plfs_dirp *, char *dname, size_t bufsz);
-    int plfs_closedir_c( Plfs_dirp *plfs_dir ); 
+    plfs_error_t plfs_opendir_c( const char *path, Plfs_dirp **plfs_dir );
+    plfs_error_t plfs_readdir_c(Plfs_dirp *, char *dname, size_t bufsz);
+    plfs_error_t plfs_closedir_c( Plfs_dirp *plfs_dir );
 
-    int plfs_readlink( const char *path, char *buf, size_t bufsize );
+    plfs_error_t plfs_readlink( const char *path, char *buf, size_t bufsize, int *bytes );
 
-    int plfs_rename( const char *from, const char *to );
+    plfs_error_t plfs_rename( const char *from, const char *to );
 
-    int plfs_rmdir( const char *path );
+    plfs_error_t plfs_rmdir( const char *path );
 
-    int plfs_statvfs( const char *path, struct statvfs *stbuf );
+    plfs_error_t plfs_statvfs( const char *path, struct statvfs *stbuf );
 
-    int plfs_symlink( const char *path, const char *to );
+    plfs_error_t plfs_symlink( const char *path, const char *to );
 
-    int plfs_sync( Plfs_fd * );
+    plfs_error_t plfs_sync( Plfs_fd * );
 
-    int plfs_flush_writes( const char *dir );
+    plfs_error_t plfs_flush_writes( const char *dir );
 
-    int plfs_invalidate_read_cache( const char *dir );
+    plfs_error_t plfs_invalidate_read_cache( const char *dir );
 
     /* Plfs_fd can be NULL, but then path must be valid */
-    int plfs_trunc( Plfs_fd *, const char *path, off_t, int open_file );
+    plfs_error_t plfs_trunc( Plfs_fd *, const char *path, off_t, int open_file );
 
-    int plfs_unlink( const char *path );
+    plfs_error_t plfs_unlink( const char *path );
 
-    int plfs_utime( const char *path, struct utimbuf *ut );
+    plfs_error_t plfs_utime( const char *path, struct utimbuf *ut );
 
-    ssize_t plfs_write( Plfs_fd *, const char *, size_t, off_t, pid_t );
+    plfs_error_t plfs_write( Plfs_fd *, const char *, size_t, off_t, pid_t,
+                             ssize_t *bytes_written );
 
     // something needed for MPI-IO to know to avoid optimizations unless
     // in container mode
     plfs_filetype plfs_get_filetype(const char *path);
 
     // expose a few internals that we use for optimization
-    extern int plfs_expand_path(const char *logical,char **physical, void **pmountp, void **pbackp);
-    extern char *plfs_gethostname();
+    plfs_error_t plfs_expand_path(const char *logical,char **physical, void **pmountp, void **pbackp);
+    plfs_error_t plfs_gethostname(char **hname);
 
 #ifdef __cplusplus
 }

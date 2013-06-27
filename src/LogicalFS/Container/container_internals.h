@@ -2,19 +2,20 @@
 #define __CONTAINER_INTERNALS_H_
 #include "OpenFile.h"
 
-int container_access( const char *path, int mask );
+plfs_error_t container_access(struct plfs_physpathinfo *ppip, int mask );
 
-int container_chmod( const char *path, mode_t mode );
+plfs_error_t container_chmod(struct plfs_physpathinfo *ppip, mode_t mode );
 
-int container_chown( const char *path, uid_t, gid_t );
+plfs_error_t container_chown(struct plfs_physpathinfo *ppip, uid_t, gid_t );
 
-int container_close(Container_OpenFile *,pid_t,uid_t,int open_flags,
-                    Plfs_close_opt *close_opt);
+plfs_error_t container_close(Container_OpenFile *,pid_t,uid_t,int open_flags,
+                             Plfs_close_opt *close_opt, int *num_ref);
 
-int container_create( const char *path, mode_t mode, int flags, pid_t pid );
+plfs_error_t container_create(struct plfs_physpathinfo *ppip, mode_t mode,
+                     int flags, pid_t pid );
 
-int container_dump_index( FILE *fp, const char *path, 
-                    int compress, int uniform_restart, pid_t uniform_rank );
+plfs_error_t container_dump_index( FILE *fp, const char *path,
+                                   int compress, int uniform_restart, pid_t uniform_rank );
 
 /*
  * Nothing was calling this function, so I deleted it.
@@ -22,10 +23,10 @@ int container_dump_index( FILE *fp, const char *path,
 int container_dump_index_size()
  */
 
-int container_file_version(const char *logical, const char **version);
+plfs_error_t container_file_version(const char *logical, const char **version);
 
-int container_getattr(Container_OpenFile *, const char *path, struct stat *st,
-                      int size_only);
+plfs_error_t container_getattr(Container_OpenFile *, struct plfs_physpathinfo *ppip,
+                      struct stat *st, int size_only);
 
 #ifdef __cplusplus
 extern "C" {
@@ -51,11 +52,12 @@ extern "C" {
      * @param rank top-level rank (not the split one)
      * @param pmount logical PLFS mount point where file being open resides
      * @param pback the the canonical backend
-     * @return size of hostdir stream entries or -err
+     * @param ret_size size of hostdir stream entries to return
+     * @return PLFS_SUCCESS or PLFS_E*
      */ 
 
-    extern int container_hostdir_zero_rddir(
-        void **entries,const char *path,int rank, void *pmount, void *pback);
+    extern plfs_error_t container_hostdir_zero_rddir(
+        void **entries,const char *path,int rank, void *pmount, void *pback, int *ret_size);
 
     /*
      * container_hostdir_rddir: function called from MPI open when #hostdirs>#procs.
@@ -67,19 +69,20 @@ extern "C" {
      * @param top_level bpath to canonical container dir
      * @param pmount void pointer to PlfsMount of logical file
      * @param pback void pointer to plfs_backend of canonical container
-     * @return # output bytes in index_stream or -err
+     * @param index_sz returns # output bytes in index_stream or -1
+     * @return PLFS_SUCCESS or PLFS_E*
      */ 
 
-    extern int container_hostdir_rddir(
-        void **index_stream,char *targets,int rank, char *top_level, void *pmount, void *pback);
+    extern plfs_error_t container_hostdir_rddir(void **index_stream,char *targets,int rank,
+                                 char *top_level, void *pmount, void *pback, int *index_sz);
 
     /*
      * Index stream related functions
      */
 
-    extern int container_index_stream(Plfs_fd **pfd, char **buffer);
+    extern plfs_error_t container_index_stream(Plfs_fd **pfd, char **buffer, int *ret_index_sz);
 
-    extern int container_num_host_dirs(int *hostdir_count,char *target, void *vback, char *bm);
+    extern plfs_error_t container_num_host_dirs(int *hostdir_count,char *target, void *vback, char *bm);
 
     /*
      * container_parindex_read: called from MPI open's split and merge code path
@@ -90,11 +93,12 @@ extern "C" {
      * @param index_files stream of IndexFileInfo recs from indices_from_subdir()
      * @param index_stream resulting combined index stream goes here (output)
      * @param top_level bpath to canonical container
-     * @return size of index or error
+     * @param ret_index_size size of index to return
+     * @return PLFS_SUCCESS or PLFS_E*
      */
 
-    extern int container_parindex_read(
-        int rank,int ranks_per_comm,void *index_files, void **index_stream,char *top_level);
+    extern plfs_error_t container_parindex_read( int rank,int ranks_per_comm,
+        void *index_files, void **index_stream,char *top_level, int *ret_index_size);
 
     /*
      * this one takes a set of "procs" index streams in index_streams in
@@ -114,16 +118,17 @@ extern "C" {
      * this is to move shadowed files into canonical backends
      */
 
-    extern int container_protect(const char *logical, pid_t pid);
+    extern plfs_error_t container_protect(const char *logical, pid_t pid);
 
-    extern int container_merge_indexes(Plfs_fd **pfd, char *index_streams,
+    extern plfs_error_t container_merge_indexes(Plfs_fd **pfd, char *index_streams,
                                    int *index_sizes, int procs);
 
 #ifdef __cplusplus
 }
 #endif
 
-int container_link( const char *path, const char *to );
+plfs_error_t container_link(struct plfs_physpathinfo *ppip,
+                   struct plfs_physpathinfo *ppip_to);
 
 /*
  * the void *'s should be a vector<string>
@@ -132,25 +137,26 @@ int container_link( const char *path, const char *to );
  * the second, if not NULL, is filled with all the dirs
  * the third, if not NULL, is filled with all the metalinks
  */
-int container_locate(const char *logical, void *files_ptr,
-                            void *dirs_ptr, void *metalinks_ptr);
+plfs_error_t container_locate(const char *logical, void *files_ptr,
+                              void *dirs_ptr, void *metalinks_ptr);
 
-int container_mode( const char *path, mode_t *mode );
+plfs_error_t container_mode(struct plfs_physpathinfo *ppip, mode_t *mode );
 
-int container_mkdir( const char *path, mode_t );
+plfs_error_t container_mkdir(struct plfs_physpathinfo *ppip, mode_t );
 
-int container_open( Container_OpenFile **, const char *path,
+plfs_error_t container_open( Container_OpenFile **, struct plfs_physpathinfo *ppip,
                     int flags, pid_t pid, mode_t , Plfs_open_opt *open_opt);
 
-int container_query( Container_OpenFile *, size_t *writers,
-                     size_t *readers, size_t *bytes_written, bool *reopen );
+plfs_error_t container_query( Container_OpenFile *, size_t *writers,
+                              size_t *readers, size_t *bytes_written, bool *reopen );
 
-ssize_t container_read( Container_OpenFile *, char *buf, size_t size,
-                        off_t offset );
+plfs_error_t container_read( Container_OpenFile *, char *buf, size_t size,
+                             off_t offset, ssize_t *bytes_read );
 
-int container_readdir( const char *path, set<string> * );
+plfs_error_t container_readdir(struct plfs_physpathinfo *ppip, set<string> * );
 
-int container_readlink( const char *path, char *buf, size_t bufsize );
+plfs_error_t container_readlink(struct plfs_physpathinfo *ppip, char *buf,
+                       size_t bufsize, int *ret_len);
 
 /*  
  * recover a lost plfs file (which can happen if plfsrc is ever improperly
@@ -158,35 +164,38 @@ int container_readlink( const char *path, char *buf, size_t bufsize );
  * d_type can be DT_DIR, DT_REG, DT_UNKNOWN
  */
 
-int container_recover(const char *logical);
+plfs_error_t container_recover(const char *logical);
 
-int container_rename_open_file(Container_OpenFile *of, const char *logical,
-                               struct plfs_backend *b);
+plfs_error_t container_rename_open_file(Container_OpenFile *of,
+                               struct plfs_physpathinfo *ppip_to);
 
-int container_rename( const char *from, const char *to );
+plfs_error_t container_rename(struct plfs_physpathinfo *ppip,
+                     struct plfs_physpathinfo *ppip_to);
 
-int container_rmdir( const char *path );
+plfs_error_t container_rmdir(struct plfs_physpathinfo *ppip);
 
-int container_statvfs( const char *path, struct statvfs *stbuf );
+plfs_error_t container_statvfs(struct plfs_physpathinfo *ppip, struct statvfs *stbuf );
 
-int container_symlink( const char *path, const char *to );
+plfs_error_t container_symlink(const char *path, struct plfs_physpathinfo *ppip_to);
 
-int container_sync( Container_OpenFile * );
+plfs_error_t container_sync( Container_OpenFile * );
 
-int container_sync( Container_OpenFile *, pid_t );
+plfs_error_t container_sync( Container_OpenFile *, pid_t );
 
-int container_trunc( Container_OpenFile *, const char *path, off_t,
-                     int open_file );
+plfs_error_t container_trunc( Container_OpenFile *, struct plfs_physpathinfo *ppip,
+                     off_t, int open_file );
 
-int container_unlink( const char *path );
+plfs_error_t container_unlink(struct plfs_physpathinfo *ppip);
 
-int container_utime( const char *path, struct utimbuf *ut );
+plfs_error_t container_utime(struct plfs_physpathinfo *ppip, struct utimbuf *ut );
 
-ssize_t container_write( Container_OpenFile *, const char *, size_t, off_t,
-                         pid_t );
+plfs_error_t container_write( Container_OpenFile *, const char *, size_t, off_t,
+                              pid_t, ssize_t *bytes_written );
 
-int container_prepare_writer( WriteFile *, pid_t, mode_t, const string& );
+plfs_error_t container_prepare_writer(WriteFile *, pid_t, mode_t, const string &,
+                             PlfsMount *, const string &,
+                             struct plfs_backend *, int *);
 
-int container_flatten_index(Container_OpenFile *fd, const char *logical);
-int is_container_file( const char *logical, mode_t *mode );
+plfs_error_t container_flatten_index(Container_OpenFile *fd,
+                            struct plfs_pathback *container);
 #endif

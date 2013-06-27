@@ -19,7 +19,9 @@ void ADIOI_PLFS_ReadContig(ADIO_File fd, void *buf, int count,
                            ADIO_Offset offset, ADIO_Status *status,
                            int *error_code)
 {
-    int err=-1, datatype_size, rank;
+    plfs_error_t err = PLFS_TBD;
+    int datatype_size, rank;
+    ssize_t bytes_read;
     ADIO_Offset len;
     ADIO_Offset myoff;
     static char myname[] = "ADIOI_PLFS_READCONTIG";
@@ -51,20 +53,20 @@ MPIIO_TIMER_START(RSYSIO);
         //enters this function but rank 1 does not for example)
         //plfs_barrier(fd->comm,rank);
     }
-    err = plfs_read( fd->fs_ptr, buf, len, myoff );
+    err = plfs_read( fd->fs_ptr, buf, len, myoff, &bytes_read );
 #ifdef HAVE_STATUS_SET_BYTES
-    if (err >= 0 ) {
-        MPIR_Status_set_bytes(status, datatype, err);
+    if (err == PLFS_SUCCESS ) {
+        MPIR_Status_set_bytes(status, datatype, (int)bytes_read);
     }
 #endif
-    if (err < 0 ) {
+    if (err != PLFS_SUCCESS ) {
         *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
                                            myname, __LINE__, MPI_ERR_IO,
                                            "**io",
-                                           "**io %s", strerror(-err));
+                                           "**io %s", strplfserr(err));
     } else {
         if (file_ptr_type == ADIO_INDIVIDUAL) {
-            fd->fp_ind += err;
+            fd->fp_ind += bytes_read;
         }
         *error_code = MPI_SUCCESS;
     }

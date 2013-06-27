@@ -52,19 +52,19 @@ MinimumHeap::heapfy_down(size_t pos) {
     }
 }
 
-int
+plfs_error_t
 MinimumHeap::pop_front() {
-    if (current_size == 0) return -ENOENT;
+    if (current_size == 0) return PLFS_ENOENT;
     ptr_table[0]->pop_front();
     if (!ptr_table[0]->front()) {
         /* If the first data source becomes empty, delete it. */
         delete ptr_table[0];
         current_size--;
-        if (current_size == 0) return -ENOENT;
+        if (current_size == 0) return PLFS_ENOENT;
         ptr_table[0] = ptr_table[current_size];
     }
     heapfy_down(0);
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 void *
@@ -79,12 +79,12 @@ MinimumHeap::metadata(){
     return ptr_table[0]->metadata();
 }
 
-int
+plfs_error_t
 MinimumHeap::push_back(RecordReader *ptr) {
     if (current_size >= max_size)
-        return -ENOMEM;
+        return PLFS_ENOMEM;
     ptr_table[current_size] = ptr;
     current_size++;
     heapfy_up(current_size - 1);
-    return 0;
+    return PLFS_SUCCESS;
 }
