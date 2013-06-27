@@ -24,16 +24,16 @@ Flat_fd::~Flat_fd()
 
 // this function is shared by chmod/utime/chown maybe others
 // it's here for directories which may span multiple backends
-// returns 0 or -err
-static int plfs_flatfile_operation(struct plfs_physpathinfo *ppip,
+// returns PLFS_SUCCESS or PLFS_E*
+static plfs_error_t plfs_flatfile_operation(struct plfs_physpathinfo *ppip,
                                    FileOp& op, IOStore *ios) {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS; 
     vector<plfs_pathback> dirs;
     struct stat st;
     mode_t mode = 0;
 
     ret = ppip->canback->store->Lstat(ppip->canbpath.c_str(), &st);
-    if (ret) {
+    if (ret != PLFS_SUCCESS){
         mode = 0;
     } else {
         mode = st.st_mode;
@@ -43,7 +43,7 @@ static int plfs_flatfile_operation(struct plfs_physpathinfo *ppip,
     if (S_ISDIR(mode)){
         ret = generate_backpaths(ppip, dirs);
         vector<plfs_pathback>::reverse_iterator ritr;
-        for(ritr = dirs.rbegin(); ritr != dirs.rend() && ret == 0; ++ritr) {
+        for(ritr = dirs.rbegin(); ritr != dirs.rend() && ret == PLFS_SUCCESS; ++ritr) {
             ret = op.op(ritr->bpath.c_str(),DT_DIR,ritr->back->store);
         }
     }
@@ -58,8 +58,8 @@ static int plfs_flatfile_operation(struct plfs_physpathinfo *ppip,
     return(ret);
 }
 
-/* ret 0 or -err */
-int
+/* ret PLFS_SUCCESS or PLFS_E */
+plfs_error_t
 Flat_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t /* pid */,
               mode_t mode, Plfs_open_opt * /* unused */)
 {
@@ -68,10 +68,10 @@ Flat_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t /* pid */,
     } else {
         /* we assume that the caller has already set this->back */
         IOSHandle *ofh;
-        int ret;
-        ofh = ppip->canback->store->Open(ppip->canbpath.c_str(), flags,
-                                         mode, ret);
-        if (ofh == NULL) {
+        plfs_error_t ret;
+        ret = ppip->canback->store->Open(ppip->canbpath.c_str(), flags,
+                                         mode, &ofh);
+        if (ret != PLFS_SUCCESS) {
             return ret;
         }
         /* init state setup */
@@ -81,73 +81,76 @@ Flat_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t /* pid */,
         this->backend_fh = ofh;
         this->refs = 1;
     }
-    return 0;
+    return PLFS_SUCCESS;
 }
 
-int
+plfs_error_t
 Flat_fd::close(pid_t /* pid */, uid_t /* u */, 
-               int /* flags */, Plfs_close_opt * /* unused */)
+               int /* flags */, Plfs_close_opt * /* unused */, int *num_ref)
 {
     refs--;
     if (refs > 0) {
-        return refs;    // Others are still using this fd.
+        *num_ref = refs;    // Others are still using this fd.
+        return PLFS_SUCCESS;
     }
     if (backend_fh != NULL) {
         this->back->store->Close(backend_fh);
         backend_fh = NULL;
     }
-    return 0; // Safe to delete the fd.
+    *num_ref = 0; // Safe to delete the fd.
+    return PLFS_SUCCESS;
 }
 
-/* ret 0 or -err */
-ssize_t
-Flat_fd::read(char *buf, size_t size, off_t offset)
+/* ret PLFS_SUCCESS or PLFS_E* */
+plfs_error_t
+Flat_fd::read(char *buf, size_t size, off_t offset, ssize_t *bytes_read)
 {
-    int ret = this->backend_fh->Pread(buf, size, offset);
+    plfs_error_t ret = this->backend_fh->Pread(buf, size, offset, bytes_read);
     return(ret);
 }
 
-/* ret 0 or -err */
-ssize_t
-Flat_fd::write(const char *buf, size_t size, off_t offset, pid_t /* pid */)
+/* ret PLFS_SUCCESS or PLFS_E */
+plfs_error_t
+Flat_fd::write(const char *buf, size_t size, off_t offset, pid_t /* pid */, 
+               ssize_t *bytes_written)
 {
-    int ret = this->backend_fh->Pwrite(buf, size, offset);
+    plfs_error_t ret = this->backend_fh->Pwrite(buf, size, offset, bytes_written);
     return(ret);
 }
 
-/* ret 0 or -err */
-int
+/* ret PLFS_SUCCESS or PLFS_E* */
+plfs_error_t
 Flat_fd::sync()
 {
-    int ret = this->backend_fh->Fsync();
+    plfs_error_t ret = this->backend_fh->Fsync();
     return(ret);
 }
 
-/* ret 0 or -err */
-int
+/* ret PLFS_SUCCESS or PLFS_E */
+plfs_error_t
 Flat_fd::sync(pid_t /* pid */)
 {
-    int ret = this->sync(); 
+    plfs_error_t ret = this->sync(); 
     return(ret);
 }
 
-/* ret 0 or -err */
-int
+/* ret PLFS_SUCCESS or PLFS_E */
+plfs_error_t
 Flat_fd::trunc(off_t offset)
 {
-    int ret = this->backend_fh->Ftruncate(offset);
+    plfs_error_t ret = this->backend_fh->Ftruncate(offset);
     return(ret);
 }
 
-/* ret 0 or -err */
-int
+/* ret PLFS_SUCCESS or PLFS_E */
+plfs_error_t
 Flat_fd::getattr(struct stat *stbuf, int /* sz_only */)
 {
-    int ret = this->backend_fh->Fstat(stbuf);
+    plfs_error_t ret = this->backend_fh->Fstat(stbuf);
     return(ret);
 }
 
-int
+plfs_error_t
 Flat_fd::query(size_t * /* writers */, size_t * /* readers */, size_t *bytes_written,
                bool *reopen)
 {
@@ -158,7 +161,7 @@ Flat_fd::query(size_t * /* writers */, size_t * /* readers */, size_t *bytes_wri
         *reopen = 0;
     }
     // Not implemented.
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 bool Flat_fd::is_good()
@@ -169,12 +172,12 @@ bool Flat_fd::is_good()
     return false;
 }
 
-int
+plfs_error_t
 FlatFileSystem::open(Plfs_fd **pfd,struct plfs_physpathinfo *ppip,
                      int flags,pid_t pid, mode_t mode,
                      Plfs_open_opt *open_opt)
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     int newly_created = 0;
     if (*pfd == NULL) {
         *pfd = new Flat_fd();
@@ -186,7 +189,7 @@ FlatFileSystem::open(Plfs_fd **pfd,struct plfs_physpathinfo *ppip,
          */
     }
     ret = (*pfd)->open(ppip, flags, pid, mode, open_opt);
-    if (ret < 0) {
+    if (ret != PLFS_SUCCESS) {
         if (newly_created) {
             delete *pfd;
             *pfd = NULL;
@@ -198,11 +201,11 @@ FlatFileSystem::open(Plfs_fd **pfd,struct plfs_physpathinfo *ppip,
 // POSIX creat() will open the file implicitly, but it seems that
 // the PLFS version of create won't open the file. So close the
 // file after POSIX creat() is called.
-int
+plfs_error_t
 FlatFileSystem::create(struct plfs_physpathinfo *ppip, mode_t mode,
                        int /* flags */, pid_t /* pid */)
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     //     An open(... O_CREAT) gets turned into a mknod followed by an
     //      open in fuse. So a common problem is that open(..., O_RDWR |
     //      O_CREAT, 0444) can create files which do not have write
@@ -216,56 +219,56 @@ FlatFileSystem::create(struct plfs_physpathinfo *ppip, mode_t mode,
     return(ret);
 }
 
-int
+plfs_error_t
 FlatFileSystem::chown(struct plfs_physpathinfo *ppip, uid_t u, gid_t g )
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     ChownOp op(u,g);
     ret = plfs_flatfile_operation(ppip,op,ppip->canback->store);
     return(ret);
 }
 
-int
+plfs_error_t
 FlatFileSystem::chmod(struct plfs_physpathinfo *ppip, mode_t mode )
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     ChmodOp op(mode);
     ret = plfs_flatfile_operation(ppip,op,ppip->canback->store);
     return(ret);
 }
 
-/* ret 0 or -err */
-int
+/* ret PLFS_SUCCESS or PLFS_E */
+plfs_error_t
 FlatFileSystem::getmode(struct plfs_physpathinfo *ppip, mode_t *mode)
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     struct stat stbuf;
     ret = ppip->canback->store->Lstat(ppip->canbpath.c_str(), &stbuf);
-    if (ret == 0) {
+    if (ret == PLFS_SUCCESS) {
         *mode = stbuf.st_mode;
     }
     return(ret);
 }
 
-int
+plfs_error_t
 FlatFileSystem::access(struct plfs_physpathinfo *ppip, int mask )
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     AccessOp op(mask);
     ret = plfs_flatfile_operation(ppip,op,ppip->canback->store);
     return(ret);
 }
 
-/* ret 0 or -err */
-int
+/* ret PLFS_SUCCESS or PLFS_E */
+plfs_error_t
 FlatFileSystem::rename(struct plfs_physpathinfo *ppip,
                        struct plfs_physpathinfo *ppip_to)
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     struct stat stbuf;
     //struct stat stbuf_target;
     ret = ppip->canback->store->Lstat(ppip->canbpath.c_str(), &stbuf);
-    if (ret < 0) {
+    if (ret != PLFS_SUCCESS) {
         goto out;
     }
     // ret = ppip_to->canback->store->Lstat(ppip_to->canbpath.c_str(),
@@ -280,11 +283,11 @@ FlatFileSystem::rename(struct plfs_physpathinfo *ppip,
                                            ppip_to->canbpath.c_str());
         // EXDEV is expected when the rename crosses different volumes.
         // We should do the copy+unlink in this case.
-        if (ret == -EXDEV) {
+        if (ret == PLFS_EXDEV) {
             ret = Util::CopyFile(ppip->canbpath.c_str(), ppip->canback->store,
                                  ppip_to->canbpath.c_str(),
                                  ppip_to->canback->store);
-            if (ret == 0) {
+            if (ret == PLFS_SUCCESS) {
                 ret = ppip->canback->store->Unlink(ppip->canbpath.c_str());
             }
             mlog(PLFS_DCOMMON, "Cross-device rename, CopyFile+Unlink ret: %d",
@@ -299,7 +302,7 @@ FlatFileSystem::rename(struct plfs_physpathinfo *ppip,
     //
     } else if (S_ISDIR(stbuf.st_mode)) {
         ret = FlatFileSystem::unlink(ppip_to);
-        if (ret != -ENOTEMPTY) {
+        if (ret != PLFS_ENOTEMPTY) {
             RenameOp op(ppip_to);
             ret=plfs_flatfile_operation(ppip,op,ppip->canback->store);
             mlog(PLFS_DCOMMON, "Dir rename return value : %d", ret);
@@ -307,151 +310,155 @@ FlatFileSystem::rename(struct plfs_physpathinfo *ppip,
     } else {
         // special files such as character/block device file, socket file, fifo
         // are not supported.
-        return -ENOSYS;
+        return PLFS_ENOSYS;
     }
 out:
     return(ret);
 }
 
-int
+plfs_error_t
 FlatFileSystem::link(struct plfs_physpathinfo * /* ppip */,
                      struct plfs_physpathinfo * /* ppip_to */)
 {
     // Hard link is not supported in PLFS file system.
-    return -ENOSYS;
+    return PLFS_ENOSYS;
 }
 
-int
+plfs_error_t
 FlatFileSystem::utime(struct plfs_physpathinfo *ppip, struct utimbuf *ut )
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     UtimeOp op(ut);
     ret = plfs_flatfile_operation(ppip,op,ppip->canback->store);
     return(ret);
 }
 
-/* ret 0 or -err */
-int
+/* ret PLFS_SUCCESS or PLFS_E */
+plfs_error_t
 FlatFileSystem::getattr(struct plfs_physpathinfo *ppip,
                         struct stat *stbuf, int /* sz_only */)
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     ret = ppip->canback->store->Lstat(ppip->canbpath.c_str(),stbuf);
     return(ret);
 }
 
-/* ret 0 or -err */
-int
+/* ret PLFS_SUCCESS or PLFS_E */
+plfs_error_t
 FlatFileSystem::trunc(struct plfs_physpathinfo *ppip, off_t offset,
                       int /* open_file */)
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     ret = ppip->canback->store->Truncate(ppip->canbpath.c_str(),offset);
     return(ret);
 }
 
-int
+plfs_error_t
 FlatFileSystem::unlink(struct plfs_physpathinfo *ppip)
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     UnlinkOp op;
     mode_t mode;
     struct stat stbuf;
-    int ret_val;
+    plfs_error_t ret_val;
 
     ret = FlatFileSystem::getmode(ppip, &mode);
-    if (ret != 0 ) {
+    if (ret != PLFS_SUCCESS ) {
         return(ret);
     }
     ret = plfs_flatfile_operation(ppip,op,ppip->canback->store);
-    if (ret < 0) {
+    if (ret != PLFS_SUCCESS) {
         // if the directory is not empty, need to restore backends to their 
         // previous state - recreate and correct ownership
-        if (ret == -ENOTEMPTY ){
+        if (ret == PLFS_ENOTEMPTY ){
             CreateOp cop(mode);
-            cop.ignoreErrno(-EEXIST);
+            cop.ignoreErrno(PLFS_EEXIST);
             plfs_backends_op(ppip,cop);
             // Get uid and gid so that ownership may be restored
             ret_val = ppip->canback->store->Lstat(ppip->canbpath.c_str(),
                                                   &stbuf);
-            if (ret_val == 0) {
+            if (ret_val == PLFS_SUCCESS) {
                 FlatFileSystem::chown(ppip, stbuf.st_uid, stbuf.st_gid);
             }
         }
     } 
-     return(ret);
+    return(ret);
 }
 
-int
+plfs_error_t
 FlatFileSystem::mkdir(struct plfs_physpathinfo *ppip, mode_t mode)
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     CreateOp op(mode);
     ret = plfs_backends_op(ppip,op);
     return(ret);
 }
 
-int
+plfs_error_t
 FlatFileSystem::readdir(struct plfs_physpathinfo *ppip, set<string> *entries)
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     ReaddirOp op(NULL,entries,false,false);
     ret = plfs_backends_op(ppip,op);
     return(ret);
 }
 
-/* ret 0 or -err */
-int
+/* ret PLFS_SUCCESS or PLFS_E */
+plfs_error_t
 FlatFileSystem::readlink(struct plfs_physpathinfo *ppip, char *buf,
-                         size_t bufsize)
+                         size_t bufsize, int *bytes)
 {
-    int ret = 0;
-    ret = ppip->canback->store->Readlink(ppip->canbpath.c_str(), buf, bufsize);
-    if (ret > 0 && (size_t)ret < bufsize) {
-        buf[ret] = 0;    // null term the buffer
+    plfs_error_t ret = PLFS_SUCCESS;
+    ssize_t tmp_bytes;
+    ret = ppip->canback->store->Readlink(ppip->canbpath.c_str(), buf, bufsize, 
+                                         &tmp_bytes);
+    *bytes = (int)tmp_bytes;
+    if (*bytes > 0 && (size_t)*bytes < bufsize) {
+        buf[*bytes] = 0;    // null term the buffer
     }
     return(ret);
 }
 
-int
+plfs_error_t
 FlatFileSystem::rmdir(struct plfs_physpathinfo *ppip)
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     mode_t mode = 0; // silence compiler warning
     ret = FlatFileSystem::getmode(ppip, &mode); // XXX: ret never read
     UnlinkOp op;
     ret = plfs_backends_op(ppip,op);
-    if (ret==-ENOTEMPTY) {
+    if (ret == PLFS_ENOTEMPTY) {
         mlog(PLFS_DRARE, "Started removing a non-empty directory %s. "
              "Will restore.", ppip->bnode.c_str());
         CreateOp cop(mode);
-        cop.ignoreErrno(-EEXIST);
+        cop.ignoreErrno(PLFS_EEXIST);
         plfs_backends_op(ppip,cop); // don't overwrite ret
     }
     return(ret);
 }
 
-/* ret 0 or -err */
-int
+/* ret PLFS_SUCCESS or PLFS_E */
+plfs_error_t
 FlatFileSystem::symlink(const char *from, struct plfs_physpathinfo *ppip_to)
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     ret = ppip_to->canback->store->Symlink(from, ppip_to->canbpath.c_str());
     return(ret);
 }
 
-/* ret 0 or -err */
-int
+/* ret PLFS_SUCCESS or PLFS_E */
+plfs_error_t
 FlatFileSystem::statvfs(struct plfs_physpathinfo *ppip, struct statvfs *stbuf)
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     ret = ppip->canback->store->Statvfs(ppip->canbpath.c_str(), stbuf);
     return(ret);
 }
 
-/* ret 0 or -err */
-int
-FlatFileSystem::resolvepath_finish(struct plfs_physpathinfo *ppip) {
+/* ret PLFS_SUCCESS */
+plfs_error_t
+FlatFileSystem::resolvepath_finish(struct plfs_physpathinfo *ppip) 
+{
     int at_root, hash_val;
 
     /*
@@ -470,6 +477,6 @@ FlatFileSystem::resolvepath_finish(struct plfs_physpathinfo *ppip) {
     } else {
         ppip->canbpath = ppip->canback->bmpoint + "/" + ppip->bnode;
     }
-    return(0);
+    return(PLFS_SUCCESS);
     
 }

@@ -200,7 +200,9 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
 {
     Plfs_fd *pfd =NULL;
     // I think perm is the mode and amode is the flags
-    int err = 0,perm, amode, old_mask,rank,ret;
+    int err,perm, amode, old_mask,rank,ret;
+    plfs_error_t plfs_err = PLFS_SUCCESS;
+    int num_open_handles;
     MPI_Comm_rank( fd->comm, &rank );
     static char myname[] = "ADIOI_PLFS_OPEN";
     perm = adplfs_getPerm(fd);
@@ -215,36 +217,36 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
     if (fd->access_mode &  MPI_MODE_EXCL){
         //if MPI_MODE_EXCL is set, check if the file already exists
         //will stat either an empty file, or a file that exists and die
-        if (plfs_access(fd->filename, F_OK) == 0){
+        if (plfs_access(fd->filename, F_OK) == PLFS_SUCCESS){
             //throw an error if the file exists
             *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
                 myname, __LINE__, MPI_ERR_IO,
                 "**io",
-                "**io %s", strerror(-err));
+                "**io %s", strplfserr(plfs_err));
             return;
         }
     }
     if (fd->access_mode & ADIO_CREATE) {
         //rather then call creat directly, call open w/ O_CREAT to avoid truncate
         //of existing files
-        err = plfs_open(&pfd, fd->filename, amode|O_CREAT, rank, perm, NULL);
-        if ( err != 0 ) {
+        plfs_err = plfs_open(&pfd, fd->filename, amode|O_CREAT, rank, perm, NULL);
+        if ( plfs_err != PLFS_SUCCESS ) {
             *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
                                               myname, __LINE__, MPI_ERR_IO,
                                               "**io",
-                                              "**io %s", strerror(-err));
-            errno = -err;
+                                              "**io %s", strplfserr(plfs_err));
+            errno = plfs_error_to_errno(plfs_err);
         } else {
             //passing pfd as the fs_ptr will result in a hang n-1 with many
             //procs so close instead if open
             *error_code = MPI_SUCCESS;
-            err = plfs_close(pfd, rank, geteuid(), amode, NULL);
-            if ( err != 0 ) {
+            plfs_err = plfs_close(pfd, rank, geteuid(), amode, NULL, &num_open_handles);
+            if ( plfs_err != PLFS_SUCCESS ) {
                 *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
                                                   myname, __LINE__, MPI_ERR_IO,
                                                   "**io",
-                                                  "**io %s", strerror(-err));
-                errno = -err;
+                                                  "**io %s", strplfserr(plfs_err));
+                errno = plfs_error_to_errno(plfs_err);
             }
         }
 
@@ -255,14 +257,14 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
     // if we make it here, we're doing RDONLY, WRONLY, or RDWR
     // at this point, we want to do different for container/flat_file mode
     if (plfs_get_filetype(fd->filename) != CONTAINER) {
-        err = plfs_open(&pfd,fd->filename,amode,rank,perm,NULL);
-        if ( err < 0 ) {
+        plfs_err = plfs_open(&pfd,fd->filename,amode,rank,perm,NULL);
+        if ( plfs_err != PLFS_SUCCESS ) {
             *error_code = MPIO_Err_create_code(MPI_SUCCESS,
                                                MPIR_ERR_RECOVERABLE,
                                                myname, __LINE__, MPI_ERR_IO,
                                                "**io",
-                                               "**io %s", strerror(-err));
-            plfs_debug( "%s: failure %s\n", myname, strerror(-err) );
+                                               "**io %s", strplfserr(plfs_err));
+            plfs_debug( "%s: failure %s\n", myname, strplfserr(plfs_err) );
             return;
         } else {
             plfs_debug( "%s: Success on open(%d)!\n", myname, rank );
@@ -297,6 +299,7 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
 {
     // XXXJB: Looks like compress_flag is not used at all anymore.  Clean?
     int err = 0, disabl_broadcast=0, compress_flag=0,close_flatten=0;
+    plfs_error_t plfs_err = PLFS_SUCCESS;
     int parallel_index_read=1;
     int uniform_restart=0;
     static char myname[] = "ADIOI_PLFS_OPENHELPER";
@@ -308,7 +311,9 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     // get a hostdir comm to use to serialize write a bit
     write_mode = (fd->access_mode==ADIO_RDONLY?0:1);
     if (write_mode) {
-        size_t color = container_gethostdir_id(plfs_gethostname());
+        char *hostname;
+        plfs_gethostname(&hostname);
+        size_t color = container_gethostdir_id(hostname);
         err = MPI_Comm_split(fd->comm,color,rank,&hostdir_comm);
         if(err!=MPI_SUCCESS) {
             return err;
@@ -333,7 +338,7 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     if (fd->access_mode == ADIO_RDONLY && uniform_restart){
         open_opt.uniform_restart_enable = 1;
         open_opt.uniform_restart_rank = rank;
-        err = plfs_open(pfd,fd->filename,amode,rank,perm,&open_opt);
+        plfs_err = plfs_open(pfd,fd->filename,amode,rank,perm,&open_opt);
     }else if( fd->access_mode==ADIO_RDONLY && parallel_index_read) {
         void *global_index;
         // Function to start the parallel index read
@@ -342,7 +347,7 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
         if (err == 0) {
             open_opt.pinter = PLFS_MPIIO;
             open_opt.index_stream=global_index;
-            err = plfs_open(pfd,fd->filename,amode,rank,perm,&open_opt);
+            plfs_err = plfs_open(pfd,fd->filename,amode,rank,perm,&open_opt);
             free(global_index);
         }
     } else if(fd->access_mode==ADIO_RDONLY && !disabl_broadcast) {
@@ -362,7 +367,7 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
         if (write_mode && hostdir_rank) {
             plfs_barrier(hostdir_comm,rank);
         }
-        err = plfs_open( pfd, fd->filename, amode, rank, perm ,&open_opt);
+        plfs_err = plfs_open( pfd, fd->filename, amode, rank, perm ,&open_opt);
         if (write_mode && !hostdir_rank) {
             plfs_barrier(hostdir_comm,rank);
         }
@@ -371,6 +376,7 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     if (write_mode) {
         MPI_Comm_free(&hostdir_comm);
     }
+    err = -(plfs_error_to_errno(plfs_err));
     if ( err < 0 ) {
         *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
                                            myname, __LINE__, MPI_ERR_IO,
@@ -394,7 +400,8 @@ int adplfs_broadcast_index(Plfs_fd **pfd, ADIO_File fd,
                     int *error_code,int perm,int amode,int rank,
                     int compress_flag)
 {
-    int err = 0,ret;
+    plfs_error_t err = PLFS_SUCCESS;
+    int ret;
     char *index_stream;
     char *compr_index;
     // [0] is index stream size [1] is compressed size
@@ -409,16 +416,16 @@ int adplfs_broadcast_index(Plfs_fd **pfd, ADIO_File fd,
         err = plfs_open(pfd, fd->filename, amode, rank, perm , &open_opt);
     }
     MPIBCAST(&err,1,MPI_INT,0,fd->comm);   // was 0's open successful?
-    if(err !=0 ) {
+    if(err !=PLFS_SUCCESS ) {
         return err;
     }
     // rank 0 turns the index into a stream, broadcasts its size, then it
     if(rank==0) {
         plfs_debug("In broadcast index with compress_flag:%d\n",compress_flag);
-        index_size[0] = index_size[1] = container_index_stream(pfd,&index_stream);
-        if(index_size[0]<0) {
+        if(container_index_stream(pfd,&index_stream,&(index_size[0])) != PLFS_SUCCESS ) {
             MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
         }
+        index_size[1] = index_size[0];
         if(compress_flag) {
             plfs_debug("About to malloc the compressed index space\n");
             compr_index=malloc(index_size[0]);
@@ -583,8 +590,8 @@ void adplfs_read_and_merge(ADIO_File fd,int rank,
      * this results in a merged index stream (index_stream of index_sz
      * bytes).
      */
-    index_sz=container_hostdir_rddir(&index_stream,targets,
-                                rank,filename,pmount,pback);
+    container_hostdir_rddir(&index_stream,targets,
+                                rank,filename,pmount,pback,&index_sz);
     // Make sure it was malloced
     check_stream(index_sz,rank);
     // Targets no longer needed
@@ -670,8 +677,8 @@ void adplfs_split_and_merge(ADIO_File fd,int rank,int extra_rank,
         subdir= adplfs_bitmap_to_dirname(bitmap,group_index,filename,0,np);
 
         // Hostdir zero reads the hostdir and converts into a list
-        buf_sz=container_hostdir_zero_rddir((void **)&index_files,subdir,rank,
-                                       pmount, pback);
+        container_hostdir_zero_rddir((void **)&index_files,subdir,rank,
+                                      pmount, pback, &buf_sz);
         check_stream(buf_sz,rank);
         free(subdir);
     }
@@ -692,8 +699,8 @@ void adplfs_split_and_merge(ADIO_File fd,int rank,int extra_rank,
      * hostdir and rank).  the first entry of index_files contains
      * the physical path to the hostdir to read...
      */
-    buf_sz=container_parindex_read(new_rank,hc_sz,index_files,&index_stream,
-                              filename);
+    container_parindex_read(new_rank,hc_sz,index_files,&index_stream,
+                              filename,&buf_sz);
     check_stream(buf_sz,rank);
     free(index_files);
     if(!new_rank) {

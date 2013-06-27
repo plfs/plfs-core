@@ -50,8 +50,8 @@ private:
     map<off_t, DataEntry> index_mapping;
     /**< Protected by ResourceUnit::item_lock */
 protected:
-    virtual int merge_object(void *entry, void *did);
-    virtual int init_data_source(void *resource, RecordReader **reader);
+    virtual plfs_error_t merge_object(void *entry, void *did);
+    virtual plfs_error_t init_data_source(void *resource, RecordReader **reader);
 public:
     SmallFileIndex(void *init_para);
     virtual ~SmallFileIndex();
@@ -64,9 +64,9 @@ public:
      *    this is a hole in the file. And if res.length == 0, we reach
      *    the EOF.
      *
-     * @return On success, 0 is returned, otherwise the error code is returned.
+     * @return On success, PLFS_SUCCESS is returned, otherwise the PLFS_E* is returned.
      */
-    int lookup(off_t logical_offset, DataEntry &res);
+    plfs_error_t lookup(off_t logical_offset, DataEntry &res);
     off_t get_filesize();
     void dump_mapping();
 };

@@ -9,29 +9,24 @@
 #include "plfs.h"
 #include "plfs_private.h"
 
-/* returns 0 or -err */
-int
+/* return PLFS_SUCCESS or PLFS_E* */
+plfs_error_t
 FileOp::op(const char *path, unsigned char type, IOStore *store)
 {
     // the parent function is just a wrapper to insert a debug message
-    int rv;
+    plfs_error_t rv;
     rv = this->do_op(path,type,store);
     if (this->ignores.find(rv) != this->ignores.end()) {
-        rv = 0;
+        rv = PLFS_SUCCESS;
     }
     mlog(FOP_DAPI, "FileOp:%s on %s: %d (%s)",name(),path,rv,
-         (rv == 0) ? "AOK" : strerror(-rv));
+            (rv == PLFS_SUCCESS) ? "AOK" : strplfserr(rv));
     return(rv);
 }
 
 void
-FileOp::ignoreErrno(int Errno)
+FileOp::ignoreErrno(plfs_error_t Errno)
 {
-    if (Errno > 0) {
-        mlog(FOP_CRIT, "FileOp:%s positive error %d used (corrected)",
-             this->name(), Errno);
-        Errno = -Errno;
-    }
     ignores.insert(Errno);
 }
 
@@ -52,8 +47,8 @@ bool checkMask(int mask,int value)
 // but now plfs_file_operation is doing that so this code isn't appropriate
 // in container.  really it should just be embedded in AccessOp::op() but
 // then I'd have to mess with indentation
-// return 0 or -err
-int Access( const string& path, IOStore *store, int mask )
+/* return PLFS_SUCCESS or PLFS_E* */
+plfs_error_t Access( const string& path, IOStore *store, int mask )
 {
     // there used to be some concern here that the accessfile might not
     // exist yet but the way containers are made ensures that an accessfile
@@ -61,12 +56,12 @@ int Access( const string& path, IOStore *store, int mask )
     // doing just Access is insufficient when plfs daemon run as root
     // root can access everything.  so, we must also try the open
     mode_t open_mode = 0;
-    int ret;
+    plfs_error_t ret;
     IOSHandle *fh;
     mlog(FOP_DAPI, "%s Check existence of %s", __FUNCTION__, path.c_str());
 
     ret = store->Access( path.c_str(), F_OK );
-    if ( ret == 0 ) {
+    if ( ret == PLFS_SUCCESS ) {
         bool mode_set=false;
         // at this point, we know the file exists
         if(checkMask(mask,W_OK|R_OK)) {
@@ -79,12 +74,12 @@ int Access( const string& path, IOStore *store, int mask )
             open_mode = O_WRONLY;
             mode_set=true;
         } else if(checkMask(mask,F_OK)) {
-            return mode_set;   // we already know this
+            return PLFS_SUCCESS;   // we already know this
         }
         assert(mode_set);
         mlog(FOP_DCOMMON, "The file exists attempting open");
-        fh = store->Open(path.c_str(),open_mode,ret);
-        mlog(FOP_DCOMMON, "Open %s: %s",path.c_str(),ret==0?"Success":strerror(-ret));
+        ret = store->Open(path.c_str(),open_mode,&fh);
+        mlog(FOP_DCOMMON, "Open %s: %s",path.c_str(),ret==PLFS_SUCCESS?"Success":strplfserr(ret));
         if (fh != NULL) {
             store->Close(fh);
         } // else, ret was set already
@@ -92,8 +87,8 @@ int Access( const string& path, IOStore *store, int mask )
     return ret;
 }
 
-/* ret 0 or -err */
-int
+/* return PLFS_SUCCESS or PLFS_E* */
+plfs_error_t
 AccessOp::do_op(const char *path, unsigned char isfile, IOStore *store)
 {
     if (isfile==DT_CONTAINER || isfile==DT_DIR || isfile==DT_LNK) {
@@ -101,7 +96,7 @@ AccessOp::do_op(const char *path, unsigned char isfile, IOStore *store)
     } else if (isfile==DT_REG) {
         return Access(path,store,mask);
     } else {
-        return -ENOSYS;    // what else could it be?
+        return PLFS_ENOSYS;    // what else could it be?
     }
 }
 
@@ -111,8 +106,8 @@ ChownOp::ChownOp(uid_t newu, gid_t newg)
     this->g = newg;
 }
 
-/* ret 0 or -err */
-int
+/* return PLFS_SUCCESS or PLFS_E* */
+plfs_error_t
 ChownOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store )
 {
     return store->Chown(path,u,g);
@@ -122,7 +117,7 @@ TruncateOp::TruncateOp(bool newopen_file)
 {
     this->open_file = newopen_file;
     // it's possible that we lost a race and some other proc already removed
-    ignoreErrno(-ENOENT);
+    ignoreErrno(PLFS_ENOENT);
 }
 
 // remember this is for truncate to offset 0 of a PLFS logical file
@@ -130,12 +125,12 @@ TruncateOp::TruncateOp(bool newopen_file)
 // on an open file, it truncates all the physical files.  This is because
 // on an open file, another sibling may have recently created a dropping so
 // don't delete
-// ret 0 or -err
-int
+/* return PLFS_SUCCESS or PLFS_E* */
+plfs_error_t
 TruncateOp::do_op(const char *path, unsigned char isfile, IOStore *store)
 {
     if (isfile != DT_REG) {
-        return 0;    // nothing to do for directories
+        return PLFS_SUCCESS;    // nothing to do for directories
     }
     // we get here it's a file.  But is it a file that we're ignoring?
     vector<string>::iterator itr;
@@ -145,7 +140,7 @@ TruncateOp::do_op(const char *path, unsigned char isfile, IOStore *store)
     // check if we ignore it
     for(itr=ignores.begin(); itr!=ignores.end(); itr++) {
         if (filename.compare(0,itr->length(),*itr)==0) {
-            return 0;
+            return PLFS_SUCCESS;
         }
     }
     // we made it here, we don't ignore it
@@ -163,8 +158,8 @@ TruncateOp::ignore(string path)
     ignores.push_back(path);
 }
 
-/* ret 0 or -err */
-int
+/* return PLFS_SUCCESS or PLFS_E* */
+plfs_error_t
 UnlinkOp::do_op(const char *path, unsigned char isfile, IOStore *store)
 {
     if (isfile==DT_REG || isfile==DT_LNK) {
@@ -172,11 +167,11 @@ UnlinkOp::do_op(const char *path, unsigned char isfile, IOStore *store)
     } else if (isfile==DT_DIR||isfile==DT_CONTAINER) {
         return store->Rmdir(path);
     } else {
-        return -ENOSYS;
+        return PLFS_ENOSYS;
     }
 }
 
-int
+plfs_error_t
 UnlinkOp::op_r(const char *path, unsigned char isfile, IOStore *store, bool d)
 {
     if (isfile==DT_REG || isfile==DT_LNK) {
@@ -185,17 +180,17 @@ UnlinkOp::op_r(const char *path, unsigned char isfile, IOStore *store, bool d)
         map<string, unsigned char> names;
         map<string, unsigned char>::iterator itr;
         ReaddirOp readdirop(&names, NULL, true, true);
-        int ret = 0;
+        plfs_error_t ret = PLFS_SUCCESS;
 
         readdirop.op(path, isfile, store);
         for (itr = names.begin(); itr != names.end(); itr++) {
             ret = op_r(itr->first.c_str(), itr->second, store, true);
-            if (ret) return ret;
+            if (ret != PLFS_SUCCESS) return ret;
         }
         if (d) ret = store->Rmdir(path);
         return ret;
     } else {
-        return -ENOSYS;
+        return PLFS_ENOSYS;
     }
 }
 
@@ -258,18 +253,18 @@ determine_type(IOStore *store, const char *path, char *d_name)
     return(DT_UNKNOWN);   /* XXX */
 }
 
-/* ret 0 or -err */
-int
+/* return PLFS_SUCCESS or PLFS_E* */
+plfs_error_t
 ReaddirOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
 {
-    int ret;
+    plfs_error_t ret;
     IOSDirHandle *dir;
     struct dirent entstore, *ent;
-    dir = store->Opendir(path,ret);
-    if (dir == NULL) {
+    ret = store->Opendir(path,&dir);
+    if (ret != PLFS_SUCCESS) {
         return ret;
     }
-    while ((ret = dir->Readdir_r(&entstore, &ent)) == 0 && ent != NULL) {
+    while ((ret = dir->Readdir_r(&entstore, &ent)) == PLFS_SUCCESS && ent != NULL) {
         if (skip_dots && (!strcmp(ent->d_name,".")||
                           !strcmp(ent->d_name,".."))) {
             continue;   // skip the dots
@@ -316,11 +311,11 @@ ReaddirOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
 //RmdirOp::do_op(const char *path, unsigned char /* isfile */ ) {
 //    return Util::Rmdir(path);
 //}
-/* ret 0 or -err */
-int
+/* return PLFS_SUCCESS or PLFS_E* */
+plfs_error_t
 CreateOp::do_op(const char *path, unsigned char isfile, IOStore *store)
 {
-    int ret = -ENOSYS; // just in case we somehow don't change
+    plfs_error_t ret = PLFS_ENOSYS; // just in case we somehow don't change
     switch(isfile) {
         case DT_DIR:
             ret = store->Mkdir(path,Container::dirMode(m));
@@ -343,8 +338,8 @@ ChmodOp::ChmodOp(mode_t newm)
     this->m = newm;
 }
 
-/* ret 0 or -err */
-int
+/* return PLFS_SUCCESS or PLFS_E* */
+plfs_error_t
 ChmodOp::do_op(const char *path, unsigned char isfile, IOStore *store)
 {
     mode_t this_mode;
@@ -367,8 +362,8 @@ UtimeOp::UtimeOp(struct utimbuf *newut)
     this->ut = newut;
 }
 
-/* ret 0 or -err */
-int
+/* return PLFS_SUCCESS or PLFS_E* */
+plfs_error_t
 UtimeOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
 {
     return store->Utime(path,ut);
@@ -377,7 +372,7 @@ UtimeOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
 RenameOp::RenameOp(struct plfs_physpathinfo *ppip_to)
 {
 
-    this->err = 0;
+    this->err = PLFS_SUCCESS;
     this->ret_val = generate_backpaths(ppip_to, this->dsts);
     this->size = this->dsts.size();
     /*
@@ -395,21 +390,21 @@ RenameOp::RenameOp(struct plfs_physpathinfo *ppip_to)
     this->indx = this->size-1;
 }
 
-/* ret 0 or -err */
-int
+/* return PLFS_SUCCESS or PLFS_E* */
+plfs_error_t
 RenameOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store )
 {
-    int ret;
+    plfs_error_t ret;
 
-    if (ret_val != 0 ) {
+    if (ret_val != PLFS_SUCCESS ) {
         err = ret_val;
     } else {
         /* path is "from" bpath, assumes ordering on stores. */
         ret = store->Rename(path, dsts[indx].bpath.c_str());
-        if (ret == -ENOENT) {
-            ret = 0;    // might not be distributed on all
+        if (ret == PLFS_ENOENT) {
+            ret = PLFS_SUCCESS;    // might not be distributed on all
         }
-        if (ret != 0) {
+        if (ret != PLFS_SUCCESS) {
             err = ret;
         }
         mlog(FOP_DCOMMON, "renamed %s to %s: %d",

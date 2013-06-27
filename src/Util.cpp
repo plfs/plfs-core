@@ -57,7 +57,7 @@ off_t total_ops = 0;
 #define EXIT_IO    return ret;
 #define EXIT_UTIL  return ret;
 #define ENTER_MUX  ENTER_UTIL;
-#define ENTER_PATH ENTER_UTIL;
+#define ENTER_PATH plfs_error_t ret = PLFS_SUCCESS; total_ops++;
 #else
 #define DEBUG_ENTER mss::mlog_oss oss(UT_DAPI);
 #define DEBUG_EXIT  LogMessage lm1;                             \
@@ -76,7 +76,7 @@ off_t total_ops = 0;
                         lm2.flush();                            \
                         ENTER_UTIL;
 
-#define ENTER_PATH   int ret = 0;                                \
+#define ENTER_PATH   plfs_error_t ret = PLFS_SUCCESS;                                \
                          LogMessage lm4;                             \
                          lm4 << "Util::" << setw(13) << __FUNCTION__ \
                              << " on "   << path << endl;            \
@@ -96,7 +96,7 @@ off_t total_ops = 0;
                         ENTER_SHARED;
 
 #define EXIT_SHARED DEBUG_EXIT;                                 \
-                        addTime( __FUNCTION__, end - begin, (ret<0) );       \
+                        addTime( __FUNCTION__, end - begin, (ret!=0) );       \
                         if ( end - begin > SLOW_UTIL ) {            \
                             LogMessage lm3;                         \
                             lm3 << "WTF: " << __FUNCTION__          \
@@ -123,9 +123,9 @@ off_t total_ops = 0;
  * @param dptr where we are currently processing (clean prior to this)
  * @param cpy0p put a pointer to the malloc'd buffer here
  * @param cpyp put a pointer to the end of the malloc'd buffer here
- * @return -error or 0 on success
+ * @return PLFS_E* or PLFS_SUCCESS on success
  */
-static int sanicopy(const char *dirty, const char *dptr,
+static plfs_error_t sanicopy(const char *dirty, const char *dptr,
                     char **cpy0p, char **cpyp) {
     int len;
     char *newb;
@@ -133,7 +133,7 @@ static int sanicopy(const char *dirty, const char *dptr,
     len = strlen(dirty)+1;    /* +1 for the trailing null */
     newb = (char *)malloc(len);
     if (!newb)
-        return(-ENOMEM);
+        return(PLFS_ENOMEM);
     *cpy0p = newb;
     if (dptr > dirty) {
         memcpy(newb, dirty, dptr - dirty);
@@ -141,7 +141,7 @@ static int sanicopy(const char *dirty, const char *dptr,
     } else {
         *cpyp = newb;
     }
-    return(0);
+    return(PLFS_SUCCESS);
 }
 
 
@@ -158,17 +158,19 @@ static int sanicopy(const char *dirty, const char *dptr,
  * @param dirty the user-supplied dirty path (we don't modify it)
  * @param cleanp pointer to clean buffer
  * @param forcecopy force us to copy the buffer even if it is clean
- * @return -error or 0 on success
+ * @return PLFS_E* or PLFS_SUCCESS on success
  */
-int Util::sanitize_path(const char *dirty, const char **clean, int forcecopy) {
+plfs_error_t
+Util::sanitize_path(const char *dirty, const char **clean, int forcecopy) {
 
-    int depth, rv, len, nchop, pad;
+    plfs_error_t rv = PLFS_SUCCESS;
+    int depth, len, nchop, pad;
     const char *base, *ptr;
     char *cpy0, *cpy, *cpyptr;
 
     /* quick check to verify it is an absolute path before possible malloc */
     if (*dirty != '/')
-        return(-EINVAL);
+        return(PLFS_EINVAL);
     
     depth = 0;
     base = ptr = dirty;
@@ -176,10 +178,10 @@ int Util::sanitize_path(const char *dirty, const char **clean, int forcecopy) {
 
     if (forcecopy) {
         rv = sanicopy(dirty, base, &cpy0, &cpy);
-        if (rv != 0)
+        if (rv != PLFS_SUCCESS)
             return(rv);    /* prob memory error */
     } else {
-        rv = 0;
+        rv = PLFS_SUCCESS;
     }
 
     /*
@@ -237,7 +239,7 @@ int Util::sanitize_path(const char *dirty, const char **clean, int forcecopy) {
                 cpyptr -= nchop;
             } else {
                 rv = sanicopy(dirty, ptr-nchop, &cpy0, &cpy);
-                if (rv != 0)
+                if (rv != PLFS_SUCCESS)
                     break;
                 cpyptr = cpy;
             }
@@ -255,7 +257,7 @@ int Util::sanitize_path(const char *dirty, const char **clean, int forcecopy) {
                 cpyptr -= nchop;
             } else {
                 rv = sanicopy(dirty, ptr-nchop, &cpy0, &cpy);
-                if (rv != 0)
+                if (rv != PLFS_SUCCESS)
                     break;
                 cpyptr = cpy;
             }
@@ -310,7 +312,7 @@ int Util::sanitize_path(const char *dirty, const char **clean, int forcecopy) {
     if (cpy)
         *cpy = 0;     /* null terminate the copy */
     
-    if (rv == 0) {
+    if (rv == PLFS_SUCCESS) {
         *clean = (cpy0) ? cpy0 : dirty;
     } else if (rv != 0 && cpy0 != NULL) {
         free(cpy0);
@@ -465,7 +467,7 @@ void Util::addBytes( string function, size_t size )
 
 // just reads through a directory and returns all descendants
 // useful for gathering the contents of a container
-int
+plfs_error_t
 Util::traverseDirectoryTree(const char *path, struct plfs_backend *back,
                             vector<plfs_pathback> &files,
                             vector<plfs_pathback> &dirs,
@@ -479,16 +481,16 @@ Util::traverseDirectoryTree(const char *path, struct plfs_backend *back,
     ReaddirOp rop(&entries,NULL,true,true);
     string resolved;
     ret = rop.op(path,DT_DIR, back->store);
-    if (ret==-ENOENT) {
-        return 0;    // no shadow or canonical on this backend: np.
+    if (ret==PLFS_ENOENT) {
+        return PLFS_SUCCESS;    // no shadow or canonical on this backend: np.
     }
-    if (ret!=0) {
+    if (ret!=PLFS_SUCCESS) {
         return ret;    // some other error is a problem
     }
     pb.bpath = path;
     pb.back = back;
     dirs.push_back(pb); // save the top dir
-    for(itr = entries.begin(); itr != entries.end() && ret==0; itr++) {
+    for(itr = entries.begin(); itr != entries.end() && ret==PLFS_SUCCESS; itr++) {
         if (itr->second == DT_DIR) {
             ret = traverseDirectoryTree(itr->first.c_str(),back,
                                         files,dirs,links);
@@ -500,7 +502,7 @@ Util::traverseDirectoryTree(const char *path, struct plfs_backend *back,
             //XXX: would be more efficient if we had mount point too
             ret = Container::resolveMetalink(itr->first, back, NULL,
                                              resolved, &metaback);
-            if (ret == 0) {
+            if (ret == PLFS_SUCCESS) {
                 ret = traverseDirectoryTree(resolved.c_str(), metaback,
                                             files,dirs,links);
             }
@@ -577,9 +579,9 @@ int Util::MutexUnlock( pthread_mutex_t *mux, const char *where )
 
 // Use most popular used read+write to copy file,
 // as map/sendfile/splice may fail on some system.
-// returns 0 or -err
-int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
-                    IOStore *toios)
+// return PLFS_SUCCESS or PLFS_E*
+plfs_error_t Util::CopyFile( const char *path, IOStore *pathios, const char *to,
+                             IOStore *toios)
 {
     ENTER_PATH;
     IOSHandle *fh_from, *fh_to;
@@ -589,36 +591,36 @@ int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
     struct stat sbuf;
     mode_t stored_mode;
     ret = pathios->Lstat(path, &sbuf);
-    if (ret < 0) {
+    if (ret != PLFS_SUCCESS) {
         goto out;
     }
-    ret = -1;
+    ret = PLFS_TBD;
     if (S_ISLNK(sbuf.st_mode)) { // copy a symbolic link.
         buf = (char *)calloc(1,PATH_MAX);
         if (!buf) {
             goto out;
         }
-        read_len = pathios->Readlink(path, buf, PATH_MAX);
-        if (read_len < 0) {
+        ret = pathios->Readlink(path, buf, PATH_MAX, &read_len);
+        if (ret != PLFS_SUCCESS) {
             goto out;
         }
         buf[read_len] = 0;
         ret = toios->Symlink(buf, to);
         goto out;
     }
-    fh_from = pathios->Open(path, O_RDONLY, ret);
-    if (fh_from == NULL) {
+    ret = pathios->Open(path, O_RDONLY, &fh_from);
+    if (ret != PLFS_SUCCESS) {
         goto out;
     }
     stored_mode = umask(0);
-    fh_to = toios->Open(to, O_WRONLY | O_CREAT, sbuf.st_mode, ret);
+    ret = toios->Open(to, O_WRONLY | O_CREAT, sbuf.st_mode, &fh_to);
     umask(stored_mode);
-    if (fh_to == NULL) {
+    if (ret != PLFS_SUCCESS) {
         pathios->Close(fh_from);
         goto out;
     }
     if (!sbuf.st_size) {
-        ret = 0;
+        ret = PLFS_SUCCESS;
         goto done;
     }
     buf_size = sbuf.st_blksize;
@@ -627,14 +629,18 @@ int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
         goto done;
     }
     copy_len = 0;
-    while ((read_len = fh_from->Read(buf, buf_size)) != 0) {
-        if (read_len < 0 && read_len != -EINTR) {
+    while ((ret = fh_from->Read(buf, buf_size, &read_len)) == PLFS_SUCCESS 
+            || ret == PLFS_EINTR) {
+        if (read_len == 0) {
             break;
         }
         if (read_len>0) {
             ptr = buf;
-            while ((write_len = fh_to->Write(ptr, read_len)) != 0) {
-                if (write_len < 0 && write_len != -EINTR) {
+            while ((ret = fh_to->Write(ptr, read_len, &write_len))) {
+                if (write_len == 0) {
+                    break;
+                }
+                if (ret != PLFS_SUCCESS && ret != PLFS_EINTR) {
                     goto done;
                 }
                 if (write_len==read_len) {
@@ -649,15 +655,15 @@ int Util::CopyFile( const char *path, IOStore *pathios, const char *to,
         }
     }
     if (copy_len==sbuf.st_size) {
-        ret = 0;
+        ret = PLFS_SUCCESS;
     }
-    if (ret < 0)
+    if (ret != PLFS_SUCCESS)
         mlog(UT_DCOMMON, "Util::CopyFile, copy from %s to %s, ret: %d, %s",
-             path, to, ret, strerror(-ret));
+             path, to, ret, strplfserr(ret));
 done:
     pathios->Close(fh_from);
     toios->Close(fh_to);
-    if (ret < 0) {
+    if (ret != PLFS_SUCCESS) {
         toios->Unlink(to);    // revert our change, delete the file created.
     }
 out:
@@ -673,14 +679,14 @@ out:
  * @param path path to create the file on in backend
  * @param mode mode for the create
  * @param store the store to create the file on
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E*
  */
-int Util::MakeFile( const char *path, mode_t mode, IOStore *store )
+plfs_error_t Util::MakeFile( const char *path, mode_t mode, IOStore *store )
 {
     ENTER_PATH;
     IOSHandle *hand;
-    hand = store->Creat( path, mode, ret );
-    if ( hand != NULL) {
+    ret = store->Creat( path, mode, &hand );
+    if ( ret == PLFS_SUCCESS ) {
         ret = store->Close( hand );
     } // else, err was already set in ret
     EXIT_UTIL;
@@ -696,11 +702,11 @@ bool Util::exists( const char *path, IOStore *store )
     ENTER_PATH;
     bool exists = false;
     struct stat buf;
-    if (store->Lstat(path, &buf) == 0) {
+    *(&ret) = PLFS_SUCCESS;    // suppress warning about unused variable
+    if (store->Lstat(path, &buf) == PLFS_SUCCESS) {
         exists = true;
     }
-    ret = exists;
-    EXIT_UTIL;
+    return exists;
 }
 
 bool Util::isDirectory( struct stat *buf )
@@ -713,20 +719,20 @@ bool Util::isDirectory( const char *path, IOStore *store)
     ENTER_PATH;
     bool exists = false;
     struct stat buf;
-    if ( store->Lstat( path, &buf ) == 0 ) {
+    *(&ret) = PLFS_SUCCESS;    // suppress warning about unused variable
+    if ( store->Lstat( path, &buf ) == PLFS_SUCCESS ) {
         exists = isDirectory( &buf );
     }
-    ret = exists;
-    EXIT_UTIL;
+    return exists;
 }
 
-int Util::Filesize(const char *path, IOStore *store)
+plfs_error_t Util::Filesize(const char *path, IOStore *store, int *ret_size)
 {
     ENTER_PATH;
     struct stat stbuf;
     ret = store->Stat(path,&stbuf);
-    if (ret==0) {
-        ret = (int)stbuf.st_size;
+    if (ret==PLFS_SUCCESS) {
+        *ret_size = (int)stbuf.st_size;
     }
     EXIT_UTIL;
 }
@@ -744,25 +750,28 @@ double Util::getTime( )
     return (double)time.tv_sec + time.tv_usec/1.e6;
 }
 
-// returns n or returns -err
-ssize_t Util::Writen(const void *vptr, size_t n, IOSHandle *hand)
+// @param bytes_writen retruns num of bytes
+// return PLFS_SUCCESS or PLFS_E*
+plfs_error_t Util::Writen(const void *vptr, size_t n, IOSHandle *hand,
+                          ssize_t *bytes_writen)
 {
-    ENTER_UTIL;
+    ENTER_PATH;
     size_t      nleft;
     ssize_t     nwritten;
     const char  *ptr;
     ptr = (const char *)vptr;
     nleft = n;
-    ret   = n;
+    *bytes_writen = n;
     while (nleft > 0) {
-        if ( (nwritten = hand->Write(ptr, nleft)) <= 0) {
-            if (nwritten < 0 && nwritten != -EINTR) {
-                ret = nwritten;   /* error! */
+        ret = hand->Write(ptr, nleft, &nwritten);
+        if (ret != PLFS_SUCCESS) {
+            if (ret != PLFS_EINTR) {
                 break;
             }
+        } else {
+            nleft -= nwritten;
+            ptr   += nwritten;
         }
-        nleft -= nwritten;
-        ptr   += nwritten;
     }
     EXIT_UTIL;
 }
@@ -881,7 +890,7 @@ gid_t Util::Getgid()
     EXIT_UTIL;
 }
 
-int Util::Setfsgid( gid_t g )
+plfs_error_t Util::Setfsgid( gid_t g, int *ret_gid)
 {
     ENTER_UTIL;
 #ifndef __APPLE__
@@ -889,10 +898,11 @@ int Util::Setfsgid( gid_t g )
     ret = setfsgid( g );
     mlog(UT_DCOMMON, "Set gid %d: %s", g, strerror(errno) ); /* error# ok */
 #endif
-    EXIT_UTIL;
+    *ret_gid = ret;
+    return (ret >= 0) ? PLFS_SUCCESS : PLFS_TBD;
 }
 
-int Util::Setfsuid( uid_t u )
+plfs_error_t Util::Setfsuid( uid_t u, int *ret_uid)
 {
     ENTER_UTIL;
 #ifndef __APPLE__
@@ -900,16 +910,19 @@ int Util::Setfsuid( uid_t u )
     ret = setfsuid( u );
     mlog(UT_DCOMMON, "Set uid %d: %s", u, strerror(errno) ); /* error# ok */
 #endif
-    EXIT_UTIL;
+    *ret_uid = ret;
+    return (ret >= 0) ? PLFS_SUCCESS : PLFS_TBD;
 }
 
-char *Util::hostname()
+plfs_error_t Util::hostname(char **ret_name)
 {
     static bool init = false;
     static char hname[128];
     if ( !init && gethostname(hname, sizeof(hname)) < 0) {
-        return NULL;
+        *ret_name = NULL;
+        return PLFS_TBD;
     }
     init = true;
-    return hname;
+    *ret_name =  hname;
+    return PLFS_SUCCESS;
 }

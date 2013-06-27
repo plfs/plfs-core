@@ -16,62 +16,63 @@ Container_fd::~Container_fd()
     return;
 }
 
-int
+plfs_error_t
 Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
                    mode_t mode, Plfs_open_opt *open_opt)
 {
     return container_open(&fd, ppip, flags, pid, mode, open_opt);
 }
 
-int
-Container_fd::close(pid_t pid, uid_t u, int flags, Plfs_close_opt *close_opt)
+plfs_error_t
+Container_fd::close(pid_t pid, uid_t u, int flags, Plfs_close_opt *close_opt, int *num_ref)
 {
-    return container_close(fd, pid, u, flags, close_opt);
+    return container_close(fd, pid, u, flags, close_opt, num_ref);
 }
 
-ssize_t
-Container_fd::read(char *buf, size_t size, off_t offset)
+plfs_error_t
+Container_fd::read(char *buf, size_t size, off_t offset, ssize_t *bytes_read)
 {
-    return container_read(fd, buf, size, offset);
+    return container_read(fd, buf, size, offset, bytes_read);
 }
 
-int
+plfs_error_t
 Container_fd::renamefd(struct plfs_physpathinfo *ppip_to) {
     return container_rename_open_file(fd,ppip_to);
 }
 
-ssize_t
-Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid)
+plfs_error_t
+Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
+                    ssize_t *bytes_written)
 {
-    return container_write(fd, buf, size, offset, pid);
+    return container_write(fd, buf, size, offset, pid, bytes_written);
 }
 
-int
+plfs_error_t
 Container_fd::sync()
 {
     return container_sync(fd);
 }
 
-int
+plfs_error_t
 Container_fd::sync(pid_t pid)
 {
     return container_sync(fd, pid);
 }
 
-int
+plfs_error_t
 Container_fd::trunc(off_t offset)
 {
     bool open_file = true; // Yes, I am an open file handle.
     return container_trunc(fd, NULL, offset, open_file);
 }
 
-int
+plfs_error_t
 Container_fd::getattr(struct stat *stbuf, int sz_only)
 {
     return container_getattr(fd, NULL, stbuf, sz_only);
 }
 
-int
+plfs_error_t
 Container_fd::query(size_t *writers, size_t *readers, size_t *bytes_written,
                     bool *reopen)
 {
@@ -96,7 +97,7 @@ Container_fd::setPath(string p, struct plfs_backend *b)
     fd->setPath(p,b);
 }
 
-int
+plfs_error_t
 Container_fd::compress_metadata(const char *path)
 {
     struct plfs_pathback container;
@@ -111,16 +112,15 @@ Container_fd::getPath()
     return fd->getPath();
 }
 
-int
+plfs_error_t
 Container_fd::getxattr(void *value, const char *key, size_t len) {
     XAttrs *xattrs;
     XAttr *xattr;
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
 
     xattrs = new XAttrs(getPath(), this->fd->getCanBack());
-    xattr = xattrs->getXAttr(string(key), len);
-    if (xattr == NULL) {
-        ret = 1;
+    ret = xattrs->getXAttr(string(key), len, &xattr);
+    if (ret != PLFS_SUCCESS) {
         return ret;
     }
 
@@ -131,21 +131,19 @@ Container_fd::getxattr(void *value, const char *key, size_t len) {
     return ret;
 }
 
-int
+plfs_error_t
 Container_fd::setxattr(const void *value, const char *key, size_t len) {
     stringstream sout;
     XAttrs *xattrs;
-    bool xret;
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
 
     mlog(PLFS_DBG, "In %s: Setting xattr - key: %s, value: %s\n", 
          __FUNCTION__, key, (char *)value);
     xattrs = new XAttrs(getPath(), this->fd->getCanBack());
-    xret = xattrs->setXAttr(string(key), value, len);
-    if (!xret) {
+    ret = xattrs->setXAttr(string(key), value, len);
+    if (ret != PLFS_SUCCESS) {
         mlog(PLFS_DBG, "In %s: Error writing upc object size\n", 
              __FUNCTION__);
-        ret = 1;
     }
 
     delete(xattrs);
