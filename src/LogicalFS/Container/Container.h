@@ -119,7 +119,9 @@ class Container
 
 
         static int prepareWriter(WriteFile *wf, pid_t pid, mode_t mode,
-                                 const string& logical);
+                                 const string& bnode, PlfsMount *mntpt,
+                                 const string& canbpath,
+                                 struct plfs_backend *canback);
         static int makeHostDir(const string& path, struct plfs_backend *b,
                                const string& host,
                                mode_t mode, parentStatus);

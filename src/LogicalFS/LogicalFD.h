@@ -10,7 +10,7 @@ class Plfs_fd
     public:
         // for use of flat_file.
         virtual ~Plfs_fd() = 0;
-        virtual int open(const char *filename, int flags, pid_t pid,
+        virtual int open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
                          mode_t mode, Plfs_open_opt *open_opt) = 0;
         virtual int close(pid_t, uid_t, int flags, Plfs_close_opt *) = 0;
         virtual ssize_t read(char *buf, size_t size, off_t offset) = 0;
@@ -18,27 +18,30 @@ class Plfs_fd
                               pid_t pid) = 0;
         virtual int sync() = 0;
         virtual int sync(pid_t pid) = 0;
-        virtual int trunc(const char *path, off_t offset) = 0;
-        virtual int getattr(const char *path, struct stat *stbuf,
-                            int sz_only) = 0;
+        virtual int trunc(off_t offset) = 0;
+        virtual int getattr(struct stat *stbuf, int sz_only) = 0;
         virtual int query(size_t *writers, size_t *readers,
                           size_t *bytes_written, bool *reopen) = 0;
         virtual bool is_good() = 0;
 
         // Functions leaked to FUSE and ADIO:
         virtual int incrementOpens(int amount) = 0;
+        /*XXXCDC: getPath/setPath... how are these fns used? */
         virtual void setPath( string p, struct plfs_backend *b ) = 0;
         virtual const char *getPath() = 0;
 
         // functions that all might not necessarily implement
+        // XXXCDC: PATH? -- SHOULD BE CACHED IN OBJECT?
         virtual int compress_metadata(const char *path) = 0;
-	virtual int getxattr(void *value, const char *key, size_t len) = 0;
-	virtual int setxattr(const void *value, const char *key, size_t len) = 0;
+        virtual int getxattr(void *value, const char *key, size_t len) = 0;
+        virtual int setxattr(const void *value, const char *key,
+                             size_t len) = 0;
 
         // a function called to rename an open file
         // the caller must also call the FS rename separately
-        virtual int rename(const char *path, struct plfs_backend *b) = 0;
-
+        // XXX: need this because we are caching paths in the Plfs_fd
+        // for open files, so we need a way to update the paths
+        virtual int renamefd(struct plfs_physpathinfo *ppip_to) = 0;
 };
 
 inline Plfs_fd::~Plfs_fd() {};

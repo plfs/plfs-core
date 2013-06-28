@@ -167,8 +167,6 @@ int adplfs_getPerm(ADIO_File fd)
 // Par index read stuff
 int adplfs_par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
                    int amode,int rank, void **global_index);
-// Fills in the bitmap structure
-int adplfs_num_host_dirs(int *hostdir_count,char *target);
 // Printer for the bitmap struct
 void adplfs_host_list_print(int line, Bitmap *bitmap);
 // Function to calculate the extra ranks
@@ -806,65 +804,6 @@ void adplfs_host_list_print(int line, Bitmap *bitmap)
             plfs_debug("Hostdir at position %d\n",count);
         }
     }
-}
-
-// Function that reads in the hostdirs and sets the bitmap
-// this function still works even with metalink stuff
-// probably though we should make an opaque function in
-// Container.cpp that encapsulates this....
-// returns -errno if the opendir fails
-// returns -EISDIR if it's actually a directory and not a file
-// returns a positive number otherwise as even an empty container
-// will have at least one hostdir
-// hmmm.  this function does a readdir.  be nice to move this into
-// library and use new readdirop class
-int
-adplfs_num_host_dirs(int *hostdir_count,char *target)
-{
-    // Directory reading variables
-    DIR *dirp;
-    struct dirent *dirent;
-    int isfile = 0;
-    *hostdir_count = 0;
-    // Open the directory and check value
-    if((dirp=opendir(target)) == NULL) {
-        plfs_debug("Num hostdir opendir error on %s\n",target);
-        *hostdir_count = -errno;
-        return *hostdir_count;
-    }
-    // Start reading the directory
-    while(dirent = readdir(dirp) ) {
-        // Look for entries that beging with hostdir
-        if(strncmp(HOSTDIRPREFIX,dirent->d_name,strlen(HOSTDIRPREFIX))==0) {
-            char *substr;
-            substr=strtok(dirent->d_name,".");
-            substr=strtok(NULL,".");
-            int index = atoi(substr);
-            if (index>=MAX_HOSTDIRS) {
-                fprintf(stderr,"Bad behavior in PLFS.  Too many subdirs.\n");
-                *hostdir_count = -ENOSYS;
-                return *hostdir_count;
-            }
-            plfs_debug("Added a hostdir for %d\n", index);
-            (*hostdir_count)++;
-            adplfs_setBit(index,bitmap);
-        } else if (strncmp(ACCESSFILE,dirent->d_name,strlen(ACCESSFILE))==0) {
-            isfile = 1;
-        }
-    }
-    // Close the dir error out if we have a problem
-    if (closedir(dirp) == -1 ) {
-        plfs_debug("Num hostdir closedir error on %s\n",target);
-        *hostdir_count = -errno;
-        return *hostdir_count;
-    }
-    BITMAP_PRINT;
-    plfs_debug("%s of %s isfile %d hostdirs %d\n",
-               __FUNCTION__,target,isfile,*hostdir_count);
-    if (!isfile) {
-        *hostdir_count = -EISDIR;
-    }
-    return *hostdir_count;
 }
 
 // Calculates the number of ranks per communication group

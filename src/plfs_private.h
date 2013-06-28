@@ -9,65 +9,40 @@ using namespace std;
 
 #define SVNVERS $Rev$
 
-// some functions require that the path passed be a PLFS path
-// some (like symlink) don't
-enum
-requirePlfsPath {
-    PLFS_PATH_REQUIRED,
-    PLFS_PATH_NOTREQUIRED,
+/**
+ * plfs_pathinfo: the upper-level PLFS code uses this structure to cache
+ * the results of translating a logical path into a physical path (e.g.
+ * through the mount table in the PlfsConf).   we do one translation at
+ * the beginning of the operation and never have to do it again (old code
+ * used to pass around the logical path and repeatedly resolve it).
+ */
+struct plfs_physpathinfo {
+
+    /* these fields are set by generic plfs_resolvepath() code */
+    string bnode;         /* logical path with the mountpoint removed */
+    const char *filename; /* points to last part of the bnode */
+    PlfsMount *mnt_pt;    /* mount point, includes ptr to our logical fs */
+
+    /* these fields are set and used by the logical fs (only) */
+    struct plfs_backend *canback;   /* canonical backend */
+    string canbpath;                /* path on canonical backend */
 };
 
-enum
-expansionMethod {
-    EXPAND_CANONICAL,
-    EXPAND_SHADOW,
-    EXPAND_TO_I,
-};
+int find_best_mount_point(const char *cleanlogical, PlfsMount **mpp,
+                          int *mlen);
 
-#define PLFS_ENTER PLFS_ENTER2(PLFS_PATH_REQUIRED)
-
-#define PLFS_ENTER2(X) \
- int ret = 0;\
- ExpansionInfo expansion_info; \
- plfs_conditional_init(); \
- string path = expandPath(logical,&expansion_info,EXPAND_CANONICAL,-1,0); \
- mlog(INT_DAPI, "EXPAND in %s: %s->%s",__FUNCTION__,logical,path.c_str()); \
- if (expansion_info.expand_error && X==PLFS_PATH_REQUIRED) { \
-     PLFS_EXIT(-ENOENT); \
- } \
- if (expansion_info.Errno && X==PLFS_PATH_REQUIRED) { \
-     PLFS_EXIT(expansion_info.Errno); \
- }
-
-#define PLFS_EXIT(X) return(X);
-
-typedef struct ExpansionInfo {
-    bool is_mnt_pt;
-    bool expand_error;
-    PlfsMount *mnt_pt;
-    int Errno;  // don't want to shadow the global var
-    string expanded;
-    struct plfs_backend *backend;
-} ExpansionInfo;
-
-PlfsMount *find_mount_point(PlfsConf *pconf, const string& path, bool& found);
-PlfsMount *find_mount_point_using_tokens(PlfsConf *, vector <string> &, bool&);
-int find_all_expansions(const char *logical,vector<plfs_pathback> &containers);
+int generate_backpaths(struct plfs_physpathinfo *ppip,
+                       vector<plfs_pathback> &containers);
 
 // a helper function that expands %t, %p, %h in mlog file name
 string expand_macros(const char *target);
 
-string stripPrefixPath(string *path);
-void stripPrefixPath(const char *path, char *stripped_path);
-string expandPath(string logical, ExpansionInfo *exp_info,
-                  expansionMethod hash_method, int which_backend, int depth);
+const char *skipPrefixPath(const char *path);
+
 int mkdir_dash_p(const string& path, bool parent_only, IOStore *);
-int recover_directory(const char *logical, bool parent_only);
 
-int plfs_iterate_backends(const char *logical, FileOp& op);
-
-const string& get_backend(const ExpansionInfo& exp);
-const string& get_backend(const ExpansionInfo& exp, size_t which);
+int plfs_backends_op(struct plfs_physpathinfo *ppip, FileOp& op);
+int plfs_resolvepath(const char *logical, struct plfs_physpathinfo *ppip);
 
 /* plfs_init
     it just warms up the plfs structures used in expandPath

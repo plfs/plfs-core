@@ -374,13 +374,24 @@ UtimeOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store)
     return store->Utime(path,ut);
 }
 
-RenameOp::RenameOp(const char *dest)
+RenameOp::RenameOp(struct plfs_physpathinfo *ppip_to)
 {
 
-    this->to = dest;
     this->err = 0;
-    this->ret_val = find_all_expansions(this->to, this->dsts);
+    this->ret_val = generate_backpaths(ppip_to, this->dsts);
     this->size = this->dsts.size();
+    /*
+     * generate_backpaths is going to take the bnode from ppip_to and
+     * apply it to all backends to generate a bpath for each
+     * one... these get stored in dsts (paths we are moving to).  then
+     * the caller will send in the source bpaths.
+     *
+     * note: this assumes that the order in dsts is going to match
+     * the order used by the caller (plfs_flatfile_operation is
+     * the only thing that uses RenameOp).  that function uses
+     * a reverse_iterator, so this starts indx and size-1 and
+     * works backwards.
+     */
     this->indx = this->size-1;
 }
 
@@ -393,6 +404,7 @@ RenameOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store )
     if (ret_val != 0 ) {
         err = ret_val;
     } else {
+        /* path is "from" bpath, assumes ordering on stores. */
         ret = store->Rename(path, dsts[indx].bpath.c_str());
         if (ret == -ENOENT) {
             ret = 0;    // might not be distributed on all
@@ -401,7 +413,7 @@ RenameOp::do_op(const char *path, unsigned char /* isfile */, IOStore *store )
             err = ret;
         }
         mlog(FOP_DCOMMON, "renamed %s to %s: %d",
-        path,to, err);
+             path, dsts[indx].bpath.c_str(), err);
         indx--;
     }
     return err;

@@ -1,4 +1,5 @@
 #include "plfs.h"
+#include "plfs_private.h"
 #include "ContainerFD.h"
 #include "container_internals.h"
 #include "XAttrs.h"
@@ -16,10 +17,10 @@ Container_fd::~Container_fd()
 }
 
 int
-Container_fd::open(const char *filename, int flags, pid_t pid,
+Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
                    mode_t mode, Plfs_open_opt *open_opt)
 {
-    return container_open(&fd, filename, flags, pid, mode, open_opt);
+    return container_open(&fd, ppip, flags, pid, mode, open_opt);
 }
 
 int
@@ -35,8 +36,8 @@ Container_fd::read(char *buf, size_t size, off_t offset)
 }
 
 int
-Container_fd::rename(const char *path, struct plfs_backend *b) {
-    return container_rename_open_file(fd,path,b);
+Container_fd::renamefd(struct plfs_physpathinfo *ppip_to) {
+    return container_rename_open_file(fd,ppip_to);
 }
 
 ssize_t
@@ -58,16 +59,16 @@ Container_fd::sync(pid_t pid)
 }
 
 int
-Container_fd::trunc(const char *path, off_t offset)
+Container_fd::trunc(off_t offset)
 {
     bool open_file = true; // Yes, I am an open file handle.
-    return container_trunc(fd, path, offset, open_file);
+    return container_trunc(fd, NULL, offset, open_file);
 }
 
 int
-Container_fd::getattr(const char *path, struct stat *stbuf, int sz_only)
+Container_fd::getattr(struct stat *stbuf, int sz_only)
 {
-    return container_getattr(fd, path, stbuf, sz_only);
+    return container_getattr(fd, NULL, stbuf, sz_only);
 }
 
 int
@@ -98,7 +99,10 @@ Container_fd::setPath(string p, struct plfs_backend *b)
 int
 Container_fd::compress_metadata(const char *path)
 {
-    return container_flatten_index(fd, path);
+    struct plfs_pathback container;
+    container.bpath = fd->getPath();
+    container.back = fd->getCanBack();
+    return container_flatten_index(fd, &container);
 }
 
 const char *

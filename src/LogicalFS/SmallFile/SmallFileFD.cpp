@@ -3,13 +3,13 @@
 #include <SmallFileIndex.hxx>
 
 int
-Small_fd::open(const char * /* filename */, int flags, pid_t pid,
+Small_fd::open(struct plfs_physpathinfo * /* ppip */, int flags, pid_t pid,
                mode_t /* mode */, Plfs_open_opt * /* open_opt */)
 {
     refs++;
     open_flags = flags & 0xf;
     open_by_pid = pid;
-    if (flags & O_TRUNC) trunc(NULL, 0);
+    if (flags & O_TRUNC) trunc(0);
     return 0;
 }
 
@@ -32,7 +32,7 @@ Small_fd::read(char *buf, size_t size, off_t offset)
 }
 
 int
-Small_fd::rename(const char * /* path */, struct plfs_backend * /* back */) {
+Small_fd::renamefd(struct plfs_physpathinfo * /* ppip_to */) {
     return 0;
 }
 
@@ -76,7 +76,7 @@ Small_fd::sync(pid_t /* pid */)
 }
 
 int
-Small_fd::trunc(const char * /* path */, off_t offset)
+Small_fd::trunc(off_t offset)
 {
     int ret;
     if (open_flags == O_WRONLY || open_flags == O_RDWR) {
@@ -95,7 +95,7 @@ Small_fd::trunc(const char * /* path */, off_t offset)
 }
 
 int
-Small_fd::getattr(const char * /* path */, struct stat *stbuf, int sz_only)
+Small_fd::getattr(struct stat *stbuf, int sz_only)
 {
     IndexPtr temp_indexes;
     int ret;

@@ -39,6 +39,24 @@ bool cache_index_on_rdwr = false;   // DO NOT change to true!!!!
 
 ssize_t plfs_reference_count( Container_OpenFile * );
 
+/**
+ * is_container_file: simple API conversion fn
+ *
+ * @param ppip physical path info for the file we are testing
+ * @param mode pointer to the mode to fill in (out)
+ * @return 0 or 1
+ */
+static int
+is_container_file(struct plfs_physpathinfo *ppip, mode_t *mode)
+{
+    int ret;
+    struct plfs_pathback pb;
+    pb.bpath = ppip->canbpath;
+    pb.back = ppip->canback;
+    ret = (Container::isContainer(&pb,mode)) ? 1 : 0;
+    return(ret);
+}
+
 size_t container_gethostdir_id(char *hostname)
 {
     return Container::getHostDirId(hostname);
@@ -56,15 +74,25 @@ container_dump_index_size()
 }
  */
 
+/*
+ * XXXCDC: this is a top-level function that doesn't appear to be used.
+ * it bypasses the LogicalFS layer...
+ */
 // returns 0 or -err
 int
-container_dump_index( FILE *fp, const char *logical, int compress, 
+container_dump_index( FILE *fp, const char *logicalpath, int compress, 
         int uniform_restart, pid_t uniform_restart_rank )
 {
-    PLFS_ENTER;
-    Index index(path, expansion_info.backend);
+    int ret = 0;
+    struct plfs_physpathinfo ppi;
+    ret = plfs_resolvepath(logicalpath, &ppi);
+    if (ret) {
+        return(ret);
+    }
+        
+    Index index(ppi.canbpath, ppi.canback);
     ret = Container::populateIndex(
-            path,expansion_info.backend,&index,true,uniform_restart,
+            ppi.canbpath,ppi.canback,&index,true,uniform_restart,
             uniform_restart_rank);
     if ( ret == 0 ) {
         if (compress) {
@@ -74,82 +102,115 @@ container_dump_index( FILE *fp, const char *logical, int compress,
         oss << index;
         fprintf(fp,"%s",oss.str().c_str());
     }
-    PLFS_EXIT(ret);
+    return(ret);
 }
 
-// should be called with a logical path and already_expanded false
-// or called with a physical path and already_expanded true
-// returns 0 or -err
+/**
+ * container_flatten_index: flatten index into a single global index file
+ *
+ * @param pfd if the file is already open (pfd!=NULL), use index from here
+ * @param container physical location of container file to flatten
+ * @return 0 or -err
+ */
 int
-container_flatten_index(Container_OpenFile *pfd, const char *logical)
+container_flatten_index(Container_OpenFile *pfd,
+                        struct plfs_pathback *container)
 {
-    PLFS_ENTER;
+    int ret = 0;
     Index *index;
     bool newly_created = false;
     if ( pfd && pfd->getIndex() ) {
         index = pfd->getIndex();
     } else {
-        index = new Index( path, expansion_info.backend );
+        index = new Index(container->bpath, container->back);
         newly_created = true;
         // before we populate, need to blow away any old one
-        ret = Container::populateIndex(path,expansion_info.backend,
+        ret = Container::populateIndex(container->bpath, container->back,
                 index,false,false,0);
         /* XXXCDC: why are we ignoring return value of populateIndex? */
     }
-    if (is_container_file(logical,NULL)) {
-        ret = Container::flattenIndex(path,expansion_info.backend,index);
+    if (Container::isContainer(container, NULL)) {
+        ret = Container::flattenIndex(container->bpath, container->back,
+                                      index);
     } else {
         ret = -EBADF; // not sure here.  Maybe return SUCCESS?
     }
     if (newly_created) {
         delete index;
     }
-    PLFS_EXIT(ret);
+    return(ret);
 }
 
-// this is a helper routine that takes a logical path and figures out a
-// bunch of derived paths from it
-int
-findContainerPaths(const string& logical, ContainerPaths& paths)
-{
-    ExpansionInfo exp_info;
+/**
+ * findContainerPaths: generates a bunch of derived paths from a bnode
+ * and PlfsMount
+ *
+ * @param bnode path within the backend mount of container
+ * @param pmnt top-level mountpoint
+ * @param canbpath canonical container path
+ * @param canback canonical backend
+ * @param paths resulting paths are placed here
+ * @return 0 or -err
+ */
+static int
+findContainerPaths(const string& bnode, PlfsMount *pmnt,
+                   const string& canbpath, struct plfs_backend *canback,
+                   ContainerPaths& paths) {
+    /*
+     * example: logical file = /m/plfs/dir/file, mount point=/m/plfs,
+     *          backends =/m/pan34, /m/pan23
+     *
+     * bnode = /dir/file
+     * shadow = /m/pan34/dir/file
+     * canonical = /m/pan23/dir/file
+     * hostdir = hostdir.31  [ NOT USED ]
+     * shadow_hostdir = shadow/hostdir = /m/pan34/dir/file/hostdir.31
+     * canonical_hostdir = canonical/hostdir = /m/pan23/dir/file/hostdir.31
+     * shadow_backend = /m/pan34
+     * canonical_backend = /m/pan23
+     *
+     * XXX: this used to take a logical path and do the expansions
+     * here, but now we take advantaged of the cached expansions that
+     * the caller should have access to via plfs_physpathinfo.
+     */
     char *hostname = Util::hostname();
-    // set up our paths.  expansion errors shouldn't happen but check anyway
-    // set up shadow first
-    paths.shadow = expandPath(logical,&exp_info,EXPAND_SHADOW,-1,0);
-    if (exp_info.Errno) {
-        return (exp_info.Errno);
-    }
+    int hash_val;
+
+    hash_val = (Container::hashValue(hostname) % pmnt->nshadowback);
+    paths.shadowback = pmnt->shadow_backends[hash_val];
+    paths.shadow_backend = paths.shadowback->bmpoint;
+    paths.shadow = paths.shadow_backend + "/" + bnode;
     paths.shadow_hostdir = Container::getHostDirPath(paths.shadow,hostname,
                            PERM_SUBDIR);
+    
+    /* XXX: not used? */
     paths.hostdir=paths.shadow_hostdir.substr(paths.shadow.size(),string::npos);
-    paths.shadow_backend = get_backend(exp_info);
-    paths.shadowback = exp_info.backend;
-    // now set up canonical
-    paths.canonical = expandPath(logical,&exp_info,EXPAND_CANONICAL,-1,0);
-    if (exp_info.Errno) {
-        return (exp_info.Errno);
-    }
-    paths.canonical_backend = get_backend(exp_info);
-    paths.canonical_hostdir=Container::getHostDirPath(paths.canonical,hostname,
-                            PERM_SUBDIR);
-    paths.canonicalback = exp_info.backend;
-    return 0;  // no expansion errors.  All paths derived and returned
+
+    paths.canonicalback = canback;
+    paths.canonical_backend = paths.canonicalback->bmpoint;
+    paths.canonical = canbpath;
+    /* canbpath == paths.canonical_backend + "/" + bnode */
+    paths.canonical_hostdir=Container::getHostDirPath(paths.canonical,
+                                                      hostname, PERM_SUBDIR);
+    string canonical_hostdir; // full path to the canonical hostdir
+    return(0);
 }
 
 // some callers pass O_TRUNC in the flags and expect this code to do a truncate
 // it does, so it's all good.  But just be careful to make sure that this code
 // continues to also do a truncate (actually done in Container::create
 int
-container_create( const char *logical, mode_t mode, int flags, pid_t pid )
+container_create(struct plfs_physpathinfo *ppip, mode_t mode, int flags,
+                 pid_t pid )
 {
-    PLFS_ENTER;
+    int ret = 0;
     // for some reason, the ad_plfs_open that calls this passes a mode
     // that fails the S_ISREG check... change to just check for fifo
     //if (!S_ISREG(mode)) {  // e.g. mkfifo might need to be handled differently
     if (S_ISFIFO(mode)) {
-        mlog(PLFS_DRARE, "%s on non-regular file %s?",__FUNCTION__, logical);
-        PLFS_EXIT(-ENOSYS);
+        mlog(PLFS_DRARE, "%s on non-regular file %s?",__FUNCTION__,
+             ppip->bnode.c_str());
+        return(-ENOSYS);
     }
     // ok.  For instances in which we ALWAYS want shadow containers such
     // as we have a canonical location which is remote and slow and we want
@@ -159,14 +220,15 @@ container_create( const char *logical, mode_t mode, int flags, pid_t pid )
     // that the subdir doesn't exist and they'll set up the shadow and the
     // metalink at that time
     bool lazy_subdir = false;
-    if (expansion_info.mnt_pt->shadowspec != NULL) {
+    if (ppip->mnt_pt->shadowspec != NULL) {
         // ok, user has explicitly set a set of shadow_backends
         // this suggests that the user wants the subdir somewhere else
         // beside the canonical location.  Let's double check though.
         ContainerPaths paths;
-        ret = findContainerPaths(logical,paths);
+        ret = findContainerPaths(ppip->bnode, ppip->mnt_pt,
+                                 ppip->canbpath, ppip->canback, paths);
         if (ret!=0) {
-            PLFS_EXIT(ret);
+            return(ret);
         }
         lazy_subdir = !(paths.shadow==paths.canonical);
         mlog(INT_DCOMMON, "Due to explicit shadow_backends directive, setting "
@@ -175,11 +237,11 @@ container_create( const char *logical, mode_t mode, int flags, pid_t pid )
              (lazy_subdir?"lazily":"eagerly"));
     }
     int attempt = 0;
-    ret =  Container::create(path,expansion_info.backend,
+    ret =  Container::create(ppip->canbpath,ppip->canback,
                              Util::hostname(),mode,flags,
-                             &attempt,pid,expansion_info.mnt_pt->checksum,
+                             &attempt,pid,ppip->mnt_pt->checksum,
                              lazy_subdir);
-    PLFS_EXIT(ret);
+    return(ret);
 }
 
 // this code is where the magic lives to get the distributed hashing
@@ -189,8 +251,9 @@ container_create( const char *logical, mode_t mode, int flags, pid_t pid )
 // into the canonical_container
 // returns number of current writers sharing the WriteFile * or -err
 int
-addPrepareWriter( WriteFile *wf, pid_t pid, mode_t mode,
-                  const string& logical, bool for_open, bool defer_open )
+addPrepareWriter( WriteFile *wf, pid_t pid, mode_t mode, bool for_open,
+                  bool defer_open, const string &bnode, PlfsMount *mntpt,
+                  const string &canbpath, struct plfs_backend *canback)
 {
     int ret, writers;
 
@@ -228,9 +291,9 @@ addPrepareWriter( WriteFile *wf, pid_t pid, mode_t mode,
         bool use_metalink = false;
         // discover all physical paths from logical one
         ContainerPaths paths;
-        ret = findContainerPaths(logical,paths);
+        ret = findContainerPaths(bnode, mntpt, canbpath, canback, paths);
         if (ret!=0) {
-            PLFS_EXIT(ret);
+            return(ret);
         }
         struct plfs_backend *newback;
         ret=Container::makeHostDir(paths, mode, PARENT_ABSENT,
@@ -254,21 +317,25 @@ addPrepareWriter( WriteFile *wf, pid_t pid, mode_t mode,
     if ( ret == 0 ) {
         ret = writers;
     }
-    PLFS_EXIT(ret);
+    return(ret);
 }
 
 int
-container_prepare_writer( WriteFile *wf, pid_t pid, mode_t mode,
-                          const string& logical )
+container_prepare_writer(WriteFile *wf, pid_t pid, mode_t mode,
+                         const string &bnode, PlfsMount *mntpt,
+                         const string &canbpath, struct plfs_backend *canback)
 {
-    return addPrepareWriter( wf, pid, mode, logical, false, false );
+    return addPrepareWriter( wf, pid, mode, false, false, bnode, mntpt,
+                             canbpath, canback);
 }
 
-int
-openAddWriter( WriteFile *wf, pid_t pid, mode_t mode, string logical,
-               bool defer_open )
+static int
+openAddWriter( WriteFile *wf, pid_t pid, mode_t mode, 
+               bool defer_open,  const string &bnode, PlfsMount *mntpt,
+               const string &canbpath, struct plfs_backend *canback )
 {
-    return addPrepareWriter( wf, pid, mode, logical, true, defer_open );
+    return addPrepareWriter( wf, pid, mode, true, defer_open, bnode,
+                             mntpt, canbpath, canback);
 }
 
 int
@@ -295,22 +362,23 @@ isReader( int flags )
     return ret;
 }
 
-// takes a logical path for a logical file and returns every physical component
+// takes a plfs_physpathinfo and returns every physical component
 // comprising that file (canonical/shadow containers, subdirs, data files, etc)
 // may not be efficient since it checks every backend and probably some backends
 // won't exist.  Will be better to make this just go through canonical and find
 // everything that way.
 // returns 0 or -err
-int
-plfs_collect_from_containers(const char *logical, vector<plfs_pathback> &files,
+static int
+plfs_collect_from_containers(struct plfs_physpathinfo *ppip,
+                             vector<plfs_pathback> &files,
                              vector<plfs_pathback> &dirs,
                              vector<plfs_pathback> &links)
 {
-    PLFS_ENTER;
+    int ret = 0;
     vector<plfs_pathback> possible_containers;
-    ret = find_all_expansions(logical,possible_containers);
+    ret = generate_backpaths(ppip, possible_containers);
     if (ret!=0) {
-        PLFS_EXIT(ret);
+        return(ret);
     }
     vector<plfs_pathback>::iterator itr;
     for(itr=possible_containers.begin();
@@ -322,22 +390,25 @@ plfs_collect_from_containers(const char *logical, vector<plfs_pathback> &files,
             break;
         }
     }
-    PLFS_EXIT(ret);
+    return(ret);
 }
 
-// this function is shared by chmod/utime/chown maybe others
-// anything that needs to operate on possibly a lot of items
-// either on a bunch of dirs across the backends
-// or on a bunch of entries within a container
-// Be careful.  This performs a stat.  Do not use
-// for performance critical operations.  If needed,
-// then you'll have to figure out how to cheaply pass
-// the mode_t in
-// returns 0 or -err
-int
-plfs_file_operation(const char *logical, FileOp& op)
+/**
+ * plfs_file_operation: this function is shared by
+ * chmod/utime/chown/etc.  anything that needs to operate on possibly
+ * a lot of items either on a bunch of dirs across the backends or on
+ * a bunch of entries within a container Be careful.  This performs a
+ * stat.  Do not use for performance critical operations.  If needed,
+ * then you'll have to figure out how to cheaply pass the mode_t in
+ *
+ * @param ppip the phyiscal path we are working with
+ * @param op the FileOp operation we are going to perform
+ * @return 0 or -err
+ */
+static int
+plfs_file_operation(struct plfs_physpathinfo *ppip, FileOp& op)
 {
-    PLFS_ENTER;
+    int ret = 0;
     vector<plfs_pathback> files, dirs, links;
     string accessfile;
     struct plfs_pathback pb;
@@ -349,26 +420,28 @@ plfs_file_operation(const char *logical, FileOp& op)
     // if it's a directory, then we operate on all backend copies
     // else just operate on whatever it is (ENOENT, symlink)
     mode_t mode = 0;
-    ret = is_container_file(logical,&mode);
+    /* seems like we ignore the 'ret' return value, and just use 'mode' */
+    ret = is_container_file(ppip, &mode);
     bool is_container = false; // differentiate btwn logical dir and container
+
     if (S_ISREG(mode)) { // it's a PLFS file
         if (op.onlyAccessFile()) {
-            pb.bpath = Container::getAccessFilePath(path);
-            pb.back = expansion_info.backend;
+            pb.bpath = Container::getAccessFilePath(ppip->canbpath);
+            pb.back = ppip->canback;
             files.push_back(pb);
             ret = 0;    // ret was one from is_container_file
         } else {
             // everything
             is_container = true;
-            accessfile = Container::getAccessFilePath(path);
-            ret = plfs_collect_from_containers(logical,files,dirs,links);
+            accessfile = Container::getAccessFilePath(ppip->canbpath);
+            ret = plfs_collect_from_containers(ppip,files,dirs,links);
         }
     } else if (S_ISDIR(mode)) { // need to iterate across dirs
-        ret = find_all_expansions(logical,dirs);
+        ret = generate_backpaths(ppip, dirs);
     } else {
         // ENOENT, a symlink, somehow a flat file in here
-        pb.bpath = path;
-        pb.back = expansion_info.backend;
+        pb.bpath = ppip->canbpath;
+        pb.back = ppip->canback;
         files.push_back(pb);  // we might want to reset ret to 0 here
     }
     // now apply the operation to each operand so long as ret==0.  dirs must be
@@ -394,9 +467,9 @@ plfs_file_operation(const char *logical, FileOp& op)
         op.op(ritr->bpath.c_str(),DT_LNK,ritr->back->store);
     }
     for(ritr = dirs.rbegin(); ritr != dirs.rend() && ret == 0; ++ritr) {
-        if (is_container && ritr->bpath == path) {
+        if (is_container && ritr->bpath == ppip->canbpath) {
             mlog(INT_DCOMMON, "%s skipping canonical top directory%s",
-                              __FUNCTION__, path.c_str());
+                              __FUNCTION__, ppip->canbpath.c_str());
             continue;
         }
         ret = op.op(ritr->bpath.c_str(),
@@ -406,35 +479,24 @@ plfs_file_operation(const char *logical, FileOp& op)
     if (is_container) {
         mlog(INT_DCOMMON, "%s processing access file and canonical top dir",
                           __FUNCTION__);
-        ret = op.op(accessfile.c_str(),DT_REG,expansion_info.backend->store);
+        ret = op.op(accessfile.c_str(), DT_REG, ppip->canback->store);
         if (ret == 0)
-            ret = op.op(path.c_str(),DT_CONTAINER,
-                        expansion_info.backend->store);
+            ret = op.op(ppip->canbpath.c_str(), DT_CONTAINER,
+                        ppip->canback->store);
     }
     mlog(INT_DAPI, "%s: ret %d", __FUNCTION__,ret);
-    PLFS_EXIT(ret);
+    return(ret);
 }
 
 // this requires that the supplementary groups for the user are set
 int
-container_chown( const char *logical, uid_t u, gid_t g )
+container_chown(struct plfs_physpathinfo *ppip, uid_t u, gid_t g )
 {
-    PLFS_ENTER;
-    ChownOp op(u,g);
+    int ret = 0;
+    ChownOp op(u, g);
     op.ignoreErrno(-ENOENT); // see comment in container_utime
-    ret = plfs_file_operation(logical,op);
-    PLFS_EXIT(ret);
-}
-
-int
-is_container_file( const char *logical, mode_t *mode )
-{
-    PLFS_ENTER;
-    struct plfs_pathback pb;
-    pb.bpath = path;
-    pb.back = expansion_info.backend;
-    ret = Container::isContainer(&pb,mode);
-    PLFS_EXIT(ret);
+    ret = plfs_file_operation(ppip, op);
+    return(ret);
 }
 
 /*
@@ -452,54 +514,40 @@ container_serious_error(const char *msg,pid_t pid )
  */
 
 int
-container_chmod( const char *logical, mode_t mode )
+container_chmod(struct plfs_physpathinfo *ppip, mode_t mode)
 {
-    PLFS_ENTER;
+    int ret = 0;
     ChmodOp op(mode);
-    ret = plfs_file_operation(logical,op);
-    PLFS_EXIT(ret);
+    ret = plfs_file_operation(ppip, op);
+    return(ret);
 }
 
 int
-container_access( const char *logical, int mask )
+container_access(struct plfs_physpathinfo *ppip, int mask )
 {
-    // possible they are using container_access to check non-plfs file....
-    PLFS_ENTER2(PLFS_PATH_NOTREQUIRED);
-    if (expansion_info.expand_error) {
-        /*
-         * XXXCDC: can this really happen?  and if it does how would you
-         * know what backend to use since the expand failed?  doesn't
-         * make sense to call access on a logical path....
-         */
-        mlog(MLOG_CRIT, "container_access on bad file %s", logical);
-        /*  ret = Util::Access(logical,mask); */
-        ret = -EIO;
-    } else {
-        // oh look.  someone here is using PLFS for its intended purpose to
-        // access an actual PLFS entry.  And look, it's so easy to handle!
-        AccessOp op(mask);
-        ret = plfs_file_operation(logical,op);
-    }
-    PLFS_EXIT(ret);
+    int ret = 0;
+    AccessOp op(mask);
+    ret = plfs_file_operation(ppip, op);
+    return(ret);
 }
 
 // returns 0 or -err
-int container_statvfs( const char *logical, struct statvfs *stbuf )
+int container_statvfs(struct plfs_physpathinfo *ppip, struct statvfs *stbuf )
 {
-    PLFS_ENTER;
-    ret = expansion_info.backend->store->Statvfs(path.c_str(), stbuf);
-    PLFS_EXIT(ret);
+    int ret = 0;
+    ret = ppip->canback->store->Statvfs(ppip->canbpath.c_str(), stbuf);
+    return(ret);
 }
 
 // vptr needs to be a pointer to a set<string>
 // returns 0 or -err
 int
-container_readdir( const char *logical, set<string> *entries )
+container_readdir(struct plfs_physpathinfo *ppip, set<string> *entries )
 {
-    PLFS_ENTER;
+    int ret = 0;
     ReaddirOp op(NULL,entries,false,false);
-    ret = plfs_iterate_backends(logical,op);
-    PLFS_EXIT(ret);
+    ret = plfs_backends_op(ppip,op);
+    return(ret);
 }
 
 // this function is important because when an open file is renamed
@@ -507,83 +555,77 @@ container_readdir( const char *logical, set<string> *entries )
 // to know the correct phyiscal path to the container in order to
 // create the meta dropping
 int
-container_rename_open_file(Container_OpenFile *of, const char *logical,
-                           struct plfs_backend *b)
+container_rename_open_file(Container_OpenFile *of,
+                           struct plfs_physpathinfo *ppip_to)
 {
-    PLFS_ENTER;
-    of->setPath(path.c_str(),b);
+    int ret = 0;
+    of->setPath(ppip_to->canbpath, ppip_to->canback);
     WriteFile *wf = of->getWritefile();
     if ( wf )
-        wf->setLogical(logical);
-    PLFS_EXIT(ret);
+        wf->setPhysPath(ppip_to);
+    return(ret);
 }
 
 // just rename all the shadow and canonical containers
 // then call recover_file to move canonical stuff if necessary
 int
-container_rename( const char *logical, const char *to )
+container_rename(struct plfs_physpathinfo *ppip,
+                 struct plfs_physpathinfo *ppip_to)
 {
-    PLFS_ENTER;
-    string old_canonical = path;
-    string old_canonical_backend = get_backend(expansion_info);
-    string new_canonical;
-    string new_canonical_backend;
-    mlog(INT_DAPI, "%s: %s -> %s", __FUNCTION__, logical, to);
-    // first check if there is a file already at dst.  If so, remove it
-    ExpansionInfo exp_info;
-    new_canonical = expandPath(to,&exp_info,EXPAND_CANONICAL,-1,0);
-    new_canonical_backend = get_backend(exp_info);
-    if (exp_info.Errno) {
-        PLFS_EXIT(-ENOENT);    // should never happen; check anyway
-    }
-    struct plfs_pathback npb;
-    npb.bpath = new_canonical;
-    npb.back = exp_info.backend;
-    if (is_container_file(to, NULL)) {
-        ret = container_unlink(to);
-        if (ret!=0) {
-            PLFS_EXIT(ret);
-        }
-    }
-    // now check whether it is a file of a directory we are renaming
+    int ret = 0;
     mode_t mode;
-    struct plfs_pathback opb;
-    opb.bpath = old_canonical;
-    opb.back = expansion_info.backend;
-    bool isfile = Container::isContainer(&opb,&mode);
-   
-    // for dirs and containers, iterate over all backends and
-    // do a rename on each backend.  Symlinks do single rename
-    // potentially from one backend to another 
-    if (S_ISLNK(mode)) {
-        ret = Util::CopyFile( old_canonical.c_str(), opb.back->store,
-                              new_canonical.c_str(), npb.back->store);
-        if (ret == 0){
-            ret = container_unlink(logical);
+    int isfile;
+
+    mlog(INT_DAPI, "%s: %s -> %s", __FUNCTION__, ppip->canbpath.c_str(),
+         ppip_to->canbpath.c_str());
+
+    /* first check if there is a file already at dst.  If so, remove it. */
+    if (is_container_file(ppip_to, NULL)) {
+        ret = container_unlink(ppip_to);
+        if (ret) {
+            return(-ENOENT);  /* should never happen; check anyway */
         }
-        PLFS_EXIT(ret);
     }
 
-    // Call unlink here because it does a check to determine whether a 
-    // a directory is empty or not.  If the directory is not empty this
-    // function will not proceed because rename does not work on 
-    // a non-empty destination 
-    ret = container_unlink(to);
-    if (ret == -ENOTEMPTY ) {
-        PLFS_EXIT(ret);
+    isfile = is_container_file(ppip, &mode);
+    
+    /* symlink: do single rename (maybe from one backend to another) */
+    if (S_ISLNK(mode)) {
+        ret = Util::CopyFile(ppip->canbpath.c_str(), ppip->canback->store,
+                             ppip_to->canbpath.c_str(),
+                             ppip_to->canback->store);
+        if (ret == 0){
+            ret = container_unlink(ppip);
+        }
+        return(ret);
+    }
+
+    /*
+     * call unlink here because it does a check to determine if a
+     * directory is empty or not.  If the directory is not empty,
+     * this function will not proceed because rename does not work
+     * on a non-empty destination...
+     */
+    ret = container_unlink(ppip_to);
+    if (ret == -ENOTEMPTY) {
+        return(ret);
     }
     
-    // get the list of all possible entries for both src and dest
+    /* get the list of all possible entries for both src and dest */
     vector<plfs_pathback> srcs, dsts;
     vector<plfs_pathback>::iterator itr;
-    if ( (ret = find_all_expansions(logical,srcs)) != 0 ) {
-        PLFS_EXIT(ret);
+    if ( (ret = generate_backpaths(ppip, srcs)) != 0 ) {
+        return(ret);
     }
-    if ( (ret = find_all_expansions(to,dsts)) != 0 ) {
-        PLFS_EXIT(ret);
+    if ( (ret = generate_backpaths(ppip_to, dsts)) != 0 ) {
+        return(ret);
     }
     assert(srcs.size()==dsts.size());
-    // now go through and rename all of them (ignore ENOENT)
+
+    /*
+     * for dirs and containers, iterate a rename over all the
+     * backends.  ignore ENOENT (may not have been created).
+     */
     for(size_t i = 0; i < srcs.size(); i++) {
         int err;
         struct plfs_backend *curback;
@@ -605,21 +647,30 @@ container_rename( const char *logical, const char *to )
         mlog(INT_DCOMMON, "rename %s to %s: %d",
              srcs[i].bpath.c_str(),dsts[i].bpath.c_str(),err);
     }
-    // if it's a file whose canonical location has moved, recover it
-    bool moved = (expansion_info.backend != exp_info.backend);
+
+    /*
+     * if the canonical location of a container file moved to a new
+     * backend (due to hashing), then we need to recover the file
+     * (that will fix all the metadata).
+     */
+    bool moved = (ppip->canback != ppip_to->canback);
     if (moved && isfile) {
-        // ok, old canonical is no longer a valid path bec we renamed it
-        // we need to construct the new path to where the canonical contents are
-        // to contains the mount point plus the path.  We just need to rip the
-        // mount point off to and then append it to the old_canonical_backend
-        string mnt_pt = exp_info.mnt_pt->mnt_pt;
-        old_canonical = old_canonical_backend + "/" + &to[mnt_pt.length()];
-        opb.bpath = old_canonical;
-        ret = Container::transferCanonical(&opb,&npb,
-                                           old_canonical_backend,
-                                           new_canonical_backend,mode);
+        plfs_pathback opb, npb;
+        /*
+         * careful!  opb.bpath used to be ppip->canbpath, but we
+         * renamed it to the "to" above.  So the ppip->canbpath is
+         * no longer valid.   we need the old mount point with the new
+         * bnode name...
+         */
+        opb.bpath = ppip->canback->bmpoint + "/" + ppip_to->bnode;
+        opb.back = ppip->canback;
+        npb.bpath = ppip_to->canbpath;
+        npb.back = ppip_to->canback;
+        ret = Container::transferCanonical(&opb, &npb,
+                                           ppip->canback->bmpoint,
+                                           ppip_to->canback->bmpoint, mode);
     }
-    PLFS_EXIT(ret);
+    return(ret);
 }
 
 // this has to iterate over the backends and make it everywhere
@@ -627,12 +678,12 @@ container_rename( const char *logical, const char *to )
 // due to inconsistent backends.  That shouldn't happen but just in case
 // returns 0 or -err
 int
-container_mkdir( const char *logical, mode_t mode )
+container_mkdir( struct plfs_physpathinfo *ppip, mode_t mode )
 {
-    PLFS_ENTER;
+    int ret = 0;
     CreateOp op(mode);
-    ret = plfs_iterate_backends(logical,op);
-    PLFS_EXIT(ret);
+    ret = plfs_backends_op(ppip, op);
+    return(ret);
 }
 
 // this has to iterate over the backends and remove it everywhere
@@ -642,22 +693,42 @@ container_mkdir( const char *logical, mode_t mode )
 // need to test this corner case probably
 // return 0 or -err
 int
-container_rmdir( const char *logical )
+container_rmdir(struct plfs_physpathinfo *ppip)
 {
-    PLFS_ENTER;
+    int ret = 0;
     // save mode in case we need to restore
-    mode_t mode = Container::getmode(path, expansion_info.backend);
+    mode_t mode = Container::getmode(ppip->canbpath, ppip->canback);
     UnlinkOp op;
-    ret = plfs_iterate_backends(logical,op);
+    ret = plfs_backends_op(ppip,op);
     // check if we started deleting non-empty dirs, if so, restore
     if (ret==-ENOTEMPTY) {
         mlog(PLFS_DRARE, "Started removing a non-empty directory %s. "
-             "Will restore.", logical);
+             "Will restore.", ppip->canbpath.c_str());
         CreateOp cop(mode);
         cop.ignoreErrno(-EEXIST);
-        plfs_iterate_backends(logical,cop); // don't overwrite ret
+        plfs_backends_op(ppip,cop); // don't overwrite ret
     }
-    PLFS_EXIT(ret);
+    return(ret);
+}
+
+// restores a lost directory hierarchy
+// currently just used in plfs_recover.  See more comments there
+// returns 0 or -err
+// if directories already exist, it returns 0
+static int
+recover_directory(struct plfs_physpathinfo *ppip, bool parent_only)
+{
+    int ret = 0;
+    vector<plfs_pathback> exps;
+    if ( ( ret = generate_backpaths(ppip,exps)) != 0) {
+        return(ret);
+    }
+    for(vector<plfs_pathback>::iterator itr = exps.begin();
+            itr != exps.end();
+            itr++ ) {
+        ret = mkdir_dash_p(itr->bpath,parent_only,itr->back->store);
+    }
+    return ret;
 }
 
 // this is a bit of a crazy function.  Basically, it's for the case where
@@ -675,10 +746,21 @@ container_rmdir( const char *logical )
 // returns 0 or -err (-EEXIST means it didn't need to be recovered)
 // TODO: this should be made specific to container.  any general code
 // should be moved out
+/*
+ * XXXCDC: this is a top-level function only used by the plfs_recover
+ * tool that bypasses the LogicalFS layer...
+ */
 int
-container_recover(const char *logical)
+container_recover(const char *logicalpath)
 {
-    PLFS_ENTER;
+    int ret = 0;
+    struct plfs_physpathinfo ppi;
+
+    ret = plfs_resolvepath(logicalpath, &ppi);
+    if (ret) {
+        return(ret);
+    }
+
     string canonical, former_backend, canonical_backend;
     bool found, isdir, isfile;
     mode_t canonical_mode = 0, former_mode = 0;
@@ -686,20 +768,20 @@ container_recover(const char *logical)
     // then check whether it's is already at the correct canonical location
     // however, if we find a directory at the correct canonical location
     // we still need to keep looking bec it might be a shadow container
-    canonical = path;
-    canonical_backend = get_backend(expansion_info);
+    canonical = ppi.canbpath;
+    canonical_backend = ppi.canback->bmpoint;
     mlog(PLFS_DAPI, "%s Canonical location should be %s", __FUNCTION__,
          canonical.c_str());
-    canonical_pb.bpath = path;
-    canonical_pb.back = expansion_info.backend;
+    canonical_pb.bpath = ppi.canbpath;
+    canonical_pb.back = ppi.canback;
     isfile = (int) Container::isContainer(&canonical_pb,&canonical_mode);
     if (isfile) {
         mlog(PLFS_DCOMMON, "%s %s is already in canonical location",
              __FUNCTION__, canonical.c_str());
-        PLFS_EXIT(-EEXIST);
+        return(-EEXIST);
     }
     mlog(PLFS_DCOMMON, "%s %s may not be in canonical location",
-         __FUNCTION__,logical);
+         __FUNCTION__,logicalpath);
     // ok, it's not at the canonical location
     // check all the other backends to see if they have it
     // also check canonical bec it's possible it's a dir that only exists there
@@ -707,8 +789,8 @@ container_recover(const char *logical)
     isfile = false; // possible we find it and it's a container
     found = false;  // possible it doesn't exist (ENOENT)
     vector<plfs_pathback> exps;
-    if ( (ret = find_all_expansions(logical,exps)) != 0 ) {
-        PLFS_EXIT(ret);
+    if ( (ret = generate_backpaths(&ppi,exps)) != 0 ) {
+        return(ret);
     }
     for(size_t i=0; i<exps.size(); i++) {
         plfs_pathback possible = exps[i];
@@ -719,7 +801,7 @@ container_recover(const char *logical)
             // we know the backend is at offset i in backends
             // we know this is in the same mount point as canonical
             // that mount point is still stashed in expansion_info
-            former_backend = get_backend(expansion_info,i);
+            former_backend = ppi.mnt_pt->backends[i]->bmpoint;
             break;  // no need to keep looking
         } else if (S_ISDIR(former_mode)) {
             isdir = found = true;
@@ -729,23 +811,23 @@ container_recover(const char *logical)
              (isfile?"file":isdir?"dir":"ENOENT"));
     }
     if (!found) {
-        PLFS_EXIT(-ENOENT);
+        return(-ENOENT);
     }
     // if we make it here, we found a file or a dir at the wrong location
     // dirs are easy
     if (isdir && !isfile) {
-        PLFS_EXIT(recover_directory(logical,false));
+        return(recover_directory(&ppi,false));
     }
     // if we make it here, it's a file
     // first recover the parent directory, then ensure a container directory
     // if performance is ever slow here, we probably don't need to recover
     // the parent directory here
-    if ((ret = recover_directory(logical,true)) != 0) {
-        PLFS_EXIT(ret);
+    if ((ret = recover_directory(&ppi,true)) != 0) {
+        return(ret);
     }
     ret = mkdir_dash_p(canonical,false,canonical_pb.back->store);
     if (ret != 0 && ret != EEXIST) {
-        PLFS_EXIT(ret);    // some bad error
+        return(ret);    // some bad error
     }
     ret = Container::transferCanonical(&former,&canonical_pb,
                                        former_backend,canonical_backend,
@@ -753,11 +835,11 @@ container_recover(const char *logical)
     if ( ret != 0 ) {
         printf("Unable to recover %s.\nYou may be able to recover the file"
                " by manually moving contents of %s to %s\n",
-               logical,
+               logicalpath,
                former.bpath.c_str(),
                canonical_pb.bpath.c_str());
     }
-    PLFS_EXIT(ret);
+    return(ret);
 }
 
 // returns -errno or bytes read
@@ -810,7 +892,7 @@ container_read( Container_OpenFile *pfd, char *buf, size_t size, off_t offset )
         mlog(PLFS_DCOMMON, "%s %s freshly created index for %s",
              __FUNCTION__, delete_index?"removing":"caching", pfd->getPath());
     }
-    PLFS_EXIT(ret);
+    return(ret);
 }
 
 
@@ -1197,7 +1279,7 @@ plfs_find_my_droppings(const string& physical, IOStore *store,
     rop.filter(DATAPREFIX);
     int ret = rop.op(physical.c_str(),DT_DIR,store);
     if (ret!=0) {
-        PLFS_EXIT(ret);
+        return(ret);
     }
     // go through and delete all that don't belong to pid
     // use while not for since erase invalidates the iterator
@@ -1209,7 +1291,7 @@ plfs_find_my_droppings(const string& physical, IOStore *store,
             drops.erase(prev);
         }
     }
-    PLFS_EXIT(0);
+    return(0);
 }
 
 // TODO: this code assumes that replication is done
@@ -1217,10 +1299,10 @@ plfs_find_my_droppings(const string& physical, IOStore *store,
 // will break replication and corrupt the file
 // TODO: should this function be in this file
 int
-plfs_trim(const char *logical, pid_t pid)
+plfs_trim(struct plfs_physpathinfo *ppip, pid_t pid)
 {
-    PLFS_ENTER;
-    mlog(INT_DAPI, "%s on %s with %d\n",__FUNCTION__,logical,pid);
+    int ret = 0;
+    mlog(INT_DAPI, "%s on %s with %d",__FUNCTION__,ppip->bnode.c_str(),pid);
     // this should be called after the container_protect is done
     // currently it doesn't check to make sure that the container_protect
     // was successful
@@ -1233,9 +1315,10 @@ plfs_trim(const char *logical, pid_t pid)
     // 2) remove all droppings owned by this pid
     // 3) clean up the shadow container
     ContainerPaths paths;
-    ret = findContainerPaths(logical,paths);
+    ret = findContainerPaths(ppip->bnode, ppip->mnt_pt,
+                             ppip->canbpath, ppip->canback, paths);
     if (ret != 0) {
-        PLFS_EXIT(ret);
+        return(ret);
     }
     string replica = Container::getHostDirPath(paths.canonical,Util::hostname(),
                      TMP_SUBDIR);
@@ -1253,7 +1336,7 @@ plfs_trim(const char *logical, pid_t pid)
         ret = 0;
     }
     if (ret != 0) {
-        PLFS_EXIT(ret);
+        return(ret);
     }
     // rename the replica at the right location
     ret = paths.canonicalback->store->Rename(replica.c_str(),
@@ -1262,7 +1345,7 @@ plfs_trim(const char *logical, pid_t pid)
         ret = 0;
     }
     if (ret != 0) {
-        PLFS_EXIT(ret);
+        return(ret);
     }
     // remove all the droppings in paths.shadow_hostdir
     set<string> droppings;
@@ -1270,13 +1353,13 @@ plfs_trim(const char *logical, pid_t pid)
                                  paths.shadowback->store,
                                  pid,droppings);
     if (ret != 0) {
-        PLFS_EXIT(ret);
+        return(ret);
     }
     set<string>::iterator itr;
     for (itr=droppings.begin(); itr!=droppings.end(); itr++) {
         ret = op.op(itr->c_str(),DT_REG,paths.shadowback->store);
         if (ret!=0) {
-            PLFS_EXIT(ret);
+            return(ret);
         }
     }
     // now remove paths.shadow_hostdir (which might fail due to slow siblings)
@@ -1286,13 +1369,13 @@ plfs_trim(const char *logical, pid_t pid)
     op.ignoreErrno(-ENOTEMPTY); // we beat sibling
     ret = op.op(paths.shadow_hostdir.c_str(),DT_DIR,paths.shadowback->store);
     if (ret!=0) {
-        PLFS_EXIT(ret);
+        return(ret);
     }
     ret = op.op(paths.shadow.c_str(),DT_DIR,paths.shadowback->store);
     if (ret!=0) {
-        PLFS_EXIT(ret);
+        return(ret);
     }
-    PLFS_EXIT(ret);
+    return(ret);
 }
 
 // iterate through container.  Find all pieces owned by this pid that are in
@@ -1301,24 +1384,38 @@ plfs_trim(const char *logical, pid_t pid)
 // 1) blow away metalink in canonical
 // 2) create a subdir in canonical
 // 3) call SYNCER to move each piece owned by this pid in this subdir
+/*
+ * XXX: this is a top-level ADIO-only function that bypasses the
+ * LogicalFS layer.  it is called from plfs_protect_all() in ad_plfs.c,
+ * but that function is currently not used (at least in the current
+ * source tree...)
+ */
 int
 container_protect(const char *logical, pid_t pid)
 {
-    PLFS_ENTER;
+    int ret = 0;
+    struct plfs_physpathinfo ppi;
+
+    ret = plfs_resolvepath(logical, &ppi);
+    if (ret) {
+        return(ret);
+    }
+    
     // first make sure that syncer_ip is defined
     // otherwise this doesn't work
-    string *syncer_ip = expansion_info.mnt_pt->syncer_ip;
+    string *syncer_ip = ppi.mnt_pt->syncer_ip;
     if (!syncer_ip) {
-        mlog(INT_DCOMMON, "Cant use %s with syncer_ip defined in plfsrc\n",
+        mlog(INT_DCOMMON, "Cant use %s with syncer_ip defined in plfsrc",
              __FUNCTION__);
-        PLFS_EXIT(-ENOSYS);
+        return(-ENOSYS);
     }
     // find path to shadowed subdir and make a temporary hostdir
     // in canonical
     ContainerPaths paths;
-    ret = findContainerPaths(logical,paths);
+    ret = findContainerPaths(ppi.bnode, ppi.mnt_pt,
+                             ppi.canbpath, ppi.canback, paths);
     if (ret != 0) {
-        PLFS_EXIT(ret);
+        return(ret);
     }
     string src = paths.shadow_hostdir;
     string dst = Container::getHostDirPath(paths.canonical,Util::hostname(),
@@ -1328,26 +1425,26 @@ container_protect(const char *logical, pid_t pid)
         ret = 0;
     }
     if (ret != 0) {
-        PLFS_EXIT(ret);
+        return(ret);
     }
-    mlog(INT_DCOMMON, "Need to protect contents of %s into %s\n",
+    mlog(INT_DCOMMON, "Need to protect contents of %s into %s",
          src.c_str(),dst.c_str());
     // read the shadowed subdir and find all droppings
     set<string> droppings;
     ret = plfs_find_my_droppings(src,paths.shadowback->store,pid,droppings);
     if (ret != 0) {
-        PLFS_EXIT(ret);
+        return(ret);
     }
     // for each dropping owned by this pid, initiate a replication to canonical
     set<string>::iterator itr;
     for (itr=droppings.begin(); itr!=droppings.end(); itr++) {
-        mlog(INT_DCOMMON, "SYNCER %s cp %s %s\n", syncer_ip->c_str(),
+        mlog(INT_DCOMMON, "SYNCER %s cp %s %s", syncer_ip->c_str(),
              itr->c_str(), dst.c_str());
         initiate_async_transfer(itr->c_str(), paths.shadowback->prefix,
                                 dst.c_str(), paths.canonicalback->prefix,
                                 syncer_ip->c_str());
     }
-    PLFS_EXIT(ret);
+    return(ret);
 }
 
 // pass in a NULL Container_OpenFile to have one created for you
@@ -1356,10 +1453,10 @@ container_protect(const char *logical, pid_t pid)
 // in RDWR mode, we increment reference count twice.  make sure to decrement
 // twice on the close
 int
-container_open(Container_OpenFile **pfd,const char *logical,int flags,
-               pid_t pid,mode_t mode, Plfs_open_opt *open_opt)
+container_open(Container_OpenFile **pfd, struct plfs_physpathinfo *ppip,
+               int flags, pid_t pid,mode_t mode, Plfs_open_opt *open_opt)
 {
-    PLFS_ENTER;
+    int ret = 0;
     WriteFile *wf      = NULL;
     Index     *index   = NULL;
     bool new_writefile = false;
@@ -1381,7 +1478,7 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
     // we can't write to it
     //ret = Container::Access(path.c_str(),flags);
     if ( ret == 0 && flags & O_CREAT ) {
-        ret = container_create( logical, mode, flags, pid );
+        ret = container_create( ppip, mode, flags, pid );
         if (ret == 0 && flags & O_TRUNC) { // create did truncate
             // this assumes that container_create did the truncate!
             // I think this is fine for now but be careful not to
@@ -1390,7 +1487,7 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
         }
     }
     if ( ret == 0 && flags & O_TRUNC && !truncated) {
-        ret = container_trunc( NULL, logical, 0,(int)true );
+        ret = container_trunc( NULL, ppip, 0,(int)true );
         if (ret == 0) {
             truncated = true;
         }
@@ -1421,12 +1518,14 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
              * wf starts with the canonical backend.   the openAddWriter()
              * call below may change it (e.g. to a shadow backend).
              */
-            wf = new WriteFile(path, Util::hostname(), mode,
-                               indx_sz, pid, logical, expansion_info.backend);
+            wf = new WriteFile(ppip->canbpath, Util::hostname(), mode,
+                               indx_sz, pid, ppip->bnode, ppip->canback,
+                               ppip->mnt_pt);
             new_writefile = true;
         }
         bool defer_open = get_plfs_conf()->lazy_droppings;
-        ret = openAddWriter(wf, pid, mode, logical, defer_open );
+        ret = openAddWriter(wf, pid, mode, defer_open, ppip->bnode,
+                            ppip->mnt_pt, ppip->canbpath, ppip->canback);
         mlog(INT_DCOMMON, "%s added writer: %d", __FUNCTION__, ret );
         if ( ret > 0 ) {
             ret = 0;    // add writer returns # of current writers
@@ -1445,20 +1544,20 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
         }
         if ( index == NULL ) {
             // do we delete this on error?
-            index = new Index( path, expansion_info.backend );
+            index = new Index(ppip->canbpath, ppip->canback);
             new_index = true;
             // Did someone pass in an already populated index stream?
             if (open_opt && open_opt->index_stream !=NULL) {
                 //Convert the index stream to a global index
                 index->global_from_stream(open_opt->index_stream);
             } else {
-                ret = Container::populateIndex(path,expansion_info.backend,
+                ret = Container::populateIndex(ppip->canbpath, ppip->canback,
                    index,true,
                    open_opt ? open_opt->uniform_restart_enable : 0,
                    open_opt ? open_opt->uniform_restart_rank : 0 );
                 if ( ret != 0 ) {
                     mlog(INT_DRARE, "%s failed to create index on %s: %s",
-                         __FUNCTION__, path.c_str(), strerror(-ret));
+                         __FUNCTION__, ppip->canbpath.c_str(), strerror(-ret));
                     delete(index);
                     index = NULL;
                 }
@@ -1487,7 +1586,7 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
     if ( ret == 0 && ! *pfd ) {
         // do we delete this on error?
         *pfd = new Container_OpenFile( wf, index, pid, mode,
-                                       path.c_str(), expansion_info.backend );
+                                       ppip->canbpath.c_str(), ppip->canback);
         // we create one open record for all the pids using a file
         // only create the open record for files opened for writing
         if ( wf ) {
@@ -1496,7 +1595,7 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
                 add_meta = false;
             }
             if (add_meta) {
-                ret = Container::addOpenrecord(path, expansion_info.backend,
+                ret = Container::addOpenrecord(ppip->canbpath, ppip->canback,
                                                Util::hostname(),pid);
             }
         }
@@ -1523,7 +1622,7 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
             (*pfd)->setReopen();
         }
     }
-    PLFS_EXIT(ret);
+    return(ret);
 }
 
 
@@ -1531,36 +1630,42 @@ container_open(Container_OpenFile **pfd,const char *logical,int flags,
 // very easy, just write whatever the user wants into a symlink
 // at the proper canonical location
 int
-container_symlink(const char *logical, const char *to)
+container_symlink(const char *content, struct plfs_physpathinfo *ppip_to)
 {
-    PLFS_ENTER2(PLFS_PATH_NOTREQUIRED);
-    ExpansionInfo exp_info;
-    string topath = expandPath(to, &exp_info, EXPAND_CANONICAL,-1,0);
-    if (exp_info.expand_error) {
-        PLFS_EXIT(-ENOENT);
-    }
-    ret = exp_info.backend->store->Symlink(logical, topath.c_str());
+    int ret = 0;
+
+    ret = ppip_to->canback->store->Symlink(content, ppip_to->canbpath.c_str());
     mlog(PLFS_DAPI, "%s: %s to %s: %d", __FUNCTION__,
-         path.c_str(), topath.c_str(),ret);
-    PLFS_EXIT(ret);
+         content, ppip_to->canbpath.c_str(),ret);
+    return(ret);
 }
 
 // void *'s should be vector<string>
 // TODO: should this be in this file?
 // TODO: should it be renamed to container_locate?
+/*
+ * XXXCDC: this is a top-level function only used by the plfs_query
+ * tool that bypasses the LogicalFS layer...
+ */
 int
-container_locate(const char *logical, void *files_ptr,
-            void *dirs_ptr, void *metalinks_ptr)
+container_locate(const char *logicalpath, void *files_ptr,
+                 void *dirs_ptr, void *metalinks_ptr)
 {
-    PLFS_ENTER;
+    int ret = 0;
+    struct plfs_physpathinfo ppi;
+    ret = plfs_resolvepath(logicalpath, &ppi);
+    if (ret) {
+        return(ret);
+    }
+        
     // first, are we locating a PLFS file or a directory or a symlink?
     mode_t mode = 0;
-    ret = is_container_file(logical,&mode);
+    ret = is_container_file(&ppi, &mode);
     // do container_locate on a plfs_file
     if (S_ISREG(mode)) { // it's a PLFS file
         vector<plfs_pathback> *files = (vector<plfs_pathback> *)files_ptr;
         vector<string> filters;
-        ret = Container::collectContents(path, expansion_info.backend,
+        ret = Container::collectContents(ppi.canbpath, ppi.canback,
                                          *files,
                                          (vector<plfs_pathback>*)dirs_ptr,
                                          (vector<string>*)metalinks_ptr,
@@ -1570,21 +1675,21 @@ container_locate(const char *logical, void *files_ptr,
         if (!dirs_ptr) {
             mlog(INT_ERR, "Asked to %s on %s which is a directory but not "
                  "given a vector<string> to store directory paths into...\n",
-                 __FUNCTION__,logical);
+                 __FUNCTION__,ppi.canbpath.c_str());
             ret = -EINVAL;
         } else {
             vector<plfs_pathback> *dirs = (vector<plfs_pathback> *)dirs_ptr;
-            ret = find_all_expansions(logical,*dirs);
+            ret = generate_backpaths(&ppi, *dirs);
         }
         // do container_locate on a symlink
     } else if (S_ISLNK(mode)) {
         if (!metalinks_ptr) {
             mlog(INT_ERR, "Asked to %s on %s which is a symlink but not "
                  "given a vector<string> to store link paths into...\n",
-                 __FUNCTION__,logical);
+                 __FUNCTION__,ppi.canbpath.c_str());
             ret = -EINVAL;
         } else {
-            ((vector<string> *)metalinks_ptr)->push_back(path);
+            ((vector<string> *)metalinks_ptr)->push_back(ppi.canbpath);
             ret = 0;
         }
         // something strange here....
@@ -1593,30 +1698,30 @@ container_locate(const char *logical, void *files_ptr,
         ret = -ENOENT;
     }
     //*target = path;
-    PLFS_EXIT(ret);
+    return(ret);
 }
 
 // do this one basically the same as container_symlink
 // this one probably can't work actually since you can't hard link a directory
 // and plfs containers are physical directories
 int
-container_link(const char *logical, const char * /* to */)
+container_link(struct plfs_physpathinfo *ppip,
+               struct plfs_physpathinfo *ppip_to)
 {
-    PLFS_ENTER2(PLFS_PATH_NOTREQUIRED);
-    *(&ret) = 0*ret;    // suppress warning about unused variable
     mlog(PLFS_DAPI, "Can't make a hard link to a container." );
-    PLFS_EXIT(-ENOSYS);
+    return(-ENOSYS);
 }
 
 // returns -err for error, otherwise number of bytes read
 int
-container_readlink(const char *logical, char *buf, size_t bufsize)
+container_readlink(struct plfs_physpathinfo *ppip, char *buf, size_t bufsize)
 {
-    PLFS_ENTER;
+    int ret = 0;
     memset((void *)buf, 0, bufsize);
-    ret = expansion_info.backend->store->Readlink(path.c_str(),buf,bufsize);
-    mlog(PLFS_DAPI, "%s: readlink %s: %d", __FUNCTION__, path.c_str(),ret);
-    PLFS_EXIT(ret);
+    ret = ppip->canback->store->Readlink(ppip->canbpath.c_str(),buf,bufsize);
+    mlog(PLFS_DAPI, "%s: readlink %s: %d", __FUNCTION__,
+         ppip->canbpath.c_str(),ret);
+    return(ret);
 }
 
 // OK.  This is a bit of a pain.  We've seen cases
@@ -1630,13 +1735,13 @@ container_readlink(const char *logical, char *buf, size_t bufsize)
 // thing with chown
 // returns 0 or -err
 int
-container_utime( const char *logical, struct utimbuf *ut )
+container_utime(struct plfs_physpathinfo *ppip, struct utimbuf *ut )
 {
-    PLFS_ENTER;
+    int ret = 0;
     UtimeOp op(ut);
     op.ignoreErrno(-ENOENT);
-    ret = plfs_file_operation(logical,op);
-    PLFS_EXIT(ret);
+    ret = plfs_file_operation(ppip, op);
+    return(ret);
 }
 
 ssize_t
@@ -1669,7 +1774,7 @@ container_write(Container_OpenFile *pfd, const char *buf, size_t size,
     ret = written = wf->write(buf, size, offset, pid);
     mlog(PLFS_DAPI, "%s: Wrote to %s, offset %ld, size %ld: ret %ld",
          __FUNCTION__, pfd->getPath(), (long)offset, (long)size, (long)ret);
-    PLFS_EXIT( ret >= 0 ? written : ret );
+    return( ret >= 0 ? written : ret );
 }
 
 int
@@ -1708,11 +1813,10 @@ container_sync( Container_OpenFile *pfd, pid_t pid )
 //
 // the TruncateOp internally does unlinks
 // TODO: rename to container_* ?
-int
-truncateFileToZero(const string &physical_canonical, struct plfs_backend *back,
-                   const char *logical,bool open_file)
+static int
+truncateFileToZero(struct plfs_physpathinfo *ppip, bool open_file)
 {
-    int ret;
+    int ret = 0;
     TruncateOp op(open_file);
     // ignore ENOENT since it is possible that the set of files can contain
     // duplicates.
@@ -1723,12 +1827,12 @@ truncateFileToZero(const string &physical_canonical, struct plfs_backend *back,
     op.ignore(OPENPREFIX);
     op.ignore(VERSIONPREFIX);
 
-    ret = plfs_file_operation(logical,op);
+    ret = plfs_file_operation(ppip, op);
     if (ret == 0 && open_file == 1){
         //if we successfully truncated the file to zero
         //and the file is open, we also need to truncate
         //the metadata droppings
-        ret = Container::truncateMeta(physical_canonical, 0, back);
+        ret = Container::truncateMeta(ppip->canbpath, 0, ppip->canback);
     }
     return ret;
 }
@@ -1736,38 +1840,56 @@ truncateFileToZero(const string &physical_canonical, struct plfs_backend *back,
 // this should only be called if the uid has already been checked
 // and is allowed to access this file
 // Container_OpenFile can be NULL
+// ppip can be null
+// but of and ppip cannot both be null
 // returns 0 or -err
 int
-container_getattr(Container_OpenFile *of, const char *logical,
+container_getattr(Container_OpenFile *of, struct plfs_physpathinfo *ppip,
                   struct stat *stbuf,int sz_only)
 {
+    int ret = 0;
+    struct plfs_pathback pb;
+
+    if (of == NULL && ppip == NULL) {   /* i don't think so ... */
+        return(-EINVAL);
+    }
+
+    if (ppip == NULL) {    /* fstat() */
+        pb.bpath = of->getPath();
+        pb.back = of->getCanBack();
+    } else {               /* stat() */
+        pb.bpath = ppip->canbpath;
+        pb.back = ppip->canback;
+    }
+    
+#if 0
+    bool backwards = false;
     // ok, this is hard
     // we have a logical path maybe passed in or a physical path
     // already stashed in the of
     // this backward stuff might be deprecated.  We should check and remove.
-    bool backwards = false;
     if ( logical == NULL ) {
         logical = of->getPath();    // this is the physical path
         backwards = true;
     }
-    PLFS_ENTER; // this assumes it's operating on a logical path
+    /* plfs_enter; */ // this assumes it's operating on a logical path
     if ( backwards ) {
-        //XXXCDC: can't happen if physical, since PLFS_ENTER will fail+exit??
+        //XXXCDC: can't happen if physical, since plfs_enter will fail+exit??
         path = of->getPath();   // restore the stashed physical path
         expansion_info.backend = of->getCanBack(); //XXX
     }
-    mlog(PLFS_DAPI, "%s on logical %s (%s)", __FUNCTION__, logical,
-         path.c_str());
+#endif
+    mlog(PLFS_DAPI, "%s on %s", __FUNCTION__, pb.bpath.c_str());
     memset(stbuf,0,sizeof(struct stat));    // zero fill the stat buffer
     mode_t mode = 0;
-    if ( ! is_container_file( logical, &mode ) ) {
+    if (!Container::isContainer(&pb, &mode)) {
         // this is how a symlink is stat'd bec it doesn't look like a plfs file
         if ( mode == 0 ) {
             ret = -ENOENT;
         } else {
             mlog(PLFS_DCOMMON, "%s on non plfs file %s", __FUNCTION__,
-                 path.c_str());
-            ret = expansion_info.backend->store->Lstat(path.c_str(),stbuf);
+                 pb.bpath.c_str());
+            ret = pb.back->store->Lstat(pb.bpath.c_str(),stbuf);
         }
     } else {    // operating on a plfs file here
         // there's a lazy stat flag, sz_only, which means all the caller
@@ -1783,7 +1905,7 @@ container_getattr(Container_OpenFile *of, const char *logical,
         WriteFile *wf=(of && of->getWritefile() ? of->getWritefile() :NULL);
         bool descent_needed = ( !sz_only || !wf || (of && of->isReopen()) );
         if (descent_needed) {  // do we need to descend and do the full?
-            ret = Container::getattr( path, expansion_info.backend, stbuf );
+            ret = Container::getattr( pb.bpath, pb.back, stbuf );
             mlog(PLFS_DCOMMON, "descent_needed, "
                  "Container::getattr ret :%d.\n", ret);
         }
@@ -1804,38 +1926,48 @@ container_getattr(Container_OpenFile *of, const char *logical,
         }
     }
     if ( ret != 0 ) {
-        mlog(PLFS_DRARE, "logical %s,stashed %s,physical %s: %s",
-             logical,of?of->getPath():"NULL",path.c_str(),
+        mlog(PLFS_DRARE, "stashed %s,physical %s: %s",
+             of?of->getPath():"NULL",pb.bpath.c_str(),
              strerror(-ret));
     }
     mss::mlog_oss oss(PLFS_DAPI);
-    oss << __FUNCTION__ << " of " << path << "("
+    oss << __FUNCTION__ << " of " << pb.bpath << "("
         << (of == NULL ? "closed" : "open")
         << ") size is " << stbuf->st_size;
     oss.commit();
-    PLFS_EXIT(ret);
+    return(ret);
 }
 
 int
-container_mode(const char *logical, mode_t *mode)
+container_mode(struct plfs_physpathinfo *ppip, mode_t *mode)
 {
-    PLFS_ENTER;
-    *mode = Container::getmode(path, expansion_info.backend);
-    PLFS_EXIT(ret);
+    int ret = 0;
+    *mode = Container::getmode(ppip->canbpath, ppip->canback);
+    return(ret);
 }
 
+/*
+ * XXXCDC: this is a top-level function that doesn't appear to be used.
+ * it bypasses the LogicalFS layer...
+ */
 int
-container_file_version(const char *logical, const char **version)
+container_file_version(const char *logicalpath, const char **version)
 {
-    PLFS_ENTER;
+    int ret = 0;
+
+    struct plfs_physpathinfo ppi;
+    ret = plfs_resolvepath(logicalpath, &ppi);
+    if (ret) {
+        return(ret);
+    }
+        
     struct plfs_pathback pb;
-    ret = ret; // suppress compiler warning
-    mode_t mode;
-    if (!is_container_file(logical, &mode)) {
+    mode_t mode = 0;
+    if (!is_container_file(&ppi, &mode)) {
         return -ENOENT;
     }
-    pb.bpath = path;
-    pb.back = expansion_info.backend;
+    pb.bpath = ppi.canbpath;
+    pb.back = ppi.canback;
     *version = Container::version(&pb);
     return (*version ? 0 : -ENOENT);
 }
@@ -1844,50 +1976,53 @@ container_file_version(const char *logical, const char **version)
 // be nice to use new FileOp class for this somehow
 // returns 0 or -err
 int
-container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
-                int open_file)
+container_trunc(Container_OpenFile *of, struct plfs_physpathinfo *ppip,
+                off_t offset, int open_file)
 {
-    PLFS_ENTER;
+    int ret = 0;
     mode_t mode = 0;
     struct stat stbuf;
     stbuf.st_size = 0;
-    if ( !of && ! is_container_file( logical, &mode ) ) {
+    if ( !of && ! is_container_file(ppip, &mode) ) {
         // this is weird, we expect only to operate on containers
         if ( mode == 0 ) {
             ret = -ENOENT;
         } else {
-            ret = expansion_info.backend->store->Truncate(path.c_str(),offset);
+            ret = ppip->canback->store->Truncate(ppip->canbpath.c_str(),
+                                                 offset);
         }
-        PLFS_EXIT(ret);
+        return(ret);
     }
+
     mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
     // once we're here, we know it's a PLFS file
     if ( offset == 0 ) {
         // first check to make sure we are allowed to truncate this
         // all the droppings are global so we can truncate them but
         // the access file has the correct permissions
-        string access = Container::getAccessFilePath(path);
-        ret = expansion_info.backend->store->Truncate(access.c_str(),0);
+        string access = Container::getAccessFilePath(ppip->canbpath);
+        ret = ppip->canback->store->Truncate(access.c_str(),0);
         mlog(PLFS_DCOMMON, "Tested truncate of %s: %d",access.c_str(),ret);
         if ( ret == 0 ) {
             // this is easy, just remove/trunc all droppings
-            ret = truncateFileToZero(path, expansion_info.backend,
-                                     logical,(bool)open_file);
+            ret = truncateFileToZero(ppip, (bool)open_file);
         }
     } else {
+        /*XXXCDC:LEFT OFF CONVERSION HERE */
         // either at existing end, before it, or after it
         bool sz_only = false; // sz_only isn't accurate in this case
         // it should be but the problem is that
         // FUSE opens the file and so we just query
         // the open file handle and it says 0
-        ret = container_getattr( of, logical, &stbuf, sz_only );
+        ret = container_getattr( of, ppip, &stbuf, sz_only );
         mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
         if ( ret == 0 ) {
             if ( stbuf.st_size == offset ) {
                 ret = 0; // nothing to do
             } else if ( stbuf.st_size > offset ) {
-                ret = Container::Truncate(path, offset, // make smaller
-                                          expansion_info.backend);
+                ret = Container::Truncate(ppip->canbpath,
+                                          offset, // make smaller
+                                          ppip->canback);
                 mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__,
                      __LINE__, ret);
             } else if (stbuf.st_size < offset) {
@@ -1903,14 +2038,14 @@ container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
                 myopenfd = of;
                 pid = (of) ? of->getPid() : 0; /* from old extendFile */
                 
-                ret = container_open(&myopenfd, logical, O_WRONLY, pid,
+                ret = container_open(&myopenfd, ppip, O_WRONLY, pid,
                                      mode, NULL);
                 
                 if (ret != 0) {
 
                     mlog(PLFS_INFO,
                          "%s: unexpected container_open(%s) error (%d)",
-                         __FUNCTION__, logical, ret);
+                         __FUNCTION__, ppip->canbpath.c_str(), ret);
                     
                 } else {
                     uid_t uid = 0;  /* just needed for stats */
@@ -1928,7 +2063,8 @@ container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
         mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
         // in the case that extend file, need not truncateHostIndex
         if (offset <= stbuf.st_size) {
-            ret = Container::truncateMeta(path, offset, expansion_info.backend);
+            ret = Container::truncateMeta(ppip->canbpath, offset,
+                                          ppip->canback);
             if (ret==0) {
                 ret = of->getWritefile()->truncate( offset );
             }
@@ -1953,12 +2089,12 @@ container_trunc(Container_OpenFile *of, const char *logical, off_t offset,
         }
         mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
     }
-    mlog(PLFS_DCOMMON, "%s %s to %u: %d",__FUNCTION__,path.c_str(),
+    mlog(PLFS_DCOMMON, "%s %s to %u: %d",__FUNCTION__,ppip->canbpath.c_str(),
          (uint)offset,ret);
     if ( ret == 0 ) { // update the timestamp
-        ret = Container::Utime( path, expansion_info.backend, NULL );
+        ret = Container::Utime(ppip->canbpath, ppip->canback, NULL );
     }
-    PLFS_EXIT(ret);
+    return(ret);
 }
 
 // a helper function to make unlink be atomic
@@ -1991,38 +2127,40 @@ getAtomicUnlinkPath(string path)
 // Currently it is just gonna to try to remove everything
 // if it only does a partial job, it will leave something weird
 int
-container_unlink( const char *logical )
+container_unlink(struct plfs_physpathinfo *ppip)
 {
-    PLFS_ENTER;
+    int ret = 0;
     UnlinkOp op;  // treats file and dirs appropriately
 
-    string unlink_canonical = path;
-    string unlink_canonical_backend = get_backend(expansion_info);
+    string unlink_canonical = ppip->canbpath;
+    string unlink_canonical_backend = ppip->canback->bmpoint;
     struct plfs_pathback unpb;
     unpb.bpath = unlink_canonical;
-    unpb.back = expansion_info.backend;
+    unpb.back = ppip->canback;
 
     struct stat stbuf;
-    if ( (ret = unpb.back->store->Lstat(unlink_canonical.c_str(),&stbuf)) != 0)  {
-        PLFS_EXIT(ret);
+    if ( (ret = unpb.back->store->Lstat(unlink_canonical.c_str(),
+                                        &stbuf)) != 0)  {
+        return(ret);
     }
-    mode_t mode = Container::getmode(unlink_canonical, expansion_info.backend);
+    mode_t mode = Container::getmode(unlink_canonical, ppip->canback);
     // ignore ENOENT since it is possible that the set of files can contain
     // duplicates
     // duplicates are possible bec a backend can be defined in both
     // shadow_backends and backends
 
     op.ignoreErrno(-ENOENT);
-    ret = plfs_file_operation(logical,op);
+    ret = plfs_file_operation(ppip, op);
     // if the directory is not empty, need to restore backends to their 
     // previous state
     if (ret == -ENOTEMPTY) {
         CreateOp cop(mode);
         cop.ignoreErrno(-EEXIST);
-        plfs_iterate_backends(logical,cop);
-        container_chown(logical, stbuf.st_uid, stbuf.st_gid );
+        /* XXX: ignores return value */
+        plfs_backends_op(ppip, cop); 
+        container_chown(ppip, stbuf.st_uid, stbuf.st_gid );
     }
-    PLFS_EXIT(ret);
+    return(ret);
 }
 
 // TODO: add comments.  what does this do?  why?  who might call it?

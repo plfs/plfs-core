@@ -304,15 +304,20 @@ int Plfs::init( int *argc, char **argv )
             pconf->direct_io = 1;
         }
         if ( argv[i][0] != '-' && ! mnt_pt_found ) {
-            string mnt_pt = argv[i];
-            pmnt = find_mount_point(pconf,mnt_pt,mnt_pt_found);
-            if ( ! mnt_pt_found || pmnt == NULL) {
+            int rv;
+            char *mnt_pt;
+            struct plfs_physpathinfo ppi;
+            
+            mnt_pt = argv[i];
+            /* this check mount and also does a plfs_attach */
+            rv = plfs_resolvepath(mnt_pt, &ppi);
+            if (rv) {
                 fprintf(stderr,"FATAL mount point error: %s %s\n",
-                        argv[i],
-                        (mnt_pt_found) ? "attach error" : "not found" );
+                        mnt_pt, strerror(-rv));
                 plfs_dump_config(false, false);
-                return((mnt_pt_found) ? -EIO : -ECONNREFUSED);
+                return(rv);
             }
+            pmnt = ppi.mnt_pt;
             mnt_pt_found = true;
         }
     }
@@ -1281,25 +1286,29 @@ int Plfs::f_rename( const char *path, const char *to )
         // files are now cached based on a uid and flags
         if ( ret == 0 ) {
             findAllOpenFiles ( strPath, results );
-            while( results.size() != 0 ) {
-                struct hash_element current;
-                current = results.front();
-                results.pop_front();
-                Plfs_fd *pfd;
-                pfd = current.fd;
-                string pathHash = getRenameHash(toPath.c_str(),
-                                                current.path ,strPath);
-                if ( ret == 0 && pfd ) {
-                    pid_t pid = fuse_get_context()->pid;
-                    // Extract the uid and flags from the string
-                    removeOpenFile(current.path, pid, pfd);
-                    addOpenFile(pathHash, pid, pfd);
-                    /* XXX: backend should remain same, right? */
-                    pfd->rename(toPath.c_str(), NULL);
-                    //pfd->setPath( toPath );
-                    mlog(FUSE_DCOMMON, "Rename open file %s -> %s "
-                         "(hope this works)",
-                         path, to );
+            if (results.size() != 0) {
+                struct plfs_physpathinfo ppi;
+                int resrv;
+                resrv = plfs_resolvepath(toPath.c_str(), &ppi);
+                /* can resolvepath fail in this case? */
+                if (resrv == 0) {
+                    while (results.size() != 0) {
+                        struct hash_element current;
+                        current = results.front();
+                        results.pop_front();
+                        Plfs_fd *pfd;
+                        pfd = current.fd;
+                        string pathHash = getRenameHash(toPath.c_str(),
+                                                        current.path, strPath);
+                        if (ret == 0 && pfd) {
+                            pid_t pid = fuse_get_context()->pid;
+                            removeOpenFile(current.path, pid, pfd);
+                            addOpenFile(pathHash, pid, pfd);
+                            pfd->renamefd(&ppi);
+                            mlog(FUSE_DCOMMON, "Rename open file %s->%s "
+                                 "(hope this works)", path, to);
+                        }
+                    }
                 }
             }
         }

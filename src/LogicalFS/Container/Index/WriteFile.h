@@ -31,7 +31,7 @@ class WriteFile : public Metadata
 {
     public:
         WriteFile(string, string, mode_t, size_t index_buffer_mbs, pid_t,
-                  string, struct plfs_backend *);
+                  string, struct plfs_backend *, PlfsMount *);
         ~WriteFile();
 
         int openIndex( pid_t );
@@ -59,9 +59,7 @@ class WriteFile : public Metadata
         Index *getIndex() {
             return index;
         }
-        void setLogical( const string& logical ) {
-            logical_path = logical;
-        }
+        void setPhysPath(struct plfs_physpathinfo *ppip_to);
 
         double createTime() {
             return createtime;
@@ -81,10 +79,17 @@ class WriteFile : public Metadata
         }
 
         pid_t open_pid;
-        string logical_path;
-        string container_path;
-        string subdir_path;
-        struct plfs_backend *subdirback;
+        /*
+         * XXX: it would be nice if we could minimize the amount of
+         * path information we are caching in this object... this has
+         * gotten fat due to the introduction of prepareWriter.
+         */
+        string bnode;           /* path without any mountpoint info */
+        string container_path;  /* path to container (canonical?) */
+        struct plfs_backend *canback;  /* canonical backend (XXX) */
+        string subdir_path;     /* path to subdir our droppings live on */
+        struct plfs_backend *subdirback;   /* dropping backend */
+        PlfsMount *wrpmnt;      /* mount we are writing to */
         string hostname;
         map< pid_t, OpenFh  > fhs;
         map< pid_t, int > fhs_writers;

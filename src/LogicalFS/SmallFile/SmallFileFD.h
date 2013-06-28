@@ -20,15 +20,15 @@ class Small_fd : public Plfs_fd, public PLFSIndex
         Small_fd(const string &filename, ContainerPtr conptr);
         ~Small_fd();
         // These are operations operating on an open file.
-        int open(const char *filename, int flags, pid_t pid,
+        int open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
                  mode_t mode, Plfs_open_opt *open_opt);
         int close(pid_t, uid_t, int flags, Plfs_close_opt *);
         ssize_t read(char *buf, size_t size, off_t offset);
         ssize_t write(const char *buf, size_t size, off_t offset, pid_t pid);
         int sync();
         int sync(pid_t pid);
-        int trunc(const char *path, off_t offset);
-        int getattr(const char *path, struct stat *stbuf, int sz_only);
+        int trunc(off_t offset);
+        int getattr(struct stat *stbuf, int sz_only);
         int query(size_t *writers, size_t *readers, size_t *bytes_written,
                   bool *reopen);
         bool is_good();
@@ -46,7 +46,7 @@ class Small_fd : public Plfs_fd, public PLFSIndex
         int incrementOpens(int amount);
         void setPath(string p, struct plfs_backend *b);
         const char *getPath();
-        int rename(const char *path, struct plfs_backend *b);
+        int renamefd(struct plfs_physpathinfo *ppip_to);
         int getxattr(void * /* val */, const char * /* key */, 
                      size_t /* len */) {return -ENOSYS;};
         int setxattr(const void * /* value */, const char * /* key */, 

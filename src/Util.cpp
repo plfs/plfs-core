@@ -115,6 +115,209 @@ off_t total_ops = 0;
                         EXIT_SHARED;
 #endif
 
+/**
+ * sanicopy: helper function for sanitize_path, copies what we've done
+ * so far.   only called when the dirty path needs to be corrected.
+ *
+ * @param dirty the user's dirty path
+ * @param dptr where we are currently processing (clean prior to this)
+ * @param cpy0p put a pointer to the malloc'd buffer here
+ * @param cpyp put a pointer to the end of the malloc'd buffer here
+ * @return -error or 0 on success
+ */
+static int sanicopy(const char *dirty, const char *dptr,
+                    char **cpy0p, char **cpyp) {
+    int len;
+    char *newb;
+
+    len = strlen(dirty)+1;    /* +1 for the trailing null */
+    newb = (char *)malloc(len);
+    if (!newb)
+        return(-ENOMEM);
+    *cpy0p = newb;
+    if (dptr > dirty) {
+        memcpy(newb, dirty, dptr - dirty);
+        *cpyp = newb + (dptr - dirty);
+    } else {
+        *cpyp = newb;
+    }
+    return(0);
+}
+
+
+/**
+ * Util::sanitize_path: clean up a user supplied path, removing double
+ * slashes dot, dot-dot, and trailing slashes.  will malloc a new
+ * buffer for the clean path unless the given path is already clean.
+ *
+ * note that we sanitize before we resolve the mount, so the dirty
+ * path must be absolute (i.e. start with "/"), starting with a PLFS
+ * mountpoint.   also, a sanitized_path can never be longer than the
+ * orig. dirty path we are give.
+ *
+ * @param dirty the user-supplied dirty path (we don't modify it)
+ * @param cleanp pointer to clean buffer
+ * @param forcecopy force us to copy the buffer even if it is clean
+ * @return -error or 0 on success
+ */
+int Util::sanitize_path(const char *dirty, const char **clean, int forcecopy) {
+
+    int depth, rv, len, nchop, pad;
+    const char *base, *ptr;
+    char *cpy0, *cpy, *cpyptr;
+
+    /* quick check to verify it is an absolute path before possible malloc */
+    if (*dirty != '/')
+        return(-EINVAL);
+    
+    depth = 0;
+    base = ptr = dirty;
+    cpy0 = cpy = NULL;
+
+    if (forcecopy) {
+        rv = sanicopy(dirty, base, &cpy0, &cpy);
+        if (rv != 0)
+            return(rv);    /* prob memory error */
+    } else {
+        rv = 0;
+    }
+
+    /*
+     * we start with a "/" and walk the dirty path chunk-by-chunk
+     */
+    while (1) {
+
+        /* assert(*base == '/'); */
+        base++;
+        depth++;
+        if (cpy)
+            *cpy++ = '/';
+
+        /* we could have redundant slashes... skip over them */
+        if (*base == '/') {
+            if (cpy == NULL &&
+                (rv = sanicopy(dirty, base, &cpy0, &cpy)) != 0) {
+                break;   /* memory error */
+            }
+            while (*base == '/' && *base != 0) {
+                base++;
+            }
+        }
+        /* assert(*base != '/'); */
+
+        /* find the next delimiter or the end of the path */
+        for (ptr = base, cpyptr = cpy ; *ptr != '/' && *ptr != 0 ; ptr++) {
+            if (cpyptr)
+                *cpyptr++ = *ptr;
+        }
+        len = ptr - base;
+
+        /* now look for special cases */
+        if (len == 0) {   /* trailing slash at end of path */
+            if (depth == 1) {
+                break;   /* we just have "/" which is ok */
+            }
+            if (cpy == NULL) {
+                /* "base - 1" keeps us from copying the extra / */
+                rv = sanicopy(dirty, base - 1, &cpy0, &cpy);
+            } else {
+                cpy--;     /* discards the slash */
+            }
+            depth--;
+            break;
+        } 
+        if (len == 1 && *base == '.') {
+            /*
+             * normally just toss "/." ... exception is if we are at
+             * the root (depth==1) and there is no more path left, then
+             * we just toss "." to avoid turning "/." into ""
+             */
+            nchop = (depth == 1 && *ptr == 0) ? 1 : 2;
+            if (cpy) {
+                cpyptr -= nchop;
+            } else {
+                rv = sanicopy(dirty, ptr-nchop, &cpy0, &cpy);
+                if (rv != 0)
+                    break;
+                cpyptr = cpy;
+            }
+            /* "." doesn't change depth, revert prev incr. if we removed '/' */
+            if (nchop == 2)
+                depth--;
+        }
+        if (len == 2 && *base == '.' && *(base+1) == '.') {
+            /*
+             * we need to do everything we did for "." plus back up
+             * one directory after that.
+             */
+            nchop = (depth == 1 && *ptr == 0) ? 2 : 3;
+            if (cpy) {
+                cpyptr -= nchop;
+            } else {
+                rv = sanicopy(dirty, ptr-nchop, &cpy0, &cpy);
+                if (rv != 0)
+                    break;
+                cpyptr = cpy;
+            }
+            if (nchop == 3)
+                depth--;
+
+            /*
+             * we just removed a ".." from our path, so we need
+             * to back up one directory unless we are already
+             * at the root directory (in that case we don't need
+             * to do anything since "/.." points back to "/").
+             *
+             * how do we know we if we are already at the root?
+             * if the copy string is empty (cpyptr==cpy0) or
+             * the copy string contains a single "/" and there is
+             * no more pending data (*ptr==0) then we are at the
+             * root.
+             *
+             * this function may make the copy string empty (zero
+             * length, depth becomes 0) only if there is more data
+             * left to parse.  if there is no more data to parse, then
+             * we add a one byte pad to preserve the leading "/" in
+             * the path... i.e. it is ok for ".." to completely erase
+             * the "/a/.." (goes to depth 0) in "/a/../b" because of
+             * the "/b" following it.  on the other hand, it is not ok
+             * for ".." to completely erase "/a/.." if that is all we
+             * have, because then we'll be left with a null string for
+             * a path (not allowed).  instead, we add the pad, and
+             * just erase the "a/.." part of "/a/.." ... leaving us
+             * with "/" as the result.
+             */
+            pad = (*ptr == 0) ? 1 : 0;
+            if (cpyptr > cpy0+pad) {   /* if we can back up ... */
+                do {
+                    cpyptr--;                /* delete char */
+                    if (*cpyptr == '/') {    /* stop at next dir marker */
+                        depth--;
+                        break;
+                    }
+                } while (cpyptr > cpy0+pad); /* or stop when empty */
+            }
+        }
+        
+        /* finalize */
+        base = ptr;
+        if (cpy)
+            cpy = cpyptr;
+        if (*base == 0)
+            break;
+    }
+
+    if (cpy)
+        *cpy = 0;     /* null terminate the copy */
+    
+    if (rv == 0) {
+        *clean = (cpy0) ? cpy0 : dirty;
+    } else if (rv != 0 && cpy0 != NULL) {
+        free(cpy0);
+    }
+    return(rv);
+}
+
 // function that tokenizes a string into a set of strings based on set of delims
 vector<string> &Util::tokenize(const string& str,const string& delimiters,
                                vector<string> &tokens)
