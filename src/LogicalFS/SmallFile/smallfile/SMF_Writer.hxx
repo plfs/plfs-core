@@ -51,14 +51,14 @@ private:
 
     ssize_t dropping_id; /**< Set by the constructor and never changes. */
 
-    int add_single_record(const string &, enum SmallFileOps, off_t *,
-                          InMemoryCache *);
+    plfs_error_t add_single_record(const string &, enum SmallFileOps, off_t *,
+                                   InMemoryCache *);
 
 protected:
     /** Check whether the dropping files are created. */
     bool resource_available(int type, void *resource);
     /** Create the required dropping file if needed. */
-    int add_resource(int type, void *resource);
+    plfs_error_t add_resource(int type, void *resource);
 
 public:
     /**
@@ -85,15 +85,15 @@ public:
      */
     SMF_Writer(const plfs_pathback &filename, ssize_t did);
     ~SMF_Writer();
-    int create(const string &filename, InMemoryCache *cached);
-    int remove(const string &filename, InMemoryCache *cached);
-    int rename(const string &from, const string &to, InMemoryCache *cached);
-    ssize_t write(const FileID fileid, const void *buf, off_t offset,
-                  size_t count, InMemoryCache *meta, InMemoryCache *index);
-    int truncate(const FileID fileid, off_t offset, InMemoryCache *meta,
-                 InMemoryCache *index);
-    int utime(const string &filename, struct utimbuf *ut, InMemoryCache *meta);
-    int sync(int sync_level);
+    plfs_error_t create(const string &filename, InMemoryCache *cached);
+    plfs_error_t remove(const string &filename, InMemoryCache *cached);
+    plfs_error_t rename(const string &from, const string &to, InMemoryCache *cached);
+    plfs_error_t write(const FileID fileid, const void *buf, off_t offset,
+                       size_t count, InMemoryCache *meta, InMemoryCache *index);
+    plfs_error_t truncate(const FileID fileid, off_t offset, InMemoryCache *meta,
+                          InMemoryCache *index);
+    plfs_error_t utime(const string &filename, struct utimbuf *ut, InMemoryCache *meta);
+    plfs_error_t sync(int sync_level);
     FileID get_fileid(const string &filename, InMemoryCache *meta);
     ssize_t get_droppingid() const { return dropping_id; };
 };

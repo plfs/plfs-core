@@ -121,10 +121,11 @@ IndexFileInfo::IndexFileInfo()
  *
  * @param list the list to covert
  * @param bytes the number bytes allocated in returned buffer
- * @return the newly malloc'd buffer with the byte stream in it
+ * @param ret_buf return the newly malloc'd buffer with the byte stream in it
+ * @return PLFS_SUCCESS on success, or PLFS_E* on error
  */
-void *
-IndexFileInfo::listToStream(vector<IndexFileInfo> &list,int *bytes)
+plfs_error_t
+IndexFileInfo::listToStream(vector<IndexFileInfo> &list,int *bytes, void **ret_buf)
 {
     char *buffer;
     char *buf_pos;
@@ -144,7 +145,8 @@ IndexFileInfo::listToStream(vector<IndexFileInfo> &list,int *bytes)
     buffer=(char *)calloc(1, *bytes);
     if(!buffer) {
         *bytes=-1;
-        return (void *)buffer;
+        *ret_buf = (void *)buffer;
+        return PLFS_ENOMEM;
     }
     buf_pos=buffer;
     size=list.size();
@@ -163,7 +165,8 @@ IndexFileInfo::listToStream(vector<IndexFileInfo> &list,int *bytes)
         buf_pos=memcpy_helper(buf_pos,(void *)xhostname,len);
         free(xhostname);
     }
-    return (void *)buffer;
+    *ret_buf = (void *)buffer;
+    return PLFS_SUCCESS;
 }
 
 /**
@@ -346,7 +349,7 @@ Index::unlock( const char *function )
     Util::MutexUnlock( &fd_mux, function );
 }
 
-int
+plfs_error_t
 Index::resetPhysicalOffsets()
 {
     map<pid_t,off_t>::iterator itr;
@@ -354,7 +357,7 @@ Index::resetPhysicalOffsets()
         itr->second = 0;
         //physical_offsets[itr.first] = 0;
     }
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 Index::Index( string logical, struct plfs_backend *iback )
@@ -502,10 +505,10 @@ Index::ispopulated( )
     return populated;
 }
 
-// returns 0 or -err
+// return PLFS_SUCCESS or PLFS_E*
 // this dumps the local index
 // and then clears it
-int
+plfs_error_t
 Index::flush()
 {
     // ok, vectors are guaranteed to be contiguous
@@ -513,19 +516,20 @@ Index::flush()
     size_t  len = hostIndex.size() * sizeof(HostEntry);
     mlog(IDX_DAPI, "%s flushing %lu bytes", __FUNCTION__, (unsigned long)len);
     if ( len == 0 ) {
-        return 0;    // could be 0 if we weren't buffering
+        return PLFS_SUCCESS;    // could be 0 if we weren't buffering
     }
     // valgrind complains about writing uninitialized bytes here....
     // but it's fine as far as I can tell.
     //XXXCDC: it is prob complaining about structure padding
     void *start = &(hostIndex.front());
-    int ret     = Util::Writen(start, len, this->fh);
-    if ( (size_t)ret != (size_t)len ) {
+    ssize_t bytes;
+    plfs_error_t ret = Util::Writen(start, len, this->fh, &bytes);
+    if ( (size_t)bytes != (size_t)len ) {
         mlog(IDX_DRARE, "%s failed write to fh %p: %s",
-             __FUNCTION__, fh, strerror(-ret));
+             __FUNCTION__, fh, strplfserr(ret));
     }
     hostIndex.clear();
-    return((ret < 0) ? ret : 0);
+    return ret;
 }
 
 // takes a path and returns a ptr to the databuf of the file
@@ -534,15 +538,15 @@ Index::flush()
 // this is for reading an index file
 // only called by Index::readIndex.  must call cleanupReadIndex to
 // close and unmap
-// return 0 or -err
-int
+// return PLFS_SUCCESS or PLFS_E*
+plfs_error_t
 Index::mapIndex( void **ibufp, string hostindex, IOSHandle **xfh,
                  off_t *length, struct plfs_backend *hback)
 {
-    int ret;
-    *xfh = hback->store->Open(hostindex.c_str(), O_RDONLY, ret);
-    if ( *xfh == NULL ) {
-        mlog(IDX_DRARE, "%s WTF open: %s", __FUNCTION__, strerror(-ret));
+    plfs_error_t ret;
+    ret = hback->store->Open(hostindex.c_str(), O_RDONLY, xfh);
+    if ( ret != PLFS_SUCCESS ) {
+        mlog(IDX_DRARE, "%s WTF open: %s", __FUNCTION__, strplfserr(ret));
         /* play it safe in case store doesn't set ret properly */
         *ibufp = NULL;
         *length = 0;
@@ -552,17 +556,17 @@ Index::mapIndex( void **ibufp, string hostindex, IOSHandle **xfh,
     // lseek doesn't always see latest data if panfs hasn't flushed
     // could be a zero length chunk although not clear why that gets
     // created.
-    *length = (*xfh)->Size();
+    ret = (*xfh)->Size(length);
     if ( *length == 0 ) {
         /* this can happen if index !flushed, or after a truncate */
         mlog(IDX_DRARE, "%s is a zero length index file", hostindex.c_str());
         *ibufp = NULL;
-        return(0);
+        return(PLFS_SUCCESS);
     }
-    if (*length < 0) {
+    if (ret != PLFS_SUCCESS) {
         mlog(IDX_DRARE, "%s WTF lseek: %s", __FUNCTION__,
-             strerror(-(*length)));
-        return(*length);
+             strplfserr(ret));
+        return ret;
     }
     
     ret = (*xfh)->GetDataBuf(ibufp, *length);
@@ -571,10 +575,10 @@ Index::mapIndex( void **ibufp, string hostindex, IOSHandle **xfh,
 
 
 // this builds a global in-memory index from a physical host index dropping
-// return 0 for sucess, -err for failure
-int Index::readIndex( string hostindex, struct plfs_backend *hback )
+// return PLFS_SUCCESS for sucess, PLFS_E* for failure
+plfs_error_t Index::readIndex( string hostindex, struct plfs_backend *hback )
 {
-    int rv;
+    plfs_error_t rv;
     off_t length = (off_t)-1;
     IOSHandle *rfh = NULL;
     void  *maddr = NULL;
@@ -586,7 +590,7 @@ int Index::readIndex( string hostindex, struct plfs_backend *hback )
 
     rv = mapIndex(&maddr, hostindex, &rfh, &length, hback);
 
-    if( rv < 0) {
+    if( rv != PLFS_SUCCESS) {
         return cleanupReadIndex( rfh, maddr, length, rv, "mapIndex",
                                  hostindex.c_str(), hback );
     }
@@ -655,8 +659,8 @@ int Index::readIndex( string hostindex, struct plfs_backend *hback )
         c_entry.physical_offset   = h_entry.physical_offset;
         c_entry.begin_timestamp   = h_entry.begin_timestamp;
         c_entry.end_timestamp     = h_entry.end_timestamp;
-        int ret = insertGlobal( &c_entry );
-        if ( ret != 0 ) {
+        plfs_error_t ret = insertGlobal( &c_entry );
+        if ( ret != PLFS_SUCCESS ) {
             /* caller should prob discard index if we fail here */
             return cleanupReadIndex( rfh, maddr, length, ret, "insertGlobal",
                                      hostindex.c_str(), hback );
@@ -664,15 +668,15 @@ int Index::readIndex( string hostindex, struct plfs_backend *hback )
     }
     mlog(IDX_DAPI, "After %s in %p, now are %lu chunks",
          __FUNCTION__,this,(unsigned long)chunk_map.size());
-    return cleanupReadIndex(rfh, maddr, length, 0, "DONE",hostindex.c_str(),
-                            hback);
+    return cleanupReadIndex(rfh, maddr, length, PLFS_SUCCESS, "DONE",
+                            hostindex.c_str(), hback);
 }
 
 // constructs a global index from a "stream" (i.e. a chunk of memory)
-// returns 0 or -err
+// returns PLFS_SUCCESS or PLFS_E*
 // format:
 //    <quant> [ContainerEntry list] [chunk paths]
-int Index::global_from_stream(void *addr)
+plfs_error_t Index::global_from_stream(void *addr)
 {
     // first read the header to know how many entries there are
     size_t quant = 0;
@@ -710,7 +714,7 @@ int Index::global_from_stream(void *addr)
              * ever fires? (what is the min chunk size?)
              */
         }
-        int ret;
+        plfs_error_t ret;
         ChunkFile cf;
         // we used to strip the physical path off in global_to_stream
         // and add it back here.  See comment in global_to_stream for why
@@ -719,7 +723,7 @@ int Index::global_from_stream(void *addr)
 
         ret = plfs_phys_backlookup(chunk_paths[i].c_str(), NULL,
                                    &cf.backend, &cf.bpath);
-        if (ret != 0) {
+        if (ret != PLFS_SUCCESS) {
             //XXXCDC: NOW WHAT?   not going to be able to read the
             //data log files without a valid backend, so we are sunk
             //if we try to read
@@ -727,11 +731,11 @@ int Index::global_from_stream(void *addr)
         cf.fh = NULL;
         chunk_map.push_back(cf);
     }
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 // Helper function to debug global_to_stream
-int Index::debug_from_stream(void *addr)
+plfs_error_t Index::debug_from_stream(void *addr)
 {
     // first read the header to know how many entries there are
     size_t quant = 0;
@@ -751,21 +755,21 @@ int Index::debug_from_stream(void *addr)
         mlog(IDX_DCOMMON, "Chunk path:%lu is :%s",
              (unsigned long)i,chunk_paths[i].c_str());
     }
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 // this writes a flattened in-memory global index to a physical file
-// returns 0 or -err
-int Index::global_to_file(IOSHandle *xfh, struct plfs_backend * /* canback */)
+// returns PLFS_SUCCESS or PLFS_E*
+plfs_error_t
+Index::global_to_file(IOSHandle *xfh, struct plfs_backend * /* canback */)
 {
     void *buffer;
     size_t length;
-    int ret = global_to_stream(&buffer,&length);
-    if (ret==0) {
-        ret = Util::Writen(buffer,length,xfh);
-        if (ret >= 0) {   /* let -err pass up to caller */
-            ret = 0;
-        }
+    plfs_error_t ret = global_to_stream(&buffer,&length);
+    if (ret==PLFS_SUCCESS) {
+        ssize_t bytes;
+        ret = Util::Writen(buffer,length,xfh, &bytes);
+        /* let -err pass up to caller */
         free(buffer);
     }
     return ret;
@@ -773,16 +777,16 @@ int Index::global_to_file(IOSHandle *xfh, struct plfs_backend * /* canback */)
 
 // this writes a flattened in-memory global index to a memory address
 // it allocates the memory.  The caller must free it.
-// returns 0 or -err
-int Index::global_to_stream(void **buffer,size_t *length)
+// returns PLFS_SUCCESS or PLFS_E*
+plfs_error_t Index::global_to_stream(void **buffer,size_t *length)
 {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     // Global ?? or this
     size_t quant = global_index.size();
     //Check if we stopped buffering, if so return -1 and length of -1
     if(!buffering && buffer_filled) {
         *length=(size_t)-1;
-        return -1;
+        return PLFS_TBD;
     }
     // first build the vector of chunk paths, trim them to relative
     // to the container so they're smaller and still valid after rename
@@ -823,11 +827,11 @@ int Index::global_to_stream(void **buffer,size_t *length)
     // Let's check this malloc and make sure it succeeds
     if(!buffer) {
         mlog(IDX_DRARE, "%s, Malloc of stream buffer failed",__FUNCTION__);
-        return -1;
+        return PLFS_TBD;
     }
     char *ptr = (char *)*buffer;
     if ( ! *buffer ) {
-        return -ENOMEM;
+        return PLFS_ENOMEM;
     }
     // copy in the header
     ptr = memcpy_helper(ptr,&quant,sizeof(quant));
@@ -907,7 +911,7 @@ void Index::findSplits(ContainerEntry& e,set<off_t> &s)
 // E) iterate through chunks, insert into temporary map container, winners
 // on collision (i.e. insert failure) only retain entry with higher timestamp
 // F) finally copy all of winners back into global_index
-int Index::handleOverlap(ContainerEntry& incoming,
+plfs_error_t Index::handleOverlap(ContainerEntry& incoming,
                          pair<map<off_t,ContainerEntry>::iterator, bool>
                          &insert_ret )
 {
@@ -1000,7 +1004,7 @@ int Index::handleOverlap(ContainerEntry& incoming,
     // chunks.  It'd be nice to compress winners before inserting into global
     // now put the winners back into the global index
     global_index.insert(winners.begin(),winners.end());
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 
@@ -1025,7 +1029,7 @@ Index::insertGlobalEntry( ContainerEntry *g_entry)
                                            *g_entry ) );
 }
 
-int
+plfs_error_t
 Index::insertGlobal( ContainerEntry *g_entry )
 {
     pair<map<off_t,ContainerEntry>::iterator,bool> ret;
@@ -1090,40 +1094,40 @@ Index::insertGlobal( ContainerEntry *g_entry )
         }
         */
     }
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 // just a little helper to print an error message and make sure the fd is
 // closed and the data buffers released
-// ret 0 or -err
-int
-Index::cleanupReadIndex( IOSHandle *xfh, void *maddr, off_t length, int ret,
-                         const char *last_func, const char *indexfile,
-                         struct plfs_backend *hback)
+// ret PLFS_SUCCESS or PLFS_E*
+plfs_error_t
+Index::cleanupReadIndex( IOSHandle *xfh, void *maddr, off_t length, 
+                         plfs_error_t ret, const char *last_func, 
+                         const char *indexfile, struct plfs_backend *hback)
 {
-    int ret2 = 0, ret3 = 0;
-    if ( ret < 0 ) {
+    plfs_error_t ret2 = PLFS_SUCCESS, ret3 = PLFS_SUCCESS;
+    if ( ret != PLFS_SUCCESS ) {
         mlog(IDX_DRARE, "WTF.  readIndex failed during %s on %s: %s",
-             last_func, indexfile, strerror( -ret ) );
+             last_func, indexfile, strplfserr( ret ) );
     }
     if ( maddr != NULL ) {
         ret2 = xfh->ReleaseDataBuf(maddr, length);
-        if ( ret2 < 0 ) {
+        if ( ret2 != PLFS_SUCCESS ) {
             mlog(IDX_DRARE,
                  "WTF.  readIndex failed during release of %s (%lu): %s",
-                 indexfile, (unsigned long)length, strerror(-ret2));
+                 indexfile, (unsigned long)length, strplfserr(ret2));
             ret = ret2; // set to error
         }
     }
     if ( maddr == NULL ) {
-        mlog(IDX_DRARE, "get/map failed on %s: %s",indexfile,strerror(-ret));
+        mlog(IDX_DRARE, "get/map failed on %s: %s",indexfile,strplfserr(ret));
     }
     if ( xfh != NULL ) {
         ret3 = hback->store->Close(xfh);
-        if ( ret3 < 0 ) {
+        if ( ret3 != PLFS_SUCCESS ) {
             mlog(IDX_DRARE,
                  "WTF. readIndex failed during close of %s: %s",
-                 indexfile, strerror(-ret3) );
+                 indexfile, strplfserr(ret3) );
             ret = ret3; // set to error
         }
     }
@@ -1143,18 +1147,18 @@ Index::getChunkFh( pid_t chunkid )
 // the index no longer opens them itself so that
 // they might be opened in parallel when a single logical read
 // spans multiple data chunks
-int
+plfs_error_t
 Index::setChunkFh( pid_t chunkid, IOSHandle *newfh )
 {
     chunk_map[chunkid].fh = newfh;
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 // this is a helper function to globalLookup which returns information
 // identifying the physical location of some piece of data
 // we found a chunk containing an offset, return necessary stuff
 // this does not open the fd to the chunk however
-int
+plfs_error_t
 Index::chunkFound( IOSHandle **xfh, off_t *chunk_off, size_t *chunk_len,
                    off_t shift, string& path,
                    struct plfs_backend **backp, pid_t *chunkid,
@@ -1184,7 +1188,7 @@ Index::chunkFound( IOSHandle **xfh, off_t *chunk_off, size_t *chunk_len,
     *xfh = cf_ptr->fh;
     path = cf_ptr->bpath;
     *backp = cf_ptr->backend;
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 // returns the fd for the chunk and the offset within the chunk
@@ -1192,11 +1196,12 @@ Index::chunkFound( IOSHandle **xfh, off_t *chunk_off, size_t *chunk_len,
 // if the chunk does not currently have an fd, it is created here
 // if the lookup finds a hole, it returns -1 for the fd and
 // chunk_len for the size of the hole beyond the logical offset
-// returns 0 or -err
-int Index::globalLookup( IOSHandle **xfh, off_t *chunk_off, size_t *chunk_len,
-                         string& path, struct plfs_backend **backp,
-                         bool *hole, pid_t *chunkid,
-                         off_t logical )
+// returns PLFS_SUCCESS or PLFS_E*
+plfs_error_t
+Index::globalLookup( IOSHandle **xfh, off_t *chunk_off, size_t *chunk_len,
+                     string& path, struct plfs_backend **backp,
+                     bool *hole, pid_t *chunkid,
+                     off_t logical )
 {
     mss::mlog_oss os(IDX_DAPI);
     os << __FUNCTION__ << ": " << this << " using index.";
@@ -1219,7 +1224,7 @@ int Index::globalLookup( IOSHandle **xfh, off_t *chunk_off, size_t *chunk_len,
     if ( global_index.size() == 0 ) {
         *xfh = NULL;
         *chunk_len = 0;
-        return 0;
+        return PLFS_SUCCESS;
     }
     // back up if we went off the end
     if ( itr == global_index.end() ) {
@@ -1269,7 +1274,7 @@ int Index::globalLookup( IOSHandle **xfh, off_t *chunk_off, size_t *chunk_len,
         *chunk_len = remaining_hole_size;
         *chunk_off = 0;
         *hole = true;
-        return 0;
+        return PLFS_SUCCESS;
     }
     // case 3: off the end of the file
     //oss.str("");    // stupid way to clear the buffer
@@ -1277,7 +1282,7 @@ int Index::globalLookup( IOSHandle **xfh, off_t *chunk_off, size_t *chunk_len,
     //mlog(IDX_DCOMMON, "%s", oss.str().c_str() );
     *xfh = NULL;
     *chunk_len = 0;
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 // we're just estimating the area of these stl containers which ignores overhead
@@ -1438,7 +1443,7 @@ Index::truncateHostIndex( off_t offset )
 // index, so now we need to dump the modified global index into
 // a new local index
 // XXX: fd's backend is stored in Index::iback, use it to flush()
-int
+plfs_error_t
 Index::rewriteIndex( IOSHandle *rfh )
 {
     this->fh = rfh;

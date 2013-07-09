@@ -8,13 +8,22 @@
 
 int main (int argc, char **argv) {
     const char *target;
+    struct plfs_physpathinfo ppi;
+    struct plfs_pathback pb;
     if (argc > 1) {
         target = argv[1];
     } else {
         return -1;
     }
     plfs_handle_version_arg(argc, argv[1]);
-    int ret = container_flatten_index(NULL,target);
+    int ret = plfs_resolvepath(target, &ppi);
+    if (ret) {
+        fprintf(stderr, "Couldn't resolve path %s\n", target);
+        exit(1);
+    }
+    pb.bpath = ppi.canbpath;  /* clearly we assume container fs here */
+    pb.back = ppi.canback;
+    ret = container_flatten_index(NULL,&pb);
     if ( ret != 0 ) {
         fprintf( stderr, "Couldn't read index from %s: %s\n", 
                 target, strerror(-ret));

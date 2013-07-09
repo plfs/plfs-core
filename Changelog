@@ -1,4 +1,71 @@
 ~~~ Version 2.4
+PLFS 2.4 introduces many new features and enhancements in addition to the bug 
+fixes listed further below.  Improvements include (in no particular order):
+
+
+* Three new IOStore protocols
+FUSE, HDFS, and PVFS are now supported natively by PLFS.
+
+* CMake build system
+CMake has replaced Autotools as the build system for faster and easier 
+configuration and compilation. Documentation on the new build process is in 
+README.install in the root of the source tree.
+
+* New plfsrc config file format
+PLFS configuration has moved from the old custom format to a new YAML 1.2 
+compliant specification that allows for easier configuration and management.  
+Documentation on the new format is listed in the plfsrc man page located in 
+man/man5/plfsrc.5in (or "man plfsrc" if you've installed PLFS 2.4 to somewhere 
+in your PATH).
+
+* GLib IOStore
+The GLib IOStore has been updated to provide a configurable buffer size that 
+improves small write performance dramatically on many systems.
+
+* 1-N small file mode
+The new "Small File Mode" for 1-N writing dramatically improves file creation 
+performance. Combined with the Glib IOStore buffering, 1-N mode essentially 
+allows for bandwidth-constrained file creation performance rather than 
+metadata-constrained.
+
+* Speed improvements
+Various code-corrections and optimizations improve performance for many 
+workloads in N-1, N-N, and 1-N modes.
+
+* ADIO cleanup
+The ADIO layer has been cleaned up for consistency. This change requires a 
+rebuild of MPI with the new ad_plfs code.
+
+* OpenMPI 1.7.x support
+OpenMPI 1.7.x is now supported.  Patch notes are available in 
+mpi_adio/README.patching.
+
+* Index compression option
+Contiguous index entry compression can be disabled if desired, see the plfsrc 
+man page for details.
+
+* Intel/PGI compilers
+Intel and PGI compilers are now usable, but not extensively tested.
+
+* MPIIO updates
+A new MPIIO hint has been added to allow "uniform restart" mode to reduce 
+memory usage when reading back a file with the same number of processors as it 
+was written with. Details are in mpi_adio/ad_plfs/ad_plfs_hints.c.
+
+* Werror and Wshadow added to default build
+In order to help keep code to the guidelines outlined in README.developer,
+Werror and Wshadow are now used by default in the build process. Code cleanup
+resulted from this change.
+
+* ADIO support for newer MPICH
+PLFS-prep patches now exist for MPICH2-1.5 and MPICH-3.0.3. With the release
+of MPICH2-1.5, the MPICH folks completely redid their build system. The
+make_ad_plfs_patch script has been updated to relfect this change. This means
+that versions before MPICH2-1.5 can no longer be completely patched by using
+make_ad_plfs_patch. Details are in mpi_adio/README.patching.
+
+
+Bug Fixes:
 * PLFS Segfault Without PLFSRC
 Issue #69: A call to any PLFS library function without a valid PLFSRC file
 available results in a segfault. Now the functions note that there is no
@@ -73,17 +140,6 @@ overhead burden that is not necessary. The implementation recognizes their
 existence without actually creating the underlying physical representation if
 there is no data to store.
 
-* Add Werror and Wshadow to default build process
-In order to help keep code to the guidelines outlined in README.developer,
-Werror and Wshadow are now used by default in the build process. Code cleanup
-resulted from this change.
-
-* ADIO Support for newer MPICH
-PLFS-prep patches now exist for MPICH2-1.5 and MPICH-3.0.3. With the release
-of MPICH2-1.5, the MPICH folks completely redid their build system. The
-make_ad_plfs_patch script has been updated to relfect this change. This means
-that versions before MPICH2-1.5 can no longer be completely patched by using
-make_ad_plfs_patch. Details are in mpi_adio/README.patching.
 
 ~~~ Version 2.3
 * IOStore
