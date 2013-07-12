@@ -18,7 +18,9 @@ class Plfs_fd
                               pid_t pid, ssize_t *bytes_written) = 0;
         virtual plfs_error_t sync() = 0;
         virtual plfs_error_t sync(pid_t pid) = 0;
-        virtual plfs_error_t trunc(off_t offset) = 0;
+        /* XXX: containerfs is keeping us from removing ppip in trunc */
+        virtual plfs_error_t trunc(off_t offset,
+                                   struct plfs_physpathinfo *ppip) = 0;
         virtual plfs_error_t getattr(struct stat *stbuf, int sz_only) = 0;
         virtual plfs_error_t query(size_t *writers, size_t *readers,
                           size_t *bytes_written, bool *reopen) = 0;

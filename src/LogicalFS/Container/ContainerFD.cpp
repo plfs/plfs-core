@@ -60,10 +60,10 @@ Container_fd::sync(pid_t pid)
 }
 
 plfs_error_t
-Container_fd::trunc(off_t offset)
+Container_fd::trunc(off_t offset, struct plfs_physpathinfo *ppip)
 {
     bool open_file = true; // Yes, I am an open file handle.
-    return container_trunc(fd, NULL, offset, open_file);
+    return container_trunc(fd, ppip, offset, open_file);
 }
 
 plfs_error_t
