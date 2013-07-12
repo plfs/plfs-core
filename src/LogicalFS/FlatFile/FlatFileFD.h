@@ -24,7 +24,7 @@ class Flat_fd : public Plfs_fd
                            ssize_t *bytes_written);
         plfs_error_t sync();
         plfs_error_t sync(pid_t pid);
-        plfs_error_t trunc(off_t offset);
+        plfs_error_t trunc(off_t offset, struct plfs_physpathinfo *ppip);
         plfs_error_t getattr(struct stat *stbuf, int sz_only);
         plfs_error_t query(size_t *writers, size_t *readers, size_t *bytes_written,
                   bool *reopen);
