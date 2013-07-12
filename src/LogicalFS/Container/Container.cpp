@@ -192,7 +192,8 @@ Container::hashValue( const char *str )
 */
     // so the string summation is bad in terms of distribution and
     // collisions.  This should be better...
-    
+    // Actual algorithm is: hash(i) = hash(i - 1) * 65599 + str[i];    
+
     size_t sum = 0;
     int c;
     while (c = *str++)
