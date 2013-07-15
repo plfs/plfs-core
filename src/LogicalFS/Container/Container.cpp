@@ -196,8 +196,9 @@ Container::hashValue( const char *str )
 
     size_t sum = 0;
     int c;
-    while (c = *str++)
+    while ((c = *str++)) {
         sum = c + (sum << 6) + (sum << 16) - sum;
+    }
     mlog(CON_DINTAPI, "%s: %s -> %lu",__FUNCTION__,str,(unsigned long)sum);
     return sum;
     
