@@ -157,6 +157,9 @@ if (BUILD_IOFSL)
    add_definitions(${FUSE_DEFINITIONS})
 endif (BUILD_IOFSL)
 
+#set compiler options
+set(CMAKE_CXX_FLAGS "-Wall -Werror -Wshadow -Wno-long-long -Wextra ${CMAKE_CXX_FLAGS}")
+
 #create the plfs library
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR} plfs_src_dir)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/IOStore iostore)
@@ -250,16 +253,20 @@ include_directories (src/Plfsrc/yaml-cpp/include)
 include_directories (src/Plfsrc/yaml-cpp/boost)
 
 #static and shared both same name
-add_library(plfs_lib SHARED ${SRCDIR})
+add_library(plfs_lib SHARED ${SRCDIR} ${sources} ${public_headers}
+${private_headers} ${contrib_headers} ${contrib_public_headers}
+${contrib_private_headers})
 SET_TARGET_PROPERTIES(plfs_lib PROPERTIES OUTPUT_NAME plfs)
 set_target_properties(plfs_lib PROPERTIES
         VERSION "${plfs_VERSION_FULL}"
         SOVERSION "${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}"
         PROJECT_LABEL "plfs_lib shared")
 
-target_link_libraries (plfs_lib plfs-yaml)
+#target_link_libraries (plfs_lib plfs-yaml)
 if (NOT DISABLE_STATIC_LIB)
-    add_library(plfs_lib_static STATIC ${SRCDIR})
+    add_library(plfs_lib_static STATIC ${SRCDIR} ${sources} ${public_headers}
+${private_headers} ${contrib_headers} ${contrib_public_headers}
+${contrib_private_headers})
     #make sure these build first, causes issues in 2.6
     #if not
     add_dependencies(plfs_lib plfs_lib_static)
@@ -271,7 +278,7 @@ if (NOT DISABLE_STATIC_LIB)
         VERSION "${plfs_VERSION_FULL}"
         SOVERSION "${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}"
         PROJECT_LABEL "plfs_lib static")
-    target_link_libraries(plfs_lib_static plfs-yaml-static)
+#    target_link_libraries(plfs_lib_static plfs-yaml-static)
 else()
     INSTALL(TARGETS plfs_lib
             LIBRARY DESTINATION ${LIBDIR})
