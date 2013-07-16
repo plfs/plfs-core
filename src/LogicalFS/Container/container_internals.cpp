@@ -396,7 +396,7 @@ plfs_file_operation(const char *logical, FileOp& op)
             continue;
         }
         ret = op.op(ritr->bpath.c_str(),
-                    is_container?(unsigned char)DT_CONTAINER:DT_DIR,
+                    is_container?(unsigned char)DT_CONTAINER:(unsigned char)DT_DIR,
                     ritr->back->store);
     }
     if (is_container) {
@@ -1825,7 +1825,7 @@ container_file_version(const char *logical, const char **version)
 {
     PLFS_ENTER;
     struct plfs_pathback pb;
-    ret = ret; // suppress compiler warning
+    (void) ret; // suppress compiler warning
     mode_t mode;
     if (!is_container_file(logical, &mode)) {
         return -ENOENT;

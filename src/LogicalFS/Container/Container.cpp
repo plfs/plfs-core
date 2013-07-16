@@ -179,6 +179,7 @@ Container::transferCanonical(const plfs_pathback *from,
 size_t
 Container::hashValue( const char *str )
 {
+/*
     // wonder if we need a fancy hash function or if we could just
     // count the bits or something in the string?
     // be pretty simple to just sum each char . . .
@@ -188,6 +189,19 @@ Container::hashValue( const char *str )
     }
     mlog(CON_DINTAPI, "%s: %s -> %lu",__FUNCTION__,str,(unsigned long)sum);
     return sum;
+*/
+    // so the string summation is bad in terms of distribution and
+    // collisions.  This should be better...
+    // Actual algorithm is: hash(i) = hash(i - 1) * 65599 + str[i];    
+
+    size_t sum = 0;
+    int c;
+    while ((c = *str++)) {
+        sum = c + (sum << 6) + (sum << 16) - sum;
+    }
+    mlog(CON_DINTAPI, "%s: %s -> %lu",__FUNCTION__,str,(unsigned long)sum);
+    return sum;
+    
     /*
     #include <openssl/md5.h>
     unsigned char *ret = NULL;
