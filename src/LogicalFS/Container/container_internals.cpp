@@ -1829,7 +1829,7 @@ container_file_version(const char *logical, const char **version)
 {
     PLFS_ENTER;
     struct plfs_pathback pb;
-    ret = ret; // suppress compiler warning
+    (void) ret; // suppress compiler warning
     mode_t mode;
     if (!is_container_file(logical, &mode)) {
         return -ENOENT;
