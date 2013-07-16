@@ -158,7 +158,7 @@ if (BUILD_IOFSL)
 endif (BUILD_IOFSL)
 
 #set compiler options
-set(CMAKE_CXX_FLAGS "-Wall -Werror -Wshadow -Wno-long-long -Wextra -Winit-self ${CMAKE_CXX_FLAGS}")
+set(CMAKE_CXX_FLAGS "-Wall -Werror -Wshadow -Wno-long-long -Wextra ${CMAKE_CXX_FLAGS}")
 
 #create the plfs library
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR} plfs_src_dir)
