@@ -400,7 +400,7 @@ plfs_file_operation(const char *logical, FileOp& op)
             continue;
         }
         ret = op.op(ritr->bpath.c_str(),
-                    is_container?(unsigned char)DT_CONTAINER:DT_DIR,
+                    is_container?(unsigned char)DT_CONTAINER:(unsigned char)DT_DIR,
                     ritr->back->store);
     }
     if (is_container) {
