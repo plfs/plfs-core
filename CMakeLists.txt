@@ -157,6 +157,9 @@ if (BUILD_IOFSL)
    add_definitions(${FUSE_DEFINITIONS})
 endif (BUILD_IOFSL)
 
+#set compiler options
+set(CMAKE_CXX_FLAGS "-Wall -Werror -Wshadow -Wno-long-long ${CMAKE_CXX_FLAGS}")
+
 #create the plfs library
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR} plfs_src_dir)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/IOStore iostore)
