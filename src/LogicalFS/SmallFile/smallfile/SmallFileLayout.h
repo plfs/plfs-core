@@ -37,7 +37,7 @@ struct __attribute__ ((__packed__)) IndexEntry {
     uint64_t offset;
     uint64_t length;
     uint64_t timestamp;
-    uint64_t physical_offset;
+    off_t physical_offset;
 };
 
 #define NAME_PREFIX  "dropping.name"
