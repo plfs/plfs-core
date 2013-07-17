@@ -684,8 +684,8 @@ int Util::Setfsgid( gid_t g )
 #ifndef __APPLE__
     errno = 0;     /* error# ok, but is this necessary? */
     ret = setfsgid( g );
-    mlog(UT_DCOMMON, "Set gid %d: %s", g, strerror(errno) ); /* error# ok */
 #endif
+    mlog(UT_DCOMMON, "Set gid %d: %s", g, strerror(errno) ); /* error# ok */
     EXIT_UTIL;
 }
 
@@ -695,8 +695,8 @@ int Util::Setfsuid( uid_t u )
 #ifndef __APPLE__
     errno = 0;     /* error# ok, but is this necessary? */
     ret = setfsuid( u );
-    mlog(UT_DCOMMON, "Set uid %d: %s", u, strerror(errno) ); /* error# ok */
 #endif
+    mlog(UT_DCOMMON, "Set uid %d: %s", u, strerror(errno) ); /* error# ok */
     EXIT_UTIL;
 }
 
