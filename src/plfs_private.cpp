@@ -137,7 +137,7 @@ plfs_expand_path(const char *logical,char **physical,
     ppi.canback = NULL; /* to be safe */
     ret = plfs_resolvepath(stripped_path, &ppi);
     if (ret == PLFS_SUCCESS) {
-        *physical = Util::Strdup(ppi.bnode.c_str());
+        *physical = Util::Strdup(ppi.canbpath.c_str());
         if (*physical == NULL) {
             ret = PLFS_ENOMEM;
         }
