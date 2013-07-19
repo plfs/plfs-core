@@ -62,9 +62,6 @@ size_t container_gethostdir_id(char *hostname)
     return Container::getHostDirId(hostname);
 }
 
-/*
- * Nothing was calling this function, so I deleted it.
- *
 int
 container_dump_index_size()
 {
@@ -72,7 +69,6 @@ container_dump_index_size()
     cout << "An index entry is size " << sizeof(e) << endl;
     return (int)sizeof(e);
 }
- */
 
 /*
  * XXXCDC: this is a top-level function that doesn't appear to be used.
@@ -477,7 +473,7 @@ plfs_file_operation(struct plfs_physpathinfo *ppip, FileOp& op)
             continue;
         }
         ret = op.op(ritr->bpath.c_str(),
-                    is_container?(unsigned char)DT_CONTAINER:DT_DIR,
+                    is_container?(unsigned char)DT_CONTAINER:(unsigned char)DT_DIR,
                     ritr->back->store);
     }
     if (is_container) {
@@ -1736,8 +1732,8 @@ container_locate(const char *logicalpath, void *files_ptr,
 // this one probably can't work actually since you can't hard link a directory
 // and plfs containers are physical directories
 plfs_error_t
-container_link(struct plfs_physpathinfo *ppip,
-               struct plfs_physpathinfo *ppip_to)
+container_link(struct plfs_physpathinfo * /* ppip */,
+               struct plfs_physpathinfo * /* ppip_to */)
 {
     mlog(PLFS_DAPI, "Can't make a hard link to a container." );
     return(PLFS_ENOSYS);

@@ -493,7 +493,7 @@ SmallFileFS::rmdir(struct plfs_physpathinfo *ppip)
             containers.erase(expinfo.dirpath);
         }
     }
-    mode_t mode;
+    mode_t mode = 0;
     ret = SmallFileFS::getmode(ppip, &mode); // save in case we need to restore
     UnlinkOp op;
     ret = plfs_backends_op(ppip, op);
@@ -581,7 +581,7 @@ SmallFileFS::flush_writes(struct plfs_physpathinfo *ppip)
 }
 
 plfs_error_t
-SmallFileFS::resolvepath_finish(struct plfs_physpathinfo *ppip) {
+SmallFileFS::resolvepath_finish(struct plfs_physpathinfo * /* ppip */) {
     /*
      * smallfile currently doesn't do any additional path processing.
      */

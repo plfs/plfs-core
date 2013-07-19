@@ -26,7 +26,7 @@ CPPUNIT_TEST_SUITE_REGISTRATION(NamesMappingUnit);
 CPPUNIT_TEST_SUITE_REGISTRATION(IndexUnit);
 
 extern string plfsmountpoint;
-struct IOStore *store = new PosixIOStore();
+class IOStore *store = new PosixIOStore();
 struct plfs_backend fakeback = {NULL, string("/"), store};
 struct plfs_backend *backend = &fakeback;
 

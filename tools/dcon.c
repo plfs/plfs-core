@@ -161,7 +161,7 @@ static void truncatelog(int ignore) {
      * ignore disabled log files and ftrucate() errors (logfp may not
      * be a file).
      */
-    ignore = ignore; // silence Intel compiler warning
+    (void) ignore; // silence Intel compiler and Clang warning
     if (logfp) {
         (void) ftruncate(fileno(logfp), 0);
     }
@@ -175,7 +175,7 @@ static void truncatelog(int ignore) {
 static void flushlog(int ignore) {
 
     /* XXX: maybe we should make it line buffered? */
-    ignore = ignore; //silence Intel compiler warning
+    (void) ignore; //silence Intel compiler and Clang warning
     if (logfp) {
         fflush(logfp);
     }

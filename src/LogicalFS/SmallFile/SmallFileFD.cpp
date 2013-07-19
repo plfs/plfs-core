@@ -81,7 +81,7 @@ Small_fd::sync(pid_t /* pid */)
 }
 
 plfs_error_t
-Small_fd::trunc(off_t offset, struct plfs_physpathinfo *ppip)
+Small_fd::trunc(off_t offset, struct plfs_physpathinfo * /* ppip */)
 {
     plfs_error_t ret;
     if (open_flags == O_WRONLY || open_flags == O_RDWR) {

@@ -896,8 +896,8 @@ plfs_error_t Util::Setfsgid( gid_t g, int *ret_gid)
 #ifndef __APPLE__
     errno = 0;     /* error# ok, but is this necessary? */
     ret = setfsgid( g );
-    mlog(UT_DCOMMON, "Set gid %d: %s", g, strerror(errno) ); /* error# ok */
 #endif
+    mlog(UT_DCOMMON, "Set gid %d: %s", g, strerror(errno) ); /* error# ok */
     *ret_gid = ret;
     return (ret >= 0) ? PLFS_SUCCESS : PLFS_TBD;
 }
@@ -908,8 +908,8 @@ plfs_error_t Util::Setfsuid( uid_t u, int *ret_uid)
 #ifndef __APPLE__
     errno = 0;     /* error# ok, but is this necessary? */
     ret = setfsuid( u );
-    mlog(UT_DCOMMON, "Set uid %d: %s", u, strerror(errno) ); /* error# ok */
 #endif
+    mlog(UT_DCOMMON, "Set uid %d: %s", u, strerror(errno) ); /* error# ok */
     *ret_uid = ret;
     return (ret >= 0) ? PLFS_SUCCESS : PLFS_TBD;
 }
