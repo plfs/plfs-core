@@ -98,7 +98,7 @@ Container_fd::setPath(string p, struct plfs_backend *b)
 }
 
 plfs_error_t
-Container_fd::compress_metadata(const char *path)
+Container_fd::compress_metadata(const char * /* path */)
 {
     struct plfs_pathback container;
     container.bpath = fd->getPath();

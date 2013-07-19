@@ -17,11 +17,7 @@ plfs_error_t container_create(struct plfs_physpathinfo *ppip, mode_t mode,
 plfs_error_t container_dump_index( FILE *fp, const char *path,
                                    int compress, int uniform_restart, pid_t uniform_rank );
 
-/*
- * Nothing was calling this function, so I deleted it.
- *
-int container_dump_index_size()
- */
+int container_dump_index_size();
 
 plfs_error_t container_file_version(const char *logical, const char **version);
 

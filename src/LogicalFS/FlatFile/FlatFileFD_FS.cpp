@@ -136,7 +136,7 @@ Flat_fd::sync(pid_t /* pid */)
 
 /* ret PLFS_SUCCESS or PLFS_E */
 plfs_error_t
-Flat_fd::trunc(off_t offset, struct plfs_physpathinfo *ppip)
+Flat_fd::trunc(off_t offset, struct plfs_physpathinfo * /* ppip */)
 {
     plfs_error_t ret = this->backend_fh->Ftruncate(offset);
     return(ret);

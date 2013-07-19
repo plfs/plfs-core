@@ -121,7 +121,9 @@ SmallFileContainer::get_writer(pid_t pid) {
         // If there are too many writers already, we borrow one from another
         // process instead of creating a new one ourselves.
         itr = writers.begin();
-        for (int choosen = pid % writers.size(); choosen > 0; choosen--,itr++);
+        for (int chosen = pid % writers.size(); chosen > 0; chosen--) {
+            itr++;
+        }
         assert(itr != writers.end());
         writers[pid] = itr->second;
         retval = itr->second;

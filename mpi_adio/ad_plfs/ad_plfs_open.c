@@ -376,7 +376,9 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     if (write_mode) {
         MPI_Comm_free(&hostdir_comm);
     }
-    err = -(plfs_error_to_errno(plfs_err));
+    if (err == 0) {
+        err = -(plfs_error_to_errno(plfs_err));
+    }
     if ( err < 0 ) {
         *error_code = MPIO_Err_create_code(MPI_SUCCESS, MPIR_ERR_RECOVERABLE,
                                            myname, __LINE__, MPI_ERR_IO,

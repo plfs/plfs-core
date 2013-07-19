@@ -13,6 +13,16 @@ http://institutes.lanl.gov/plfs. Available under LANL LA-CC-08-104.
 Email plfs-users@lists.sourceforge.net with any user questions.
 Email plfs-devel@lists.sourceforge.net with any developer questions.
 
+
+***************************************************************************
+What's New
+***************************************************************************
+
+A list of new features and bug fixes for each release is maintained in
+Changelog. Please refer to that file for more information on what changes in
+PLFS between releases.
+
+
 ***************************************************************************
 Installing PLFS
 ***************************************************************************
@@ -116,20 +126,24 @@ Some functionality tests are provided in the 'tests' directory. Please see and
 use tests/Tester.tcsh.
 
 A regression suite is also available for PLFS, but is not included in the
-normal source tree for PLFS. It can be checked out from the PLFS repository:
+normal source tree for PLFS. It is included in the PLFS project on github:
 
-svn co https://plfs.svn.sourceforge.net/svnroot/plfs/regression regression
+https://github.com/plfs/plfs-regression
 
-The regression suite is kept up-to-date with PLFS's trunk. As working with
-PLFS changes, the regression suite changes. This means that the regression
-suite may not work with a particular release if there has been significant
-divergence in source tree layout and PLFS configuration capabilities between
-the release and trunk. Versions of the regression suite that are known to work
-with specific versions of PLFS are contained in
-https://plfs.svn.sourceforge.net/svnroot/plfs/versions/rs. To find out which
-versions are available, it is probably easiest to browse the repository's code
-on sourceforge.net. Checking out the whole repository will also get these
-versions of the regression suite.
+The following command should be sufficient to check out the regression suite,
+but if there are any problems, please look at the above URL and follow the
+directions there for getting the regression suite:
+
+git clone git@github.com:plfs/plfs-regression.git
+
+The regression suite is kept up-to-date with PLFS's master branch. As working
+with PLFS changes, the regression suite changes. This means that the regression
+suite's master branch may not work with a particular PLFS release if there has
+been significant divergence in source tree layout and PLFS configuration
+capabilities between the release and master branch. As PLFS does a release, the
+regression suite will be tagged with that release. Thus, it is possible to use
+git to get the regression suite in to a state that should work with a
+particular release if the master branch no longer works with that release.
 
 The regression suite has its own set of documentation, so please refer to its
 README for further information.
