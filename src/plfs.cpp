@@ -30,6 +30,7 @@ plfs_get_logical_fs(const char *path, LogicalFileSystem **logicalFS)
     if (plfs_resolvepath(path, &ppi) == PLFS_SUCCESS) {
         ret = ppi.mnt_pt->fs_ptr;
     }
+    *logicalFS = ret;
     return PLFS_SUCCESS;
 }
 

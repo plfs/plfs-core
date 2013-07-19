@@ -1,5 +1,5 @@
 #ifndef __SMALLFILEFD_H_
-#define __SMALLFILEFD_H__
+#define __SMALLFILEFD_H_
 
 #include "plfs_private.h"
 #include "SmallFileFS.h"

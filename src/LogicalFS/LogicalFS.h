@@ -50,8 +50,8 @@ class
                             struct plfs_physpathinfo *ppip_to) = 0;
         virtual plfs_error_t statvfs(struct plfs_physpathinfo *ppip, 
                             struct statvfs *stbuf) = 0;
-        virtual plfs_error_t flush_writes(struct plfs_physpathinfo *ppip) {return PLFS_SUCCESS;};
-        virtual plfs_error_t invalidate_cache(struct plfs_physpathinfo *ppip)
+        virtual plfs_error_t flush_writes(struct plfs_physpathinfo * /* ppip */) {return PLFS_SUCCESS;};
+        virtual plfs_error_t invalidate_cache(struct plfs_physpathinfo * /* ppip */)
         {return PLFS_SUCCESS;};
         virtual plfs_error_t resolvepath_finish(struct plfs_physpathinfo *ppip) = 0;
 };
