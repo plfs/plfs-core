@@ -545,7 +545,7 @@ int WriteFile::restoreFds( bool droppings_were_truncd )
             return ret; 
         }
         /* note: this uses subdirback from object */
-        if ( (retfh = openFile( indexpath, mode, ret )) < 0 ) {
+        if ( (retfh = openFile( indexpath, mode, ret )) == 0 ) {
             return ret; 
         }
         index->resetFh( retfh );
