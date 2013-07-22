@@ -8,6 +8,7 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR})
 
 SET(CMAKE_SWIG_FLAGS "")
 
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-parameter -Wno-missing-field-initializers")
 include_directories("${PLFS_SOURCE_DIR}/LogicalFS/Container")
 include_directories(${PLFS_SOURCE_DIR})
 include_directories("${PLFS_SOURCE_DIR}/LogicalFS/Container/Index")
