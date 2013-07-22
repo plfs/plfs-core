@@ -6,12 +6,6 @@
 %define pminor	4
 # patch version of PLFS. Uncomment if not zero
 #%define ppatch	0
-# major YAML version that is included in with PLFS
-%define ymajor	0
-# minor YAML version that is included in with PLFS
-%define yminor	5
-# patch YAML version that is included in with PLFS
-%define ypatch	0
 
 Name:		plfs
 Summary:	plfs - Parallel Log Structured File System
@@ -117,10 +111,6 @@ fi
 %{_libdir}/libplfs.a
 %{_libdir}/libplfs.so
 %{_libdir}/libplfs.so.%{pmajor}.%{pminor}
-%{_libdir}/libplfs-yaml-static.a
-%{_libdir}/libplfs-yaml.so
-%{_libdir}/libplfs-yaml.so.%{ymajor}.%{yminor}
-%{_libdir}/libplfs-yaml.so.%{ymajor}.%{yminor}.%{ypatch}
 %defattr(-,root,root,0644)
 %{_includedir}/plfs/COPYRIGHT.h
 %{_includedir}/plfs/mlogfacs.h
@@ -172,6 +162,10 @@ fi
 %{_mandir}/man7/plfs.7.gz
 
 %changelog
+* Wed Jul 17 2013 Zhang Jingwang <jingwang.zhang@emc.com>
+- Remove the YAML library packaged with PLFS. It will be included in the
+  PLFS library directly.
+
 * Thu May 23 2013 David Shrader <dshrader@lanl.gov>
 - use _mandir for directory to put man pages in instead of constructed path
   based on _prefix.
