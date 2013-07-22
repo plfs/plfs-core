@@ -12,6 +12,7 @@
 */
 %module interfacedumpindexfp 
 %{
+#include "plfs.h"
 #include "container_internals.h"
 %}
 
@@ -25,7 +26,8 @@
     }
 }
 
-extern int container_dump_index( FILE *fp, const char *path, int compress );
+extern int container_dump_index( FILE *fp, const char *path, int compress, 
+       int uniform_restart, pid_t uniform_rank); 
 /* This functions arguments:
         File *fp - where to print the map, usually stderr for interactive
         const char *path - the logical PLFS file (the mount point)
