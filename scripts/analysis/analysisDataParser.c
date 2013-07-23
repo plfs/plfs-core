@@ -267,7 +267,8 @@ parseData(int numIndexFiles, int size, const char* mount, double binSize,
 int
 writeProcessorData(int numIndexFiles, int size, const char* mount,
 					char* offsetMPI, double average, double stdev, 
-					double* endTimes, char* timeMPI, double start)
+					double* endTimes, char* timeMPI, double start, 
+					bool above, bool below, int numStdDev)
 {
 	int i, rank, retv; 
 	char name[50];
@@ -287,8 +288,15 @@ writeProcessorData(int numIndexFiles, int size, const char* mount,
 		MPI_MODE_WRONLY | MPI_MODE_CREATE, MPI_INFO_NULL, &timeFile); 
 	int writesOffset = 0; /* the number of offset writes this rank has done */
 	int writesTime = 0; 
-	double cutoff = average + stdev; /* any proc that ends above this
-										will be drawn */
+	double topCutoff, bottomCutoff; 
+	if (above) {
+		topCutoff = average + numStdDev*stdev; 
+		/* any proc that ends above this will be drawn */
+	}
+	if (below) {
+		bottomCutoff = average - numStdDev*stdev; 
+		/* any proc that ends before this will be drawn */
+	}
 	int offsetSize = 3*sizeof(long long); 
 	int timeSize = 3*sizeof(double); 
 	for (i = 0; i < numIndexFiles; i++) {
@@ -335,11 +343,12 @@ writeProcessorData(int numIndexFiles, int size, const char* mount,
 										MPI_LONG_LONG, MPI_STATUS_IGNORE);
 						writesOffset ++; 
 						/* see if we need to write this time out */
-						if (endTimes[i] > cutoff) {
+						if ((numIndexFiles <= 16) ||
+							((above) && (endTimes[i] > topCutoff)) || 
+							((below) && (endTimes[i] < bottomCutoff))) {
 							double newId = (double)i; 
 							beg -= start; 
 							end -= start; 
-							printf("%lf\n", beg); 
 							MPI_File_write_at(timeFile, rank*timeSize +
 											writesTime*size*timeSize, 
 											&newId, 1, MPI_DOUBLE, 
@@ -438,7 +447,11 @@ main( int argc, char *argv[] )
 	double binSize; 
 	double minMax[2];
 	double endSum, stdev;
-	while ((c = getopt(argc, argv, "m:q:n:o:pj:")) != -1) {
+	/* get cutoffs for processor graphs: default is one above */
+	bool above = false; 
+	bool below = false; 
+	int numStdDev = 1;
+	while ((c = getopt(argc, argv, "m:q:n:o:pabs:j:")) != -1) {
 		switch(c)
 			{
 			case 'm':
@@ -459,10 +472,24 @@ main( int argc, char *argv[] )
 			case 'j':
 				jobId = optarg; 
 				break;
+			case 'a':
+				above = true; 
+				break; 
+			case 'b':
+				below = true; 
+				break; 
+			case 's':
+				numStdDev = atoi(optarg); 
+				break; 
 			case '?':
 				printf("Unknown option %c\n", optopt); 
 				return -1; 
 			}
+	}
+	/* if both below and above are false, make default where above = true */
+	if (below == false && above == false) 
+	{
+		above = true; 
 	}
 	if (processorGraph)
 	{
@@ -527,7 +554,8 @@ main( int argc, char *argv[] )
 	if (processorGraph) 
 	{
 		writeProcessorData(numIndexFiles, size, mount, offsetMPI,average, stdev,
-							endTimes, timeMPI, minMax[0]); 
+							endTimes, timeMPI, minMax[0], above, below, 
+							numStdDev); 
 	}
 	if (rank == 0) {
 		strcat(outputFile, jobId); 
