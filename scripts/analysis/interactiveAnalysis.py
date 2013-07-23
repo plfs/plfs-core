@@ -1,9 +1,11 @@
 import wx
+import os
 import matplotlib
 matplotlib.use('WXAgg')
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigCanvas
 from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg
 from matplotlib.backends.backend_wx import _load_bitmap
+from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import struct
@@ -11,13 +13,34 @@ import analysis
 import wx.lib.scrolledpanel as scrolled
 from wxPython.wx import *
 import locale
+import wx.lib.agw.aui as aui
+class UndoAnnotations(object):
+	def __init__(self, notebook):
+		self.annotations = [0]*5 #only keeps last 5 annotations
+		self.index = -1 #keeps index of last entry
+		self.notebook = notebook
+
+	def add(self, annotate):
+		self.index = (self.index + 1) % 5
+		self.annotations[self.index] = annotate
+	
+	def remove(self):
+		if self.index >= 0:
+			self.annotations[self.index].set_visible(False)
+			print self.annotations
+			self.index = self.index - 1
+			for page in self.notebook:
+				page.canvas.draw()
+		else:
+			pass
 
 class Annotations(object):
-	def __init__(self, annotations, canvas, axes, text):
+	def __init__(self, annotations, canvas, axes, text, globalAnnotations):
 		self.annotations = annotations
 		self.canvas = canvas
 		self.axes = axes
 		self.text_template = text
+		self.globalAnnotations = globalAnnotations
  
 	def __call__(self, event):
 		line = event.artist
@@ -45,22 +68,21 @@ class Annotations(object):
 			annotation = self.annotations[(xdata[ind][0],ydata[ind][0])]
 			if not annotation.get_visible():
 				annotation.set_visible(True)
+				self.globalAnnotations.add(annotation)
 			else:
 				annotation.set_visible(False)
 		except:
 			self.annotations[(xdata[ind][0],ydata[ind][0])] = self.axes.annotate(text, xy=(xdata[ind][0], ydata[ind][0]),xycoords='data',xytext=(20,20), textcoords='offset points', bbox=dict(boxstyle='round,pad=0.5',fc='yellow',alpha=0.5), arrowprops=dict(arrowstyle='->',connectionstyle='arc3,rad=0'), visible=True, size=10)
+			self.globalAnnotations.add(self.annotations[(xdata[ind][0],ydata[ind][0])])
 		finally:
 			self.canvas.draw()
 	
 def clear(event, annotations, canvas):
-	if event.key != 'c':
-		return
-	else:
-		for key in annotations:
-			annotation = annotations[key]
-			annotation.remove()
-		annotations.clear()
-		canvas.draw()
+	for key in annotations:
+		annotation = annotations[key]
+		annotation.remove()
+	annotations.clear()
+	canvas.draw()
 
 
 class NavigationToolbar(NavigationToolbar2WxAgg):
@@ -69,21 +91,21 @@ class NavigationToolbar(NavigationToolbar2WxAgg):
 
 class BandwidthsAndIOs(wx.Panel):
 	
-	def __init__(self, parent, times, bandwidths, iosTime, iosFin, numProc):
+	def __init__(self, parent, times, bandwidths, iosTime, iosFin, numProc, globalAnnotation):
 		wx.Panel.__init__(self, parent=parent, id=wx.ID_ANY)
 		self.fig = Figure((5.0, 2.0), 100)
 		self.canvas = FigCanvas(self, -1, self.fig)
 		self.axes = self.fig.add_subplot(2,1,1)
-		annotations = {}
+		self.annotations = {}
 		self.canvas.ioDict = dict()
 		self.canvas.iosTime = iosTime
 		self.canvas.iosFin = iosFin
 		self.canvas.times = times
-		self.fig.canvas.mpl_connect('pick_event', Annotations(annotations, self.canvas, self.axes, "Time:%s\nBandwidth:%s\nIOs running:%s\nIOs finished:%s"))
+		self.fig.canvas.mpl_connect('pick_event', Annotations(self.annotations, self.canvas, self.axes, "Time:%s\nBandwidth:%s\nIOs running:%s\nIOs finished:%s", globalAnnotation))
 		self.axes.set_title("Bandwidths and IO", fontsize=12)
 		self.plotBandwidths(times, bandwidths)
 		self.axes = self.fig.add_subplot(2, 1,2)
-		self.fig.canvas.mpl_connect('key_press_event', lambda event: clear(event, annotations, self.canvas))
+		self.fig.canvas.mpl_connect('key_press_event', lambda event: clear(event, self.annotations, self.canvas))
 		self.plotIO(times, iosTime, iosFin, numProc)
 		self.sizer = wx.BoxSizer(wx.VERTICAL)
 		self.toolbar = NavigationToolbar(self.canvas, True)
@@ -115,6 +137,7 @@ class WriteSizes(wx.Panel):
 		self.fig = Figure((5.0, 3.0), 100)
 		self.canvas = FigCanvas(self, -1, self.fig)
 		self.axes = self.fig.add_subplot(1, 1, 1)
+		self.annotations = {}
 		self.axes.set_title("Write Sizes", fontsize=12)
 		self.plotWriteSizes(writeBins)
 		self.sizer = wx.BoxSizer(wx.VERTICAL)
@@ -152,7 +175,7 @@ class WriteSizes(wx.Panel):
 		self.axes.set_xticklabels(labels, rotation=90, fontsize=6)
 	
 class ProcessorsGraph(wx.Panel):
-	def __init__(self, parent, mpiFile, numProc, average, jobID):
+	def __init__(self, parent, mpiFile, numProc, average, jobID, globalAnnotations):
 		wx.Panel.__init__(self, parent=parent, id=wx.ID_ANY)
 		self.fig = Figure((5.0, 3.0), 100)
 		self.canvas = FigCanvas(self, -1, self.fig)
@@ -160,10 +183,10 @@ class ProcessorsGraph(wx.Panel):
 		self.axes.set_title("Processor Graphs")
 		self.plotOffsets(mpiFile, jobID, numProc)
 		self.axes = self.fig.add_subplot(2, 1, 2)
-		annotations = {}
+		self.annotations = {}
 		self.canvas.ioDict = None
-		self.fig.canvas.mpl_connect('pick_event', Annotations(annotations, self.canvas, self.axes, "Proc:%s\nTime:%s"))
-		self.fig.canvas.mpl_connect('key_press_event', lambda event: clear(event, annotations, self.canvas))
+		self.fig.canvas.mpl_connect('pick_event', Annotations(self.annotations, self.canvas, self.axes, "Proc:%s\nTime:%s", globalAnnotations))
+		self.fig.canvas.mpl_connect('key_press_event', lambda event: clear(event, self.annotations, self.canvas))
 		self.plotTimes(mpiFile, jobID, numProc, average)
 		self.toolbar = NavigationToolbar(self.canvas, True)
 		self.toolbar.update()
@@ -208,16 +231,23 @@ class ProcessorsGraph(wx.Panel):
 		self.axes.set_xlabel("Processor")
 		self.axes.set_xlim([-1, numProc])	
 
-class Graphs(wx.Notebook):
+class Graphs(aui.AuiNotebook):
 	def __init__(self, parent, times, bandwidths, iosTime, iosFin, writeBins,\
 				hostdirs, sizes, mpiFile, average, jobID):
-		wx.Notebook.__init__(self, parent, id=wx.ID_ANY)
+		aui.AuiNotebook.__init__(self, parent, id=wx.ID_ANY)
+		self.globalAnnotations = UndoAnnotations(self)
 		numProc = len(hostdirs)-1
 		self.AddPage(BandwidthsAndIOs(self, times, bandwidths, iosTime, iosFin,\
-					numProc), "Bandwidths and IO")
+					numProc, self.globalAnnotations), "Bandwidths and IO")
 		self.AddPage(WriteSizes(self, writeBins), "Write Sizes")
-		self.AddPage(ProcessorsGraph(self, mpiFile, numProc, average, jobID), \
-					"Processor Graphs")
+		self.AddPage(ProcessorsGraph(self, mpiFile, numProc, average, jobID,  \
+					self.globalAnnotations), "Processor Graphs")
+
+	def __getitem__(self, index):
+		if index < self.GetPageCount():
+			return self.GetPage(index)
+		else:
+			raise IndexError
 
 def getStringVersion(hostdirs):
 	retv = str(hostdirs[0][1])
@@ -231,11 +261,44 @@ def getStringVersion(hostdirs):
 		retv += "\n"
 	return retv
 
+class Buttons(wx.Panel):
+	def __init__(self, parent, frame, notebook, logicalFile, globalAnnotations):
+		self.globalAnnotations = globalAnnotations
+		self.frame = frame
+		self.notebook = notebook
+		self.logicalFile = logicalFile
+		save = wx.Button(parent, id=wx.ID_ANY, label="Save All to PDF")
+		save.Bind(wx.EVT_BUTTON, self.onSave)
+		clear = wx.Button(parent, id=wx.ID_ANY, label="Clear All Annotations")
+		clear.Bind(wx.EVT_BUTTON, self.onClear)
+		undo = wx.Button(parent, id=wx.ID_ANY, label="Undo Last Annotation")
+		undo.Bind(wx.EVT_BUTTON, self.onUndo)
+		sizer = wx.BoxSizer(wx.VERTICAL)
+		sizer.Add(save, 0, wx.ALL)
+		sizer.Add(clear, 0, wx.ALL)
+		sizer.Add(undo, 0, wx.ALL)
+		parent.SetSizer(sizer)
+
+	def onClear(self, event):
+		for page in self.notebook:
+			clear(event, page.annotations, page.canvas)
+
+	def onSave(self, event):
+		logicalFile = self.logicalFile
+		pdf = PdfPages("Analysis" + logicalFile + ".pdf")
+		for page in self.notebook:
+			pdf.savefig(page.fig)
+		pdf.close()
+		wx.MessageBox('PDF Generated', 'Info', wx.OK | wx.ICON_INFORMATION)
+
+	def onUndo(self, event):
+		self.globalAnnotations.remove()
+
 class Frame(wx.Frame):
 	def __init__(self, times, bandwidths, iosTime, iosFin, writeBins, hostdirs,\
 				sizes, mpiFile, average, jobID):
 		wx.Frame.__init__(self,None, wx.ID_ANY, "Analysis Application", \
-				size=(1500,1200))
+				size=(1500,1050))
 		self.InitMenus()
 		panel1 = wx.Panel(self, -1, size=(1200,1000))
 		panel2 = scrolled.ScrolledPanel(self, -1)
@@ -257,9 +320,12 @@ class Frame(wx.Frame):
 		sizer.Add(notebook, 4, wx.EXPAND, 0)
 		sizer.Add(panel2, 1, wx.EXPAND, 0)
 		panel3 = wx.Panel(self, -1, size=(200, 200))
-		panel3.SetBackgroundColour("Blue")
 		sizer2 = wx.BoxSizer(wx.VERTICAL)
-		sizer2.Add(sizer, 4, wx.EXPAND|wx.ALL)
+		logicalFile = hostdirs[0][1]
+		logicalFile = logicalFile.replace("/", "_")
+		buttons = Buttons(panel3, self, notebook, logicalFile, 
+							notebook.globalAnnotations)
+		sizer2.Add(sizer, 9, wx.EXPAND|wx.ALL)
 		sizer2.Add(panel3, 1, wx.EXPAND|wx.ALL)
 		self.SetSizer(sizer2)
 		self.Show()
@@ -268,6 +334,7 @@ class Frame(wx.Frame):
 		menubar = wx.MenuBar()
 		fileMenu = wx.Menu()
 		fitem = fileMenu.Append(wx.ID_EXIT, 'Quit', 'Quit application')
+		save = fileMenu.Append(wx.ID_SAVE, 'Save', 'Save all')
 		menubar.Append(fileMenu, "&File")
 		self.SetMenuBar(menubar)
 		self.Bind(wx.EVT_MENU, self.OnQuit, fitem)
