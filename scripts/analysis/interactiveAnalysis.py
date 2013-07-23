@@ -14,6 +14,7 @@ import wx.lib.scrolledpanel as scrolled
 from wxPython.wx import *
 import locale
 import wx.lib.agw.aui as aui
+
 class UndoAnnotations(object):
 	def __init__(self, notebook):
 		self.annotations = [0]*5 #only keeps last 5 annotations
@@ -27,7 +28,6 @@ class UndoAnnotations(object):
 	def remove(self):
 		if self.index >= 0:
 			self.annotations[self.index].set_visible(False)
-			print self.annotations
 			self.index = self.index - 1
 			for page in self.notebook:
 				page.canvas.draw()
@@ -140,7 +140,10 @@ class WriteSizes(wx.Panel):
 		self.annotations = {}
 		self.axes.set_title("Write Sizes", fontsize=12)
 		self.plotWriteSizes(writeBins)
+		self.toolbar = NavigationToolbar(self.canvas, True)
+		self.toolbar.update()
 		self.sizer = wx.BoxSizer(wx.VERTICAL)
+		self.sizer.Add(self.toolbar, 0, wx.LEFT|wx.EXPAND)
 		self.sizer.Add(self.canvas, 1, wx.EXPAND)
 		self.SetSizerAndFit(self.sizer)
 
@@ -261,8 +264,17 @@ def getStringVersion(hostdirs):
 		retv += "\n"
 	return retv
 
-class Buttons(wx.Panel):
-	def __init__(self, parent, frame, notebook, logicalFile, globalAnnotations):
+def saveAll(logicalFile, notebook):
+	print "hi"
+	pdf = PdfPages("Analysis" + logicalFile + ".pdf")
+	for page in notebook:
+		pdf.savefig(page.fig)
+	pdf.close()
+	wx.MessageBox('PDF Generated', 'Info', wx.OK | wx.ICON_INFORMATION)
+
+class ButtonsAndText(wx.Panel):
+	def __init__(self, parent, frame, notebook, logicalFile, globalAnnotations,\
+				hostdirs, sizes):
 		self.globalAnnotations = globalAnnotations
 		self.frame = frame
 		self.notebook = notebook
@@ -273,33 +285,66 @@ class Buttons(wx.Panel):
 		clear.Bind(wx.EVT_BUTTON, self.onClear)
 		undo = wx.Button(parent, id=wx.ID_ANY, label="Undo Last Annotation")
 		undo.Bind(wx.EVT_BUTTON, self.onUndo)
+		mainSizer = wx.BoxSizer(wx.HORIZONTAL)
 		sizer = wx.BoxSizer(wx.VERTICAL)
 		sizer.Add(save, 0, wx.ALL)
 		sizer.Add(clear, 0, wx.ALL)
 		sizer.Add(undo, 0, wx.ALL)
-		parent.SetSizer(sizer)
+		# add filename text
+		(dataFile, dataCount) = analysis.scale(sizes[0])
+		(indexFile, indexCount) = analysis.scale(sizes[1])
+		units = {0: " B", 1:" KiB", 2:" MiB", 3:" GiB", 4:" TiB", 5:" PiB"}
+		text = "Filename: %s\nProcessors: %s \nData Size: %.1f%s\nIndexSize:%.1f%s\nNumber of Indices:%s" % (logicalFile, (len(hostdirs)-1), dataFile, units[dataCount], indexFile, units[indexCount], sizes[2])
+		staticText = wx.StaticText(parent, -1, text)
+		font = wx.Font(12, wx.DEFAULT, wx.NORMAL, wx.BOLD)
+		staticText.SetFont(font)
+		mainSizer.Add(staticText, 0, wx.ALL)	
+		mainSizer.Add(sizer, 0, wx.ALL)
+		parent.SetSizer(mainSizer)
 
 	def onClear(self, event):
 		for page in self.notebook:
 			clear(event, page.annotations, page.canvas)
 
 	def onSave(self, event):
-		logicalFile = self.logicalFile
-		pdf = PdfPages("Analysis" + logicalFile + ".pdf")
-		for page in self.notebook:
-			pdf.savefig(page.fig)
-		pdf.close()
-		wx.MessageBox('PDF Generated', 'Info', wx.OK | wx.ICON_INFORMATION)
+		saveAll(self.logicalFile, self.notebook)
 
 	def onUndo(self, event):
 		self.globalAnnotations.remove()
+
+class HelpWindow(wx.Panel):
+	def __init__(self, parent):
+		wx.Panel.__init__(self, parent, pos=(400,300))
+		self.SetBackgroundColour("Light Blue")
+		text = wx.StaticText(self, -1, 
+				"Welcome to the interactive analysis application for PLFS\n"
+				"To save the current graph online, click the save button \n"
+				"Above the graph. To save all the graphs into one pdf \n"
+				"click the button below the graphs. Press 'C' to clear all\n"
+				"annotations from the current graph only. The buttons below\n"
+				"the graphs can clear all the annotations or undo up to the\n"					"last five annotations. Annotations can be placed on the top\n"
+				"graph of the Bandwidths tab and the bottom graph of the\n"
+				"processor graphs by clicking on the point on the graph\n"
+				"with which you want more information.\n")
+		font = wx.Font(11, wx.DEFAULT, wx.NORMAL, wx.BOLD)
+		text.SetFont(font)
+		ok = wx.Button(self, id=wx.ID_ANY, label="Ok")
+		ok.Bind(wx.EVT_BUTTON, self.onQuit)
+		sizer = wx.BoxSizer(wx.VERTICAL)
+		sizer.Add(text, 0, wx.ALL)
+		sizer.Add(ok, 0, wx.ALL)
+		size = text.GetBestSize()
+		self.SetSizer(sizer)
+		self.SetSize((size.width+20, size.height+50))
+
+	def onQuit(self, event):
+		self.Hide()
 
 class Frame(wx.Frame):
 	def __init__(self, times, bandwidths, iosTime, iosFin, writeBins, hostdirs,\
 				sizes, mpiFile, average, jobID):
 		wx.Frame.__init__(self,None, wx.ID_ANY, "Analysis Application", \
 				size=(1500,1050))
-		self.InitMenus()
 		panel1 = wx.Panel(self, -1, size=(1200,1000))
 		panel2 = scrolled.ScrolledPanel(self, -1)
 		scroll = wx.BoxSizer(wx.VERTICAL)
@@ -316,29 +361,38 @@ class Frame(wx.Frame):
 		panel2.SetupScrolling()
 		notebook = Graphs(panel1, times, bandwidths, iosTime, iosFin, \
 					writeBins, hostdirs, sizes, mpiFile, average, jobID)
+		logicalFile = hostdirs[0][1]
+		logicalFile = logicalFile.replace("/", "_")
+		self.InitMenus(logicalFile, notebook)
 		sizer = wx.BoxSizer(wx.HORIZONTAL)
 		sizer.Add(notebook, 4, wx.EXPAND, 0)
 		sizer.Add(panel2, 1, wx.EXPAND, 0)
 		panel3 = wx.Panel(self, -1, size=(200, 200))
 		sizer2 = wx.BoxSizer(wx.VERTICAL)
-		logicalFile = hostdirs[0][1]
-		logicalFile = logicalFile.replace("/", "_")
-		buttons = Buttons(panel3, self, notebook, logicalFile, 
-							notebook.globalAnnotations)
+		buttons = ButtonsAndText(panel3, self, notebook, logicalFile, 
+				notebook.globalAnnotations, hostdirs, sizes)
 		sizer2.Add(sizer, 9, wx.EXPAND|wx.ALL)
 		sizer2.Add(panel3, 1, wx.EXPAND|wx.ALL)
 		self.SetSizer(sizer2)
+		self.panel1 = panel1
+		help = HelpWindow(panel1)
 		self.Show()
 
-	def InitMenus(self):
+	def InitMenus(self, logicalFile, notebook):
 		menubar = wx.MenuBar()
 		fileMenu = wx.Menu()
-		fitem = fileMenu.Append(wx.ID_EXIT, 'Quit', 'Quit application')
+		help = fileMenu.Append(wx.ID_HELP, 'Help', 'Help Menu')
 		save = fileMenu.Append(wx.ID_SAVE, 'Save', 'Save all')
+		quit = fileMenu.Append(wx.ID_EXIT, 'Quit', 'Quit application')
 		menubar.Append(fileMenu, "&File")
 		self.SetMenuBar(menubar)
-		self.Bind(wx.EVT_MENU, self.OnQuit, fitem)
+		self.Bind(wx.EVT_MENU, self.OnQuit, quit)
+		self.Bind(wx.EVT_MENU, lambda event: saveAll(logicalFile, notebook), save)
+		self.Bind(wx.EVT_MENU, self.openHelp, help)
 		
+	def openHelp(self, event):
+		help = HelpWindow(self.panel1)
+
 	def OnQuit(self, e):
 		self.Close()
 
