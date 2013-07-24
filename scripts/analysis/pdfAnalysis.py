@@ -10,7 +10,6 @@ import re
 import networkx as nx
 import pydot
 import os
-import csv
 import struct
 import matplotlib
 matplotlib.use("pdf") #do not use X11 for now
@@ -28,8 +27,9 @@ def bandwidthGraphs(times, bandwidths, iosTime, iosFin, hostdirs, sizes, units):
 	fig1 = plt.figure()
 	ax1 = fig1.add_subplot(2, 1, 1)
 	indices = sizes[2]
-	title = "Filename: " + logicalFilename + "\nProcessors: " + str(numberOfProcesses) + \
-		" Data Size: %.1f%s\nIndex Size: %.1f%s Number Of Indices:%s" % (dataFile, \
+	title = "Filename: " + logicalFilename + "\nProcessors: " + \
+		str(numberOfProcesses) + " Data Size: %.1f%s\nIndex Size: \
+		%.1f%s Number Of Indices:%s" % (dataFile, \
 		units[dataCount], indexFile, units[indexCount], indices)
 	ax1.set_title(title, fontsize=10)
 	ax1.plot(times, bandwidths)
@@ -94,7 +94,8 @@ def barGraph(writeBins, units):
 		if count == 0:
 			pass
 		else:
-			ax.text(i+width/2, count*1.02, count, ha="center", va="bottom", fontsize=6)
+			ax.text(i+width/2, count*1.02, count, ha="center", va="bottom", \
+				fontsize=6)
 	ax.set_xticks(range(n))
 	ax.set_ylim([0, maxCount*1.07]) #create extra space for text
 	ax.set_xticklabels(labels, rotation=90, fontsize=6)
@@ -158,28 +159,3 @@ def generateGraphs(times, bandwidths, iosTime, iosFin, writeBins,
 		pdf.savefig()
 		plt.close()
 	pdf.close()
-
-def generateCSV(data, hostdirs):
-	logicalFilename = hostdirs[0][1]
-	c = csv.writer(open(logicalFilename + ".csv", "wb"))
-	c.writerow(["ID", "IO", "Logical Offset", "Length", "Begin Timestamp",\
-		"End Timestamp", "Logical Tail", "ID", "Chunk offset"])
-	for item in data:
-		row = []
-		for column in item:
-			#get rid of extra items
-			column = column.replace("[", "")
-			column = column.replace(".", "")
-			column = column.replace("]", "")
-			row.append(column)
-		c.writerow(row)
-	#write the host directories and ID mapping
-	c.writerow([])
-	c.writerow([])
-	c.writerow(["ID", "Host Directory"])
-	for item in hostdirs:
-		if item[0] == -1:
-			continue
-		else:
-			c.writerow(item)
-		
