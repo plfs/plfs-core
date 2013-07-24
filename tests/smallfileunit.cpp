@@ -89,7 +89,7 @@ WriterUnit::createfileTest() {
     int ret;
     NameOperation nop;
     list<NameOperation> to_be_verified;
-    IOSHandle *fh;
+    IOSHandle *fh = NULL;
 
     nop.fh = NULL;
     for (int i = 0; i < 100; i++) {
@@ -120,7 +120,7 @@ WriterUnit::removefileTest() {
     int ret;
     NameOperation nop;
     list<NameOperation> to_be_verified;
-    IOSHandle *fh;
+    IOSHandle *fh = NULL;
 
     nop.fh = NULL;
     for (int i = 0; i < 100; i++) {
@@ -156,7 +156,7 @@ WriterUnit::renamefileTest() {
     NameOperation nop;
     list<NameOperation> to_be_verified;
     char origin[256] = "OriginalFile";
-    IOSHandle *fh;
+    IOSHandle *fh = NULL;
 
     nop.fh = NULL;
     for (int i = 0; i < 100; i++) {
@@ -188,7 +188,7 @@ public:
     FileID fid;
     uint64_t offset;
     uint64_t length;
-    uint64_t physical_offset;
+    off_t physical_offset;
 };
 
 void
@@ -216,6 +216,7 @@ WriterUnit::writefileTest() {
     IOSHandle *fh;
 
     nop.fh = NULL;
+    iop.fh = NULL;
     iop.fid = 0;
     for (int i = 0; i < 100; i++) {
         char removed[256];
