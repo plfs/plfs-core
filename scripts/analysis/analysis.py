@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-#
 # This is a python script to analyze plfs runs, such as calculating bandwidth,
 # io operations, ranks vs time.  
 
@@ -87,16 +86,20 @@ def getSizes(queryFile):
 #with the units dictionary
 def scale(size):
 	count = 0
-	while (size >= 1024) and (count <= 5): #do not want count to exceed unit dictionary size
+	while (size >= 1024) and (count <= 5): 
+	#do not want count to exceed unit dictionary size
 		size = size/1024.0
 		count += 1
 	return (size, count)
 
 def help():
-	print "Usage: analysis.py -i <path to PLFS file> -q <plfs-query output> -n <number of bins> {-c/-g}"
+	print "Usage: analysis -o <mpi file locations> -q <plfs_query file> -j <jobID>"
+	print "The mpi file locations is where the mpi file wrote to"
+	print "Include -n <number of bins> if you wish to change the precision"
 	print "500 bins will be used if no -n is used"
-	print "Include -c if you wish to output to csv instead of generating graphs"
-	print "Include -g if you wish to output to graphs instead of csv"
+	print "Include -g if you wish to output to graphs to a pdf"
+	print "Include -i if you wish to run in interactive mode"
+	print "Include -p if you want the processor graphs to be included"
 	print "Include both if you wish to output both ways"
 	print "anaysis.py -h for this message"
 

@@ -249,7 +249,8 @@ parseData(int numIndexFiles, int size, const char* mount, double binSize,
 				MPI_SUM, 0, MPI_COMM_WORLD);
 	MPI_Reduce(sendWriteCount, writeCount, 51, MPI_INT, 
 				MPI_SUM, 0, MPI_COMM_WORLD); 
-	MPI_Allreduce(&sendSumDiffSquare, &sumDiffSquare, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD); 
+	MPI_Allreduce(&sendSumDiffSquare, &sumDiffSquare, 1, MPI_DOUBLE, 
+				MPI_SUM, MPI_COMM_WORLD); 
 	if (rank == 0) {
 		/* calcuate standard deviation */
 		*stdev = sqrt(sumDiffSquare/numIndexFiles); 
@@ -387,6 +388,8 @@ init ( int argc, char *argv[] )
 	return size; 
 }
 
+/* write the text file that outputs the bandwidths, the io infromation,
+ * the write counts, and the average end time */
 int
 writeOutputText(char* outputFile, int numBins, double* minMax,
 				double binSize, double* bandwidths, int* iosTime,
@@ -427,6 +430,20 @@ writeOutputText(char* outputFile, int numBins, double* minMax,
 	}
 	fclose(fp);
 	return 0;
+}
+
+void
+usage()
+{
+	printf("Usage: ./analysis -m <plfs file> -q <query file> -o <file system>");
+	printf("-j <job ID>\n");
+	printf("Include -n <number of Bins> to increase the precision. Default");
+	printf("is 500 bins\n");
+	printf("Include -p if you want to produce the processor graphs");
+	printf("Include -a if you want the processor graphs to graph those above");
+	printf("the threshold and -b if you want to graphs those that end below"); 
+	printf("the threshold. -s <number of Standard Deviations> changes the");
+	printf("the threshold\n");
 }
 
 int
@@ -483,6 +500,7 @@ main( int argc, char *argv[] )
 				break; 
 			case '?':
 				printf("Unknown option %c\n", optopt); 
+				usage();
 				return -1; 
 			}
 	}

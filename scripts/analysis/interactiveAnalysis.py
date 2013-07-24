@@ -15,6 +15,10 @@ from wxPython.wx import *
 import locale
 import wx.lib.agw.aui as aui
 
+# This class is for the undo last button. It keeps just the last five annotations
+# and removes them by making them invisible. It doesn't delete it or the 
+# other annotations class complains about having a list of items that doesn't
+# exist
 class UndoAnnotations(object):
 	def __init__(self, notebook):
 		self.annotations = [0]*5 #only keeps last 5 annotations
@@ -34,6 +38,7 @@ class UndoAnnotations(object):
 		else:
 			pass
 
+# This class sets up the annotations and displays them
 class Annotations(object):
 	def __init__(self, annotations, canvas, axes, text, globalAnnotations):
 		self.annotations = annotations
@@ -47,36 +52,44 @@ class Annotations(object):
 		xdata, ydata = line.get_data()
 		ind = event.ind
 		locale.setlocale(locale.LC_ALL, 'en_US')
-		xstring = locale.format("%0.2f", float(xdata[ind][0]), grouping=True)
-		ystring = locale.format("%0.2f", float(ydata[ind][0]), grouping=True)
+		xpt = xdata[ind][0]
+		ypt = ydata[ind][0]
+		xstring = locale.format("%0.2f", float(xpt), grouping=True)
+		ystring = locale.format("%0.2f", float(ypt), grouping=True)
 		if self.canvas.ioDict != None:
 			# get the io information as well
 			try:
-				iosGo, iosFini= self.canvas.ioDict[xdata[ind][0]]
+				iosGo, iosFini= self.canvas.ioDict[xpt]
 			except:
-				index = self.canvas.times.index(xdata[ind][0])
+				index = self.canvas.times.index(xpt)
 				iosGo = self.canvas.iosTime[index]
 				iosFini = self.canvas.iosFin[index]	
 				iosGo = locale.format("%d", int(iosGo), grouping=True)
 				iosFini = locale.format("%d", int(iosFini), grouping=True)
-				self.canvas.ioDict[xdata[ind][0]] = (iosGo, iosFini)
+				self.canvas.ioDict[xpt] = (iosGo, iosFini)
 			finally:
 				text = self.text_template % (xstring, ystring, iosGo, iosFini)
 		else:
 			text = self.text_template % (xstring, ystring)
 		try: 
-			annotation = self.annotations[(xdata[ind][0],ydata[ind][0])]
+			annotation = self.annotations[(xpt,ypt)]
 			if not annotation.get_visible():
 				annotation.set_visible(True)
 				self.globalAnnotations.add(annotation)
 			else:
 				annotation.set_visible(False)
 		except:
-			self.annotations[(xdata[ind][0],ydata[ind][0])] = self.axes.annotate(text, xy=(xdata[ind][0], ydata[ind][0]),xycoords='data',xytext=(20,20), textcoords='offset points', bbox=dict(boxstyle='round,pad=0.5',fc='yellow',alpha=0.5), arrowprops=dict(arrowstyle='->',connectionstyle='arc3,rad=0'), visible=True, size=10)
-			self.globalAnnotations.add(self.annotations[(xdata[ind][0],ydata[ind][0])])
+			self.annotations[(xpt,ypt)] = \
+				self.axes.annotate(text, xy=(xpt, ypt),\
+				xycoords='data',xytext=(20,20), textcoords='offset points',\
+				bbox=dict(boxstyle='round,pad=0.5',fc='yellow',alpha=0.5),\
+				arrowprops=dict(arrowstyle='->',connectionstyle='arc3,rad=0'),\
+				visible=True, size=10)
+			self.globalAnnotations.add(self.annotations[(xpt,ypt)])
 		finally:
 			self.canvas.draw()
 	
+# removes all of the annotations
 def clear(event, annotations, canvas):
 	for key in annotations:
 		annotation = annotations[key]
@@ -101,11 +114,15 @@ class BandwidthsAndIOs(wx.Panel):
 		self.canvas.iosTime = iosTime
 		self.canvas.iosFin = iosFin
 		self.canvas.times = times
-		self.fig.canvas.mpl_connect('pick_event', Annotations(self.annotations, self.canvas, self.axes, "Time:%s\nBandwidth:%s\nIOs running:%s\nIOs finished:%s", globalAnnotation))
+		self.fig.canvas.mpl_connect('pick_event', Annotations(self.annotations, \
+			self.canvas, self.axes, \
+			"Time:%s\nBandwidth:%s\nIOs running:%s\nIOs finished:%s", \
+			globalAnnotation))
 		self.axes.set_title("Bandwidths and IO", fontsize=12)
 		self.plotBandwidths(times, bandwidths)
 		self.axes = self.fig.add_subplot(2, 1,2)
-		self.fig.canvas.mpl_connect('key_press_event', lambda event: clear(event, self.annotations, self.canvas))
+		self.fig.canvas.mpl_connect('key_press_event', \
+			lambda event: clear(event, self.annotations, self.canvas))
 		self.plotIO(times, iosTime, iosFin, numProc)
 		self.sizer = wx.BoxSizer(wx.VERTICAL)
 		self.toolbar = NavigationToolbar(self.canvas, True)
@@ -178,7 +195,8 @@ class WriteSizes(wx.Panel):
 		self.axes.set_xticklabels(labels, rotation=90, fontsize=6)
 	
 class ProcessorsGraph(wx.Panel):
-	def __init__(self, parent, mpiFile, numProc, average, jobID, globalAnnotations):
+	def __init__(self, parent, mpiFile, numProc, average, jobID, \
+			globalAnnotations):
 		wx.Panel.__init__(self, parent=parent, id=wx.ID_ANY)
 		self.fig = Figure((5.0, 3.0), 100)
 		self.canvas = FigCanvas(self, -1, self.fig)
@@ -188,8 +206,11 @@ class ProcessorsGraph(wx.Panel):
 		self.axes = self.fig.add_subplot(2, 1, 2)
 		self.annotations = {}
 		self.canvas.ioDict = None
-		self.fig.canvas.mpl_connect('pick_event', Annotations(self.annotations, self.canvas, self.axes, "Proc:%s\nTime:%s", globalAnnotations))
-		self.fig.canvas.mpl_connect('key_press_event', lambda event: clear(event, self.annotations, self.canvas))
+		self.fig.canvas.mpl_connect('pick_event', \
+			Annotations(self.annotations, self.canvas, self.axes, \
+			"Proc:%s\nTime:%s", globalAnnotations))
+		self.fig.canvas.mpl_connect('key_press_event', \
+			lambda event: clear(event, self.annotations, self.canvas))
 		self.plotTimes(mpiFile, jobID, numProc, average)
 		self.toolbar = NavigationToolbar(self.canvas, True)
 		self.toolbar.update()
@@ -265,7 +286,6 @@ def getStringVersion(hostdirs):
 	return retv
 
 def saveAll(logicalFile, notebook):
-	print "hi"
 	pdf = PdfPages("Analysis" + logicalFile + ".pdf")
 	for page in notebook:
 		pdf.savefig(page.fig)
@@ -294,7 +314,10 @@ class ButtonsAndText(wx.Panel):
 		(dataFile, dataCount) = analysis.scale(sizes[0])
 		(indexFile, indexCount) = analysis.scale(sizes[1])
 		units = {0: " B", 1:" KiB", 2:" MiB", 3:" GiB", 4:" TiB", 5:" PiB"}
-		text = "Filename: %s\nProcessors: %s \nData Size: %.1f%s\nIndexSize:%.1f%s\nNumber of Indices:%s" % (logicalFile, (len(hostdirs)-1), dataFile, units[dataCount], indexFile, units[indexCount], sizes[2])
+		text = "Filename: %s\nProcessors: %s \nData Size: %.1f%s\n\
+				IndexSize:%.1f%s\nNumber of Indices:%s" % (logicalFile,\
+				(len(hostdirs)-1), dataFile, units[dataCount], indexFile, \
+				units[indexCount], sizes[2])
 		staticText = wx.StaticText(parent, -1, text)
 		font = wx.Font(12, wx.DEFAULT, wx.NORMAL, wx.BOLD)
 		staticText.SetFont(font)
@@ -322,7 +345,8 @@ class HelpWindow(wx.Panel):
 				"Above the graph. To save all the graphs into one pdf \n"
 				"click the button below the graphs. Press 'C' to clear all\n"
 				"annotations from the current graph only. The buttons below\n"
-				"the graphs can clear all the annotations or undo up to the\n"					"last five annotations. Annotations can be placed on the top\n"
+				"the graphs can clear all the annotations or undo up to the\n"
+				"last five annotations. Annotations can be placed on the top\n"
 				"graph of the Bandwidths tab and the bottom graph of the\n"
 				"processor graphs by clicking on the point on the graph\n"
 				"with which you want more information.\n")
