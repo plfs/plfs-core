@@ -217,7 +217,7 @@ plfs_reader(void * /* pfd */, char *buf, size_t size, off_t offset,
     // not worrying about these conditions
     // tasks is empty for a zero length file or an EOF
     if ( plfs_ret != PLFS_SUCCESS || tasks.empty() ) {
-        *bytes_read = -1;
+        *bytes_read = 0;
         return(plfs_ret);
     }
     PlfsConf *pconf = get_plfs_conf();
