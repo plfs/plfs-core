@@ -2,7 +2,9 @@
 
 # This is is an example MOAB shell script to run the analysis toolset
 # using 16 procs. It should be run as follows after replacing the top variables
-# msub -V -lnodes=1 analysis.sh  
+# msub -lnodes=1 analysis.sh  
+
+# For more information about features see README.documentation
 
 PLFS_FILE=/path/to/PLFS/file
 FILE_SYSTEM=/path/to/parallel/file/system
