@@ -314,8 +314,7 @@ class ButtonsAndText(wx.Panel):
 		(dataFile, dataCount) = analysis.scale(sizes[0])
 		(indexFile, indexCount) = analysis.scale(sizes[1])
 		units = {0: " B", 1:" KiB", 2:" MiB", 3:" GiB", 4:" TiB", 5:" PiB"}
-		text = "Filename: %s\nProcessors: %s \nData Size: %.1f%s\n\
-				IndexSize:%.1f%s\nNumber of Indices:%s" % (logicalFile,\
+		text = "Filename: %s\nProcessors: %s \nData Size: %.1f%s\nIndexSize:%.1f%s\nNumber of Indices:%s" % (logicalFile,\
 				(len(hostdirs)-1), dataFile, units[dataCount], indexFile, \
 				units[indexCount], sizes[2])
 		staticText = wx.StaticText(parent, -1, text)
