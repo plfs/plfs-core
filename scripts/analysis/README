@@ -12,8 +12,7 @@ System Requirements
 ***************************************************************************
 
 The framework requires Swig, mpi, Matplotlib, networkx, and Wxpython
-(for the interactive interface only). Matplotlib, networkx, and wxpython ship
-with Enthought Python (https://www.enthought.com/products/epd/).
+(wxpython is required only for the interactive interface). 
 
 ***************************************************************************
 Installing
