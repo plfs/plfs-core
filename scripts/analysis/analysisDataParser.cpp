@@ -55,7 +55,8 @@ getMaxMinTimes(int numIndexFiles, int size, const char* mount, double* minMax,
 	int id, offset, length, tail; 
 	char io; 
 	double beg, end;
-	char* id2, chunk; 
+	char* id2 = NULL;
+	char* chunk = NULL;
 	sendMinMax[0] = DBL_MAX; 
 	sendMinMax[1] = DBL_MIN; 
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
@@ -64,7 +65,7 @@ getMaxMinTimes(int numIndexFiles, int size, const char* mount, double* minMax,
 	for (i = 0; i<numIndexFiles; i++) {
 		if (i % size == rank) {
 			/* Create a temporary file */
-			int k = sprintf(name, "tempFile%d.txt", rank); 
+			sprintf(name, "tempFile%d.txt", rank); 
 			tmp = fopen(name, "w+");
 			if (tmp == NULL) {
 				printf("ERROR: Could not create temp file\n"); 
@@ -82,10 +83,10 @@ getMaxMinTimes(int numIndexFiles, int size, const char* mount, double* minMax,
 				{
 					if (buffer[0] != '#') 
 					{
-						int n = sscanf(buffer, 
-								"%d %c %d %d %lf %lf %d %s %s", 
-								&id, &io, &offset, &length, 
-								&beg, &end, &tail, id2, chunk); 
+						sscanf(buffer, 
+							"%d %c %d %d %lf %lf %d %s %s", 
+							&id, &io, &offset, &length, 
+							&beg, &end, &tail, id2, chunk); 
 						/* if either are -1, then it hasn't been set */
 						if (fileEnd < end) {
 							fileEnd = end; 
@@ -151,8 +152,8 @@ parseData(int numIndexFiles, int size, const char* mount, double binSize,
 	int* sendWriteCount = (int *)calloc(51, sizeof(int)); 
 	double sendSumDiffSquare = 0; 
 	double sumDiffSquare = 0; 
-	if (sendBandwidths == NULL | sendIOsTime == NULL | sendIOsFin == NULL 
-			| sendWriteCount == NULL) 
+	if ((sendBandwidths == NULL) | (sendIOsTime == NULL) | (sendIOsFin == NULL) 
+			| (sendWriteCount == NULL)) 
 	{
 		printf("Could not allocate enough memory\n"); 
 		return -1; 
@@ -164,14 +165,15 @@ parseData(int numIndexFiles, int size, const char* mount, double binSize,
 	int id, offset, length, tail; 	
 	char io; 
 	double beg, end, delta, averageBan; 
-	char* id2, chunk; 
+	char* id2 = NULL; 
+	char* chunk = NULL; 
 	int startBin, binsSpanned; 
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
 	double fileEnd = DBL_MIN; 
 	for (i = 0; i<numIndexFiles; i++) {
 		if (i % size == rank) {
 			/*Create a temporary file */
-			int k = sprintf(name, "tempFile%d.txt", rank); 
+			sprintf(name, "tempFile%d.txt", rank); 
 			tmp = fopen(name, "w+"); 
 			if (tmp == NULL) {
 				printf("ERROR:Could not open temp file\n"); 
@@ -189,10 +191,10 @@ parseData(int numIndexFiles, int size, const char* mount, double binSize,
 				{
 					if (buffer[0] != '#') 
 					{
-						int n = sscanf(buffer, 
-								"%d %c %d %d %lf %lf %d %s %s",
-								&id, &io, &offset, &length, 
-								&beg, &end, &tail, id2, chunk);
+						sscanf(buffer, 
+							"%d %c %d %d %lf %lf %d %s %s",
+							&id, &io, &offset, &length, 
+							&beg, &end, &tail, id2, chunk);
 						/* this id was arbitrary so I will change it to
 					 	* match the index id, which is i */
 						id = i; 
@@ -260,6 +262,7 @@ parseData(int numIndexFiles, int size, const char* mount, double binSize,
 	free(sendIOsFin); 
 	free(sendWriteCount); 
 	unlink(name); 
+	return 0;
 }
 
 /* utilizes MPI-IO in order to write out the data required to graph
@@ -267,9 +270,9 @@ parseData(int numIndexFiles, int size, const char* mount, double binSize,
  * can be read by python */
 int
 writeProcessorData(int numIndexFiles, int size, const char* mount,
-					char* offsetMPI, double average, double stdev, 
-					double* endTimes, char* timeMPI, double start, 
-					bool above, bool below, int numStdDev)
+			char* offsetMPI, double average, double stdev, 
+			double* endTimes, char* timeMPI, double start, 
+			bool above, bool below, int numStdDev)
 {
 	int i, rank, retv; 
 	char name[50];
@@ -278,10 +281,10 @@ writeProcessorData(int numIndexFiles, int size, const char* mount,
 	long long offset, length, tail, id; 
 	char io; 
 	double beg, end; 
-	const char* id2; const char* chunk;	
+	char* id2 = NULL; 
+	char* chunk = NULL;
 	MPI_File offsetsFile; 
 	MPI_File timeFile; 
-	MPI_Request request; 
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
 	MPI_File_open(MPI_COMM_WORLD, offsetMPI, 
 		MPI_MODE_WRONLY | MPI_MODE_CREATE, MPI_INFO_NULL, &offsetsFile); 
@@ -289,7 +292,8 @@ writeProcessorData(int numIndexFiles, int size, const char* mount,
 		MPI_MODE_WRONLY | MPI_MODE_CREATE, MPI_INFO_NULL, &timeFile); 
 	int writesOffset = 0; /* the number of offset writes this rank has done */
 	int writesTime = 0; 
-	double topCutoff, bottomCutoff; 
+	double topCutoff = 0; 
+	double bottomCutoff = 0; 
 	if (above) {
 		topCutoff = average + numStdDev*stdev; 
 		/* any proc that ends above this will be drawn */
@@ -303,7 +307,7 @@ writeProcessorData(int numIndexFiles, int size, const char* mount,
 	for (i = 0; i < numIndexFiles; i++) {
 		if (i % size == rank) {	
 			/* Create a temporary file */
-			int k = sprintf(name, "tempFile%d.txt", rank); 
+			sprintf(name, "tempFile%d.txt", rank); 
 			tmp = fopen(name, "w+"); 
 			if (tmp == NULL) {
 				printf("ERROR:Could not open temp file\n"); 
@@ -321,27 +325,27 @@ writeProcessorData(int numIndexFiles, int size, const char* mount,
 				{
 					if(buffer[0] != '#')
 					{
-						int n = sscanf(buffer, 
-								"%lld %c %lld %lld %lf %lf %lld %s %s", 
-								&id, &io, &offset, &length, 
-								&beg, &end, &tail, id2, chunk); 
+						sscanf(buffer, 
+							"%lld %c %lld %lld %lf %lf %lld %s %s", 
+							&id, &io, &offset, &length, 
+							&beg, &end, &tail, id2, chunk); 
 						/* this id was arbitrary so I will change
 						* it to match the index id */
 						id = (long long)i; 
 						MPI_File_write_at(offsetsFile, 
-										rank*offsetSize + 
-										writesOffset*size*offsetSize, 
-										&id, 1, MPI_LONG_LONG, 
-										MPI_STATUS_IGNORE); 
+									rank*offsetSize + 
+									writesOffset*size*offsetSize, 
+									&id, 1, MPI_LONG_LONG, 
+									MPI_STATUS_IGNORE); 
 						MPI_File_write_at(offsetsFile, rank*offsetSize +
-										writesOffset*size*offsetSize +
-										sizeof(long long), 
-										&offset, 1, MPI_LONG_LONG, 
-										MPI_STATUS_IGNORE); 
+									writesOffset*size*offsetSize +
+									sizeof(long long), 
+									&offset, 1, MPI_LONG_LONG, 
+									MPI_STATUS_IGNORE); 
 						MPI_File_write_at(offsetsFile, rank*offsetSize + 
-										writesOffset*size*offsetSize + 
-										2*sizeof(long long), &tail, 1, 
-										MPI_LONG_LONG, MPI_STATUS_IGNORE);
+									writesOffset*size*offsetSize + 
+									2*sizeof(long long), &tail, 1, 
+									MPI_LONG_LONG, MPI_STATUS_IGNORE);
 						writesOffset ++; 
 						/* see if we need to write this time out */
 						if ((numIndexFiles <= 16) ||
@@ -351,17 +355,17 @@ writeProcessorData(int numIndexFiles, int size, const char* mount,
 							beg -= start; 
 							end -= start; 
 							MPI_File_write_at(timeFile, rank*timeSize +
-											writesTime*size*timeSize, 
-											&newId, 1, MPI_DOUBLE, 
-											MPI_STATUS_IGNORE); 
+									writesTime*size*timeSize, 
+									&newId, 1, MPI_DOUBLE, 
+									MPI_STATUS_IGNORE); 
 							MPI_File_write_at(timeFile, rank*timeSize + 
-											writesTime*size*timeSize +
-											sizeof(double), &beg, 1, MPI_DOUBLE,
-											MPI_STATUS_IGNORE); 
+									writesTime*size*timeSize +
+									sizeof(double), &beg, 1, MPI_DOUBLE,
+									MPI_STATUS_IGNORE); 
 							MPI_File_write_at(timeFile, rank*timeSize +
-											writesTime*size*timeSize + 
-											2*sizeof(double), &end,
-											1, MPI_DOUBLE, MPI_STATUS_IGNORE);
+									writesTime*size*timeSize + 
+									2*sizeof(double), &end,
+									1, MPI_DOUBLE, MPI_STATUS_IGNORE);
 							writesTime ++; 
 						}
 					}
@@ -373,6 +377,7 @@ writeProcessorData(int numIndexFiles, int size, const char* mount,
 	unlink(name); 
 	MPI_File_close(&offsetsFile); 
 	MPI_File_close(&timeFile); 
+	return 0; 
 }
 
 int 
@@ -410,13 +415,13 @@ writeOutputText(char* outputFile, int numBins, double* minMax,
 	{
 		fprintf(fp, "%lf\n", bandwidths[i]); 
 	}
-    fprintf(fp, "%s\n", str); 
+    	fprintf(fp, "%s\n", str); 
 	/* write the iosTime */
 	for (int i = 0; i < numBins; i++) 
 	{
 		fprintf(fp, "%d\n", iosTime[i]);
 	}
-    fprintf(fp, "%s\n", str);
+ 	fprintf(fp, "%s\n", str);
 	/* write iosFin */
 	for (int i = 0; i < numBins; i++)
 	{
@@ -449,18 +454,18 @@ usage()
 int
 main( int argc, char *argv[] )
 {
-	const char* queryFile; 	
-	const char* mount; 
-	char* jobId; 
+	char* queryFile = NULL;
+	char* mount = NULL; 
+	char* jobId = NULL;
 	char offsetMPI[128]; 
 	char timeMPI[128];
 	int c;
 	/* with the -p flag, this is set to true and the processor graphs
 	 * will be generated */
 	bool processorGraph = false; 
-	char* outputFile;
+	char* outputFile = NULL;
 	int numBins = 500; 
-	int numIndexFiles, index, size; 
+	int numIndexFiles, size; 
 	double binSize; 
 	double minMax[2];
 	double endSum, stdev;
@@ -556,10 +561,10 @@ main( int argc, char *argv[] )
 	int * iosTime = (int *)calloc(numBins, sizeof(int)); 
 	int * iosFin = (int *)calloc(numBins, sizeof(int)); 
 	/* we need 51 bins here because there are 10 bins between each 
-    size and the last is for those above PiB */
+  	* size and the last is for those above PiB */
 	int * writeCount = (int *)calloc(51, sizeof(int)); 
-	if (bandwidths == NULL | iosTime == NULL | iosFin == NULL 
-		| writeCount == NULL) 
+	if ((bandwidths == NULL) | (iosTime == NULL) | (iosFin == NULL) 
+		| (writeCount == NULL)) 
 	{
 		printf("Could not allocate data placements\n"); 
 		return -1; 
