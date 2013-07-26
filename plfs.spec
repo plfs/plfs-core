@@ -5,7 +5,7 @@
 # minor version of PLFS
 %define pminor	4
 # patch version of PLFS. Uncomment if not zero
-#%define ppatch	0
+%define ppatch	1
 
 Name:		plfs
 Summary:	plfs - Parallel Log Structured File System
