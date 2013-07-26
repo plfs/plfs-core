@@ -23,9 +23,9 @@ FileWriter::~FileWriter() {
     pthread_mutex_destroy(&mlock);
 }
 
-int
+plfs_error_t
 FileWriter::open_file(const char *filename, IOStore *store) {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
 
     Util::MutexLock(&mlock, __FUNCTION__);
 #ifdef SMALLFILE_USE_LIBC_FILEIO
@@ -34,20 +34,20 @@ FileWriter::open_file(const char *filename, IOStore *store) {
         if (!fptr) {
             mlog(SMF_ERR, "Can't open file:%s for write, errno = %d.",
                  filename, errno);
-            ret = -errno;
+            ret = errno_to_plfs_error(errno);
         }
 #else
     if (handle == NULL) { // Physical file shouldn't be opened twice or more.
-        handle = store->Open(filename, O_CREAT | O_EXCL | O_WRONLY,
-                             DEFAULT_FMODE, ret);
-        if (ret == 0) store_ = store;
+        ret = store->Open(filename, O_CREAT | O_EXCL | O_WRONLY,
+                          DEFAULT_FMODE, &handle);
+        if (ret == PLFS_SUCCESS) store_ = store;
 #endif
     }
     Util::MutexUnlock(&mlock, __FUNCTION__);
     return ret;
 }
 
-int
+plfs_error_t
 FileWriter::append(const void *buf, size_t length, off_t *physical_offset) {
     Util::MutexLock(&mlock, __FUNCTION__);
 #ifdef SMALLFILE_USE_LIBC_FILEIO
@@ -61,7 +61,8 @@ FileWriter::append(const void *buf, size_t length, off_t *physical_offset) {
         ssize_t written = fwrite(buf, 1, length, fptr);
         if (ferror(fptr)) written = -1;
 #else
-        ssize_t written = handle->Write(buf, length);
+        ssize_t written;
+        handle->Write(buf, length, &written);
 #endif
         if (written < 0) {
             break;
@@ -72,17 +73,18 @@ FileWriter::append(const void *buf, size_t length, off_t *physical_offset) {
         length -= written;
     }
     Util::MutexUnlock(&mlock, __FUNCTION__);
-    return (length == 0) ? 0 : -1;
+    return (length == 0) ? PLFS_SUCCESS : PLFS_TBD;
 }
 
-int
+plfs_error_t
 FileWriter::sync() {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     Util::MutexLock(&mlock, __FUNCTION__);
 #ifdef SMALLFILE_USE_LIBC_FILEIO
     if (fptr) {
-        ret = fflush(fptr);
-        if (ret != 0) ret = -errno;
+        int rv = fflush(fptr);
+        if (rv != 0) rv = errno;
+        ret = errno_to_plfs_error(rv);
     }
 #else
     if (handle) ret = handle->Fsync();
@@ -91,7 +93,7 @@ FileWriter::sync() {
     return ret;
 }
 
-int
+plfs_error_t
 FileWriter::close_file() {
     Util::MutexLock(&mlock, __FUNCTION__);
 #ifdef SMALLFILE_USE_LIBC_FILEIO
@@ -109,7 +111,7 @@ FileWriter::close_file() {
     }
 #endif
     Util::MutexUnlock(&mlock, __FUNCTION__);
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 bool

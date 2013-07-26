@@ -62,11 +62,11 @@ struct __attribute__ ((__packed__)) IndexEntry {
 
 typedef pair<uint64_t, vector<string>::size_type> index_mapping_t;
 
-int generate_dropping_name(const string &dirpath, pid_t pid, string &filename);
+plfs_error_t generate_dropping_name(const string &dirpath, pid_t pid, string &filename);
 
-int dropping_name2index(const string &namefile, string &indexfile);
+plfs_error_t dropping_name2index(const string &namefile, string &indexfile);
 
-int dropping_name2data(const string &namefile, string &datafile);
+plfs_error_t dropping_name2data(const string &namefile, string &datafile);
 
 void get_statfile(plfs_backend *backend, const string &dir, string &file);
 

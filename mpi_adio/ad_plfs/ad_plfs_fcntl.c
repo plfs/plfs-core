@@ -12,7 +12,8 @@ void ADIOI_PLFS_Fcntl(ADIO_File fd, int flag, ADIO_Fcntl_t *fcntl_struct,
 {
     static char myname[] = "ADIOI_PLFS_FCNTL";
     struct stat buf;
-    int ret, rank, size_only, lazy_stat=1;
+    int rank, size_only, lazy_stat=1;
+    plfs_error_t ret;
     plfs_debug( "%s: begin\n", myname );
     switch(flag) {
     case ADIO_FCNTL_GET_FSIZE:
@@ -30,7 +31,7 @@ void ADIOI_PLFS_Fcntl(ADIO_File fd, int flag, ADIO_Fcntl_t *fcntl_struct,
             ret = plfs_getattr( fd->fs_ptr, fd->filename, &buf, size_only );
             //}
             //MPI_Bcast(&ret, 1, MPI_INT, 0, fd->comm);
-            if (ret == 0) {
+            if (ret == PLFS_SUCCESS) {
                 //MPI_Bcast(&(buf.st_size), 1, MPI_LONG_LONG, 0, fd->comm);
                 fcntl_struct->fsize = buf.st_size;
                 *error_code = MPI_SUCCESS;
@@ -38,12 +39,12 @@ void ADIOI_PLFS_Fcntl(ADIO_File fd, int flag, ADIO_Fcntl_t *fcntl_struct,
                 *error_code = MPIO_Err_create_code(MPI_SUCCESS,
                                                    MPIR_ERR_RECOVERABLE, myname,
                                                    __LINE__, MPI_ERR_IO, "**io",
-                                                   "**io %s", strerror(errno));
+                                                   "**io %s", strplfserr(ret));
             }
         } else {
             size_only = 1;  // do lazy stat
             ret = plfs_getattr( fd->fs_ptr, fd->filename, &buf, size_only );
-            if ( ret == 0 ) {
+            if ( ret == PLFS_SUCCESS ) {
                 //This is a non collective version of the commented
                 //code below
                 fcntl_struct->fsize = buf.st_size;
@@ -57,7 +58,7 @@ void ADIOI_PLFS_Fcntl(ADIO_File fd, int flag, ADIO_Fcntl_t *fcntl_struct,
                 *error_code = MPIO_Err_create_code(MPI_SUCCESS,
                                                    MPIR_ERR_RECOVERABLE, myname,
                                                    __LINE__, MPI_ERR_IO, "**io",
-                                                   "**io %s", strerror(errno));
+                                                   "**io %s", strplfserr(ret));
             }
         }
         //if (fd->fp_sys_posn != -1) {

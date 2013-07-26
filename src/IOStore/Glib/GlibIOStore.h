@@ -17,20 +17,20 @@ class GlibIOSHandle: public IOSHandle {
     GlibIOSHandle(string path, unsigned int buffsize);
     ~GlibIOSHandle(){};
 
-    int Open(int flags, mode_t mode);
-    int Fstat(struct stat* buf);
-    int Fsync();
-    int Ftruncate(off_t length);
-    int GetDataBuf(void **bufp, size_t length);
-    ssize_t Pread(void* buf, size_t count, off_t offset);
-    ssize_t Pwrite(const void* buf, size_t count, off_t offset);
-    ssize_t Read(void *buf, size_t count);
-    int ReleaseDataBuf(void *buf, size_t length);
-    off_t Size();
-    ssize_t Write(const void* buf, size_t len);
+    plfs_error_t Open(int flags, mode_t mode);
+    plfs_error_t Fstat(struct stat* buf);
+    plfs_error_t Fsync();
+    plfs_error_t Ftruncate(off_t length);
+    plfs_error_t GetDataBuf(void **bufp, size_t length);
+    plfs_error_t Pread(void* buf, size_t count, off_t offset, ssize_t *bytes_read);
+    plfs_error_t Pwrite(const void* buf, size_t count, off_t offset, ssize_t *bytes_written);
+    plfs_error_t Read(void *buf, size_t count, ssize_t *bytes_read);
+    plfs_error_t ReleaseDataBuf(void *buf, size_t length);
+    plfs_error_t Size(off_t *ret_offset);
+    plfs_error_t Write(const void* buf, size_t len, ssize_t *bytes_written);
     
  private:
-    int Close();
+    plfs_error_t Close();
 
     FILE *fp;
     string path;
@@ -44,7 +44,7 @@ class GlibIOStore: public PosixIOStore {
         this->buffsize = bsize;
     };
     ~GlibIOStore(){};
-    IOSHandle *Open(const char *bpath, int flags, mode_t mode, int &ret);
+    plfs_error_t Open(const char *bpath, int flags, mode_t mode, IOSHandle **ret_hand);
 
  private:
     unsigned int buffsize;
