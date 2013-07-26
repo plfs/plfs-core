@@ -30,7 +30,7 @@ public:
     FileReader(struct plfs_pathback &filename, int buf_size);
     virtual ~FileReader();
     virtual void *front() {return (void *)data_ptr;};
-    virtual int pop_front();
+    virtual plfs_error_t pop_front();
 protected:
     /**
      * Get the size of a given record.
@@ -47,8 +47,8 @@ protected:
      */
     off_t record_foff() {return rec_foff;};
 private:
-    int read_buffer();
-    int read_cross_buffer_record(int first_byte, int rec_size);
+    plfs_error_t read_buffer(ssize_t &bytes_read);
+    plfs_error_t read_cross_buffer_record(int first_byte, int rec_size);
     struct plfs_pathback filename;
     char *buffer;
     char *data_ptr; /**< Always points to the current record */

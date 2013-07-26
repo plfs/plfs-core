@@ -26,6 +26,7 @@
 #include <sstream>
 #include <map>
 #include <vector>
+#include "plfs_error.h"
 
 using namespace std;
 class IOStore;
@@ -53,19 +54,21 @@ class Util
 {
     public:
         // all the system calls
-        static int Filesize(const char *, IOStore *);
+        static plfs_error_t Filesize(const char *, IOStore *, int *);
         static uid_t Getuid();
         static gid_t Getgid();
-        static int MakeFile( const char *, mode_t, IOStore * );
+        static plfs_error_t MakeFile( const char *, mode_t, IOStore * );
         static int MutexLock( pthread_mutex_t *mux, const char *whence );
         static int MutexUnlock( pthread_mutex_t *mux, const char *whence );
-        static int CopyFile( const char *, IOStore *, const char *,
-                             IOStore *);
-        static int Setfsgid( gid_t );
-        static int Setfsuid( uid_t );
+        static plfs_error_t CopyFile( const char *, IOStore *, const char *,
+                                      IOStore *);
+        static plfs_error_t Setfsgid( gid_t, int * );
+        static plfs_error_t Setfsuid( uid_t, int * );
         static char *Strdup(const char *s1);
 
         // other misc stuff
+        static plfs_error_t sanitize_path(const char *dirty, const char **clean,
+                                 int forcecopy);
         static vector<string> &tokenize(    const string& str,
                                             const string& delimiters,
                                             vector<string> &tokens);
@@ -88,17 +91,16 @@ class Util
         static bool isDirectory( struct stat *buf );
         static bool isDirectory( const char *, IOStore *);
         static double getTime();
-        static ssize_t Writen(const void *, size_t, IOSHandle *);
+        static plfs_error_t Writen(const void *, size_t, IOSHandle *, ssize_t *);
         static string toString();
         static string openFlagsToString( int );
-        static string expandPath( string path, string hostname );
         static void addTime( string, double, bool );
-        static char *hostname();
-        static int traverseDirectoryTree(const char *physical,
-                                         struct plfs_backend *back,
-                                         vector<plfs_pathback> &files,
-                                         vector<plfs_pathback> &dirs,
-                                         vector<plfs_pathback> &links);
+        static plfs_error_t hostname(char **ret_name);
+        static plfs_error_t traverseDirectoryTree(const char *physical,
+                                                  struct plfs_backend *back,
+                                                  vector<plfs_pathback> &files,
+                                                  vector<plfs_pathback> &dirs,
+                                                  vector<plfs_pathback> &links);
 
     private:
         static void addBytes( string, size_t );

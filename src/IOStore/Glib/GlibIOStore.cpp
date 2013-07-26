@@ -6,8 +6,8 @@
 #include <cstdlib>
 
 /*
- * IOStore functions that return signed int should return 0 on success
- * and -err on error.   The POSIX API uses 0 for success, -1 for failure
+ * IOStore functions that return plfs_error_t should return PLFS_SUCCESS on success
+ * and PLFS_E* on error.   The POSIX API uses 0 for success, -1 for failure
  * with the error code in the global error number variable.   This macro
  * translates POSIX to IOStore.
  *
@@ -16,21 +16,23 @@
 #if EOF != -1
 #error "EOF is not -1"
 #endif
-#define get_err(X) (((X) >= 0) ? (X) : -errno)         /* error# ok */
-#define get_null_err(X)  (((X) != NULL) ? 0 : -errno)  /* error# ok */
+#define get_err(X) (((X) >= 0) ? PLFS_SUCCESS : errno_to_plfs_error(errno)) /* error# ok */
 
-IOSHandle *
-GlibIOStore::Open(const char *path, int flags, mode_t mode, int &ret) {
+plfs_error_t
+GlibIOStore::Open(const char *path, int flags, mode_t mode, IOSHandle **ret_hand) {
+    plfs_error_t ret;
     GlibIOSHandle *hand = new GlibIOSHandle(path, this->buffsize);
     ret = hand->Open(flags,mode);
-    if (ret == 0) {
-        return hand;
+    if (ret == PLFS_SUCCESS) {
+        *ret_hand = hand;
+        return PLFS_SUCCESS;
     } else {
         delete hand;
-        return NULL;
+        *ret_hand = NULL;
+        return ret;
     }
     assert(0);
-    return NULL;
+    return ret;
 }
 
 GlibIOSHandle::GlibIOSHandle(string newpath, unsigned int bsize) {
@@ -39,7 +41,7 @@ GlibIOSHandle::GlibIOSHandle(string newpath, unsigned int bsize) {
 }
 
 
-int 
+plfs_error_t
 GlibIOSHandle::Close() {
     int rv;
     rv = fflush(this->fp);
@@ -69,7 +71,7 @@ flags_to_restrict_mode(int flags) {
     return "r+";
 }
 
-int 
+plfs_error_t
 GlibIOSHandle::Open(int flags, mode_t mode) {
     int rv;
     int fd = open(this->path.c_str(),flags,mode);
@@ -83,9 +85,9 @@ GlibIOSHandle::Open(int flags, mode_t mode) {
     // and then chmod
     string restrict_mode = flags_to_restrict_mode(flags);
     this->fp = fdopen(fd,restrict_mode.c_str());
-    rv = get_null_err(this->fp);
-    if (rv < 0) {
+    if (this->fp == NULL) {
         close(fd);    // cleanup
+        return errno_to_plfs_error(errno);
     } else {
         // successful here so set the buffer size (default 16 MB)
         if (this->buffsize > 0)
@@ -93,10 +95,10 @@ GlibIOSHandle::Open(int flags, mode_t mode) {
         else // if buffsize = 0, don't buffer
             rv = setvbuf(this->fp,NULL,_IONBF,0);
     }
-    return(rv);
+    return PLFS_SUCCESS;
 }
 
-int 
+plfs_error_t
 GlibIOSHandle::Fstat(struct stat* buf) {
     int rv, fd;
     fd = fileno(this->fp);
@@ -104,14 +106,14 @@ GlibIOSHandle::Fstat(struct stat* buf) {
     return(get_err(rv));
 };
 
-int 
+plfs_error_t
 GlibIOSHandle::Fsync() {
     int rv;
     rv = fflush(this->fp);  /* returns EOF on error */
     return(get_err(rv));
 };
 
-int 
+plfs_error_t
 GlibIOSHandle::Ftruncate(off_t length) {
     int rv, fd;
     fd = fileno(this->fp);
@@ -119,7 +121,7 @@ GlibIOSHandle::Ftruncate(off_t length) {
     return(get_err(rv));
 };
 
-int
+plfs_error_t
 GlibIOSHandle::GetDataBuf(void **bufp, size_t length) {
     int myfd;
     void *b;
@@ -130,83 +132,86 @@ GlibIOSHandle::GetDataBuf(void **bufp, size_t length) {
         return(get_err(-1));
     }
     *bufp = b;
-    return(0);
+    return PLFS_SUCCESS;
 }
 
-ssize_t 
-GlibIOSHandle::Pread(void* buf, size_t count, off_t offset) {
-    ssize_t rv;
+plfs_error_t
+GlibIOSHandle::Pread(void* buf, size_t count, off_t offset, ssize_t *bytes_read) {
     int ret;
     /* XXX: we need some mutex locking here for concurrent access? */
     ret = fseek(this->fp,offset,SEEK_SET);
-    rv = get_err(ret);
-    if (rv == 0) {
+    if (ret == 0) {
         ret = fread(buf,1,count,this->fp);
         /* must use ferror to tell if we got an error or EOF */
         if (ret == 0 && ferror(this->fp)) {
             ret = -1;
+        } else {
+            *bytes_read = ret;
         }
-        rv = get_err(ret);
     }
-    return(rv);
-};
+    return(get_err(ret));
+}
 
-ssize_t 
-GlibIOSHandle::Pwrite(const void* buf, size_t count, off_t offset) {
-    ssize_t rv;
+plfs_error_t
+GlibIOSHandle::Pwrite(const void* buf, size_t count, off_t offset, ssize_t *bytes_written) {
     int ret;
     /* XXX: we need some mutex locking here for concurrent access? */
     ret = fseek(this->fp,offset,SEEK_SET);
-    rv = get_err(ret);
-    if (rv == 0) {
+    if (ret == 0) {
         ret = fwrite(buf,1,count,this->fp);
         /* must use ferror to tell if we got an error or EOF */
         if (ret == 0 && ferror(this->fp)) {
             ret = -1;
+        } else {
+            *bytes_written = ret;
         }
-        rv = get_err(ret);
     }
-    return(rv);
-};
+    return(get_err(ret));
+}
 
-ssize_t 
-GlibIOSHandle::Read(void *buf, size_t count) {
+plfs_error_t
+GlibIOSHandle::Read(void *buf, size_t count, ssize_t *bytes_read) {
     ssize_t rv;
     rv = fread(buf,1,count,this->fp);
     /* must use ferror to tell if we got an error or EOF */
     if (rv == 0 && ferror(this->fp)) {
-        rv = get_err(-1);
+        rv = -1;
+    } else {
+        *bytes_read = rv;
     }
-    return(rv);
+    return(get_err(rv));
 };
 
-int 
+plfs_error_t
 GlibIOSHandle::ReleaseDataBuf(void *addr, size_t length)
 {
     int rv;
     rv = munmap(addr, length);
     return(get_err(rv));
-}
-
-off_t 
-GlibIOSHandle::Size() {
-    off_t rv;
-    rv = fseek(this->fp,0,SEEK_END); /* ret 0 or -1 */
-    rv = get_err(rv);
-    if (rv == 0)
-        rv = ftell(this->fp);   /* lseek returns current offset on success */
-    return(rv);
 };
 
-ssize_t 
-GlibIOSHandle::Write(const void* buf, size_t len) {
+plfs_error_t
+GlibIOSHandle::Size(off_t *ret_offset) {
+    off_t rv;
+    rv = fseek(this->fp,0,SEEK_END); /* ret 0 or -1 */
+    if (rv == 0) {
+        rv = ftell(this->fp);   /* lseek returns current offset on success */
+        *ret_offset = rv;
+    }
+    return(get_err(rv));
+};
+
+plfs_error_t
+GlibIOSHandle::Write(const void* buf, size_t len, ssize_t *bytes_written) {
     ssize_t rv;
     rv = fwrite(buf,1,len,this->fp);
     /* must use ferror to tell if we got an error or EOF */
     if (rv == 0 && ferror(this->fp)) {
-        rv = get_err(-1);
+        rv = -1;
+    } else {
+        *bytes_written = rv;
     }
-    return(rv);
+    return(get_err(rv));
 };
 
 

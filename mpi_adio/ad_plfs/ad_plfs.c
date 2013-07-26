@@ -62,7 +62,8 @@ struct ADIOI_Fns_struct ADIO_PLFS_operations = {
 int plfs_protect_all(const char *file, MPI_Comm comm) {
     int rank;
     MPI_Comm_rank(comm,&rank);
-    return container_protect(file,rank);
+    plfs_error_t plfs_ret = container_protect(file,rank);
+    return -(plfs_error_to_errno(plfs_ret));
 }
 
 int ad_plfs_amode( int access_mode )
@@ -138,18 +139,18 @@ static void no_link_abort(void)
     MPI_Abort(MPI_COMM_WORLD, __LINE__);
 }
 
-int plfs_close(Plfs_fd *,pid_t,uid_t,int open_flags,Plfs_close_opt *close_opt)  __attribute__ ((weak));
-int plfs_close(Plfs_fd *fd,pid_t pid,uid_t uid,int open_flags,Plfs_close_opt *close_opt)
+plfs_error_t plfs_close(Plfs_fd *,pid_t,uid_t,int open_flags,Plfs_close_opt *close_opt,int *)  __attribute__ ((weak));
+plfs_error_t plfs_close(Plfs_fd *fd,pid_t pid,uid_t uid,int open_flags,Plfs_close_opt *close_opt,int *num_ref)
 {
     no_link_abort();
-    return -1; /* never gets here */
+    return PLFS_ENOSYS; /* never gets here */
 }
 
-int plfs_create( const char *path, mode_t mode, int flags, pid_t pid )  __attribute__ ((weak));
-int plfs_create( const char *path, mode_t mode, int flags, pid_t pid )
+plfs_error_t plfs_create( const char *path, mode_t mode, int flags, pid_t pid )  __attribute__ ((weak));
+plfs_error_t plfs_create( const char *path, mode_t mode, int flags, pid_t pid )
 {
     no_link_abort();
-    return -1; /* never gets here */
+    return PLFS_ENOSYS; /* never gets here */
 }
 
 void plfs_debug( const char *format, ... )  __attribute__ ((weak));
@@ -158,25 +159,25 @@ void plfs_debug( const char *format, ... )
     no_link_abort();
 }
 
-int plfs_expand_path(const char *logical,char **physical,void **pmountp, void **pbackp)  __attribute__ ((weak));
-int plfs_expand_path(const char *logical,char **physical, void **pmountp, void **pbackp)
+plfs_error_t plfs_expand_path(const char *logical,char **physical,void **pmountp, void **pbackp)  __attribute__ ((weak));
+plfs_error_t plfs_expand_path(const char *logical,char **physical, void **pmountp, void **pbackp)
 {
     no_link_abort();
-    return -1; /* never gets here */
+    return PLFS_ENOSYS; /* never gets here */
 }
 
-int plfs_flatten_index( Plfs_fd *, const char *path )  __attribute__ ((weak));
-int plfs_flatten_index( Plfs_fd *fd, const char *path )
+plfs_error_t plfs_flatten_index( Plfs_fd *, const char *path )  __attribute__ ((weak));
+plfs_error_t plfs_flatten_index( Plfs_fd *fd, const char *path )
 {
     no_link_abort();
-    return -1; /* never gets here */
+    return PLFS_ENOSYS; /* never gets here */
 }
 
-int plfs_getattr(Plfs_fd *, const char *path, struct stat *st, int size_only)  __attribute__ ((weak));
-int plfs_getattr(Plfs_fd *fd, const char *path, struct stat *st, int size_only)
+plfs_error_t plfs_getattr(Plfs_fd *, const char *path, struct stat *st, int size_only)  __attribute__ ((weak));
+plfs_error_t plfs_getattr(Plfs_fd *fd, const char *path, struct stat *st, int size_only)
 {
     no_link_abort();
-    return -1; /* never gets here */
+    return PLFS_ENOSYS; /* never gets here */
 }
 
 size_t container_gethostdir_id(char *)  __attribute__ ((weak));
@@ -186,71 +187,72 @@ size_t container_gethostdir_id(char *id)
     return 1; /* never gets here */
 }
 
-char *plfs_gethostname()  __attribute__ ((weak));
-char *plfs_gethostname()
+plfs_error_t plfs_gethostname(char **hname)  __attribute__ ((weak));
+plfs_error_t plfs_gethostname(char **hname)
 {
     no_link_abort();
-    return NULL; /* never gets here */
+    return PLFS_ENOSYS; /* never gets here */
 }
 
-int container_hostdir_rddir(void **index_stream,char *targets,
+plfs_error_t container_hostdir_rddir(void **index_stream,char *targets,
                        int rank,char * top_level, void *pmount,
-                       void *pback)  __attribute__ ((weak));
-int container_hostdir_rddir(void **index_stream,char *targets,
-                       int rank,char * top_level, void *pmount, void *pback)
+                       void *pback, int *index_sz)  __attribute__ ((weak));
+plfs_error_t container_hostdir_rddir(void **index_stream,char *targets,
+                       int rank,char * top_level, void *pmount, void *pback,
+                       int *index_sz)
 {
     no_link_abort();
-    return -1; /* never gets here */
+    return PLFS_ENOSYS; /* never gets here */
 }
 
-int container_hostdir_zero_rddir(void **entries,const char* path,int rank,
-                            void *pmount, void *pback)  __attribute__ ((weak));
-int container_hostdir_zero_rddir(void **entries,const char* path,int rank,
-                            void *pmount, void *pback)
+plfs_error_t container_hostdir_zero_rddir(void **entries,const char* path,int rank,
+                            void *pmount, void *pback, int *res_size)  __attribute__ ((weak));
+plfs_error_t container_hostdir_zero_rddir(void **entries,const char* path,int rank,
+                            void *pmount, void *pback, int *res_size)
 {
     no_link_abort();
-    return -1; /* never gets here */
+    return PLFS_ENOSYS; /* never gets here */
 }
 
-int container_index_stream(Plfs_fd **pfd, char ** buffer)  __attribute__ ((weak));
-int container_index_stream(Plfs_fd **pfd, char ** buffer)
+plfs_error_t container_index_stream(Plfs_fd **pfd, char ** buffer, int *res_index_sz)  __attribute__ ((weak));
+plfs_error_t container_index_stream(Plfs_fd **pfd, char ** buffer, int *res_index_sz)
 {
     no_link_abort();
-    return -1; /* never gets here */
+    return PLFS_ENOSYS; /* never gets here */
 }
 
-int container_merge_indexes(Plfs_fd **pfd, char *index_streams,
+plfs_error_t container_merge_indexes(Plfs_fd **pfd, char *index_streams,
                         int *index_sizes, int procs)  __attribute__ ((weak));
-int container_merge_indexes(Plfs_fd **pfd, char *index_streams,
+plfs_error_t container_merge_indexes(Plfs_fd **pfd, char *index_streams,
                         int *index_sizes, int procs)
 {
     no_link_abort();
-    return -1; /* never gets here */
+    return PLFS_ENOSYS; /* never gets here */
 }
 
-int plfs_access(const char *path, int mask) __attribute__ ((weak));
+plfs_error_t plfs_access(const char *path, int mask) __attribute__ ((weak));
 
-int plfs_access(const char *path, int mask){
+plfs_error_t plfs_access(const char *path, int mask){
     no_link_abort();
-    return -1;
+    return PLFS_ENOSYS;
 }
 
-int plfs_open( Plfs_fd **, const char *path,
+plfs_error_t plfs_open( Plfs_fd **, const char *path,
         int flags, pid_t pid, mode_t , Plfs_open_opt *open_opt)  __attribute__ ((weak));
-int plfs_open( Plfs_fd **fd, const char *path,
+plfs_error_t plfs_open( Plfs_fd **fd, const char *path,
         int flags, pid_t pid, mode_t mode, Plfs_open_opt *open_opt)
 {
     no_link_abort();
-    return -1; /* never gets here */
+    return PLFS_ENOSYS; /* never gets here */
 }
 
-int container_parindex_read(int rank, int ranks_per_comm,void *index_files,
-        void **index_stream,char *top_level)  __attribute__ ((weak));
-int container_parindex_read(int rank, int ranks_per_comm,void *index_files,
-        void **index_stream,char *top_level)
+plfs_error_t container_parindex_read(int rank, int ranks_per_comm,void *index_files,
+        void **index_stream,char *top_level, int *res_index_size)  __attribute__ ((weak));
+plfs_error_t container_parindex_read(int rank, int ranks_per_comm,void *index_files,
+        void **index_stream,char *top_level, int *res_index_size)
 {
     no_link_abort();
-    return -1; /* never gets here */
+    return PLFS_ENOSYS; /* never gets here */
 }
 
 int container_parindexread_merge(const char *path,char *index_streams,
@@ -262,60 +264,60 @@ int container_parindexread_merge(const char *path,char *index_streams,
     return -1; /* never gets here */
 }
 
-ssize_t plfs_read( Plfs_fd *, char *buf, size_t size, off_t offset ) 
+plfs_error_t plfs_read( Plfs_fd *, char *buf, size_t size, off_t offset, ssize_t *bytes_read )
     __attribute__ ((weak));
-ssize_t plfs_read( Plfs_fd *fd, char *buf, size_t size, off_t offset )
+plfs_error_t plfs_read( Plfs_fd *fd, char *buf, size_t size, off_t offset, ssize_t *bytes_read )
 {
     no_link_abort();
-    return -1; /* never gets here */
+    return PLFS_ENOSYS; /* never gets here */
 }
 
-int plfs_sync( Plfs_fd *)  __attribute__ ((weak));
-int plfs_sync( Plfs_fd *fd)
+plfs_error_t plfs_sync( Plfs_fd *)  __attribute__ ((weak));
+plfs_error_t plfs_sync( Plfs_fd *fd)
 {
     no_link_abort();
-    return -1; /* never gets here */
+    return PLFS_ENOSYS; /* never gets here */
 }
 
-int plfs_trunc( Plfs_fd *, const char *path, off_t, int open_file )  
+plfs_error_t plfs_trunc( Plfs_fd *, const char *path, off_t, int open_file )
     __attribute__ ((weak));
-int plfs_trunc( Plfs_fd *fd, const char *path, off_t off, int open_file )
+plfs_error_t plfs_trunc( Plfs_fd *fd, const char *path, off_t off, int open_file )
 {
     no_link_abort();
-    return -1; /* never gets here */
+    return PLFS_ENOSYS; /* never gets here */
 }
 
-int plfs_unlink( const char *path )  __attribute__ ((weak));
-int plfs_unlink( const char *path )
+plfs_error_t plfs_unlink( const char *path )  __attribute__ ((weak));
+plfs_error_t plfs_unlink( const char *path )
 {
     no_link_abort();
-    return -1; /* never gets here */
+    return PLFS_ENOSYS; /* never gets here */
 }
 
-ssize_t plfs_write( Plfs_fd *, const char *, size_t, off_t, pid_t )  
+plfs_error_t plfs_write( Plfs_fd *, const char *, size_t, off_t, pid_t, ssize_t * )
     __attribute__ ((weak));
-ssize_t plfs_write( Plfs_fd *fd,
-    const char *buf, size_t size, off_t off, pid_t pid)
+plfs_error_t plfs_write( Plfs_fd *fd,
+    const char *buf, size_t size, off_t off, pid_t pid, ssize_t *bytes_written)
 {
     no_link_abort();
-    return -1; /* never gets here */
+    return PLFS_ENOSYS; /* never gets here */
 }
 
-int container_protect(const char *, pid_t)
+plfs_error_t container_protect(const char *, pid_t)
      __attribute__ ((weak));
-int container_protect(const char *path, pid_t pid)
+plfs_error_t container_protect(const char *path, pid_t pid)
 {
     no_link_abort();
-    return -1; /* never gets here */
+    return PLFS_ENOSYS; /* never gets here */
 }
 
-int plfs_query( Plfs_fd *, size_t *, size_t *, size_t *, int *)
+plfs_error_t plfs_query( Plfs_fd *, size_t *, size_t *, size_t *, int *)
      __attribute__ ((weak));
-int plfs_query( Plfs_fd *fd, size_t *writers, size_t *readers,
+plfs_error_t plfs_query( Plfs_fd *fd, size_t *writers, size_t *readers,
                     size_t *bytes_written, int *lazy_stat)
 {
     no_link_abort();
-    return -1; /* never gets here */
+    return PLFS_ENOSYS; /* never gets here */
 }
 
 plfs_filetype plfs_get_filetype(const char *path)

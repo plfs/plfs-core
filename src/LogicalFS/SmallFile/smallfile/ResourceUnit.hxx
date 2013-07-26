@@ -29,6 +29,7 @@
  */
 
 #include <pthread.h>
+#include "plfs_error.h"
 
 class ResourceUnit {
 public:
@@ -45,10 +46,10 @@ public:
      * @param resource The needed information to build the resource.
      *
      * @return
-     *   - 0: resource is already available or successfully built.
-     *   - <0: return value of add_resource(type, resource) or -EAGAIN;
+     *   - PLFS_SUCCESS: resource is already available or successfully built.
+     *   - PLFS_E*: return value of add_resource(type, resource) or PLFS_EAGAIN;
      */
-    int require(int type, void *resource);
+    plfs_error_t require(int type, void *resource);
     /**
      * Release the required resource.
      *
@@ -59,7 +60,7 @@ public:
 
 protected:
     virtual bool resource_available(int type, void *resource) = 0;
-    virtual int add_resource(int type, void *resource) = 0;
+    virtual plfs_error_t add_resource(int type, void *resource) = 0;
     virtual void release_resource(int /* type */, void * /* resource */) {};
 
 private:
