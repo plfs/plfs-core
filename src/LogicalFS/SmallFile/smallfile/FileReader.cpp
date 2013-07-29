@@ -26,12 +26,13 @@ FileReader::~FileReader() {
     delete []buffer;
 }
 
-int
+plfs_error_t
 FileReader::pop_front() {
     int rec_size;
     int first_byte;
     char *next_record;
-    int ret;
+    plfs_error_t ret;
+    ssize_t readlen;
 
     if (data_pos >= 0) {
         /* Release memory for the current record. */
@@ -44,8 +45,9 @@ FileReader::pop_front() {
         assert(!(buffer_size > next_pos && buffer_size - next_pos < 4));
         /* Read at least 4 bytes so that we can get the record size */
         do {
-            ret = read_buffer();
-            if (ret <= 0) return ret;
+            ret = read_buffer(readlen);
+            if (readlen == 0) return PLFS_EEOF;
+            if (ret != PLFS_SUCCESS) return ret;
         } while (buffer_end - next_pos < 4);
     }
     /* Check whether the next record is totally in the buffer */
@@ -57,19 +59,20 @@ FileReader::pop_front() {
     if (next_pos <= buffer_size) {
         /* Simple case: record is in a single buffer block. */
         while (next_pos > buffer_end) {
-            ret = read_buffer();
-            if (ret <= 0) return 0;
+            ret = read_buffer(readlen);
+            if (readlen <= 0) return PLFS_EEOF;
         }
         data_ptr = next_record;
-        return 1;
+        return PLFS_SUCCESS;
     }
     /* Complicated case: record is in two or more buffer blocks. */
     return read_cross_buffer_record(first_byte, rec_size);
 }
 
-int
+plfs_error_t
 FileReader::read_cross_buffer_record(int first_byte, int rec_size) {
-    int ret;
+    plfs_error_t ret;
+    ssize_t readlen;
 
     /* We need to allocate a new buffer. */
     data_ptr = new char[rec_size];
@@ -82,7 +85,7 @@ FileReader::read_cross_buffer_record(int first_byte, int rec_size) {
                 bytes_to_copy = next_pos - first_byte;
                 memcpy(&data_ptr[data_pos], &buffer[first_byte],
                        bytes_to_copy);
-                return 1;
+                return PLFS_SUCCESS;
             }
             bytes_to_copy = buffer_end - first_byte;
             memcpy(&data_ptr[data_pos], &buffer[first_byte], bytes_to_copy);
@@ -90,12 +93,12 @@ FileReader::read_cross_buffer_record(int first_byte, int rec_size) {
             first_byte += bytes_to_copy;
             first_byte %= buffer_size;
         }
-        ret = read_buffer();
-    } while (ret > 0);
+        ret = read_buffer(readlen);
+    } while (readlen > 0);
     delete []data_ptr;
     data_pos = -1;
     data_ptr = NULL;
-    return ret;
+    return (readlen == 0) ? PLFS_EEOF : ret;
 }
 
 /**
@@ -108,51 +111,52 @@ FileReader::read_cross_buffer_record(int first_byte, int rec_size) {
  * Once we read a new buffer block from the file, we need to update
  * buffer_pos and next_pos.
  *
- * @return On success, the bytes read is returned. Otherwise, the error
- *    code is returned.
+ * @param bytes_read the bytes read to return
+ * @return On success, PLFS_SUCCESS is returned. Otherwise, PLFS_E*
+ *    is returned.
  */
 
-int
-FileReader::read_buffer() {
+plfs_error_t
+FileReader::read_buffer(ssize_t &bytes_read) {
     IOSHandle *handle;
-    ssize_t bytes_read;
-    int ret;
+    bytes_read = -1;
+    plfs_error_t ret;
 
-    handle = filename.back->store->Open(filename.bpath.c_str(), O_RDONLY, 0,
-                                        ret);
-    if (ret) return ret;
+    ret = filename.back->store->Open(filename.bpath.c_str(), O_RDONLY, 0,
+                                     &handle);
+    if (ret != PLFS_SUCCESS) return ret;
     if (buffer_end == -1) {
         /* The first call to this function. */
-        bytes_read = handle->Read(&buffer[0], buffer_size);
-        if (bytes_read == -1) {
+        ret = handle->Read(&buffer[0], buffer_size, &bytes_read);
+        if (ret != PLFS_SUCCESS) {
             filename.back->store->Close(handle);
-            return -errno;
+            return ret;
         }
         buffer_end = bytes_read;
         filename.back->store->Close(handle);
-        return bytes_read;
+        return ret;
     }
     off_t read_pos = buffer_pos + buffer_end;
     if (buffer_end == buffer_size) {
         /* A new buffer block is needed to load from the file */
-        bytes_read = handle->Pread(&buffer[0], buffer_size, read_pos);
-        if (bytes_read == -1) {
+        ret = handle->Pread(&buffer[0], buffer_size, read_pos, &bytes_read);
+        if (ret != PLFS_SUCCESS) {
             filename.back->store->Close(handle);
-            return -errno;
+            return ret;
         }
         buffer_pos += buffer_size;
         next_pos -= buffer_size;
         buffer_end = bytes_read;
     } else {
         /* We need to full fill the remaining of the buffer block */
-        bytes_read = handle->Pread(&buffer[buffer_end],
-                                   buffer_size - buffer_end, read_pos);
-        if (bytes_read == -1) {
+        ret = handle->Pread(&buffer[buffer_end],
+                            buffer_size - buffer_end, read_pos, &bytes_read);
+        if (ret != PLFS_SUCCESS) {
             filename.back->store->Close(handle);
-            return -errno;
+            return ret;
         }
         buffer_end += bytes_read;
     }
     filename.back->store->Close(handle);
-    return bytes_read;
+    return ret;
 }

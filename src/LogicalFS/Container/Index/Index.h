@@ -23,7 +23,7 @@ class IndexFileInfo
 {
     public:
         IndexFileInfo();
-        void *listToStream(vector<IndexFileInfo> &list,int *bytes);
+        plfs_error_t listToStream(vector<IndexFileInfo> &list,int *bytes, void **ret_buf);
         vector<IndexFileInfo> streamToList(void *addr);
         //bool operator<(IndexFileInfo d1);
         double timestamp;
@@ -108,7 +108,7 @@ class Index : public Metadata, public PLFSIndex
         Index( string path, struct plfs_backend *, IOSHandle *fh );
         ~Index();
 
-        int readIndex( string hostindex, struct plfs_backend *iback );
+        plfs_error_t readIndex( string hostindex, struct plfs_backend *iback );
 
         void setPath( string );
 
@@ -118,7 +118,7 @@ class Index : public Metadata, public PLFSIndex
 
         size_t memoryFootprintMBs();    // how much area the index is occupying
 
-        int flush();
+        plfs_error_t flush();
 
         off_t lastOffset( );
 
@@ -140,30 +140,30 @@ class Index : public Metadata, public PLFSIndex
             this->fh = newfh;
         }
 
-        int resetPhysicalOffsets();
+        plfs_error_t resetPhysicalOffsets();
 
         size_t totalBytes( );
 
         IOSHandle *getChunkFh( pid_t chunk_id );
 
-        int setChunkFh( pid_t chunk_id, IOSHandle *fh);
+        plfs_error_t setChunkFh( pid_t chunk_id, IOSHandle *fh);
 
-        int globalLookup( IOSHandle **fh, off_t *chunk_off, size_t *length,
-                          string& path, struct plfs_backend **backp,
-                          bool *hole, pid_t *chunk_id,
-                          off_t logical );
+        plfs_error_t globalLookup( IOSHandle **fh, off_t *chunk_off, size_t *length,
+                                   string& path, struct plfs_backend **backp,
+                                   bool *hole, pid_t *chunk_id,
+                                   off_t logical );
 
-        int insertGlobal( ContainerEntry * );
+        plfs_error_t insertGlobal( ContainerEntry * );
         void merge( Index *other);
         void truncate( off_t offset );
-        int rewriteIndex( IOSHandle *fh );
+        plfs_error_t rewriteIndex( IOSHandle *fh );
         void truncateHostIndex( off_t offset );
 
         void compress();
-        int debug_from_stream(void *addr);
-        int global_to_file(IOSHandle *fh, struct plfs_backend *canback);
-        int global_from_stream(void *addr);
-        int global_to_stream(void **buffer,size_t *length);
+        plfs_error_t debug_from_stream(void *addr);
+        plfs_error_t global_to_file(IOSHandle *fh, struct plfs_backend *canback);
+        plfs_error_t global_from_stream(void *addr);
+        plfs_error_t global_to_stream(void **buffer,size_t *length);
         friend ostream& operator <<(ostream&,const Index&);
         // Added to get chunk path on write
         string index_path;
@@ -173,16 +173,16 @@ class Index : public Metadata, public PLFSIndex
 
     private:
         void init( string, struct plfs_backend * );
-        int chunkFound( IOSHandle **, off_t *, size_t *, off_t,
-                        string&, struct plfs_backend **,
-                        pid_t *, ContainerEntry * );
-        int cleanupReadIndex(IOSHandle *, void *, off_t, int, const char *,
-                             const char *, struct plfs_backend *);
-        int mapIndex( void **, string, IOSHandle **, off_t *,
-                      struct plfs_backend * );
-        int handleOverlap( ContainerEntry& g_entry,
-                           pair< map<off_t,ContainerEntry>::iterator,
-                           bool > &insert_ret );
+        plfs_error_t chunkFound( IOSHandle **, off_t *, size_t *, off_t,
+                                 string&, struct plfs_backend **,
+                                 pid_t *, ContainerEntry * );
+        plfs_error_t cleanupReadIndex(IOSHandle *, void *, off_t, plfs_error_t, const char *,
+                                      const char *, struct plfs_backend *);
+        plfs_error_t mapIndex( void **, string, IOSHandle **, off_t *,
+                               struct plfs_backend * );
+        plfs_error_t handleOverlap( ContainerEntry& g_entry,
+                                    pair< map<off_t,ContainerEntry>::iterator,
+                                    bool > &insert_ret );
         map<off_t,ContainerEntry>::iterator insertGlobalEntryHint(
             ContainerEntry *g_entry ,map<off_t,ContainerEntry>::iterator hint);
         pair<map<off_t,ContainerEntry>::iterator,bool> insertGlobalEntry(

@@ -71,8 +71,8 @@ private:
     /**< The map is protected by ResourceUnit::item_lock. */
 
 protected:
-    virtual int init_data_source(void *resource, RecordReader **reader);
-    virtual int merge_object(void *object, void *meta);
+    virtual plfs_error_t init_data_source(void *resource, RecordReader **reader);
+    virtual plfs_error_t merge_object(void *object, void *meta);
 
 public:
     NamesMapping();
@@ -89,13 +89,13 @@ public:
      *   Otherwise, a NULL shared_ptr will be returned.
      */
     FileMetaDataPtr get_metadata(const string &fname);
-    int read_names(set<string> *res, vector<plfs_pathback> *names);
+    plfs_error_t read_names(set<string> *res, vector<plfs_pathback> *names);
     // getattr is a very common operation, cache it in memory might help.
-    int set_attr_cache(const string &filename, struct stat *stbuf);
-    int get_attr_cache(const string &filename, struct stat *stbuf);
+    plfs_error_t set_attr_cache(const string &filename, struct stat *stbuf);
+    plfs_error_t get_attr_cache(const string &filename, struct stat *stbuf);
     void invalidate_attr_cache(const string &filename);
-    int expand_filesize(const string &filename, off_t write_end);
-    int truncate_file(const string &filename, off_t truncate_pos);
+    plfs_error_t expand_filesize(const string &filename, off_t write_end);
+    plfs_error_t truncate_file(const string &filename, off_t truncate_pos);
 
     void dump_mapping();
 };

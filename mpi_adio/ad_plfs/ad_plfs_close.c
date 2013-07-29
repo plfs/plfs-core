@@ -22,6 +22,8 @@ void reduce_meta(ADIO_File, Plfs_fd *fd,const char *filename,
 void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
 {
     int err, rank, amode,procs;
+    plfs_error_t plfs_err;
+    int num_open_handles;
     static char myname[] = "ADIOI_PLFS_CLOSE";
     uid_t uid = geteuid();
     Plfs_close_opt close_opt;
@@ -48,7 +50,8 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
     double start_time,end_time;
     start_time=MPI_Wtime();
     if (plfs_get_filetype(fd->filename) != CONTAINER) {
-        err = plfs_close(fd->fs_ptr, rank, uid,amode,NULL);
+        plfs_err = plfs_close(fd->fs_ptr, rank, uid,amode,NULL,&num_open_handles);
+        err = -(plfs_error_to_errno(plfs_err));
     }else{
         flatten = ad_plfs_hints (fd , rank, "plfs_flatten_close");
         if(flatten && fd->access_mode!=ADIO_RDONLY) {
@@ -65,7 +68,8 @@ void ADIOI_PLFS_Close(ADIO_File fd, int *error_code)
             if(fd->access_mode!=ADIO_RDONLY) {
                 reduce_meta(fd, fd->fs_ptr, fd->filename, &close_opt, rank);
             }
-            err = plfs_close(fd->fs_ptr, rank, uid,amode,&close_opt);
+            plfs_err = plfs_close(fd->fs_ptr, rank, uid,amode,&close_opt,&num_open_handles);
+            err = -(plfs_error_to_errno(plfs_err));
         }
     } 
     end_time=MPI_Wtime();
@@ -87,11 +91,13 @@ int flatten_then_close(ADIO_File afd, Plfs_fd *fd,int rank,int amode,int procs,
                        uid_t uid)
 {
     int index_size,err,index_total_size=0,streams_malloc=1,stop_buffer=0;
+    plfs_error_t plfs_err;
+    int num_open_handles;
     int *index_sizes,*index_disp;
     char *index_stream,*index_streams;
     double start_time,end_time;
     // Get the index stream from the local index
-    index_size=container_index_stream(&(fd),&index_stream);
+    container_index_stream(&(fd),&index_stream,&index_size);
     // Malloc space to receive all of the index sizes
     // Do all procs need to do this? I think not
     if(!rank) {
@@ -173,7 +179,7 @@ int flatten_then_close(ADIO_File afd, Plfs_fd *fd,int rank,int amode,int procs,
     }
     // Close normally
     // This should be fine before the previous if statement
-    err = plfs_close(fd, rank, uid, amode,close_opt);
+    plfs_err = plfs_close(fd, rank, uid, amode,close_opt, &num_open_handles);
     if(index_size>0) {
         free(index_stream);
     }
@@ -189,7 +195,7 @@ int flatten_then_close(ADIO_File afd, Plfs_fd *fd,int rank,int amode,int procs,
     // Root doesn't really need to make this call
     // Could take out the container_index_stream call for root
     // This is causing errors does the free to index streams clean this up?
-    return err;
+    return (plfs_err == PLFS_SUCCESS) ? num_open_handles : -(plfs_error_to_errno(plfs_err));
 }
 
 void reduce_meta(ADIO_File afd, Plfs_fd *fd,const char *filename,
