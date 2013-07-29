@@ -257,15 +257,16 @@ class ProcessorsGraph(wx.Panel):
 
 class Graphs(aui.AuiNotebook):
 	def __init__(self, parent, times, bandwidths, iosTime, iosFin, writeBins,\
-				hostdirs, sizes, mpiFile, average, jobID):
+				hostdirs, sizes, mpiFile, average, jobID, processorGraph):
 		aui.AuiNotebook.__init__(self, parent, id=wx.ID_ANY)
 		self.globalAnnotations = UndoAnnotations(self)
 		numProc = len(hostdirs)-1
-		self.AddPage(BandwidthsAndIOs(self, times, bandwidths, iosTime, iosFin,\
-					numProc, self.globalAnnotations), "Bandwidths and IO")
+		self.AddPage(BandwidthsAndIOs(self, times, bandwidths, iosTime, \
+			iosFin,numProc, self.globalAnnotations), "Bandwidths and IO")
 		self.AddPage(WriteSizes(self, writeBins), "Write Sizes")
-		self.AddPage(ProcessorsGraph(self, mpiFile, numProc, average, jobID,  \
-					self.globalAnnotations), "Processor Graphs")
+		if processorGraph:
+			self.AddPage(ProcessorsGraph(self, mpiFile, numProc, average,\
+				jobID,self.globalAnnotations), "Processor Graphs")
 
 	def __getitem__(self, index):
 		if index < self.GetPageCount():
@@ -365,7 +366,7 @@ class HelpWindow(wx.Panel):
 
 class Frame(wx.Frame):
 	def __init__(self, times, bandwidths, iosTime, iosFin, writeBins, hostdirs,\
-				sizes, mpiFile, average, jobID):
+				sizes, mpiFile, average, jobID, processorGraphs):
 		wx.Frame.__init__(self,None, wx.ID_ANY, "Analysis Application", \
 				size=(1500,1050))
 		panel1 = wx.Panel(self, -1, size=(1200,1000))
@@ -383,7 +384,8 @@ class Frame(wx.Frame):
 		panel2.SetSizer(scroll)
 		panel2.SetupScrolling()
 		notebook = Graphs(panel1, times, bandwidths, iosTime, iosFin, \
-					writeBins, hostdirs, sizes, mpiFile, average, jobID)
+					writeBins, hostdirs, sizes, mpiFile, average, jobID, \
+					processorGraphs)
 		logicalFile = hostdirs[0][1]
 		logicalFile = logicalFile.replace("/", "_")
 		self.InitMenus(logicalFile, notebook)
@@ -420,8 +422,8 @@ class Frame(wx.Frame):
 		self.Close()
 
 def runApp(times, bandwidths, iosTime, iosFin, writeBins, hostdirs, sizes,\
-			mpiFile, average, jobID):
+			mpiFile, average, jobID, processorGraphs):
 	app = wx.PySimpleApp()
 	frame = Frame(times, bandwidths, iosTime, iosFin, writeBins, hostdirs, \
-				sizes, mpiFile, average, jobID)
+				sizes, mpiFile, average, jobID, processorGraphs)
 	app.MainLoop()

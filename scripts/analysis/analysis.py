@@ -139,9 +139,6 @@ def main(argv):
 	if (mpiFile == ""):
 		print("No input files")
 		sys.exit(2)
-	if (processorGraphs == True) and (createGraphs == False):
-		print("Cannot create processor graphs if no graphs are created")
-		sys.exit(2)
 	if (createGraphs and interactive):
 		print("Cannot produce pdf and interactive mode at the same time")
 		print("Interactive mode does include the option to export graphs")
@@ -154,7 +151,7 @@ def main(argv):
 		pdfAnalysis.generateGraphs(times, bandwidths, iosTime, iosFin, writeBins, hostdirs, sizes, processorGraphs, mpiFile, average, jobID)
 	if interactive:
 		import interactiveAnalysis
-		interactiveAnalysis.runApp(times, bandwidths, iosTime, iosFin, writeBins, hostdirs, sizes, mpiFile, average, jobID)
+		interactiveAnalysis.runApp(times, bandwidths, iosTime, iosFin, writeBins, hostdirs, sizes, mpiFile, average, jobID, processorGraphs)
 
 if __name__ == "__main__":
 	import sys, getopt
