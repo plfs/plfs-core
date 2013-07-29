@@ -114,6 +114,7 @@ def graphPerProcessor(mpiFile, numberOfProcessors, average, jobID):
 			(id, beg, end) = struct.unpack("qqq", file)
 			if (id, beg, end) != (0.0, 0.0, 0.0):
 				ax1.plot([id, id], [beg, end], color="b", linewidth=1.5)
+	(low, high) = ax1.axes.get_ybound()
 	ax1.set_ylabel("Offset (Bytes x 1e%d)"% analysis.exponent(high))
 	#so the axis does not draw over processor 0
 	ax1.set_xlim([-1, numberOfProcessors]) 
@@ -135,7 +136,7 @@ def graphPerProcessor(mpiFile, numberOfProcessors, average, jobID):
 	ax2.set_xlim([-1, numberOfProcessors])
 	ax2.set_xlabel('Processor')
 
-def generateGraphs(times, bandwidths, iosTime, iosFin, writeBins,
+def generateGraphs(times, bandwidths, iosTime, iosFin, writeBins,\
 					hostdirs, sizes, processorGraphs, mpiFile, average, jobID):
 	matplotlib.rc("xtick", labelsize=10)
 	matplotlib.rc("ytick", labelsize=10)

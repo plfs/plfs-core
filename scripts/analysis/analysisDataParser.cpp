@@ -13,7 +13,7 @@
  * use that in the parsing - the user will decide the number of processes
  * that are reading but we must know when we have read all of the indices */
 int 
-getNumberOfIndexFiles(const char* query) 
+getNumberOfIndexFiles(char* query) 
 {
 	FILE *fp = NULL;
 	int number = 0; 
@@ -43,7 +43,7 @@ getNumberOfIndexFiles(const char* query)
  * to be used in the per processor graphs if requested. Finally calculates the
  * sum of the end times for the standard deviation and average calculations*/
 int 
-getMaxMinTimes(int numIndexFiles, int size, const char* mount, double* minMax,
+getMaxMinTimes(int numIndexFiles, int size, char* mount, double* minMax,
 		 double* endSum, double* endTimes)
 {
 	double sendMinMax[2]; 
@@ -142,7 +142,7 @@ powersOfTwo(int input)
 /* Gains all the information needed for the graphs and finds the 
  * standard deviation of the end times*/
 int
-parseData(int numIndexFiles, int size, const char* mount, double binSize,
+parseData(int numIndexFiles, int size, char* mount, double binSize,
 		int numBins, double* bandwidths, int* iosTime, int* iosFin, 
 		int* writeCount, double min, double average, double* stdev)
 {
@@ -269,7 +269,7 @@ parseData(int numIndexFiles, int size, const char* mount, double binSize,
  * the per processor graphs. Writes to a given filesystem so that it
  * can be read by python */
 int
-writeProcessorData(int numIndexFiles, int size, const char* mount,
+writeProcessorData(int numIndexFiles, int size, char* mount,
 			char* offsetMPI, double average, double stdev, 
 			double* endTimes, char* timeMPI, double start, 
 			bool above, bool below, int numStdDev)
