@@ -31,11 +31,12 @@ SmallFileContainer::SmallFileContainer(void *init_para) : index_cache(16)
     {
         struct plfs_backend *backend = pmount->backends[i];
         string statfile;
-        int ret;
+        plfs_error_t ret;
         get_statfile(backend, dirpath, statfile);
-        if (backend->store->Access(statfile.c_str(), F_OK) != 0) {
+        if (backend->store->Access(statfile.c_str(), F_OK) != PLFS_SUCCESS) {
             ret = makeTopLevelDir(backend, dirpath, statfile);
-            if (ret) mlog(SMF_ERR, "Failed to create SMFContainer:%d.", ret);
+            if (ret != PLFS_SUCCESS)
+                mlog(SMF_ERR, "Failed to create SMFContainer:%d.", ret);
         }
     }
     pthread_rwlock_init(&writers_lock, NULL);
@@ -48,25 +49,25 @@ SmallFileContainer::~SmallFileContainer() {
     pthread_mutex_destroy(&chunk_lock);
 }
 
-int
+plfs_error_t
 SmallFileContainer::makeTopLevelDir(struct plfs_backend *backend,
                                     const string &dir_path,
                                     const string &statfile)
 {
-    int ret;
+    plfs_error_t ret;
     string cdirpath = backend->bmpoint + DIR_SEPERATOR + dir_path +
         DIR_SEPERATOR + SMALLFILE_CONTAINER_NAME;
 
     ret = backend->store->Mkdir(cdirpath.c_str(), DEFAULT_DIR_MODE);
-    if (!ret || errno == EEXIST) {
+    if (ret == PLFS_SUCCESS || ret == PLFS_EEXIST) {
         IOSHandle *handle;
-        handle = backend->store->Creat(statfile.c_str(), DEFAULT_FMODE, ret);
-        if (ret == 0) backend->store->Close(handle);
+        ret = backend->store->Creat(statfile.c_str(), DEFAULT_FMODE, &handle);
+        if (ret == PLFS_SUCCESS) backend->store->Close(handle);
     }
     return ret;
 }
 
-int
+plfs_error_t
 SmallFileContainer::init_data_source(void * /* resource */, RecordReader **reader) {
     for (int i = 0; i < pmount->nback; i++)
     {
@@ -75,14 +76,14 @@ SmallFileContainer::init_data_source(void * /* resource */, RecordReader **reade
         set<string> dir_contents;
         set<string>::iterator itr;
         ReaddirOp op(NULL, &dir_contents, true, true);
-        int ret;
+        plfs_error_t ret;
         struct plfs_pathback entry;
         string container_dir(backend->bmpoint + DIR_SEPERATOR + dirpath +
                              DIR_SEPERATOR + SMALLFILE_CONTAINER_NAME);
 
         op.filter(NAME_PREFIX);
         ret = op.do_op(container_dir.c_str(), DT_DIR, backend->store);
-        if (ret && ret != -ENOENT) return ret;
+        if (ret != PLFS_SUCCESS && ret != PLFS_ENOENT) return ret;
         entry.back = backend;
         for (itr = dir_contents.begin(); itr != dir_contents.end(); itr++)
         {
@@ -91,17 +92,17 @@ SmallFileContainer::init_data_source(void * /* resource */, RecordReader **reade
         }
     }
     *reader = new EmptyRecordReader();
-    return 0;
+    return PLFS_SUCCESS;
 }
 
-int
+plfs_error_t
 SmallFileContainer::merge_object(void *object, void *meta) {
     struct plfs_pathback *file = (struct plfs_pathback *)object;
     ssize_t *did = (ssize_t *)meta;
 
     if (did) *did = droppings_names.size();
     droppings_names.push_back(*file);
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 WriterPtr
@@ -135,7 +136,7 @@ SmallFileContainer::get_writer(pid_t pid) {
     struct plfs_pathback newWriter;
     newWriter.back = chosenBackend;
     generate_dropping_name(aggregated_dir, pid, newWriter.bpath);
-    if (require(MEMCACHE_FULLYLOADED, this) == 0) {
+    if (require(MEMCACHE_FULLYLOADED, this) == PLFS_SUCCESS) {
         /*
          * We must get the list of the dropping.name.x files before adding
          * a new writer, otherwise the writer will get a wrong dropping_id.
@@ -155,15 +156,15 @@ SmallFileContainer::get_writer(pid_t pid) {
 bool
 SmallFileContainer::file_exist(const string &filename) {
     bool exist = false;
-    int ret;
+    plfs_error_t ret;
 
 #ifdef SMALLFILE_USE_LIBC_FILEIO
     sync_writers(WRITER_SYNC_NAMEFILE);
 #endif
     ret = require(MEMCACHE_FULLYLOADED, this);
-    if (!ret) {
+    if (ret == PLFS_SUCCESS) {
         ret = files.require(MEMCACHE_FULLYLOADED, &droppings_names);
-        if (!ret) {
+        if (ret == PLFS_SUCCESS) {
             FileMetaDataPtr metadata;
             metadata = files.get_metadata(filename);
             if (metadata) exist = true;
@@ -174,13 +175,13 @@ SmallFileContainer::file_exist(const string &filename) {
     return exist;
 }
 
-int
+plfs_error_t
 SmallFileContainer::readdir(set<string> *res) {
 #ifdef SMALLFILE_USE_LIBC_FILEIO
     sync_writers(WRITER_SYNC_NAMEFILE);
 #endif
-    int ret = require(MEMCACHE_FULLYLOADED, this);
-    if (ret) return ret;
+    plfs_error_t ret = require(MEMCACHE_FULLYLOADED, this);
+    if (ret != PLFS_SUCCESS) return ret;
     ret = files.read_names(res, &droppings_names);
     release(MEMCACHE_FULLYLOADED, this);
     return ret;
@@ -190,15 +191,15 @@ IndexPtr
 SmallFileContainer::get_index(const string &filename) {
     IndexPtr retval;
     FileMetaDataPtr metadata;
-    int ret;
+    plfs_error_t ret;
 
 #ifdef SMALLFILE_USE_LIBC_FILEIO
     sync_writers(WRITER_SYNC_INDEXFILE);
 #endif
     ret = require(MEMCACHE_FULLYLOADED, this);
-    if (!ret) {
+    if (ret == PLFS_SUCCESS) {
         ret = files.require(MEMCACHE_FULLYLOADED, &droppings_names);
-        if (!ret) {
+        if (ret == PLFS_SUCCESS) {
             metadata = files.get_metadata(filename);
             if (metadata) {
                 struct index_init_para_t init_para;
@@ -218,9 +219,9 @@ SmallFileContainer::get_index(const string &filename) {
     return retval;
 }
 
-int
+plfs_error_t
 SmallFileContainer::create(const string &filename, pid_t pid) {
-    int ret;
+    plfs_error_t ret;
     WriterPtr writer = get_writer(pid);
 
     ret = writer->create(filename, &files);
@@ -228,9 +229,9 @@ SmallFileContainer::create(const string &filename, pid_t pid) {
     return ret;
 }
 
-int
+plfs_error_t
 SmallFileContainer::rename(const string &from, const string &to, pid_t pid) {
-    int ret;
+    plfs_error_t ret;
     WriterPtr writer = get_writer(pid);
 
     ret = writer->rename(from, to, &files);
@@ -239,9 +240,9 @@ SmallFileContainer::rename(const string &from, const string &to, pid_t pid) {
     return ret;
 }
 
-int
+plfs_error_t
 SmallFileContainer::remove(const string &filename, pid_t pid) {
-    int ret;
+    plfs_error_t ret;
     WriterPtr writer = get_writer(pid);
 
     ret = writer->remove(filename, &files);
@@ -249,11 +250,11 @@ SmallFileContainer::remove(const string &filename, pid_t pid) {
     return ret;
 }
 
-int
+plfs_error_t
 SmallFileContainer::utime(const string &filename, struct utimbuf *ut,
                           pid_t pid)
 {
-    int ret;
+    plfs_error_t ret;
     WriterPtr writer = get_writer(pid);
 
     ret = writer->utime(filename, ut, &files);
@@ -261,14 +262,14 @@ SmallFileContainer::utime(const string &filename, struct utimbuf *ut,
     return ret;
 }
 
-int
+plfs_error_t
 SmallFileContainer::sync_writers(int sync_level) {
-    int ret = 0;
+    plfs_error_t ret = PLFS_SUCCESS;
     map<pid_t, WriterPtr>::iterator itr;
     pthread_rwlock_rdlock(&writers_lock);
     for (itr = writers.begin(); itr != writers.end(); itr++) {
         ret = itr->second->sync(sync_level);
-        if (ret) break;
+        if (ret != PLFS_SUCCESS) break;
     }
     pthread_rwlock_unlock(&writers_lock);
     return ret;
@@ -281,18 +282,18 @@ SmallFileContainer::sync_writers(int sync_level) {
  * directory is empty.
  */
 
-int
+plfs_error_t
 SmallFileContainer::delete_if_empty() {
 #ifdef CHECK_DIR_EMPTY_BEFORE_DELETE
 #ifdef SMALLFILE_USE_LIBC_FILEIO
     sync_writers(WRITER_SYNC_NAMEFILE);
 #endif
-    int ret = require(MEMCACHE_FULLYLOADED, this);
+    plfs_error_t ret = require(MEMCACHE_FULLYLOADED, this);
     set<string> res;
-    if (ret) return ret;
+    if (ret != PLFS_SUCCESS) return ret;
     ret = files.read_names(&res, &droppings_names);
     release(MEMCACHE_FULLYLOADED, this);
-    if (!res.empty()) return -ENOTEMPTY;
+    if (!res.empty()) return PLFS_ENOTEMPTY;
 #endif
     mlog(SMF_INFO, "All dropping files are about to be deleted for %s.",
          dirpath.c_str());
@@ -307,16 +308,16 @@ SmallFileContainer::delete_if_empty() {
         unlink.op_r(container.c_str(), DT_DIR, backend->store, true);
     }
     pthread_rwlock_unlock(&writers_lock);
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 void
 SmallFileContainer::get_data_file(ssize_t did, string &pathname,
                                   struct plfs_backend **backp) {
-    int ret;
+    plfs_error_t ret;
 
     ret = require(MEMCACHE_FULLYLOADED, this);
-    if (!ret) dropping_name2data(droppings_names[did].bpath, pathname);
+    if (ret == PLFS_SUCCESS) dropping_name2data(droppings_names[did].bpath, pathname);
     if (backp) *backp = droppings_names[did].back;
     release(MEMCACHE_FULLYLOADED, this);
 }

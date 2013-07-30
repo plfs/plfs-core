@@ -13,7 +13,7 @@ project(plfs)
 #set project number X.X.X?
 set (plfs_VERSION_MAJOR 2)
 set (plfs_VERSION_MINOR 4)
-set (plfs_VERSION_PATCH 0)
+set (plfs_VERSION_PATCH 1)
 set (PACKAGE_STRING "PLFS ${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}")
 set (plfs_VERSION_FULL "${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}")
 if (DEFINED plfs_VERSION_PATCH)
@@ -364,6 +364,7 @@ INSTALL(TARGETS dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls
                 plfs_map plfs_query plfs_recover plfs_version DESTINATION ${BINDIR}
 )
 INSTALL(FILES "${PLFS_BUILD_DIR}/plfs.h" DESTINATION ${INCLUDEDIR})
+INSTALL(FILES "${PLFS_SOURCE_DIR}/plfs_error.h" DESTINATION ${INCLUDEDIR})
 INSTALL(FILES "${PLFS_SOURCE_DIR}/Mlog/mlogfacs.h"
 	      "${PLFS_SOURCE_DIR}/plfs_internal.h" 
 	      "${PLFS_SOURCE_DIR}/Util.h" 

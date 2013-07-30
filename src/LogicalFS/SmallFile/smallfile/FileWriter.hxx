@@ -25,7 +25,7 @@ private:
 public:
     FileWriter();
     ~FileWriter();
-    int open_file(const char *filename, class IOStore *store);
+    plfs_error_t open_file(const char *filename, class IOStore *store);
     /**
      * Append some data to this file.
      *
@@ -33,11 +33,11 @@ public:
      * @param length The length of the buffer.
      * @param physical_offset The start offset of this buffer in the physical
      *    file. It can be NULL if we don't care the offset.
-     * @return On success, zero is returned. On error, -1 is returned.
+     * @return On success, PLFS_SUCCESS is returned. On error, PLFS_TBD is returned.
      */
-    int append(const void *buf, size_t length, off_t *physical_offset);
-    int sync();
-    int close_file();
+    plfs_error_t append(const void *buf, size_t length, off_t *physical_offset);
+    plfs_error_t sync();
+    plfs_error_t close_file();
     bool is_opened();
 };
 

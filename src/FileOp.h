@@ -11,6 +11,7 @@
 #include <set>
 #include <vector>
 #include "Util.h"
+#include "plfs_error.h"
 using namespace std;
 
 class IOStore;
@@ -25,16 +26,16 @@ class
 {
     public:
         // first arg to op is path, second is type of path
-        int op(const char *, unsigned char type, IOStore *s); //ret 0 or -err
+        plfs_error_t op(const char *, unsigned char type, IOStore *s); //ret PLFS_SUCCESS or PLFS_E*
         virtual const char *name() = 0;
         virtual bool onlyAccessFile() {
             return false;
         }
-        void ignoreErrno(int Errno); // can register errs to be ignored
-        virtual int do_op(const char *, unsigned char type, IOStore *s) = 0;
+        void ignoreErrno(plfs_error_t Errno); // can register errs to be ignored
+        virtual plfs_error_t do_op(const char *, unsigned char type, IOStore *s) = 0;
         virtual ~FileOp() {}
     private:
-        set<int> ignores;
+        set<plfs_error_t> ignores;
 };
 
 class
@@ -42,7 +43,7 @@ class
 {
     public:
         AccessOp(int);
-        int do_op(const char *, unsigned char, IOStore *);
+        plfs_error_t do_op(const char *, unsigned char, IOStore *);
         bool onlyAccessFile() {
             return true;
         }
@@ -58,7 +59,7 @@ class
 {
     public:
         ChownOp(uid_t, gid_t);
-        int do_op(const char *, unsigned char, IOStore *);
+        plfs_error_t do_op(const char *, unsigned char, IOStore *);
         const char *name() {
             return "ChownOp";
         }
@@ -72,7 +73,7 @@ class
 {
     public:
         UtimeOp(struct utimbuf *);
-        int do_op(const char *, unsigned char, IOStore *);
+        plfs_error_t do_op(const char *, unsigned char, IOStore *);
         const char *name() {
             return "UtimeOp";
         }
@@ -92,7 +93,7 @@ class
 {
     public:
         TruncateOp(bool open_file);
-        int do_op(const char *, unsigned char, IOStore *);
+        plfs_error_t do_op(const char *, unsigned char, IOStore *);
         const char *name() {
             return "TruncateOp";
         }
@@ -126,7 +127,7 @@ class
 {
     public:
         ReaddirOp(map<string,unsigned char>*,set<string>*, bool, bool);
-        int do_op(const char *, unsigned char, IOStore *);
+        plfs_error_t do_op(const char *, unsigned char, IOStore *);
         const char *name() {
             return "ReaddirOp";
         }
@@ -144,7 +145,7 @@ class
 {
     public:
         CreateOp(mode_t);
-        int do_op(const char *, unsigned char, IOStore *);
+        plfs_error_t do_op(const char *, unsigned char, IOStore *);
         const char *name() {
             return "CreateOp";
         }
@@ -157,7 +158,7 @@ class
 {
     public:
         ChmodOp(mode_t);
-        int do_op(const char *, unsigned char, IOStore *);
+        plfs_error_t do_op(const char *, unsigned char, IOStore *);
         const char *name() {
             return "ChmodOp";
         }
@@ -170,8 +171,8 @@ class
 {
     public:
         UnlinkOp() { }
-        int do_op(const char *, unsigned char, IOStore *);
-        int op_r(const char *, unsigned char type, IOStore *s, bool top);
+        plfs_error_t do_op(const char *, unsigned char, IOStore *);
+        plfs_error_t op_r(const char *, unsigned char type, IOStore *s, bool top);
         const char *name() {
             return "UnlinkOp";
         }
@@ -181,16 +182,15 @@ class
     RenameOp : public FileOp
 {
     public:
-        RenameOp(const char *);
-        int do_op(const char *, unsigned char, IOStore *);
+        RenameOp(struct plfs_physpathinfo *ppip_to);
+        plfs_error_t do_op(const char *, unsigned char, IOStore *);
         const char *name() {
             return "RenameOp";
         }
     private:
-        const char * to;
-        int err;
+        plfs_error_t err;
         int indx;
-        int ret_val;
+        plfs_error_t ret_val;
         int size;
         vector<plfs_pathback> dsts;
 };

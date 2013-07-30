@@ -1,6 +1,7 @@
 #ifndef __RECORDREADER_HXX__
 #define __RECORDREADER_HXX__
 
+#include "plfs_error.h"
 /**
  * The pure class represents some kind of data source.
  *
@@ -26,10 +27,10 @@ public:
     /**
      * Pop the object in the top.
      *
-     * @return If we successfully get the next object, return 1. And if we
-     *    reach the end, return 0. Otherwise, return the error code.
+     * @return If we successfully get the next object, return PLFS_SUCCESS. And
+     *   if we reach the end, return PLFS_EEOF. Otherwise, return the error code.
      */
-    virtual int pop_front() = 0;
+    virtual plfs_error_t pop_front() = 0;
     virtual void *metadata() {return NULL;};
 };
 
@@ -39,7 +40,7 @@ public:
 class EmptyRecordReader: public RecordReader {
 public:
     virtual void *front() {return NULL;};
-    virtual int pop_front() {return 0;};
+    virtual plfs_error_t pop_front() {return PLFS_EEOF;};
 };
 
 #endif

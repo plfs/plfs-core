@@ -14,6 +14,8 @@ extern void reduce_meta(ADIO_File afd, Plfs_fd *fd, const char *filename,
 void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code)
 {
     int err, rank, procs, amode, perm;
+    plfs_error_t plfs_err;
+    int num_open_handles;
     size_t bytes_written=0, total_bytes=0, flatten=0;
     Plfs_open_opt open_opt;
     Plfs_close_opt close_opt;
@@ -49,7 +51,7 @@ void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code)
             close_opt.num_procs = procs;
             reduce_meta(fd, fd->fs_ptr, fd->filename, &close_opt, rank);
             amode = ad_plfs_amode(fd->access_mode);
-            plfs_close(fd->fs_ptr, rank, uid, amode, &close_opt);
+            plfs_close(fd->fs_ptr, rank, uid, amode, &close_opt, &num_open_handles);
             file_is_open = 0;
             fd->fs_ptr = NULL;
             plfs_barrier(fd->comm,rank);
@@ -67,7 +69,8 @@ void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code)
         // open.  then plfs_trunc internal will only truncate droppings and
         // not delete
         file_is_open=1;
-        err = plfs_trunc(fd->fs_ptr, fd->filename, size, file_is_open);
+        plfs_err = plfs_trunc(fd->fs_ptr, fd->filename, size, file_is_open);
+        err = -(plfs_error_to_errno(plfs_err));
     }
     // we want to barrier so that no-one leaves until we are done truncating
     // we are relying on MPI_Bcast to do an effective barrier for us
@@ -91,14 +94,14 @@ void ADIOI_PLFS_Resize(ADIO_File fd, ADIO_Offset size, int *error_code)
             open_opt.buffer_index = flatten;
         }
         perm = adplfs_getPerm(fd);
-        err = plfs_open( (Plfs_fd **)&(fd->fs_ptr), fd->filename, amode, rank,
-                         perm, &open_opt);
-        if ((err < 0) && (*error_code == MPI_SUCCESS)) {
+        plfs_err = plfs_open( (Plfs_fd **)&(fd->fs_ptr), fd->filename, amode, rank,
+                              perm, &open_opt);
+        if ((plfs_err != PLFS_SUCCESS) && (*error_code == MPI_SUCCESS)) {
             *error_code = MPIO_Err_create_code(MPI_SUCCESS,
                                                MPIR_ERR_RECOVERABLE,
                                                myname, __LINE__, MPI_ERR_IO,
                                                "**io",
-                                               "**io %s", strerror(-err));
+                                               "**io %s", strplfserr(plfs_err));
         }
     }
 }

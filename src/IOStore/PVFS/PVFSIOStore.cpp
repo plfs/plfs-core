@@ -19,8 +19,8 @@
 #include "PVFSIOStore.h"
 
 /*
- * IOStore functions that return signed int should return 0 on success
- * and -err on error.   The PVFS API returns its own error codes, but
+ * IOStore functions that return plfs_error_t should return PLFS_SUCCESS on success
+ * and PLFS_E* on error.   The PVFS API returns its own error codes, but
  * helpfully provides an API to convert them to normal error codes.
  * the only issue is that this api return negative values for older
  * versions of PVFS (2.6.3 and earlier).   I'm using 2.8.4, so it is
@@ -50,7 +50,7 @@
  * it messes PVFS up.  return cleaned malloced string (caller frees).
  *
  * @parm path the path to clean
- * @return the cleaned result, NULL on errorx
+ * @return the cleaned result, NULL on error
  */
 static char *pvfsios_dedup_slash(const char *path) {
     int l, lcv, slash, c;
@@ -460,21 +460,21 @@ PVFSIOSHandle::~PVFSIOSHandle() {
  *
  * @return success
  */
-int PVFSIOSHandle::Close() {
-    return(0);
+plfs_error_t PVFSIOSHandle::Close() {
+    return PLFS_SUCCESS;
 }
 
 /**
  * PVFSIOSHandle::Fstat: stat an open file
  *
  * @param buf the stat buffer to fill out
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E*
  */
-int PVFSIOSHandle::Fstat(struct stat *buf) {
+plfs_error_t PVFSIOSHandle::Fstat(struct stat *buf) {
     int nev;
 
     nev = pvfsios_object_stat(&this->ref, &this->creds, buf);
-    return(nev);
+    return errno_to_plfs_error(-nev);
 }
 
 /**
@@ -490,13 +490,13 @@ int PVFSIOSHandle::Fsync() {
  * PVFSIOSHandle::Ftruncate: truncate an open file.
  *
  * @param length the new length
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E*
  */
-int PVFSIOSHandle::Ftruncate(off_t length) {
+plfs_error_t PVFSIOSHandle::Ftruncate(off_t length) {
     int pev;
 
     pev = PVFS_sys_truncate(this->ref, length, &this->creds);
-    return(get_err(pev));
+    return errno_to_plfs_error(-(get_err(pev)));
 }
 
 /**
@@ -505,20 +505,20 @@ int PVFSIOSHandle::Ftruncate(off_t length) {
  *
  * @param bufp allocated buffer pointer put here
  * @param length length of the data we want
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E*
  */
-int PVFSIOSHandle::GetDataBuf(void **bufp, size_t length) {
+plfs_error_t PVFSIOSHandle::GetDataBuf(void **bufp, size_t length) {
     size_t bytes_read;
     char *buffer;
     PVFS_Request mem_req, file_req;
     PVFS_sysresp_io resp_io;
-    int pev, goteof;
+    int pev, nev, goteof;
 
     /* init and allocate a buffer */
     bytes_read = 0;
     buffer = (char *)malloc(length);
     if (!buffer) {
-        return(-ENOMEM);
+        return(PLFS_ENOMEM);
     }
     
     pev = goteof = 0;
@@ -552,10 +552,11 @@ int PVFSIOSHandle::GetDataBuf(void **bufp, size_t length) {
 
     if (pev < 0 || goteof) {
         free(buffer);
-        return((goteof) ? -EWOULDBLOCK : get_err(pev));
+        nev = (goteof) ? -EWOULDBLOCK : get_err(pev);
+        return errno_to_plfs_error(-nev);
     }
     *bufp = buffer;
-    return(0);
+    return PLFS_SUCCESS;
 }
 
 /**
@@ -564,9 +565,11 @@ int PVFSIOSHandle::GetDataBuf(void **bufp, size_t length) {
  * @param buf the buffer to read into
  * @param count the number of bytes to read
  * @param offset the offset to read from
- * @return 0, size count, or -err
+ * @param bytes_read return bytes that have been read(0, size count)
+ * @return PLFS_SUCCESS or PLFS_E*
  */
-ssize_t PVFSIOSHandle::Pread(void* buf, size_t count, off_t offset) {
+plfs_error_t PVFSIOSHandle::Pread(void* buf, size_t count,
+                                  off_t offset, ssize_t *bytes_read) {
     PVFS_Request mem_req, file_req;
     PVFS_sysresp_io resp_io;
     int pev;
@@ -575,7 +578,7 @@ ssize_t PVFSIOSHandle::Pread(void* buf, size_t count, off_t offset) {
     /* ... into a contig buffer of size count */
     pev = PVFS_Request_contiguous(count, PVFS_BYTE, &mem_req);
     if (pev < 0) {
-        return(get_err(pev));
+        return errno_to_plfs_error(-get_err(pev));
     }
         
     pev = PVFS_sys_read(this->ref, file_req, offset, buf, mem_req,
@@ -591,11 +594,11 @@ ssize_t PVFSIOSHandle::Pread(void* buf, size_t count, off_t offset) {
 
     if (pev < 0) {
         /* XXX: don't need to free mem_req in this case? */
-        return(get_err(pev));
+        return errno_to_plfs_error(-get_err(pev));
     }
 
-    
-    return(resp_io.total_completed);
+    *bytes_read = resp_io.total_completed;
+    return PLFS_SUCCESS;
 }
 
 /**
@@ -604,9 +607,11 @@ ssize_t PVFSIOSHandle::Pread(void* buf, size_t count, off_t offset) {
  * @param buf the buffer to write from
  * @param count the number of bytes to write
  * @param offset the offset to write from
- * @return 0, size count, or -err
+ * @param bytes_written return bytes that have been written(0, size count)
+ * @return PLFS_SUCCESS or PLFS_E*
  */
-ssize_t PVFSIOSHandle::Pwrite(const void* buf, size_t count, off_t offset) {
+plfs_error_t PVFSIOSHandle::Pwrite(const void* buf, size_t count,
+                                   off_t offset, ssize_t *bytes_written) {
     PVFS_Request mem_req, file_req;
     PVFS_sysresp_io resp_io;
     int pev;
@@ -615,7 +620,7 @@ ssize_t PVFSIOSHandle::Pwrite(const void* buf, size_t count, off_t offset) {
     /* ... into a contig buffer of size count */
     pev = PVFS_Request_contiguous(count, PVFS_BYTE, &mem_req);
     if (pev < 0) {
-        return(get_err(pev));
+        return errno_to_plfs_error(-get_err(pev));
     }
         
     pev = PVFS_sys_write(this->ref, file_req, offset, (void*)buf, mem_req,
@@ -625,11 +630,11 @@ ssize_t PVFSIOSHandle::Pwrite(const void* buf, size_t count, off_t offset) {
 
     if (pev < 0) {
         /* XXX: don't need to free mem_req in this case? */
-        return(get_err(pev));
+        return errno_to_plfs_error(-get_err(pev));
     }
 
-    return(resp_io.total_completed);
-
+    *bytes_written = resp_io.total_completed;
+    return PLFS_SUCCESS;
 }
 
 /**
@@ -638,20 +643,23 @@ ssize_t PVFSIOSHandle::Pwrite(const void* buf, size_t count, off_t offset) {
  *
  * @param buf the buffer to read into
  * @param count the number of bytes to read
- * @return 0, size count, or -err
+ * @param bytes_read return bytes that have been read(0, size count)
+ * @return PLFS_SUCCESS or PLFS_E*
  */
-ssize_t PVFSIOSHandle::Read(void *buf, size_t count) {
+plfs_error_t PVFSIOSHandle::Read(void *buf, size_t count, ssize_t *bytes_read) {
     off_t off;
-    ssize_t nev;
+    ssize_t readlen;
+    plfs_error_t ret;
 
     off = this->mypos;
-    nev = this->Pread(buf, count, off);
-    if (nev > 0) {
+    ret = this->Pread(&readlen, buf, count, off);
+    if (readlen > 0) {
         pthread_mutex_lock(&this->poslock);
-        this->mypos += nev;
+        this->mypos += readlen;
         pthread_mutex_unlock(&this->poslock);
     }
-    return(nev);
+    *bytes_read = readlen;
+    return ret
 }
 
 /**
@@ -659,27 +667,30 @@ ssize_t PVFSIOSHandle::Read(void *buf, size_t count) {
  *
  * @param addr the buffer previously allocated with GetDataBuf
  * @param len the length of the buffer
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E*
  */
-int PVFSIOSHandle::ReleaseDataBuf(void* addr, size_t len) {
+plfs_error_t PVFSIOSHandle::ReleaseDataBuf(void* addr, size_t len) {
     free(addr);
-    return(0);
+    return PLFS_SUCCESS;
 }
 
 /**
  * PVFSIOSHandle::Size: get the file's size.
  *
- * @return 0, offset, or -err
+ * @param ret_offset offset to return
+ * @return PLFS_SUCCESS or PLFS_E*
  */
-off_t PVFSIOSHandle::Size() {
+plfs_error_t PVFSIOSHandle::Size(off_t *ret_offset) {
     struct stat st;
     int nev;
+    plfs_error_t ret;
 
-    nev = this->Fstat(&st);
-    if (nev == 0) {
-        return(st.st_size);
+    ret = this->Fstat(&st);
+    if (ret == PLFS_SUCCESS) {
+        *ret_offset = st.st_size;
+        return PLFS_SUCCESS;
     }
-    return(nev);
+    return ret;
 }
 
 /**
@@ -687,20 +698,23 @@ off_t PVFSIOSHandle::Size() {
  *
  * @param buf the buffer to write
  * @param len its length
- * @return byte count or -err
+ * @param bytes_written bytes count to return
+ * @return PLFS_SUCCESS or PLFS_E*
  */
-ssize_t PVFSIOSHandle::Write(const void* buf, size_t len) {
+plfs_error_t PVFSIOSHandle::Write(const void* buf, size_t len, ssize_t *bytes_written) {
     off_t off;
-    ssize_t nev;
+    ssize_t writelen;
+    plfs_error_t ret;
 
     off = this->mypos;
-    nev = this->Pwrite(buf, len, off);
-    if (nev > 0) {
+    ret = this->Pwrite(&writelen, buf, len, off);
+    if (writelen > 0) {
         pthread_mutex_lock(&this->poslock);
-        this->mypos += nev;
+        this->mypos += writelen;
         pthread_mutex_unlock(&this->poslock);
     }
-    return(nev);
+    *bytes_written = writelen;
+    return ret;
 }
 
 /**
@@ -762,10 +776,10 @@ PVFSIOSDirHandle::~PVFSIOSDirHandle() {
 /**
  * PVFSIOSDirHandle::Closedir: a noop since we don't have open dirs
  *
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E*
  */
-int PVFSIOSDirHandle::Closedir() {
-    return(0);
+plfs_error_t PVFSIOSDirHandle::Closedir() {
+    return PLFS_SUCCESS;
 }
 
 /**
@@ -773,9 +787,9 @@ int PVFSIOSDirHandle::Closedir() {
  *
  * @param dst a dirent that we can fill out
  * @param dret we return a pointer to dst here on success, NULL on fail
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E*
  */
-int PVFSIOSDirHandle::Readdir_r(struct dirent *dst, struct dirent **dret) {
+plfs_error_t PVFSIOSDirHandle::Readdir_r(struct dirent *dst, struct dirent **dret) {
     static int read_size = 32;  /* we read this many entries at once */
     int dowake, nev, lcv, pev;
     PVFS_ds_type pvtype;
@@ -883,7 +897,7 @@ int PVFSIOSDirHandle::Readdir_r(struct dirent *dst, struct dirent **dret) {
     pthread_mutex_unlock(&this->poslock);
     if (dowake)
         pthread_cond_signal(&this->block);
-    return(nev);
+    return errno_to_plfs_error(-nev);
 }
 
 /**
@@ -892,22 +906,25 @@ int PVFSIOSDirHandle::Readdir_r(struct dirent *dst, struct dirent **dret) {
  * @param phys_path the physical path of the backing store
  * @param prelenp return the length of the prefix here
  * @param bmpointp return the bmpoint string here
- * @return the newly allocated class or NULL on error
+ * @param ret_store return the newly allocated class or NULL on error
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-class PVFSIOStore *PVFSIOStore::PVFSIOStore_xnew(char *phys_path, 
-                                                 int *prelenp,
-                                                 char **bmpointp) {
+plfs_error_t PVFSIOStore::PVFSIOStore_xnew(char *phys_path,
+                                           int *prelenp,
+                                           char **bmpointp,
+                                           class PVFSIOStore **ret_store) {
     char *p, *sl, *cp;
     int plen, rv, pev;
     class PVFSIOStore *pio;
+    *ret_store = NULL;
 
     if (strncmp(phys_path, "pvfs://", sizeof("pvfs://")-1) != 0) {
-        return(NULL);     /* should never happen, but play it safe */
+        return PLFS_TBD;     /* should never happen, but play it safe */
     }
     p = phys_path + sizeof("pvfs://") - 1;
     sl = strchr(p, '/');  /* find start of bmpoint */
     if (sl == NULL) {
-        return(NULL);
+        return PLFS_TBD;
     }
     plen = sl - phys_path;
 
@@ -952,7 +969,8 @@ class PVFSIOStore *PVFSIOStore::PVFSIOStore_xnew(char *phys_path,
 
     *prelenp = plen;
     *bmpointp = sl;
-    return(pio);
+    *ret_store = pio;
+    return PLFS_SUCCESS;
 
     
  error:
@@ -963,7 +981,7 @@ class PVFSIOStore *PVFSIOStore::PVFSIOStore_xnew(char *phys_path,
         pvfsios_free_mnt(&pio->pvmnt);
         delete pio;
     }
-    return(NULL);
+    return PLFS_TBD;
 }
 
 /**
@@ -971,9 +989,9 @@ class PVFSIOStore *PVFSIOStore::PVFSIOStore_xnew(char *phys_path,
  *
  * @param path the path we are checking
  * @param mode the mode to check
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int PVFSIOStore::Access(const char* path, int mode) 
+plfs_error_t PVFSIOStore::Access(const char* path, int mode)
 {
     char *cpath;
     PVFS_object_ref ref;
@@ -993,17 +1011,17 @@ int PVFSIOStore::Access(const char* path, int mode)
         nev = -ENOMEM;
     }
     if (nev < 0) {
-        return(nev);
+        return errno_to_plfs_error(-nev);
     }
     
     /* root or exist check */
     if (creds.uid == 0 || mode == F_OK) {
-        return(0);
+        return PLFS_SUCCESS;
     }
     
     pev = PVFS_sys_getattr(ref, PVFS_ATTR_SYS_ALL_NOHINT, &creds, &rep);
     if (pev < 0) {
-        return(get_err(pev));
+        return errno_to_plfs_error(get_err(pev));
     }
 
 #if 0
@@ -1029,29 +1047,29 @@ int PVFSIOStore::Access(const char* path, int mode)
 
     if (auid == creds.uid) {
         if ((mode & R_OK) && (aperms & PVFS_U_READ))
-            return(0);
+            return PLFS_SUCCESS;
         if ((mode & W_OK) && (aperms & PVFS_U_WRITE))
-            return(0);
+            return PLFS_SUCCESS;
         if ((mode & X_OK) && (aperms & PVFS_U_EXECUTE))
-            return(0);
+            return PLFS_SUCCESS;
     }
     /* XXXCDC: doesn't check group list, e.g. getgroups() */
     if (agid == creds.gid) {
         if ((mode & R_OK) && (aperms & PVFS_G_READ))
-            return(0);
+            return PLFS_SUCCESS;
         if ((mode & W_OK) && (aperms & PVFS_G_WRITE))
-            return(0);
+            return PLFS_SUCCESS;
         if ((mode & X_OK) && (aperms & PVFS_G_EXECUTE))
-            return(0);
+            return PLFS_SUCCESS;
     }
     if ((mode & R_OK) && (aperms & PVFS_O_READ))
-        return(0);
+        return PLFS_SUCCESS;
     if ((mode & W_OK) && (aperms & PVFS_O_WRITE))
-        return(0);
+        return PLFS_SUCCESS;
     if ((mode & X_OK) && (aperms & PVFS_O_EXECUTE))
-        return(0);
+        return PLFS_SUCCESS;
 
-    return(-EACCES);
+    return PLFS_EACCES;
 }
 
 /**
@@ -1059,9 +1077,9 @@ int PVFSIOStore::Access(const char* path, int mode)
  *
  * @param path the path of the file/dir to change
  * @param mode the mode to change it to
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int PVFSIOStore::Chmod(const char* path, mode_t mode) {
+plfs_error_t PVFSIOStore::Chmod(const char* path, mode_t mode) {
     char *cpath;
     PVFS_object_ref ref;
     PVFS_credentials creds;
@@ -1077,13 +1095,13 @@ int PVFSIOStore::Chmod(const char* path, mode_t mode) {
         nev = -ENOMEM;
     }
     if (nev < 0) {
-        return(nev);
+        return errno_to_plfs_error(-nev);
     }
 
     nat.perms = mode & 07777;
     nat.mask = PVFS_ATTR_SYS_PERM;
     pev = PVFS_sys_setattr(ref, nat, &creds);
-    return(get_err(pev));
+    return errno_to_plfs_error(-get_err(pev));
 }
 
 /**
@@ -1092,9 +1110,9 @@ int PVFSIOStore::Chmod(const char* path, mode_t mode) {
  * @param path the path of the file/dir to change
  * @param owner the uid of the new owner
  * @param group the gid of the new group
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int PVFSIOStore::Chown(const char *path, uid_t owner, gid_t group) {
+plfs_error_t PVFSIOStore::Chown(const char *path, uid_t owner, gid_t group) {
     char *cpath;
     int nev;
 
@@ -1106,7 +1124,7 @@ int PVFSIOStore::Chown(const char *path, uid_t owner, gid_t group) {
     } else {
         nev = -ENOMEM;
     }
-    return(nev);
+    return errno_to_plfs_error(-nev);
 }
 
 /**
@@ -1115,9 +1133,9 @@ int PVFSIOStore::Chown(const char *path, uid_t owner, gid_t group) {
  * @param path the path of the file/dir to change
  * @param owner the uid of the new owner
  * @param group the gid of the new group
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int PVFSIOStore::Lchown(const char *path, uid_t owner, gid_t group) {
+plfs_error_t PVFSIOStore::Lchown(const char *path, uid_t owner, gid_t group) {
     char *cpath;
     int nev;
 
@@ -1129,7 +1147,7 @@ int PVFSIOStore::Lchown(const char *path, uid_t owner, gid_t group) {
     } else {
         nev = -ENOMEM;
     }
-    return(nev);
+    return errno_to_plfs_error(-nev);
 }
 
 /**
@@ -1137,9 +1155,9 @@ int PVFSIOStore::Lchown(const char *path, uid_t owner, gid_t group) {
  * 
  * @param path the file we are getting stat on
  * @param buf the result will be placed here on success
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int PVFSIOStore::Lstat(const char* path, struct stat* buf) {
+plfs_error_t PVFSIOStore::Lstat(const char* path, struct stat* buf) {
     char *cpath;
     PVFS_object_ref ref;
     PVFS_credentials creds;
@@ -1154,11 +1172,11 @@ int PVFSIOStore::Lstat(const char* path, struct stat* buf) {
         nev = -ENOMEM;
     }
     if (nev < 0) {
-        return(nev);
+        return errno_to_plfs_error(-nev);
     }
 
     nev = pvfsios_object_stat(&ref, &creds, buf);
-    return(nev);
+    return errno_to_plfs_error(-nev);
 }
 
 /**
@@ -1166,9 +1184,9 @@ int PVFSIOStore::Lstat(const char* path, struct stat* buf) {
  *
  * @param path the directory to create
  * @param mode permissions to set on the directory
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int PVFSIOStore::Mkdir(const char* path, mode_t mode) {
+plfs_error_t PVFSIOStore::Mkdir(const char* path, mode_t mode) {
     int nev, pev;
     char *parent, *node;
     PVFS_object_ref ref;
@@ -1179,7 +1197,7 @@ int PVFSIOStore::Mkdir(const char* path, mode_t mode) {
     nev = pvfsios_get_node_and_parent(&this->fsid, path, &ref, &creds,
                                       &node, &parent);
     if (nev < 0) {
-        return(nev);
+        return errno_to_plfs_error(-nev);
     }
 
     memset(&attr, 0, sizeof(attr));
@@ -1191,7 +1209,7 @@ int PVFSIOStore::Mkdir(const char* path, mode_t mode) {
     nev = get_err(pev);
 
     free(parent);
-    return(nev);
+    return errno_to_plfs_error(-nev);
 }
 
 /**
@@ -1200,11 +1218,12 @@ int PVFSIOStore::Mkdir(const char* path, mode_t mode) {
  * @param bpath the path we are creating
  * @param flags read/write mode
  * @param mode desired permissions
- * @param ret return 0 or -err here
- * @return class pointer to IOSHandle for the new file or null on error
+ * @param ret_store return class pointer to IOSHandle for the new file or null on error
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-class IOSHandle *
-PVFSIOStore::Open(const char *bpath, int flags, mode_t mode, int &ret) {
+plfs_error_t
+PVFSIOStore::Open(const char *bpath, int flags, mode_t mode, class IOSHandle **ret_store) {
+    plfs_error_t rv;
     char *cpath;
     PVFS_object_ref ref;
     PVFS_credentials creds;
@@ -1216,14 +1235,13 @@ PVFSIOStore::Open(const char *bpath, int flags, mode_t mode, int &ret) {
 
     cpath = pvfsios_dedup_slash(bpath);
     if (cpath == NULL) {
-        ret = -ENOMEM;
-        return(NULL);
+        *ret_store = NULL;
+        return PLFS_ENOMEM;
     }
     nev = pvfsios_get_object(this->fsid, (char *)cpath, &ref, &creds,
                              PVFS2_LOOKUP_LINK_FOLLOW);
     if (nev < 0) {
         if (nev != -ENOENT || (flags & O_CREAT) == 0) {
-            ret = nev;
             goto error;
         }
 
@@ -1232,7 +1250,6 @@ PVFSIOStore::Open(const char *bpath, int flags, mode_t mode, int &ret) {
                                           &node, &parent);
 
         if (nev < 0) {  /* can happen if parent directory not present */
-            ret = nev;
             goto error;
         }
         /* must free parent */
@@ -1249,11 +1266,11 @@ PVFSIOStore::Open(const char *bpath, int flags, mode_t mode, int &ret) {
         if (pev < 0) {
             /* pvfs2fuse says to do this w/ENOENT for now */
             if (pev == -PVFS_ENOENT) {
-                ret = -EACCES;
+                nev = -EACCES;
                 goto error;
 
             }
-            ret = get_err(pev);
+            nev = get_err(pev);
             goto error;
         }
 
@@ -1261,7 +1278,6 @@ PVFSIOStore::Open(const char *bpath, int flags, mode_t mode, int &ret) {
         nev = pvfsios_get_object(this->fsid, (char *)cpath, &ref, &creds,
                                  PVFS2_LOOKUP_LINK_FOLLOW);
         if (nev < 0) {
-            ret = nev;
             goto error;
         }
     }
@@ -1274,29 +1290,32 @@ PVFSIOStore::Open(const char *bpath, int flags, mode_t mode, int &ret) {
      */
 
     if (flags & O_TRUNC) {
-        nev = this->Truncate(cpath, 0);
-        if (nev < 0) {
-            ret = nev;
-            goto error;
+        rv = this->Truncate(cpath, 0);
+        if (rv != PLFS_SUCCESS) {
+            *ret_store = NULL;
+            free(cpath);
+            return rv;
         }
     }
     
     hand = new PVFSIOSHandle(ref, creds, dhs);
     if (hand == NULL) {
-        ret = -ENOMEM;
+        nev = -ENOMEM;
         goto error;
     }
     if (dhs < 0) {
-        ret = -EIO;
+        nev = -EIO;
         goto error;
     }
     
     free(cpath);
-    return(hand);
+    *ret_store = hand;
+    return PLFS_SUCCESS;
 
  error:
+    *ret_store = NULL;
     free(cpath);
-    return(NULL);
+    return errno_to_plfs_error(-nev);
 }
 
 /**
@@ -1304,10 +1323,10 @@ PVFSIOStore::Open(const char *bpath, int flags, mode_t mode, int &ret) {
  * caching its reference...
  *
  * @param bpath the path we are creating
- * @param ret return 0 or -err here
- * @return class pointer to IOSDirHandle for the dir or NULL on error
+ * @param ret_dhand return class pointer to IOSDirHandle for the dir or NULL on error
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-class IOSDirHandle *PVFSIOStore::Opendir(const char *bpath, int &ret) {
+plfs_error_t PVFSIOStore::Opendir(const char *bpath, class IOSDirHandle **ret_dhand) {
     char *cpath;
     PVFS_object_ref ref;
     PVFS_credentials creds;
@@ -1324,23 +1343,24 @@ class IOSDirHandle *PVFSIOStore::Opendir(const char *bpath, int &ret) {
     }
 
     if (nev < 0) {
-        ret = nev;
-        return(NULL);
+        *ret_dhand = NULL;
+        return errno_to_plfs_error(-nev);
     }
     
     dhand = new PVFSIOSDirHandle(ref, creds, dhs);
     if (dhand == NULL) {
-        ret = -ENOMEM;
-        return(NULL);
+        *ret_dhand = NULL;
+        return PLFS_ENOMEM;
     }
 
     if (dhs < 0) {
         delete dhand;
-        ret = -EIO;
-        return(NULL);
+        *ret_dhand = NULL;
+        return PLFS_EIO;
     }
-    
-    return(dhand);
+
+    *ret_dhand = dhand;
+    return PLFS_SUCCESS;
 }
 
 /**
@@ -1349,9 +1369,11 @@ class IOSDirHandle *PVFSIOStore::Opendir(const char *bpath, int &ret) {
  * @param link the link to read
  * @param buf the place the write the result
  * @param the size of the result buffer
- * @return size or -err
+ * @param readlen return size
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-ssize_t PVFSIOStore::Readlink(const char *link, char *buf, size_t bufsize) {
+plfs_error_t PVFSIOStore::Readlink(const char *link, char *buf, size_t bufsize,
+                                   ssize_t *readlen) {
     char *cpath;
     PVFS_object_ref ref;
     PVFS_credentials creds;
@@ -1368,13 +1390,14 @@ ssize_t PVFSIOStore::Readlink(const char *link, char *buf, size_t bufsize) {
         nev = -ENOMEM;
     }
     
+    *readlen = -1;
     if (nev < 0) {
-        return(nev);
+        return errno_to_plfs_error(-nev);
     }
     
     pev = PVFS_sys_getattr(ref, PVFS_ATTR_SYS_ALL_NOHINT, &creds, &resp);
     if (pev < 0) {
-        return(get_err(pev));
+        return errno_to_plfs_error(-get_err(pev));
     }
 
     if (resp.attr.objtype != PVFS_TYPE_SYMLINK) {
@@ -1384,14 +1407,14 @@ ssize_t PVFSIOStore::Readlink(const char *link, char *buf, size_t bufsize) {
         cpy = (l < bufsize - 1) ? l : bufsize;
         memcpy(buf, resp.attr.link_target, cpy);
         buf[cpy] = 0;
-        nev = l;   /* need to return length */
+        *readlen = l;   /* need to return length */
         /* nev still zero from get_obj call, no need to reset */
     }
 
     /* XXX: pvfs2fuse didn't release, memory leak? */
     PVFS_util_release_sys_attr(&resp.attr);  /* frees memory chained off ats */
 
-    return(nev);
+    return errno_to_plfs_error(-nev);
 }
 
 /**
@@ -1399,9 +1422,9 @@ ssize_t PVFSIOStore::Readlink(const char *link, char *buf, size_t bufsize) {
  *
  * @param oldpath the old filename
  * @param newpath the name we want to move it to
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int PVFSIOStore::Rename(const char *oldpath, const char *newpath) {
+plfs_error_t PVFSIOStore::Rename(const char *oldpath, const char *newpath) {
     int nev, pev;
     PVFS_object_ref olddir, newdir;
     PVFS_credentials oldcreds, newcreds;
@@ -1425,16 +1448,16 @@ int PVFSIOStore::Rename(const char *oldpath, const char *newpath) {
         free(oldparent);
     if (newparent)
         free(newparent);
-    return(nev);
+    return errno_to_plfs_error(-nev);
 }
 
 /**
  * PVFSIOStore::Rmdir: remove directory (no special call for this, use unlink)
  *
  * @param path the directory to remove
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int PVFSIOStore::Rmdir(const char* path) {
+plfs_error_t PVFSIOStore::Rmdir(const char* path) {
     int nev;
     /*
      * XXX: should we stat the file to check that path is a directory?
@@ -1442,7 +1465,7 @@ int PVFSIOStore::Rmdir(const char* path) {
      * several more PVFS ops and it isn't atomic.
      */
     nev = pvfsios_remove(&this->fsid, path);
-    return(nev);
+    return errno_to_plfs_error(-nev);
 }
 
 /**
@@ -1450,9 +1473,9 @@ int PVFSIOStore::Rmdir(const char* path) {
  * 
  * @param path the file we are getting stat on
  * @param buf the result will be placed here on success
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int PVFSIOStore::Stat(const char* path, struct stat* buf) {
+plfs_error_t PVFSIOStore::Stat(const char* path, struct stat* buf) {
     char *cpath;
     PVFS_object_ref ref;
     PVFS_credentials creds;
@@ -1468,11 +1491,11 @@ int PVFSIOStore::Stat(const char* path, struct stat* buf) {
     }
     
     if (nev < 0) {
-        return(nev);
+        return errno_to_plfs_error(-nev);
     }
 
     nev = pvfsios_object_stat(&ref, &creds, buf);
-    return(nev);
+    return errno_to_plfs_error(-nev);
 }
 
 /**
@@ -1480,9 +1503,9 @@ int PVFSIOStore::Stat(const char* path, struct stat* buf) {
  *
  * @param path a file on the fs
  * @param stbuf the results are placed here
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int PVFSIOStore::Statvfs( const char *path, struct statvfs *stbuf ) {
+plfs_error_t PVFSIOStore::Statvfs( const char *path, struct statvfs *stbuf ) {
     PVFS_credentials creds;
     int pev;
     PVFS_sysresp_statfs resp;
@@ -1492,7 +1515,7 @@ int PVFSIOStore::Statvfs( const char *path, struct statvfs *stbuf ) {
 
     pev = PVFS_sys_statfs(this->fsid, &creds, &resp);
     if (pev < 0) {
-        return(get_err(pev));
+        return errno_to_plfs_error(-get_err(pev));
     }
 
     memset(stbuf, 0, sizeof(*stbuf));
@@ -1512,7 +1535,7 @@ int PVFSIOStore::Statvfs( const char *path, struct statvfs *stbuf ) {
     
     stbuf->f_flag = 0;
 
-    return 0;
+    return PLFS_SUCCESS;
 }
 
 /** 
@@ -1520,9 +1543,9 @@ int PVFSIOStore::Statvfs( const char *path, struct statvfs *stbuf ) {
  *
  * @param oldpath
  * @param newpath
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int PVFSIOStore::Symlink(const char* oldpath, const char* newpath) {
+plfs_error_t PVFSIOStore::Symlink(const char* oldpath, const char* newpath) {
     int nev, pev;
     PVFS_object_ref ref;
     PVFS_credentials creds;
@@ -1534,7 +1557,7 @@ int PVFSIOStore::Symlink(const char* oldpath, const char* newpath) {
     nev = pvfsios_get_node_and_parent(&this->fsid, newpath, &ref, &creds,
                                       &node, &parent);
     if (nev < 0) {
-        return(nev);
+        return errno_to_plfs_error(-nev);
     }
 
     attr.owner = creds.uid;
@@ -1546,7 +1569,7 @@ int PVFSIOStore::Symlink(const char* oldpath, const char* newpath) {
     nev = get_err(pev);
 
     free(parent);
-    return(nev);
+    return errno_to_plfs_error(-nev);
 }
 
 /**
@@ -1554,9 +1577,9 @@ int PVFSIOStore::Symlink(const char* oldpath, const char* newpath) {
  *
  * @param path the file to truncate
  * @param the length (only 0 supported)
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int PVFSIOStore::Truncate(const char* path, off_t length) {
+plfs_error_t PVFSIOStore::Truncate(const char* path, off_t length) {
     char *cpath;
     PVFS_object_ref ref;
     PVFS_credentials creds;
@@ -1572,21 +1595,21 @@ int PVFSIOStore::Truncate(const char* path, off_t length) {
     }
     
     if (nev < 0) {
-        return(nev);
+        return errno_to_plfs_error(-nev);
     }
 
     pev = PVFS_sys_truncate(ref, length, &creds);
     nev = get_err(pev);
-    return(nev);
+    return errno_to_plfs_error(-nev);
 }
 
 /**
  * PVFSIOStore::Unlink: unlink file or directory
  *
  * @param path the path to remove
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int PVFSIOStore::Unlink(const char* path) {
+plfs_error_t PVFSIOStore::Unlink(const char* path) {
     int nev;
     /*
      * XXX: should we stat the file to check that path is not a
@@ -1594,7 +1617,7 @@ int PVFSIOStore::Unlink(const char* path) {
      * require several more PVFS ops and it isn't atomic.
      */
     nev = pvfsios_remove(&this->fsid, path);
-    return(nev);
+    return errno_to_plfs_error(-nev);
 }
 
 /**
@@ -1602,9 +1625,9 @@ int PVFSIOStore::Unlink(const char* path) {
  *
  * @param filename the file to change
  * @param times the times to set
- * @return 0 or -err
+ * @return PLFS_SUCCESS or PLFS_E* on error
  */
-int PVFSIOStore::Utime(const char* filename, const struct utimbuf *times) {
+plfs_error_t PVFSIOStore::Utime(const char* filename, const struct utimbuf *times) {
     char *cpath;
     PVFS_object_ref ref;
     PVFS_credentials creds;
@@ -1622,7 +1645,7 @@ int PVFSIOStore::Utime(const char* filename, const struct utimbuf *times) {
     }
         
     if (nev < 0) {
-        return(nev);
+        return errno_to_plfs_error(-nev);
     }
 
     if (times == NULL) {          /* this is allowed, means use current time */
@@ -1638,7 +1661,7 @@ int PVFSIOStore::Utime(const char* filename, const struct utimbuf *times) {
     pev = PVFS_sys_setattr(ref, attr, &creds);
     nev = get_err(pev);
 
-    return(nev);
+    return errno_to_plfs_error(-nev);
 }
 
 #endif /* USE_PVFS */

@@ -68,13 +68,14 @@ verifyOperation(const NameOperation &op) {
     struct NameEntryHeader header;
     uint32_t expected_length = op.length + sizeof(struct NameEntryHeader);
     char buf[256];
+    ssize_t read_count;
 
     expected_length = (expected_length + 3) & (~3);
     CPPUNIT_ASSERT(op.length < 256);
-    op.fh->Read(&header, sizeof header);
+    op.fh->Read(&header, sizeof header, &read_count);
     CPPUNIT_ASSERT_EQUAL(header.operation, op.op_code);
     CPPUNIT_ASSERT_EQUAL(header.length, expected_length);
-    op.fh->Read(buf, expected_length - sizeof header);
+    op.fh->Read(buf, expected_length - sizeof header, &read_count);
     CPPUNIT_ASSERT(memcmp(buf, op.buf, op.length) == 0);
 }
 
@@ -99,7 +100,7 @@ WriterUnit::createfileTest() {
         CPPUNIT_ASSERT_EQUAL(0, ret);
         UPDATE_CREATE_OP(nop, created);
         if (nop.fh == NULL) {
-            fh = store->Open(namefile.c_str(), O_RDONLY, 0666, ret);
+            store->Open(namefile.c_str(), O_RDONLY, 0666, &fh);
             nop.fh = fh;
         }
         to_be_verified.push_back(nop);
@@ -130,7 +131,7 @@ WriterUnit::removefileTest() {
         CPPUNIT_ASSERT_EQUAL(0, ret);
         UPDATE_REMOVE_OP(nop, removed);
         if (nop.fh == NULL) {
-            fh = store->Open(namefile.c_str(), O_RDONLY, 0666, ret);
+            store->Open(namefile.c_str(), O_RDONLY, 0666, &fh);
             nop.fh = fh;
         }
         to_be_verified.push_back(nop);
@@ -166,7 +167,7 @@ WriterUnit::renamefileTest() {
         CPPUNIT_ASSERT_EQUAL(0, ret);
         UPDATE_RENAME_OP(nop, origin, renameto);
         if (nop.fh == NULL) {
-            fh = store->Open(namefile.c_str(), O_RDONLY, 0666, ret);
+            store->Open(namefile.c_str(), O_RDONLY, 0666, &fh);
             nop.fh = fh;
         }
         to_be_verified.push_back(nop);
@@ -196,7 +197,7 @@ verifyIndexOperation(const IndexOperation &op) {
     struct IndexEntry index;
     ssize_t len;
 
-    len = op.fh->Read(&index, sizeof index);
+    op.fh->Read(&index, sizeof index, &len);
     int leng = len;
     CPPUNIT_ASSERT_EQUAL((int)sizeof index, leng);
     CPPUNIT_ASSERT_EQUAL(index.fid, op.fid);
@@ -230,11 +231,11 @@ WriterUnit::writefileTest() {
         record_size = (strlen(removed) + 1 + sizeof(struct NameEntryHeader));
         record_size = ((record_size + 3) / 4) * 4;
         if (nop.fh == NULL) {
-            fh = store->Open(namefile.c_str(), O_RDONLY, 0666, ret);
+            store->Open(namefile.c_str(), O_RDONLY, 0666, &fh);
             nop.fh = fh;
             string indexfile;
             dropping_name2index(namefile, indexfile);
-            fh = store->Open(indexfile.c_str(), O_RDONLY, 0666, ret);
+            store->Open(indexfile.c_str(), O_RDONLY, 0666, &fh);
             iop.fh = fh;
         }
         UPDATE_OPEN_OP(nop, removed);
@@ -261,11 +262,11 @@ WriterUnit::truncfileTest() {
     FileID fileid = writer->get_fileid("TESTFILE", NULL);
     ret = writer->truncate(fileid, 0, NULL, NULL);
     CPPUNIT_ASSERT_EQUAL(ret, 0);
-    fh = store->Open(namefile.c_str(), O_RDONLY, 0666, ret);
+    store->Open(namefile.c_str(), O_RDONLY, 0666, &fh);
     nop.fh = fh;
     string indexfile;
     dropping_name2index(namefile, indexfile);
-    fh = store->Open(indexfile.c_str(), O_RDONLY, 0666, ret);
+    store->Open(indexfile.c_str(), O_RDONLY, 0666, &fh);
     iop.fh = fh;
     iop.fid = fileid;
     iop.offset = 0; iop.length = 0;
