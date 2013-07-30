@@ -121,7 +121,7 @@ struct mlog_xstate mlog_xst = { 0,0,0,0 };
 /*
  * static data.
  */
-static struct mlog_state mst = { };
+static struct mlog_state mst;
 static int mlog2syslog[] = {
     LOG_DEBUG,     /* MLOG_DBUG */
     LOG_INFO,      /* MLOG_INFO */
