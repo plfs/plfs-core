@@ -37,10 +37,11 @@ int main (int argc, char **argv) {
         exit(1);
     }
 
-    int ret = container_dump_index(stderr,target,0,uniform_restart,uniform_rank);
-    if ( ret != 0 ) {
+    plfs_error_t ret = PLFS_SUCCESS;
+    ret = container_dump_index(stderr,target,0,uniform_restart,uniform_rank);
+    if ( ret != PLFS_SUCCESS ) {
         fprintf(stderr, "Error: %s is not in a PLFS mountpoint"
                " configured with 'workload n-1'\n", target);
     }
-    exit( ret );
+    exit( plfs_error_to_errno(ret) );
 }

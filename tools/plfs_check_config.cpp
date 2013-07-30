@@ -9,7 +9,6 @@
 #include "container_internals.h"
  */
 #include "plfs_private.h"
-#include "plfs_error.h"
 #include "COPYRIGHT.h"
 int main (int argc, char **argv) {
     bool make_dir = false;
@@ -25,5 +24,5 @@ int main (int argc, char **argv) {
     if ( ret == PLFS_SUCCESS ) std::cout << "SUCCESS" << std::endl;
     else            std::cout << "ERROR" << std::endl;
     //container_dump_index_size();
-    exit( ret );
+    exit( plfs_error_to_errno(ret) );
 }
