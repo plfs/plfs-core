@@ -117,6 +117,8 @@ def graphPerProcessor(mpiFile, numberOfProcessors, average, jobID):
 	(low, high) = ax1.axes.get_ybound()
 	ax1.set_ylabel("Offset (Bytes x 1e%d)"% analysis.exponent(high))
 	#so the axis does not draw over processor 0
+	above = 0
+	below = 0
 	ax1.set_xlim([-1, numberOfProcessors]) 
 	ax2 = fig4.add_subplot(2, 1, 2)
 	offsetFile.close()
@@ -128,10 +130,20 @@ def graphPerProcessor(mpiFile, numberOfProcessors, average, jobID):
 		else:
 			(id, beg, end) = struct.unpack("ddd", file)
 			if (id, beg, end) != (0.0, 0.0, 0.0):
+				if end > average:
+					above += 1
+				else:
+					below += 1
 				ax2.plot([id, id], [beg, end], linewidth=1.5)
 	timeFile.close()
 	#average
 	ax2.plot([0, numberOfProcessors], [average, average], color="y",linewidth=2)
+	title = ""
+	if above > 0:
+		title += "Number of Processors Above Average: %d\n" % above
+	if below > 0:
+		title += "Number of Processors Below Average: %d\n" % below
+	ax2.set_title(title, fontsize=10)
 	ax2.set_ylabel("Time")
 	ax2.set_xlim([-1, numberOfProcessors])
 	ax2.set_xlabel('Processor')
