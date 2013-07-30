@@ -13,19 +13,20 @@ int main (int argc, char **argv) {
         fprintf(stderr, "Usage: %s [filename | -version]\n", argv[0]);
         exit(-1);
     }
-    int ret = container_recover(target);
+    plfs_error_t ret = PLFS_SUCCESS;
+    ret = container_recover(target);
     switch(ret) {
-        case 0:
+        case PLFS_SUCCESS:
             printf("Successfully recovered %s\n",target);
             break;
-        case -EEXIST:
+        case PLFS_EEXIST:
             printf("%s already exists.\n",target);
-            ret = 0;
+            ret = PLFS_SUCCESS;
             break;
         default:
             fprintf(stderr,"Couldn't recover %s: %s\n",target,strerror(-ret));
             fprintf(stderr,"%s may not be on a n-1 mount point\n",target);
             break;
     }
-    exit( ret );
+    exit( plfs_error_to_errno(ret) );
 }
