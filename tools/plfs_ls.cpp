@@ -33,8 +33,9 @@ int main (int argc, char **argv) {
     }
 
     Plfs_dirp *pdirp;
-    int ret = plfs_opendir_c(target,&pdirp);
-    if ( ret != 0 ) {
+    plfs_error_t ret = PLFS_SUCCESS;
+    ret = plfs_opendir_c(target,&pdirp);
+    if ( ret != PLFS_SUCCESS ) {
         fprintf(stderr, "Error: opendir %s: %s\n", target, strerror(-ret));
         exit( ret );
     }
@@ -42,7 +43,7 @@ int main (int argc, char **argv) {
     char dname[PATH_MAX];
     while(1) {
         ret = plfs_readdir_c(pdirp,dname,PATH_MAX);
-        if (ret != 0) {
+        if (ret != PLFS_SUCCESS) {
             fprintf(stderr, "Error: opendir %s: %s\n", target, strerror(-ret));
             break;
         } else if (strlen(dname) == 0) {
@@ -52,5 +53,5 @@ int main (int argc, char **argv) {
         }
     }
     plfs_closedir_c(pdirp);
-    exit(ret);
+    exit(plfs_error_to_errno(ret));
 }
