@@ -8,6 +8,7 @@
 #include <math.h>
 #include <errno.h>
 #include <float.h>
+#include <plfs_error.h>
 
 /* use the plfs_query to get the number of indices we have so we can
  * use that in the parsing - the user will decide the number of processes
@@ -48,7 +49,8 @@ getMaxMinTimes(int numIndexFiles, int size, char* mount, double* minMax,
 {
 	double sendMinMax[2]; 
 	double *sendEndTimes = (double *)calloc(numIndexFiles, sizeof(double)); 
-	int rank, i, retv; 
+	int rank, i; 
+	plfs_error_t retv;  
 	char buffer[128];
 	char name[50];
 	FILE* tmp; 
@@ -73,7 +75,7 @@ getMaxMinTimes(int numIndexFiles, int size, char* mount, double* minMax,
 			}
 			retv = container_dump_index(tmp, mount, 0, 1, i); 
 			fclose(tmp); 
-			if (retv == 0) {
+			if (retv == PLFS_SUCCESS) {
 				tmp = fopen(name, "r"); 
 				if (tmp == NULL) {
 					printf("ERROR: Could not open temp file\n"); 
@@ -160,7 +162,8 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
 	}
 	char buffer[128];
 	char name[50];
-	int rank, i, retv; 
+	int rank, i; 
+	plfs_error_t retv;  
 	FILE* tmp; 
 	int id, offset, length, tail; 	
 	char io; 
@@ -181,7 +184,7 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
 			}
 			retv = container_dump_index(tmp, mount, 0, 1, i); 
 			fclose(tmp); 
-			if (retv == 0) {
+			if (retv == PLFS_SUCCESS) {
 				tmp = fopen(name, "r"); 
 				if (tmp == NULL) {
 					printf("ERROR:Could not open temp file\n"); 
@@ -274,7 +277,8 @@ writeProcessorData(int numIndexFiles, int size, char* mount,
 			double* endTimes, char* timeMPI, double start, 
 			bool above, bool below, int numStdDev)
 {
-	int i, rank, retv; 
+	int i, rank; 
+	plfs_error_t retv; 
 	char name[50];
 	char buffer[128]; 
 	FILE * tmp; 
@@ -315,7 +319,7 @@ writeProcessorData(int numIndexFiles, int size, char* mount,
 			}
 			retv = container_dump_index(tmp, mount, 0, 1, i); 
 			fclose(tmp); 
-			if (retv == 0) {
+			if (retv == PLFS_SUCCESS) {
 				tmp = fopen(name, "r"); 
 				if (tmp == NULL) {
 					printf("ERROR:Could not open temp file\n"); 
