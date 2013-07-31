@@ -7,7 +7,9 @@
 # For more information about features see README.documentation
 
 PLFS_FILE=/path/to/PLFS/file
-FILE_SYSTEM=/path/to/parallel/file/system
+FILE_SYSTEM=/path/to/parallel/file/system/
+# the above path should be the entire path including a / if you wish to input
+# into a directory as files will be written such as FILE_SYSTEMjobID
 
 echo "Analysizing: ${PLFS_FILE}"
 cd $PBS_O_WORKDIR
