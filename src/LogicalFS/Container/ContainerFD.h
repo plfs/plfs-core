@@ -9,7 +9,6 @@ class Container_fd : public Plfs_fd
 {
     public:
         Container_fd();
-        Container_fd(Container_OpenFile *);
         ~Container_fd();
         // These are operations operating on an open file.
         plfs_error_t open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
@@ -35,6 +34,9 @@ class Container_fd : public Plfs_fd
 
         plfs_error_t compress_metadata(const char *path);
 
+        /* this is for truncate/grow case */
+        plfs_error_t extend(off_t offset);
+        
     private:
         Container_OpenFile *fd;
 };

@@ -77,11 +77,6 @@ Container_fd::Container_fd()
     fd = NULL;
 }
 
-Container_fd::Container_fd(Container_OpenFile *ofd)
-{
-    this->fd = ofd;
-}
-
 Container_fd::~Container_fd()
 {
     return;
@@ -684,4 +679,30 @@ Container_fd::setxattr(const void *value, const char *key, size_t len) {
     delete(xattrs);
 
     return ret;
+}
+
+/**
+ * Container_fd::extend: grow a file with a fake zero-byte write
+ * (the grow case of the truncate operation).   the fd must be open
+ * for writing.
+ *
+ * @param offset the new max offset of the file
+ * @return SUCCESS or error code
+ */
+plfs_error_t
+Container_fd::extend(off_t offset) {
+    Container_OpenFile *myfd;
+    WriteFile *wf;
+
+    myfd = this->fd;
+    if (myfd == NULL) {
+        return(PLFS_EINVAL);
+    }
+
+    wf = myfd->getWritefile();
+    if (wf == NULL) {
+        return(PLFS_EBADF);   /* not open for writing */
+    }
+
+    return(wf->extend(offset));
 }

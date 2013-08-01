@@ -1245,16 +1245,15 @@ container_trunc(Container_OpenFile *of, struct plfs_physpathinfo *ppip,
             } else if (stbuf.st_size < offset) {
 
                 /* extending file -- treat as a zero byte write @req offset */
+                Container_fd *cpfd;
                 Plfs_fd *pfd;
-                Container_OpenFile *myopenfd;
                 pid_t pid;
-                WriteFile *wf;
 
                 mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__,
                      __LINE__, ret);
 
-                myopenfd = of;  /* XXXCDC: can be null */
-                pfd = new Container_fd(myopenfd); /* malloc here */
+                cpfd = new Container_fd();     /* malloc here */
+                pfd = cpfd;                    /* Plfs_fd alias for above */
                 pid = (of) ? of->getPid() : 0; /* from old extendFile */
                 
                 ret = containerfs.open(&pfd, ppip, O_WRONLY, pid,
@@ -1267,16 +1266,13 @@ container_trunc(Container_OpenFile *of, struct plfs_physpathinfo *ppip,
                          __FUNCTION__, ppip->canbpath.c_str(), ret);
                     
                 } else {
-                    uid_t uid = 0;  /* just needed for stats */
-                    /* XXXCDC: what if null? */
-                    wf = myopenfd->getWritefile(); /* can't fail */
-                    ret = wf->extend(offset);      /* zero byte write */
-                    /* ignore close ret, can't do much with it here */
                     int num_ref;
-                    (void)pfd->close(pid, uid, O_WRONLY, NULL, &num_ref);
+                    uid_t uid = 0;  /* just needed for stats */
+                    ret = cpfd->extend(offset);
+                    (void)cpfd->close(pid, uid, O_WRONLY, NULL, &num_ref);
                 }
 
-                delete(pfd);   /* free */
+                delete(cpfd);   /* free */
             }
         }
     }
