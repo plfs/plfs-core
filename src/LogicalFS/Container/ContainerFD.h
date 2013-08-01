@@ -9,6 +9,7 @@ class Container_fd : public Plfs_fd
 {
     public:
         Container_fd();
+        Container_fd(Container_OpenFile *);
         ~Container_fd();
         // These are operations operating on an open file.
         plfs_error_t open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,

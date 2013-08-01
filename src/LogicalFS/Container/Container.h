@@ -81,6 +81,10 @@ class Container
 
         static bool isContainer(const struct plfs_pathback *physical_path,
                                 mode_t *);
+        static plfs_error_t findContainerPaths(const string&, PlfsMount *,
+                                               const string&,
+                                               struct plfs_backend *,
+                                               ContainerPaths&);
         static string getIndexPath( const string&, const string&,
                                     int pid,double);
         static string getDataPath(  const string&, const string&,
@@ -117,12 +121,6 @@ class Container
         static mode_t containerMode(  mode_t );
         static mode_t subdirMode(  mode_t );
 
-
-        static plfs_error_t prepareWriter(WriteFile *wf, pid_t pid, mode_t mode,
-                                 const string& bnode, PlfsMount *mntpt,
-                                 const string& canbpath,
-                                 struct plfs_backend *canback,
-                                 int *num_writers);
         static plfs_error_t makeHostDir(const string& path, struct plfs_backend *b,
                                const string& host,
                                mode_t mode, parentStatus);
