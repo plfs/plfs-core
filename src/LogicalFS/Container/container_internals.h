@@ -126,7 +126,4 @@ plfs_error_t container_locate(const char *logical, void *files_ptr,
 
 plfs_error_t container_recover(const char *logical);
 
-plfs_error_t container_trunc( Container_OpenFile *, struct plfs_physpathinfo *ppip,
-                     off_t, int open_file );
-
 #endif

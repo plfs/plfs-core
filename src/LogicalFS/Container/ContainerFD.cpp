@@ -125,7 +125,7 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
         }
     }
     if ( ret == PLFS_SUCCESS && flags & O_TRUNC && !truncated) {
-        ret = container_trunc( NULL, ppip, 0,(int)true );
+        ret = containerfs.trunc(ppip, 0, (int)true);
         if (ret == 0) {
             truncated = true;
         }
