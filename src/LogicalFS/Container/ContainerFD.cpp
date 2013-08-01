@@ -480,11 +480,101 @@ Container_fd::sync(pid_t pid)
            this->fd->getWritefile()->sync(pid) : PLFS_SUCCESS);
 }
 
+/**
+ * Containter_fd::trunc: ftrucate a file that we have open.
+ * the file must be open for writing in order to ftruncate it.
+ * note that we currently need the pathinfo passed in for us,
+ * though in the future it may be possible to reconstruct it
+ * for us using this object... but with the current set of APIs
+ * we need a ppip anyway... XXX
+ *
+ * @param offset the new file size
+ * @param ppip the path info for the file
+ * @return PLFS_SUCCESS or an error code
+ */
 plfs_error_t
 Container_fd::trunc(off_t offset, struct plfs_physpathinfo *ppip)
 {
-    bool open_file = true; // Yes, I am an open file handle.
-    return container_trunc(fd, ppip, offset, open_file);
+    plfs_error_t ret = PLFS_SUCCESS;
+    Container_OpenFile *myof;
+    WriteFile *wf;
+    struct stat stbuf;
+
+    /* if we are doing an fstat, then the file must be open, right? */
+    myof = this->fd;
+    if (myof == NULL) {
+        mlog(PLFS_DRARE, "%s: on a non-open file?", __FUNCTION__);
+        return(PLFS_EINVAL);
+    }
+    wf = myof->getWritefile();  /* non-null only if open for writing */
+    if (!wf) {
+        return(PLFS_EBADF);     /* not open for writing */
+    }
+    
+    /* we know we have a plfs container file, since it is already open */
+    if (offset == 0) {
+        /* no need to getattr in this case */
+        ret = containerfs_zero_helper(ppip, 1 /* open_file is true */);
+    } else {
+        stbuf.st_size = 0;
+        /* sz_only isn't accurate in this case, wire false */
+        ret = this->getattr(&stbuf, false /* sz_only */); 
+        if (ret == PLFS_SUCCESS) {
+
+            if (stbuf.st_size < offset) {
+                /* optimization: use our open writeable handle to extend */
+                ret = wf->extend(offset);
+            } else {
+                ret = containerfs_truncate_helper(ppip, offset, stbuf.st_size,
+                                                  myof->getPid());
+            }
+
+        }   /* getattr success */
+    }       /* offset != 0 */
+
+    /* if we actually modified the container, update open file handle */
+    if (ret == PLFS_SUCCESS) {
+        mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
+
+        /* in the case that extend file, need not truncateHostIndex */
+        if (offset <= stbuf.st_size) {
+            ret = Container::truncateMeta(ppip->canbpath, offset,
+                                          ppip->canback);
+            if (ret == PLFS_SUCCESS) {
+                ret = wf->truncate( offset );
+            }
+        }
+
+        myof->truncate( offset ); /* XXX: what if ret!=success? */
+
+        /*
+         * here's a problem, if the file is open for writing, we've
+         * already opened fds in there.  So the droppings are
+         * deleted/resized and our open handles are messed up
+         * it's just a little scary if this ever happens following
+         * a rename because the writefile will attemptto restore
+         * them at the old path...
+         */
+        if (ret == PLFS_SUCCESS) {
+            bool droppings_were_truncd = (offset == 0);
+            mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
+            ret = wf->restoreFds(droppings_were_truncd);
+
+            if ( ret != PLFS_SUCCESS ) {
+                mlog(PLFS_DRARE, "%s:%d failed: %s",
+                     __FUNCTION__, __LINE__, strplfserr(ret));
+            }
+        }
+        mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
+    }
+
+    mlog(PLFS_DCOMMON, "%s %s to %u: %d",__FUNCTION__, ppip->canbpath.c_str(),
+         (uint)offset, ret);
+
+    if ( ret == PLFS_SUCCESS ) {    /* update the timestamp */
+        ret = Container::Utime(ppip->canbpath, ppip->canback, NULL );
+    }
+    return(ret);
 }
 
 // there's a lazy stat flag, sz_only, which means all the caller cares
