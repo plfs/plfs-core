@@ -586,18 +586,18 @@ main( int argc, char *argv[] )
                             endTimes, timeMPI, minMax[0], above, below, 
                             numStdDev); 
     }
-	int numAbove = 0; 
-	int numBelow = 0; 
+    int numAbove = 0; 
+    int numBelow = 0; 
     if (rank == 0) {
         strcat(outputFile, jobId); 
         strcat(outputFile, "output.txt"); 
-	    for (int i = 0; i < numIndexFiles; i++) {
+        for (int i = 0; i < numIndexFiles; i++) {
             if ((above && (endTimes[i] > (average+(numStdDev*stdev)))) ||
-				((numIndexFiles <= 16) && (endTimes[i] > average))) {
+                ((numIndexFiles <= 16) && (endTimes[i] > average))) {
                 numAbove++; 
             }
-			else if ((below && (endTimes[i] < (average-(numStdDev*stdev)))) ||
-				((numIndexFiles <= 16) && (endTimes[i] < average))){
+            else if ((below && (endTimes[i] < (average-(numStdDev*stdev)))) ||
+                ((numIndexFiles <= 16) && (endTimes[i] < average))){
                 numBelow++; 
             }
         }
