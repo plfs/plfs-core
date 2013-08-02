@@ -32,7 +32,8 @@ For more information about features, see README.documentation.
 Quick Start Guide:
 1) Go into analysis.sh and adjust the top two variables to match the
 PLFS file you wish to analyze. Make sure to give a parallel file system
-as the second variable.
+as the second variable. If you are using a SLURM system, use analysis_slurm.sh
+instead. 
 2) Within analysis.sh, adjust the mpi run command based on your current
 mpi system. (For example, on a Cray machine, you will use the aprun command)
 3) Submit analysis.sh to your job scheduler and a pdf will be produced
