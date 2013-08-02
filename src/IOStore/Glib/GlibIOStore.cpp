@@ -73,7 +73,6 @@ flags_to_restrict_mode(int flags) {
 
 plfs_error_t
 GlibIOSHandle::Open(int flags, mode_t mode) {
-    int rv;
     int fd = open(this->path.c_str(),flags,mode);
     if (fd < 0) {
         return get_err(fd);
@@ -91,9 +90,9 @@ GlibIOSHandle::Open(int flags, mode_t mode) {
     } else {
         // successful here so set the buffer size (default 16 MB)
         if (this->buffsize > 0)
-            rv = setvbuf(this->fp,NULL,_IOFBF,this->buffsize*1048576);
+            setvbuf(this->fp,NULL,_IOFBF,this->buffsize*1048576);
         else // if buffsize = 0, don't buffer
-            rv = setvbuf(this->fp,NULL,_IONBF,0);
+            setvbuf(this->fp,NULL,_IONBF,0);
     }
     return PLFS_SUCCESS;
 }
