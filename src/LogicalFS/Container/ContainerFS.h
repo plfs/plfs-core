@@ -37,6 +37,13 @@ class ContainerFileSystem : public LogicalFileSystem
         plfs_error_t resolvepath_finish(struct plfs_physpathinfo *ppip);
 };
 
+/* truncate helper functions, shared with ContainerFD */
+plfs_error_t containerfs_zero_helper(struct plfs_physpathinfo *ppip,
+                                     int open_file);
+plfs_error_t containerfs_truncate_helper(struct plfs_physpathinfo *ppip,
+                                         off_t offset, off_t cur_st_size,
+                                         pid_t pid);
+
 extern ContainerFileSystem containerfs;
 
 #endif

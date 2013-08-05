@@ -13,7 +13,6 @@ using namespace std;
 
 #include "plfs.h"
 #include "plfs_private.h"
-#include "container_internals.h"
 #include "COPYRIGHT.h"
 #include "plfs_tool_common.h"
 
