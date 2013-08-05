@@ -752,26 +752,6 @@ mkdir_dash_p(const string& path, bool parent_only, IOStore *store)
     return PLFS_SUCCESS;
 }
 
-// restores a lost directory hierarchy
-// currently just used in plfs_recover.  See more comments there
-// returns PLFS_SUCCESS or PLFS_E*
-// if directories already exist, it returns PLFS_SUCCESS
-plfs_error_t
-recover_directory(struct plfs_physpathinfo *ppip, bool parent_only)
-{
-    vector<plfs_pathback> exps;
-    plfs_error_t ret = PLFS_SUCCESS;
-    if ( (ret = generate_backpaths(ppip,exps)) != PLFS_SUCCESS ) {
-        return(ret);
-    }
-    for(vector<plfs_pathback>::iterator itr = exps.begin();
-            itr != exps.end();
-            itr++ ) {
-        ret = mkdir_dash_p(itr->bpath,parent_only,itr->back->store);
-    }
-    return ret;
-}
-
 // a (non-thread proof) way to ensure we only init once
 bool
 plfs_conditional_init() {

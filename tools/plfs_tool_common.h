@@ -7,6 +7,10 @@
 
 #include "plfs.h"
 #include "plfs_private.h"
+
+/* XXXCDC: we need this because some tools bypass the plfs/LogicalFS API */
+#include "container_tools.h"
+
 #include "COPYRIGHT.h"
 /* Set of functions that are common to
  * most  of the plfs  tools

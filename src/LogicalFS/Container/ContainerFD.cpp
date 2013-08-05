@@ -2,7 +2,6 @@
 #include "plfs_private.h"
 #include "ContainerFS.h"
 #include "ContainerFD.h"
-#include "container_internals.h"
 #include "XAttrs.h"
 #include "mlog.h"
 #include "mlogfacs.h"

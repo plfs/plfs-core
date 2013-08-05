@@ -2,7 +2,6 @@
 #include "Container.h"
 #include "ContainerFS.h"
 #include "ContainerFD.h"
-#include "container_internals.h"
 #include "FileOp.h"
 #include <sys/types.h>
 #include <sys/stat.h>

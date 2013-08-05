@@ -3,7 +3,6 @@
 #include <errno.h>
 
 #include "plfs_tool_common.h"
-#include "container_internals.h"
 #include "COPYRIGHT.h"
 
 int main (int argc, char **argv) {

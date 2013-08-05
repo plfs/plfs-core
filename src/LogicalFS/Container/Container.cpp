@@ -20,7 +20,6 @@ using namespace std;
 #include "ThreadPool.h"
 #include "mlog.h"
 #include "mlog_oss.h"
-#include "container_internals.h"
 
 #define BLKSIZE 512
 

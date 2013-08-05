@@ -4,10 +4,6 @@
 #include <iostream>
 
 #include "plfs_tool_common.h"
-/*
- * Include the following if container_dump_index_size is ever needed
-#include "container_internals.h"
- */
 #include "plfs_private.h"
 #include "COPYRIGHT.h"
 int main (int argc, char **argv) {
