@@ -4,7 +4,7 @@
 #include "plfs.h"
 #include "Util.h"
 #include "plfs_private.h"
-#include "container_internals.h"
+#include "container_tools.h"
 #include "Container.h"
 
 int main (int argc, char **argv) {

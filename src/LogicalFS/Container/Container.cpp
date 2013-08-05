@@ -20,7 +20,6 @@ using namespace std;
 #include "ThreadPool.h"
 #include "mlog.h"
 #include "mlog_oss.h"
-#include "container_internals.h"
 
 #define BLKSIZE 512
 
@@ -1094,6 +1093,62 @@ Container::getIndexHostPath(const string& path,const string& host,
     return oss.str();
 }
 
+/**
+ * findContainerPaths: generates a bunch of derived paths from a bnode
+ * and PlfsMount
+ *
+ * @param bnode path within the backend mount of container
+ * @param pmnt top-level mountpoint
+ * @param canbpath canonical container path
+ * @param canback canonical backend
+ * @param paths resulting paths are placed here
+ * @return PLFS_SUCCESS or PLFS_E*
+ */
+plfs_error_t
+Container::findContainerPaths(const string& bnode, PlfsMount *pmnt,
+                              const string& canbpath,
+                              struct plfs_backend *canback,
+                              ContainerPaths& paths) {
+    /*
+     * example: logical file = /m/plfs/dir/file, mount point=/m/plfs,
+     *          backends =/m/pan34, /m/pan23
+     *
+     * bnode = /dir/file
+     * shadow = /m/pan34/dir/file
+     * canonical = /m/pan23/dir/file
+     * hostdir = hostdir.31  [ NOT USED ]
+     * shadow_hostdir = shadow/hostdir = /m/pan34/dir/file/hostdir.31
+     * canonical_hostdir = canonical/hostdir = /m/pan23/dir/file/hostdir.31
+     * shadow_backend = /m/pan34
+     * canonical_backend = /m/pan23
+     *
+     * XXX: this used to take a logical path and do the expansions
+     * here, but now we take advantaged of the cached expansions that
+     * the caller should have access to via plfs_physpathinfo.
+     */
+    char *hostname;
+    Util::hostname(&hostname);
+    int hash_val;
+
+    hash_val = (Container::hashValue(hostname) % pmnt->nshadowback);
+    paths.shadowback = pmnt->shadow_backends[hash_val];
+    paths.shadow_backend = paths.shadowback->bmpoint;
+    paths.shadow = paths.shadow_backend + "/" + bnode;
+    paths.shadow_hostdir = Container::getHostDirPath(paths.shadow,hostname,
+                           PERM_SUBDIR);
+    
+    /* XXX: not used? */
+    paths.hostdir=paths.shadow_hostdir.substr(paths.shadow.size(),string::npos);
+    paths.canonicalback = canback;
+    paths.canonical_backend = paths.canonicalback->bmpoint;
+    paths.canonical = canbpath;
+    /* canbpath == paths.canonical_backend + "/" + bnode */
+    paths.canonical_hostdir=Container::getHostDirPath(paths.canonical,
+                                                      hostname, PERM_SUBDIR);
+    string canonical_hostdir; // full path to the canonical hostdir
+    return PLFS_SUCCESS;  // no expansion errors.  All paths derived and returned
+}
+
 string
 Container::getIndexPath(const string& path, const string& host, int pid,
                         double ts)
@@ -1790,16 +1845,6 @@ Container::makeDropping(const string& path, struct plfs_backend *b)
     plfs_error_t ret = makeDroppingReal( path, b, DROPPING_MODE );
     umask(save_umask);
     return ret;
-}
-
-plfs_error_t
-Container::prepareWriter(WriteFile *wf, pid_t pid, mode_t mode,
-                         const string& bnode, PlfsMount *mntpt,
-                         const string& canbpath, struct plfs_backend *canback, 
-                         int *num_writers)
-{
-    return container_prepare_writer(wf, pid, mode, bnode, mntpt,
-                                    canbpath, canback, num_writers);
 }
 
 // returns PLFS_SUCCESS or PLFS_E*
