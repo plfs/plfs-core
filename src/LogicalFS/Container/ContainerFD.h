@@ -34,6 +34,9 @@ class Container_fd : public Plfs_fd
 
         plfs_error_t compress_metadata(const char *path);
 
+        /* this is for truncate/grow case */
+        plfs_error_t extend(off_t offset);
+        
     private:
         Container_OpenFile *fd;
 };

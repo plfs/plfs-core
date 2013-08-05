@@ -155,7 +155,6 @@ plfs_error_t WriteFile::sync( pid_t pid )
     return ret;
 }
 
-
 // Parameters:
 // @pid, who wants to write
 // @for_open, this is called in open path and need to increase open ref count
@@ -169,7 +168,8 @@ plfs_error_t WriteFile::sync( pid_t pid )
 // At open, all possible writers take a reference on ofh, which may not be
 // created yet. Whoever first writes creates the ofh and put it in fhs map.
 // During close, the last closer of the ofh gets the chance to destroy the ofh.
-plfs_error_t WriteFile::addWriter( pid_t pid, bool for_open, bool defer_open, int& writers )
+plfs_error_t WriteFile::addWriter(pid_t pid, bool for_open, bool defer_open,
+                                  int& writers)
 {
     plfs_error_t ret = PLFS_SUCCESS;
     Util::MutexLock( &data_mux, __FUNCTION__ );
@@ -203,6 +203,97 @@ plfs_error_t WriteFile::addWriter( pid_t pid, bool for_open, bool defer_open, in
          __FUNCTION__, pid, container_path.c_str(), writers );
     Util::MutexUnlock( &data_mux, __FUNCTION__ );
     return ret;
+}
+
+/*
+ * XXX: addPrepareWriter() is called from two places:
+ *
+ * 1: Container_fd::open()
+
+ * 2: WriteFile::prepareForWrite()
+ *
+ * the first one uses lots from ppip as args, while the second uses this.
+ * can we consolidate it?  e.g. 1 does ppip->bnode and 2 does this->bnode.
+ * can we use this->bnode in case 1?  if so, we don't need to pass as an
+ * arg we can get it from this.   review code structure here.
+ *
+ */
+// this code is where the magic lives to get the distributed hashing
+// each proc just tries to create their data and index files in the
+// canonical_container/hostdir but if that hostdir doesn't exist,
+// then the proc creates a shadow_container/hostdir and links that
+// into the canonical_container
+// returns PLFS_SUCCESS or PLFS_E*
+plfs_error_t WriteFile::addPrepareWriter(pid_t pid, mode_t xmode, bool for_open,
+                                         bool defer_open, const string &xbnode,
+                                         PlfsMount *mntpt,
+                                         const string &canbpath,
+                                         struct plfs_backend *xcanback,
+                                         int *ret_num_writers) {
+    plfs_error_t ret;
+    int writers;
+
+    // might have to loop 3 times
+    // first discover that the subdir doesn't exist
+    // try to create it and try again
+    // if we fail to create it bec someone else created a metalink there
+    // then try again into where the metalink resolves
+    // but that might fail if our sibling hasn't created where it resolves yet
+    // so help our sibling create it, and then finally try the third time.
+    for( int attempts = 0; attempts < 2; attempts++ ) {
+        // for defer_open , wf->addWriter() only increases writer ref counts,
+        // since it doesn't actually do anything until it gets asked to write
+        // for the first time at which point it actually then attempts to
+        // O_CREAT its required data and index logs
+        // for !defer_open, the WriteFile *wf has a container path in it
+        // which is path to canonical.  It attempts to open a file in a subdir
+        // at that path.  If it fails, it should be bec there is no
+        // subdir in the canonical. [If it fails for any other reason, something
+        // is badly broken somewhere.]
+        // When it fails, create the hostdir.  It might be a metalink in
+        // which case change the container path in the WriteFile to shadow path
+        ret = this->addWriter( pid, for_open, defer_open, writers );
+        if ( ret != PLFS_ENOENT ) {
+            break;    // everything except ENOENT leaves
+        }
+        // if we get here, the hostdir doesn't exist (we got ENOENT)
+        // here is a super simple place to add the distributed metadata stuff.
+        // 1) create a shadow container by hashing on node name
+        // 2) create a shadow hostdir inside it
+        // 3) create a metalink in canonical container identifying shadow
+        // 4) change the WriteFile path to point to shadow
+        // 4) loop and try one more time
+        string physical_hostdir;
+        bool use_metalink = false;
+        // discover all physical paths from logical one
+        ContainerPaths xpaths;
+        ret = Container::findContainerPaths(xbnode, mntpt, canbpath,
+                                            xcanback, xpaths);
+        if (ret!=PLFS_SUCCESS) {
+            *ret_num_writers = -1;
+            return(ret);
+        }
+        struct plfs_backend *newback;
+        ret=Container::makeHostDir(xpaths, xmode, PARENT_ABSENT,
+                                   physical_hostdir, &newback, use_metalink);
+        if ( ret==PLFS_SUCCESS ) {
+            // a sibling raced us and made the directory or link for us
+            // or we did
+            this->setSubdirPath(physical_hostdir, newback);
+            if (!use_metalink) {
+                this->setContainerPath(xpaths.canonical);
+            } else {
+                this->setContainerPath(xpaths.shadow);
+            }
+        } else {
+            mlog(INT_DRARE,"Something weird in %s for %s.  Retrying.",
+                 __FUNCTION__, xpaths.shadow.c_str());
+            continue;
+        }
+    }
+    // all done.  we use param(ret_num_writers) to return number of writers.
+    *ret_num_writers = writers;
+    return(ret);
 }
 
 size_t WriteFile::numWriters( )
@@ -345,9 +436,11 @@ WriteFile::prepareForWrite( pid_t pid )
         // index files in open, we defer the creation until first
         // write, which is here.
         int num_writers;
-        ret = Container::prepareWriter(this, pid, mode, this->bnode,
-                                       this->wrpmnt, this->container_path,
-                                       this->canback, &num_writers);
+
+        ret = this->addPrepareWriter(pid, mode, false, false,
+                                     this->bnode, this->wrpmnt,
+                                     this->container_path, this->canback,
+                                     &num_writers);
     }
 
     // we also defer creating index dropping. so index may be NULL.
