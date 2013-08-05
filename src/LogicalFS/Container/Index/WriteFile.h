@@ -37,7 +37,12 @@ class WriteFile : public Metadata
         plfs_error_t openIndex( pid_t );
         plfs_error_t closeIndex();
 
-        plfs_error_t addWriter( pid_t, bool, bool, int& );
+        plfs_error_t addPrepareWriter(pid_t pid, mode_t xmode, bool for_open,
+                                      bool defer_open, const string &xbnode,
+                                      PlfsMount *mntpt, const string &canbpath,
+                                      struct plfs_backend *xcanback,
+                                      int *ret_num_writers);
+
         plfs_error_t removeWriter( pid_t, int * );
         size_t numWriters();
         size_t maxWriters() {
@@ -66,6 +71,7 @@ class WriteFile : public Metadata
         }
 
     private:
+        plfs_error_t addWriter( pid_t, bool, bool, int& );
         plfs_error_t openIndexFile( string path, string host, pid_t, mode_t,
                                     string *index_path, IOSHandle **ret_hand);
         plfs_error_t openDataFile(string path,string host,pid_t,mode_t,IOSHandle **ret_hand );

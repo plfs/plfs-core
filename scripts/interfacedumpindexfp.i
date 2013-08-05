@@ -12,7 +12,7 @@
 */
 %module interfacedumpindexfp 
 %{
-#include "container_internals.h"
+#include "container_tools.h"
 %}
 
 /* Converts a PyFile instance to a stdio FILE* */
