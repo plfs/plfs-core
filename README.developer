@@ -14,14 +14,18 @@ settings for their github account in Account Settings.
 
 4) Treat all build warnings as errors.
 No build warnings!
-Use the following flags when running cmake to make sure all warnings are being 
-treated as errors:
+Use the following flag when running cmake to make sure all warnings are being 
+treated as errors (the flags are set automatically in Debug mode):
 
--DCMAKE_C_FLAGS="-Wall -Werror -Wshadow"
--DCMAKE_CXX_FLAGS="-Wall -Werror -Wshadow"
+-DCMAKE_BUILD_TYPE="Debug"
 
-It should be noted that for the default build, these compile flags are enabled
-by default.
+It should be noted that for the default build without this flag PLFS will build
+in Release mode which has these warnings disabled. This is to allow for users
+to download and build PLFS on esoteric compilers we haven't tested on.
+
+***                                                                        ***
+If you commit code that only builds in Release mode you will be mocked. :)
+***                                                                        ***
 
 5) Everything must be code-reviewed before being committed to the master
 branch on github

@@ -157,10 +157,6 @@ if (BUILD_IOFSL)
    add_definitions(${FUSE_DEFINITIONS})
 endif (BUILD_IOFSL)
 
-#set compiler options
-set(CMAKE_CXX_FLAGS "-Wall -Werror -Wshadow -Wno-long-long -Wextra ${CMAKE_CXX_FLAGS}")
-set(CMAKE_C_FLAGS "-Wall -Werror -Wshadow -Wno-long-long -Wextra ${CMAKE_C_FLAGS}")
-
 #create the plfs library
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR} plfs_src_dir)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/IOStore iostore)
@@ -358,6 +354,13 @@ endforeach(SOURCE)
 
 #test tools
 add_subdirectory("${PLFS_TESTS_DIR}")
+
+if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+    #set devloper compiler options 
+    #ALL developers should build in debug mode by default
+    set(CMAKE_CXX_FLAGS "-Wall -Werror -Wshadow -Wno-long-long -Wextra ${CMAKE_CXX_FLAGS}")
+    set(CMAKE_C_FLAGS "-Wall -Werror -Wshadow -Wno-long-long -Wextra ${CMAKE_C_FLAGS}")
+endif()
 
 #set up targets for make install
 INSTALL(TARGETS dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls
