@@ -22,7 +22,7 @@ include_directories("${PLFS_SOURCE_DIR}/Mlog")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PLFS_ANALYSIS_DIR})
 set(CMAKE_SWIG_OUTDIR ${PLFS_ANALYSIS_DIR})
 SET_SOURCE_FILES_PROPERTIES(plfsinterface.i PROPERTIES CPLUSPLUS ON)
-SWIG_ADD_MODULE(plfsinterface python plfsinterface.i "${PLFS_SOURCE_DIR}/LogicalFS/Container/container_internals.cpp")
+SWIG_ADD_MODULE(plfsinterface python plfsinterface.i "${PLFS_SOURCE_DIR}/LogicalFS/Container/container_tools.cpp")
 SWIG_LINK_LIBRARIES(plfsinterface ${PYTHON_LIBRARIES})
 swig_link_libraries(plfsinterface plfs_lib)
 

@@ -2,7 +2,7 @@
 %module plfsinterface
 %{
 #include "plfs.h"
-#include "container_internals.h"
+#include "container_tools.h"
 %}
 
 /* These functions cause an error, but will not be used by the tool
@@ -26,4 +26,4 @@
     }
 }
 %include "plfs.h"
-%include "container_internals.h"
+%include "container_tools.h"

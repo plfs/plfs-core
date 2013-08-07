@@ -1,6 +1,6 @@
 #include <string.h>
 #include "plfs.h"
-#include "container_internals.h"
+#include "container_tools.h"
 #include <stdlib.h>
 #include <unistd.h>
 #include <mpi.h>
@@ -165,7 +165,7 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
     int rank, i; 
     plfs_error_t retv;  
     FILE* tmp; 
-    int id, offset, length, tail;   
+    int id, length, tail, offset; 
     char io; 
     double beg, end, delta, averageBan; 
     char* id2 = NULL; 

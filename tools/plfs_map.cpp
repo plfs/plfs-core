@@ -1,7 +1,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include "plfs_tool_common.h"
-#include "container_internals.h"
 #include "Container.h"
 
 void show_usage(char* app_name) {
