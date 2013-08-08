@@ -54,7 +54,7 @@ getMaxMinTimes(int numIndexFiles, int size, char* mount, double* minMax,
     char buffer[128];
     char name[50];
     FILE* tmp; 
-    int id, offset, length, tail; 
+    long long id, offset, length, tail; 
     char io; 
     double beg, end;
     char* id2 = NULL;
@@ -86,7 +86,7 @@ getMaxMinTimes(int numIndexFiles, int size, char* mount, double* minMax,
                     if (buffer[0] != '#') 
                     {
                         sscanf(buffer, 
-                            "%d %c %d %d %lf %lf %d %s %s", 
+                            "%lld %c %lld %lld %lf %lf %lld %s %s", 
                             &id, &io, &offset, &length, 
                             &beg, &end, &tail, id2, chunk); 
                         /* if either are -1, then it hasn't been set */
@@ -165,7 +165,7 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
     int rank, i; 
     plfs_error_t retv;  
     FILE* tmp; 
-    int id, length, tail, offset; 
+    long long id, length, tail, offset; 
     char io; 
     double beg, end, delta, averageBan; 
     char* id2 = NULL; 
@@ -195,13 +195,15 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
                     if (buffer[0] != '#') 
                     {
                         sscanf(buffer, 
-                            "%d %c %d %d %lf %lf %d %s %s",
+                            "%lld %c %lld %lld %lf %lf %lld %s %s",
                             &id, &io, &offset, &length, 
                             &beg, &end, &tail, id2, chunk);
                         /* this id was arbitrary so I will change it to
                         * match the index id, which is i */
                         id = i; 
                         delta = end - beg; 
+						printf("offset: %lld\n", offset); 
+						printf("length: %lld\n", length); 
                         binsSpanned = ceil((delta/binSize));
                         averageBan = length/(delta*1024*1024); 
                         startBin = floor((beg-min)/binSize); 
