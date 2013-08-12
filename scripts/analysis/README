@@ -1,4 +1,5 @@
 ###############################################################################
+					ACE: Analysis of Coordinated Executions
                         An Analysis Framework for PLFS
 ###############################################################################
 
@@ -18,7 +19,9 @@ The framework requires Swig, mpi, Matplotlib, networkx, and Wxpython
 Installing
 ***************************************************************************
 
-The framework is installed with PLFS. For more information about how to
+The framework is installed with PLFS. By default, ACE is not installed. In
+order to install ACE with PLFS, set the environment variable PLFS_ACE to 1
+before building. For more information about how to
 install PLFS, please see README.install in the main folder.
 
 ***************************************************************************

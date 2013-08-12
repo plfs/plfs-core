@@ -356,8 +356,10 @@ endforeach(SOURCE)
 add_subdirectory("${PLFS_TESTS_DIR}")
 
 #analysis
-set(PLFS_ANALYSIS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/scripts/analysis")
-add_subdirectory("${PLFS_ANALYSIS_DIR}")
+if($ENV{PLFS_ACE})
+	set(PLFS_ANALYSIS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/scripts/analysis")
+	add_subdirectory("${PLFS_ANALYSIS_DIR}")
+endif()
 
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     #set devloper compiler options 
