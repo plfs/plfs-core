@@ -80,12 +80,13 @@ getMaxMinTimes(int numIndexFiles, int size, char* mount, double* minMax,
     char buffer[128];
     char name[50];
     FILE* tmp; 
-    long long id, offset, length, tail; 
+    int id; 
+    long long offset, length, tail; 
     int pid; 
     char io; 
     double beg, end;
-    char* id2 = NULL;
-    char* chunk = NULL;
+    char id2[128];
+    char chunk[128];
     sendMinMax[0] = DBL_MAX; 
     sendMinMax[1] = DBL_MIN; 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
@@ -114,10 +115,9 @@ getMaxMinTimes(int numIndexFiles, int size, char* mount, double* minMax,
                     if (buffer[0] != '#') 
                     {
                         sscanf(buffer, 
-                            "%lld %c %lld %lld %lf %lf %lld %s %s", 
+                            "%d %c %lld %lld %lf %lf %lld %s %s", 
                             &id, &io, &offset, &length, 
-                            &beg, &end, &tail, id2, chunk); 
-                        /* if either are -1, then it hasn't been set */
+                            &beg, &end, &tail, &id2, &chunk); 
                         if (fileEnd < end) {
                             fileEnd = end; 
                         }
@@ -143,6 +143,7 @@ getMaxMinTimes(int numIndexFiles, int size, char* mount, double* minMax,
     double min, max; 
     double localMin = sendMinMax[0]; 
     double localMax = sendMinMax[1];
+    MPI_Barrier(MPI_COMM_WORLD); 
     MPI_Allreduce(&localMin, &min, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
     MPI_Allreduce(&localMax, &max, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
     MPI_Allreduce(&sendEndSum, endSum, 1, MPI_DOUBLE, MPI_SUM,
@@ -180,6 +181,7 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
     double* sendBandwidths = (double *)calloc(numBins, sizeof(double)); 
     int* sendIOsTime = (int *)calloc(numBins, sizeof(int)); 
     int* sendIOsFin = (int *)calloc(numBins, sizeof(int));  
+    /* 51 is the number of bins in the write histogram */
     int* sendWriteCount = (int *)calloc(51, sizeof(int)); 
     double sendSumDiffSquare = 0; 
     double sumDiffSquare = 0; 
@@ -194,11 +196,12 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
     int rank, i, pid; 
     plfs_error_t retv;  
     FILE* tmp; 
-    long long id, length, tail, offset; 
+    int id; 
+    long long length, tail, offset; 
     char io; 
     double beg, end, delta, averageBan; 
-    char* id2 = NULL; 
-    char* chunk = NULL; 
+    char id2[128];
+    char chunk[128]; 
     int startBin, binsSpanned; 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
     double fileEnd = DBL_MIN; 
@@ -225,9 +228,9 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
                     if (buffer[0] != '#') 
                     {
                         sscanf(buffer, 
-                            "%lld %c %lld %lld %lf %lf %lld %s %s",
+                            "%d %c %lld %lld %lf %lf %lld %s %s",
                             &id, &io, &offset, &length, 
-                            &beg, &end, &tail, id2, chunk);
+                            &beg, &end, &tail, &id2, &chunk);
                         /* this id was arbitrary so I will change it to
                         * match the index id, which is the pid */
                         id = pid;
@@ -276,14 +279,18 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
 
     /* use MPI Reduce to get the sums of each of the arrays */
     MPI_Barrier(MPI_COMM_WORLD); 
-    MPI_Reduce(sendBandwidths, bandwidths, numBins, MPI_DOUBLE, 
-                MPI_SUM, 0, MPI_COMM_WORLD); 
-    MPI_Reduce(sendIOsTime, iosTime, numBins, MPI_INT, MPI_SUM, 
-                0, MPI_COMM_WORLD);
-    MPI_Reduce(sendIOsFin, iosFin, numBins, MPI_INT, 
-                MPI_SUM, 0, MPI_COMM_WORLD);
-    MPI_Reduce(sendWriteCount, writeCount, 51, MPI_INT, 
-                MPI_SUM, 0, MPI_COMM_WORLD); 
+    MPI_Allreduce(sendBandwidths, bandwidths, numBins, MPI_DOUBLE, 
+                MPI_SUM, MPI_COMM_WORLD); 
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Allreduce(sendIOsTime, iosTime, numBins, MPI_INT, MPI_SUM, 
+                MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Allreduce(sendIOsFin, iosFin, numBins, MPI_INT, 
+                MPI_SUM, MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Allreduce(sendWriteCount, writeCount, 51, MPI_INT, 
+                MPI_SUM, MPI_COMM_WORLD); 
+    MPI_Barrier(MPI_COMM_WORLD);
     MPI_Allreduce(&sendSumDiffSquare, &sumDiffSquare, 1, MPI_DOUBLE, 
                 MPI_SUM, MPI_COMM_WORLD); 
     if (rank == 0) {
@@ -307,16 +314,17 @@ writeProcessorData(int numIndexFiles, int size, char* mount,
             double* endTimes, char* timeMPI, double start, 
             bool above, bool below, int numStdDev, int* pids)
 {
-    int i, rank, pid; 
+    int i, rank, pid, id; 
     plfs_error_t retv; 
     char name[50];
     char buffer[128]; 
     FILE * tmp; 
-    long long offset, length, tail, id; 
+    long long offset, length, tail;
+    long long writeID; 
     char io; 
     double beg, end; 
-    char* id2 = NULL; 
-    char* chunk = NULL;
+    char id2[128]; 
+    char chunk[128];
     MPI_File offsetsFile; 
     MPI_File timeFile; 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
@@ -361,16 +369,16 @@ writeProcessorData(int numIndexFiles, int size, char* mount,
                     if(buffer[0] != '#')
                     {
                         sscanf(buffer, 
-                            "%lld %c %lld %lld %lf %lf %lld %s %s", 
+                            "%d %c %lld %lld %lf %lf %lld %s %s", 
                             &id, &io, &offset, &length, 
-                            &beg, &end, &tail, id2, chunk); 
+                            &beg, &end, &tail, &id2, &chunk); 
                         /* this id was arbitrary so I will change
                         * it to match the index id */
-                        id = (long long)pid; 
+                        writeID = pid; 
                         MPI_File_write_at(offsetsFile, 
                                     rank*offsetSize + 
                                     writesOffset*size*offsetSize, 
-                                    &id, 1, MPI_LONG_LONG, 
+                                    &writeID, 1, MPI_LONG_LONG, 
                                     MPI_STATUS_IGNORE); 
                         MPI_File_write_at(offsetsFile, rank*offsetSize +
                                     writesOffset*size*offsetSize +
@@ -619,6 +627,7 @@ main( int argc, char *argv[] )
     parseData(numIndexFiles, size, mount, binSize, numBins, 
                 bandwidths, iosTime, iosFin, writeCount, minMax[0], 
                 average, &stdev, pids); 
+    MPI_Barrier(MPI_COMM_WORLD); 
     MPI_Bcast(&stdev, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     int retv; 
     if (processorGraph) 
@@ -629,6 +638,7 @@ main( int argc, char *argv[] )
     }
     int numAbove = 0; 
     int numBelow = 0; 
+    MPI_Barrier(MPI_COMM_WORLD); 
     if (rank == 0) {
         strcat(outputFile, jobId); 
         strcat(outputFile, "output.txt"); 

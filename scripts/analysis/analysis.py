@@ -62,8 +62,8 @@ def getSizes(queryFile):
                 line = line.replace("//", "/")
                 line = line.replace("\n", "")
             if "data" in line:
-                #statinfo = os.stat(line)
-                #dataSize += statinfo.st_size
+                statinfo = os.stat(line)
+                dataSize += statinfo.st_size
                 # add physical file locations to host dirs
                 r = re.search('[0-9]*$', line)
                 originalRankID = r.group(0)
@@ -88,7 +88,7 @@ def getSizes(queryFile):
 #with the units dictionary
 def scale(size):
     count = 0
-    while (size >= 1024) and (count <= 5): 
+    while (size >= 1024) and (count < 5): 
     #do not want count to exceed unit dictionary size
         size = size/1024.0
         count += 1
