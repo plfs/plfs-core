@@ -1,6 +1,6 @@
 ###############################################################################
                 Documentation for ACE: Analysis of Coordinated Executions
-						A PLFS Analysis Tool
+                        A PLFS Analysis Tool
 ###############################################################################
 **************************************************************************
 This documentation is for the parallel version of the analysis framework. 
@@ -69,6 +69,9 @@ Example command: python analysis.py -o <file_system> -p -q <plfs_query>
         -p: This flag is set if you want to produce the processor graphs.
            These graphs make a lot of lines, so there may be a benefit to
            not graphing these.
+        -m: This flag is set if you want to produce all of your graphs in 
+            multiple processes. This will produce multiple pdfs rather than
+            a single pdf of multiple pages. 
 
 ***************************************************************************
 Interactive Features

@@ -112,11 +112,16 @@ def main(argv):
     jobID = ""
     createGraphs = False
     interactive = False
+    #processorGraphs set to true if -p flag is given and the processor graphs
+    #are created
     processorGraphs = False
     #default value of the number of bins we will use
     numBins = 500
+    #multi is set to true if -m is given and the graphs will be multiprocessed
+    #producing 4 pdfs rather than one with 4 pages
+    multi = False
     try:
-        opts, args = getopt.getopt(argv, "ho:pq:n:igj:")
+        opts, args = getopt.getopt(argv, "ho:pq:n:igj:m")
     except getopt.GetoptError:
         help()
         sys.exit(2)
@@ -138,6 +143,8 @@ def main(argv):
             interactive = True
         elif opt == "-j":
             jobID = arg
+        elif opt == "-m":
+            multi = True
     if (mpiFile == ""):
         print("No input files")
         sys.exit(2)
@@ -149,14 +156,17 @@ def main(argv):
     (times, bandwidths, iosTime, iosFin, writeBins, average, above, below) = parseData(input)
     (hostdirs, sizes) = getSizes(queryFile)
     if createGraphs:
-        import pdfAnalysis
-        pdfAnalysis.generateGraphs(times, bandwidths, iosTime, iosFin, writeBins,\
-                     hostdirs, sizes, processorGraphs, mpiFile, average, jobID, \
-                     above, below)
-        #import pdfAnalysisMulti
-        #pdfAnalysisMulti.generateGraphs(times, bandwidths, iosTime, iosFin, writeBins,\
-        #             hostdirs, sizes, processorGraphs, mpiFile, average, jobID, \
-        #             above, below)
+        if multi:
+            import pdfAnalysisMulti
+            pdfAnalysisMulti.generateGraphs(times, bandwidths, iosTime, \
+                iosFin, writeBins, hostdirs, sizes, processorGraphs, mpiFile,\
+                average, jobID, above, below)
+        else:
+            #default is just one pdf with multiple pages
+            import pdfAnalysis
+            pdfAnalysis.generateGraphs(times, bandwidths, iosTime, iosFin, \
+                writeBins, hostdirs, sizes, processorGraphs, mpiFile, average,\
+                jobID, above, below)
     if interactive:
         import interactiveAnalysis
         interactiveAnalysis.runApp(times, bandwidths, iosTime, iosFin, writeBins, hostdirs, sizes, mpiFile, average, jobID, processorGraphs, above, below)
