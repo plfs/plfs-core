@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <float.h>
 #include <plfs_error.h>
+#include <Container.h>
 
 /* use the plfs_query to get the number of indices we have so we can
  * use that in the parsing - the user will decide the number of processes
@@ -38,6 +39,31 @@ getNumberOfIndexFiles(char* query)
     return number;
 }
 
+/* use plfs_query to find the dropping pids of the indices */
+void
+getPids(int* pids, char*query)
+{
+    FILE *fp = NULL; 
+    int index = 0; 
+    fp = fopen(query, "r"); 
+    if (fp != NULL)
+    {
+        char buffer[128]; 
+        while (fgets(buffer, sizeof(buffer), fp) != NULL)
+        {
+            if (strstr(buffer, "index") != NULL) {
+                pids[index] = Container::getDroppingPid(buffer); 
+                index++; 
+            }
+        }
+        fclose(fp); 
+    }
+    if (fp == NULL)
+    {
+        printf("Could not open the query file:%s\n", query); 
+    }
+}
+
 /* this is so we can find the time that each bin will be for the graphs
  * it uses MPI_reduce to find the maximum and minimum times of all the 
  * given IO entries. This also finds the final time that each proc wrote until
@@ -45,7 +71,7 @@ getNumberOfIndexFiles(char* query)
  * sum of the end times for the standard deviation and average calculations*/
 int 
 getMaxMinTimes(int numIndexFiles, int size, char* mount, double* minMax,
-         double* endSum, double* endTimes)
+         double* endSum, double* endTimes, int* pids)
 {
     double sendMinMax[2]; 
     double *sendEndTimes = (double *)calloc(numIndexFiles, sizeof(double)); 
@@ -55,6 +81,7 @@ getMaxMinTimes(int numIndexFiles, int size, char* mount, double* minMax,
     char name[50];
     FILE* tmp; 
     long long id, offset, length, tail; 
+    int pid; 
     char io; 
     double beg, end;
     char* id2 = NULL;
@@ -66,6 +93,7 @@ getMaxMinTimes(int numIndexFiles, int size, char* mount, double* minMax,
     double fileEnd = DBL_MIN; 
     for (i = 0; i<numIndexFiles; i++) {
         if (i % size == rank) {
+            pid = pids[i]; 
             /* Create a temporary file */
             sprintf(name, "tempFile%d.txt", rank); 
             tmp = fopen(name, "w+");
@@ -73,7 +101,7 @@ getMaxMinTimes(int numIndexFiles, int size, char* mount, double* minMax,
                 printf("ERROR: Could not create temp file\n"); 
                 return -1; 
             }
-            retv = container_dump_index(tmp, mount, 0, 1, i); 
+            retv = container_dump_index(tmp, mount, 0, 1, pid); 
             fclose(tmp); 
             if (retv == PLFS_SUCCESS) {
                 tmp = fopen(name, "r"); 
@@ -146,7 +174,8 @@ powersOfTwo(int input)
 int
 parseData(int numIndexFiles, int size, char* mount, double binSize,
         int numBins, double* bandwidths, int* iosTime, int* iosFin, 
-        int* writeCount, double min, double average, double* stdev)
+        int* writeCount, double min, double average, double* stdev, 
+        int* pids)
 {
     double* sendBandwidths = (double *)calloc(numBins, sizeof(double)); 
     int* sendIOsTime = (int *)calloc(numBins, sizeof(int)); 
@@ -162,7 +191,7 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
     }
     char buffer[128];
     char name[50];
-    int rank, i; 
+    int rank, i, pid; 
     plfs_error_t retv;  
     FILE* tmp; 
     long long id, length, tail, offset; 
@@ -176,13 +205,14 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
     for (i = 0; i<numIndexFiles; i++) {
         if (i % size == rank) {
             /*Create a temporary file */
+            pid = pids[i];
             sprintf(name, "tempFile%d.txt", rank); 
             tmp = fopen(name, "w+"); 
             if (tmp == NULL) {
                 printf("ERROR:Could not open temp file\n"); 
                 return -1; 
             }
-            retv = container_dump_index(tmp, mount, 0, 1, i); 
+            retv = container_dump_index(tmp, mount, 0, 1, pid); 
             fclose(tmp); 
             if (retv == PLFS_SUCCESS) {
                 tmp = fopen(name, "r"); 
@@ -199,11 +229,9 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
                             &id, &io, &offset, &length, 
                             &beg, &end, &tail, id2, chunk);
                         /* this id was arbitrary so I will change it to
-                        * match the index id, which is i */
-                        id = i; 
+                        * match the index id, which is the pid */
+                        id = pid;
                         delta = end - beg; 
-						printf("offset: %lld\n", offset); 
-						printf("length: %lld\n", length); 
                         binsSpanned = ceil((delta/binSize));
                         averageBan = length/(delta*1024*1024); 
                         startBin = floor((beg-min)/binSize); 
@@ -277,9 +305,9 @@ int
 writeProcessorData(int numIndexFiles, int size, char* mount,
             char* offsetMPI, double average, double stdev, 
             double* endTimes, char* timeMPI, double start, 
-            bool above, bool below, int numStdDev)
+            bool above, bool below, int numStdDev, int* pids)
 {
-    int i, rank; 
+    int i, rank, pid; 
     plfs_error_t retv; 
     char name[50];
     char buffer[128]; 
@@ -312,6 +340,7 @@ writeProcessorData(int numIndexFiles, int size, char* mount,
     int timeSize = 3*sizeof(double); 
     for (i = 0; i < numIndexFiles; i++) {
         if (i % size == rank) { 
+            pid = pids[i]; 
             /* Create a temporary file */
             sprintf(name, "tempFile%d.txt", rank); 
             tmp = fopen(name, "w+"); 
@@ -319,7 +348,7 @@ writeProcessorData(int numIndexFiles, int size, char* mount,
                 printf("ERROR:Could not open temp file\n"); 
                 return -1; 
             }
-            retv = container_dump_index(tmp, mount, 0, 1, i); 
+            retv = container_dump_index(tmp, mount, 0, 1, pid); 
             fclose(tmp); 
             if (retv == PLFS_SUCCESS) {
                 tmp = fopen(name, "r"); 
@@ -337,7 +366,7 @@ writeProcessorData(int numIndexFiles, int size, char* mount,
                             &beg, &end, &tail, id2, chunk); 
                         /* this id was arbitrary so I will change
                         * it to match the index id */
-                        id = (long long)i; 
+                        id = (long long)pid; 
                         MPI_File_write_at(offsetsFile, 
                                     rank*offsetSize + 
                                     writesOffset*size*offsetSize, 
@@ -531,13 +560,25 @@ main( int argc, char *argv[] )
         strcat(timeMPI, "times"); 
         strcat(timeMPI, jobId); 
     }
+    size = init(argc, argv); 
+    int rank; 
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     numIndexFiles = getNumberOfIndexFiles(queryFile); 
-    if (numIndexFiles == 0) 
-    {
-        printf("ERROR:Number of Index Files found was %d\n", numIndexFiles);
+    int* pids = (int *)calloc(numIndexFiles, sizeof(int)); 
+    if (pids == NULL) {
+        printf("Could not allocate memory for pids\n"); 
         return -1; 
     }
-    size = init(argc, argv); 
+    if (rank == 0) {
+        getPids(pids, queryFile); 
+        if (numIndexFiles == 0) 
+        {
+            printf("ERROR:Number of Index Files found was %d\n", numIndexFiles);
+            return -1; 
+        }
+    }
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Bcast(pids, numIndexFiles, MPI_INT, 0, MPI_COMM_WORLD); 
     /* there was a problem so exit */
     if (size == -1) 
     {
@@ -551,10 +592,8 @@ main( int argc, char *argv[] )
         printf("ERROR:Could not allocate memory for ending Times\n"); 
         return -1; 
     }
-    getMaxMinTimes(numIndexFiles, size, mount, minMax, &endSum, endTimes); 
-    int rank; 
+    getMaxMinTimes(numIndexFiles, size, mount, minMax, &endSum, endTimes,pids); 
     double average; 
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     if (rank == 0) {
         average = endSum/numIndexFiles;
     }
@@ -579,14 +618,14 @@ main( int argc, char *argv[] )
     }
     parseData(numIndexFiles, size, mount, binSize, numBins, 
                 bandwidths, iosTime, iosFin, writeCount, minMax[0], 
-                average, &stdev); 
+                average, &stdev, pids); 
     MPI_Bcast(&stdev, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     int retv; 
     if (processorGraph) 
     {
         writeProcessorData(numIndexFiles, size, mount, offsetMPI,average, stdev,
                             endTimes, timeMPI, minMax[0], above, below, 
-                            numStdDev); 
+                            numStdDev, pids); 
     }
     int numAbove = 0; 
     int numBelow = 0; 
@@ -610,6 +649,8 @@ main( int argc, char *argv[] )
             return -1; 
         }
     }
+    free(pids); 
+    free(endTimes); 
     free(bandwidths); 
     free(iosTime); 
     free(iosFin); 
