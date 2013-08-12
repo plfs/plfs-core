@@ -7,12 +7,13 @@
 
 # For more information about features see README.documentation
 
+NUM_PROCS=16
 PLFS_FILE=/path/to/plfs/file
 FILE_SYSTEM=/path/to/parallel/file/system/
 # the above path should be the entire path including a / if you wish to input
 # into a directory as files will be written such as FILE_SYSTEMjobID
 
-echo "Analysizing: ${PLFS_FILE}"
+echo "Analyzing: ${PLFS_FILE}"
 cd $PBS_O_WORKDIR
 plfs_query $PLFS_FILE >& queryTemp.txt
 PLFS_QUERY=$PBS_O_WORKDIR/queryTemp.txt
@@ -21,8 +22,8 @@ cd ../../build/bin
 #-b if you want them drawn before the threshold
 #-s:numberOfStandardDeviations to change the threshold
 #use the following if you are a Cray machines
-#aprun -n 16 ./analysis -m $PLFS_FILE -q $PLFS_QUERY -o $FILE_SYSTEM -p -a -j $PBS_JOBID
-mpirun -np 16 ./analysis -m $PLFS_FILE -q $PLFS_QUERY -o $FILE_SYSTEM -p -a -j $PBS_JOBID
+#aprun -n $NUM_PROCS ./analysis -m $PLFS_FILE -q $PLFS_QUERY -o $FILE_SYSTEM -p -a -j $PBS_JOBID
+mpirun -np $NUM_PROCS ./analysis -m $PLFS_FILE -q $PLFS_QUERY -o $FILE_SYSTEM -p -a -j $PBS_JOBID
 cd $PBS_O_WORKDIR
 #use the following to produce pdfs
 T="$(date +%s)"

@@ -7,12 +7,13 @@
 
 # For more information about features see README.documentation
 
+NUM_PROC=16
 PLFS_FILE=/path/to/PLFS/file
 FILE_SYSTEM=/path/to/parallel/file/system/
 # the above path should be the entire path including a / if you wish to input
 # into a directory as files will be written such as FILE_SYSTEMjobID
 
-echo "Analysizing: ${PLFS_FILE}"
+echo "Analyzing: ${PLFS_FILE}"
 cd $SLURM_SUBMIT_DIR
 plfs_query $PLFS_FILE >& queryTemp.txt
 PLFS_QUERY=$SLURM_SUBMIT_DIR/queryTemp.txt
@@ -21,8 +22,8 @@ cd ../../build/bin
 #-b if you want them drawn before the threshold
 #-s:numberOfStandardDeviations to change the threshold
 #use the following if you are a Cray machines
-#aprun -n 16 ./analysis -m $PLFS_FILE -q $PLFS_QUERY -o $FILE_SYSTEM -p -a -j $SLURM_JOB_ID
-mpirun -np 16 ./analysis -m $PLFS_FILE -q $PLFS_QUERY -o $FILE_SYSTEM -p -a -j $SLURM_JOB_ID
+#aprun -n $NUM_PROC ./analysis -m $PLFS_FILE -q $PLFS_QUERY -o $FILE_SYSTEM -p -a -j $SLURM_JOB_ID
+mpirun -np $NUM_PROC ./analysis -m $PLFS_FILE -q $PLFS_QUERY -o $FILE_SYSTEM -p -a -j $SLURM_JOB_ID
 cd $SLURM_SUBMIT_DIR
 #use the following to produce pdfs
 T="$(date +%s)"
