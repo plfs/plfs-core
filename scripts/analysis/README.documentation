@@ -1,6 +1,13 @@
 ###############################################################################
                 Documentation for the PLFS analysis framework
 ###############################################################################
+**************************************************************************
+This documentation is for the parallel version of the analysis framework. 
+To get information on the use of the serial version, please refer to the 
+-h flag on analysisSerial.py
+**************************************************************************
+
+
 analysis.sh is an example moab script that runs all the necessary commands
 to produce a pdf. Interactive mode is not able to be run from within the script
 but can be run after the script. This is due to having the display correctly
