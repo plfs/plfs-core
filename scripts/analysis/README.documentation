@@ -2,12 +2,12 @@
                 Documentation for ACE: Analysis of Coordinated Executions
                         A PLFS Analysis Tool
 ###############################################################################
-**************************************************************************
-This documentation is for the parallel version of the analysis framework. 
-To get information on the use of the serial version, please refer to the 
--h flag on analysisSerial.py
-**************************************************************************
-
+***************************************************************************
+Parallelized ACE Documentation
+***************************************************************************
+The following documentation is for the parallelized version that is run 
+with mpi. For information about the serial version, please see the bottom
+of this documentation
 
 analysis.sh is an example moab script that runs all the necessary commands
 to produce a pdf. Interactive mode is not able to be run from within the script
@@ -47,11 +47,11 @@ in order to be applied during the mpi script.
            deviation. This number should be an positive integer.
         -p: This flag is set if you want to produce the processor graphs.
            These graphs make a lot of lines, so there may be a benefit to
-           not graphing these.
+           not graphing these with time and memory. 
 
 
 ***************************************************************************
-PDF Features
+PDF Features - After Parallelization
 ***************************************************************************
 Example command: python analysis.py -o <file_system> -p -q <plfs_query>
                  -g -j <job_ID>
@@ -68,13 +68,13 @@ Example command: python analysis.py -o <file_system> -p -q <plfs_query>
 2) Optional flags:
         -p: This flag is set if you want to produce the processor graphs.
            These graphs make a lot of lines, so there may be a benefit to
-           not graphing these.
+           not graphing these with time and memory.
         -m: This flag is set if you want to produce all of your graphs in 
             multiple processes. This will produce multiple pdfs rather than
             a single pdf of multiple pages. 
 
 ***************************************************************************
-Interactive Features
+Interactive Features - After Parallelization
 ***************************************************************************
 While this cannot be run from within analysis.sh, after running the parallel
 command to generate the data files, you can run this command directly.
@@ -92,7 +92,7 @@ Example command: python analysis.py -o <file_system> -p -q <plfs_query>
 2) Optional flags:
         -p: This flag is set if you want to produce the processor graphs.
            These graphs make a lot of lines, so there may be a benefit to
-           not graphing these.
+           not graphing these with time and memory.
 3) Features within the Application:
         -Save Current Graph: Each graph has a save button on the top toolbar
         that saves the current graph only. Rather than saving all the graphs.
@@ -113,3 +113,36 @@ Example command: python analysis.py -o <file_system> -p -q <plfs_query>
         can undo just the last 5 annotations rather than clearing the whole
         screen.
 
+
+***************************************************************************
+Serial ACE Documentation
+***************************************************************************
+The serial version works similarly to the above parallelized version, but 
+without MPI. In order to run the serial version, you must include -s as a 
+flag to analysis.py.
+
+Example command: python analysis.py -o <plfs_map output> -q <plfs_query 
+                output> -p -s 
+1) Required flags:
+        -o <plfs_map output>: This should be the plfs_map file that contains
+            the output of plfs_map on the file you are analyzing. 
+        -q <query file>: The plfs_query file that goes with the plfs file
+            you are analyzing.
+        -s: This states that you wish to run in the serial mode. 
+2) Optional flags:  
+        -p: This flag is set if you want to produce the processor graphs.
+            These graphs make a lot of lines, so there may be a benefit to
+            not graphing these with time and memory.  
+        -n <number of Bins>: The default number of bins is 500. You can
+            adjust this number if you want more/less precision on the
+            bandwidths and io graphs.
+        -a: This states that you want to graph those processors that end
+            above the threshold and that the threshold is the average plus
+            the number of standard deviations.
+        -b: This states that you want to graph those processors that end
+            below the threshold and that the threshold is the average minus
+            the number of standard deviations.
+        --stdev <number of standard deviations>: The default is one standard
+            deviation. This number should be an positive integer.
+        -c: This flag will create a CSV of the plfs_map output if you wish to
+            graph in a different program. 

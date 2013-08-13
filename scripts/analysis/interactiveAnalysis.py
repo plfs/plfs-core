@@ -15,10 +15,10 @@ from wxPython.wx import *
 import locale
 import wx.lib.agw.aui as aui
 
-# This class is for the undo last button. It keeps just the last five annotations
+# This class is for the undo last button.It keeps just the last five annotations
 # and removes them by making them invisible. It doesn't delete it or the 
 # other annotations class complains about having a list of items that doesn't
-# exist
+# exist. The other annotation class is the only one that deletes items.
 class UndoAnnotations(object):
     def __init__(self, notebook):
         self.annotations = [0]*5 #only keeps last 5 annotations
@@ -26,6 +26,7 @@ class UndoAnnotations(object):
         self.notebook = notebook
 
     def add(self, annotate):
+        #include the wrap around
         self.index = (self.index + 1) % 5
         self.annotations[self.index] = annotate
     
@@ -33,12 +34,15 @@ class UndoAnnotations(object):
         if self.index >= 0:
             self.annotations[self.index].set_visible(False)
             self.index = self.index - 1
+            #redraw every page because of the annotations
             for page in self.notebook:
                 page.canvas.draw()
         else:
             pass
 
-# This class sets up the annotations and displays them
+# This class sets up the annotations and displays them. Keeps a list
+# of the current annotations on the canvas. globalAnnotations is the list 
+# of the last five used in UndoAnnotations above
 class Annotations(object):
     def __init__(self, annotations, canvas, axes, text, globalAnnotations):
         self.annotations = annotations
@@ -58,6 +62,8 @@ class Annotations(object):
         ystring = locale.format("%0.2f", float(ypt), grouping=True)
         if self.canvas.ioDict != None:
             # get the io information as well
+            # if we have already gotten it, it is in the dictionary, else
+            # find it and put in the dictionary
             try:
                 iosGo, iosFini= self.canvas.ioDict[xpt]
             except:
@@ -70,6 +76,7 @@ class Annotations(object):
             finally:
                 text = self.text_template % (xstring, ystring, iosGo, iosFini)
         else:
+            # on the processor graph, not the bandwidth/io graphs
             text = self.text_template % (xstring, ystring)
         try: 
             annotation = self.annotations[(xpt,ypt)]
@@ -104,7 +111,8 @@ class NavigationToolbar(NavigationToolbar2WxAgg):
 
 class BandwidthsAndIOs(wx.Panel):
     
-    def __init__(self, parent, times, bandwidths, iosTime, iosFin, numProc, globalAnnotation):
+    def __init__(self, parent, times, bandwidths, iosTime, iosFin, numProc,\
+        globalAnnotation):
         wx.Panel.__init__(self, parent=parent, id=wx.ID_ANY)
         self.fig = Figure((5.0, 2.0), 100)
         self.canvas = FigCanvas(self, -1, self.fig)
@@ -114,7 +122,7 @@ class BandwidthsAndIOs(wx.Panel):
         self.canvas.iosTime = iosTime
         self.canvas.iosFin = iosFin
         self.canvas.times = times
-        self.fig.canvas.mpl_connect('pick_event', Annotations(self.annotations, \
+        self.fig.canvas.mpl_connect('pick_event',Annotations(self.annotations, \
             self.canvas, self.axes, \
             "Time:%s\nBandwidth:%s\nIOs running:%s\nIOs finished:%s", \
             globalAnnotation))
@@ -252,7 +260,7 @@ class ProcessorsGraph(wx.Panel):
             else:
                 (id, beg, end) = struct.unpack("ddd", file)
                 if (id, beg, end) != (0.0, 0.0, 0.0):
-                    self.axes.plot([id, id], [beg, end], linewidth=1.5, picker=2)
+                    self.axes.plot([id, id], [beg, end],linewidth=1.5, picker=2)
         timeFile.close()
         self.axes.plot([0, numProc], [average, average], color="y", \
                         linewidth=2)
@@ -280,6 +288,7 @@ class Graphs(aui.AuiNotebook):
         else:
             raise IndexError
 
+# this it the version used to the right of the graphs
 def getStringVersion(hostdirs):
     retv = str(hostdirs[0][1])
     retv += "\n"
@@ -422,7 +431,8 @@ class Frame(wx.Frame):
         menubar.Append(fileMenu, "&File")
         self.SetMenuBar(menubar)
         self.Bind(wx.EVT_MENU, self.OnQuit, quit)
-        self.Bind(wx.EVT_MENU, lambda event: saveAll(logicalFile, notebook), save)
+        self.Bind(wx.EVT_MENU,\
+            lambda event: saveAll(logicalFile, notebook), save)
         self.Bind(wx.EVT_MENU, self.openHelp, help)
         
     def openHelp(self, event):

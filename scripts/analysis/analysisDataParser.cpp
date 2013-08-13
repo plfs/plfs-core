@@ -40,6 +40,9 @@ getNumberOfIndexFiles(char* query)
 }
 
 /* use plfs_query to find the dropping pids of the indices */
+/* for the most part these are ranks, but they may not be and this 
+ * provides a constant set for all processes to use when getting their
+ * pids for the container_dump_index */
 void
 getPids(int* pids, char*query)
 {
@@ -94,7 +97,7 @@ getMaxMinTimes(int numIndexFiles, int size, char* mount, double* minMax,
     double fileEnd = DBL_MIN; 
     for (i = 0; i<numIndexFiles; i++) {
         if (i % size == rank) {
-            pid = pids[i]; 
+            pid = pids[i]; /* get the pid from the constant list */ 
             /* Create a temporary file */
             sprintf(name, "tempFile%d.txt", rank); 
             tmp = fopen(name, "w+");
@@ -131,7 +134,7 @@ getMaxMinTimes(int numIndexFiles, int size, char* mount, double* minMax,
                 }
                 fclose(tmp); 
             }
-            sendEndSum += fileEnd; /* this is the max for proc i */
+            sendEndSum += fileEnd; /* this is the max for this pid */
             sendEndTimes[i] = fileEnd; 
             fileEnd = DBL_MIN; 
         }
@@ -208,7 +211,7 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
     for (i = 0; i<numIndexFiles; i++) {
         if (i % size == rank) {
             /*Create a temporary file */
-            pid = pids[i];
+            pid = pids[i]; /* get pid from the constant list*/
             sprintf(name, "tempFile%d.txt", rank); 
             tmp = fopen(name, "w+"); 
             if (tmp == NULL) {
@@ -235,7 +238,12 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
                         * match the index id, which is the pid */
                         id = pid;
                         delta = end - beg; 
+                        /* this calculates how many bins the time spans
+                         * for the ios and the bandwidths so that each
+                         * time bin gets everything from the current write */
                         binsSpanned = ceil((delta/binSize));
+                        /* calculates the average of the bandwidth 
+                         * for the current write*/
                         averageBan = length/(delta*1024*1024); 
                         startBin = floor((beg-min)/binSize); 
                         for (int j =0; j<binsSpanned; j++) 
@@ -243,15 +251,18 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
                             sendBandwidths[startBin+j] += averageBan; 
                             if (j < (binsSpanned - 1))
                             {
+                                /* we are writing at this bin */
                                 sendIOsTime[startBin+j] += 1; 
                             }
                             if (j == (binsSpanned - 1))
                             {
+                                /* we are finally done as this is our last bin*/
                                 sendIOsFin[startBin+j] += 1; 
                             }
                         }
                         int writeIndex = powersOfTwo(length); 
-                        /* The last bin is for all that is above 1 PiB */
+                        /* The last bin is for all that is above 1 PiB 
+                         * which is 51 as writeCounts is of length 51 */
                         if (writeIndex >= 51)
                         {
                             sendWriteCount[50] ++; 
@@ -267,7 +278,9 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
                 }
                 fclose(tmp); 
             }
-            double diffAvg = fileEnd - average;
+            /* get the difference of the end of the pid to the average and
+             * use to get the standard deviation */
+            double diffAvg = fileEnd - average; 
             double squareDiff = diffAvg * diffAvg;
             sendSumDiffSquare += squareDiff;
             fileEnd = DBL_MIN; 
@@ -294,7 +307,7 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
     MPI_Allreduce(&sendSumDiffSquare, &sumDiffSquare, 1, MPI_DOUBLE, 
                 MPI_SUM, MPI_COMM_WORLD); 
     if (rank == 0) {
-        /* calcuate standard deviation */
+        /* calculate standard deviation */
         *stdev = sqrt(sumDiffSquare/numIndexFiles); 
     }
     free(sendBandwidths); 
@@ -333,7 +346,7 @@ writeProcessorData(int numIndexFiles, int size, char* mount,
     MPI_File_open(MPI_COMM_WORLD, timeMPI, 
         MPI_MODE_WRONLY | MPI_MODE_CREATE, MPI_INFO_NULL, &timeFile); 
     int writesOffset = 0; /* the number of offset writes this rank has done */
-    int writesTime = 0; 
+    int writesTime = 0;  /* the number of time writes the rank has done */
     double topCutoff = 0; 
     double bottomCutoff = 0; 
     if (above) {
@@ -344,11 +357,12 @@ writeProcessorData(int numIndexFiles, int size, char* mount,
         bottomCutoff = average - numStdDev*stdev; 
         /* any proc that ends before this will be drawn */
     }
+    /* how big the writes are to the file. used to get the file offsets*/
     int offsetSize = 3*sizeof(long long); 
     int timeSize = 3*sizeof(double); 
     for (i = 0; i < numIndexFiles; i++) {
         if (i % size == rank) { 
-            pid = pids[i]; 
+            pid = pids[i];  /* get the pid from the constant list */
             /* Create a temporary file */
             sprintf(name, "tempFile%d.txt", rank); 
             tmp = fopen(name, "w+"); 
@@ -394,7 +408,8 @@ writeProcessorData(int numIndexFiles, int size, char* mount,
                         if ((numIndexFiles <= 16) ||
                             ((above) && (endTimes[i] > topCutoff)) || 
                             ((below) && (endTimes[i] < bottomCutoff))) {
-                            double newId = (double)i; 
+                            double newId = pid;
+                            /* we want to only graph the time of the job*/
                             beg -= start; 
                             end -= start; 
                             MPI_File_write_at(timeFile, rank*timeSize +
@@ -474,6 +489,7 @@ writeOutputText(char* outputFile, int numBins, double* minMax,
     }
     fprintf(fp, "%s\n", str); 
     /* write the write Counts */
+    /* 51 is the number of bins in the write count list */
     for (int i = 0; i < 51; i++) 
     {
         fprintf(fp, "%d\n", writeCount[i]); 
@@ -512,7 +528,7 @@ main( int argc, char *argv[] )
     int numBins = 500; 
     int numIndexFiles, size; 
     double binSize; 
-    double minMax[2];
+    double minMax[2]; /* space for the min and max time */
     double endSum, stdev;
     /* get cutoffs for processor graphs: default is one above */
     bool above = false; 
@@ -643,6 +659,8 @@ main( int argc, char *argv[] )
         strcat(outputFile, jobId); 
         strcat(outputFile, "output.txt"); 
         for (int i = 0; i < numIndexFiles; i++) {
+            /* what is graphed and where in relation to the average line
+             * it is for the processor graph*/
             if ((above && (endTimes[i] > (average+(numStdDev*stdev)))) ||
                 ((numIndexFiles <= 16) && (endTimes[i] > average))) {
                 numAbove++; 

@@ -6,7 +6,10 @@
 import re
 import os
 import plfsinterface
+import sys, getopt
 
+# this is used to get the number of bytes in the offset graph on the
+# y axis label
 def exponent(number):
     count = 0
     while (number >= 10):
@@ -14,6 +17,8 @@ def exponent(number):
         number /= 10
     return count
 
+# this is the parse data for the parallelized versions only. 
+# the serial version has its own parse data in serialAnalysis.py
 def parseData(inputFile):
     f = open(inputFile, "r")
     file = f.read()
@@ -32,6 +37,7 @@ def parseData(inputFile):
     times = []
     for i in xrange(numBins):
         times.append(i*delta)
+    # get the rest of the information
     bandwidths = sections[1].split()
     iosTime = sections[2].split()
     iosFin = sections[3].split()
@@ -42,6 +48,8 @@ def parseData(inputFile):
     return (times, bandwidths, iosTime, iosFin, writeBins, average,\
              above, below)
 
+# this is for the parallelized versions only. 
+# the serial version has its own in serialAnalysis.py
 def getSizes(queryFile):
     dataSize = 0
     indexSize = 0
@@ -65,9 +73,11 @@ def getSizes(queryFile):
                 statinfo = os.stat(line)
                 dataSize += statinfo.st_size
                 # add physical file locations to host dirs
+                # use regex to get the original pid
                 r = re.search('[0-9]*$', line)
                 originalRankID = r.group(0)
                 search = physicalFilename + ".*"
+                # use regex to get the hostdir line
                 m = re.search(search, line)
                 physicalFile = m.group(0)
                 hostdirs.append((originalRankID, physicalFile))
@@ -80,6 +90,7 @@ def getSizes(queryFile):
         f.close()
         sys.exit(1)
     else:
+        # get the number of indices
         indices = indexSize/plfsinterface.container_dump_index_size()
         return (hostdirs, [dataSize, indexSize, indices])
 
@@ -103,7 +114,13 @@ def help():
     print "Include -i if you wish to run in interactive mode"
     print "Include -p if you want the processor graphs to be included"
     print "Include both if you wish to output both ways"
+    print "Include -m if you wish to multiprocess the graphs"
+    print "Include -s if you wish to run in serial mode."
+    print "If in serial mode, -o should include the path to the plfs_map output"
+    print "rather than the mpi files"
+    print "If in serial mode, include -c to create a csv of the plfs_map output"
     print "anaysis.py -h for this message"
+    print "For more options with serial mode, please refer to the documentation"
 
 def main(argv):
     input = ""
@@ -120,8 +137,18 @@ def main(argv):
     #multi is set to true if -m is given and the graphs will be multiprocessed
     #producing 4 pdfs rather than one with 4 pages
     multi = False
+    #serial is set to true if -s is given and we are running the serial version
+    serial = False
+    #createCSV is set to true only if -s and -c are given
+    createCSV = False
+    # the following two are set in order to customize which processors are 
+    # graphed -> default is 1 above
+    # serial has to set this here, while parallel can set them in parseData
+    above = False
+    below = False
+    std = 1
     try:
-        opts, args = getopt.getopt(argv, "ho:pq:n:igj:m")
+        opts, args = getopt.getopt(argv, "ho:pq:n:igj:mscab", ["stdev:"])
     except getopt.GetoptError:
         help()
         sys.exit(2)
@@ -145,32 +172,55 @@ def main(argv):
             jobID = arg
         elif opt == "-m":
             multi = True
-    if (mpiFile == ""):
-        print("No input files")
+        elif opt == "-s":
+            serial = True
+        elif opt == "-c":
+            createCSV = True
+        elif opt == "-a":
+            above = True
+        elif opt == "-b":
+            below = True
+        elif opt == "--stdev":
+            std = int(arg)
+    if (createCSV == True) and (serial == False):
+        print("Cannot create CSV in parallel mode. Please use serial mode")
         sys.exit(2)
-    if (createGraphs and interactive):
-        print("Cannot produce pdf and interactive mode at the same time")
-        print("Interactive mode does include the option to export graphs")
-        sys.exit(2)
-    input = mpiFile + jobID + "output.txt"
-    (times, bandwidths, iosTime, iosFin, writeBins, average, above, below) = parseData(input)
-    (hostdirs, sizes) = getSizes(queryFile)
-    if createGraphs:
-        if multi:
-            import pdfAnalysisMulti
-            pdfAnalysisMulti.generateGraphs(times, bandwidths, iosTime, \
-                iosFin, writeBins, hostdirs, sizes, processorGraphs, mpiFile,\
-                average, jobID, above, below)
-        else:
-            #default is just one pdf with multiple pages
-            import pdfAnalysis
-            pdfAnalysis.generateGraphs(times, bandwidths, iosTime, iosFin, \
-                writeBins, hostdirs, sizes, processorGraphs, mpiFile, average,\
-                jobID, above, below)
-    if interactive:
-        import interactiveAnalysis
-        interactiveAnalysis.runApp(times, bandwidths, iosTime, iosFin, writeBins, hostdirs, sizes, mpiFile, average, jobID, processorGraphs, above, below)
+    if serial:
+        if ((above == False) and (below == False)): 
+            #default is above so set above to true
+            above = True
+        import serialAnalysis
+        serialAnalysis.run(queryFile, numBins, processorGraphs, mpiFile,\
+            createCSV, above, below, std)
+    else:
+        if (mpiFile == ""):
+            print("No input files")
+            sys.exit(2)
+        if (createGraphs and interactive):
+            print("Cannot produce pdf and interactive mode at the same time")
+            print("Interactive mode does include the option to export graphs")
+            sys.exit(2)
+        input = mpiFile + jobID + "output.txt"
+        (times, bandwidths, iosTime, iosFin, writeBins, average, numAbove, \
+            numBelow) = parseData(input)
+        (hostdirs, sizes) = getSizes(queryFile)
+        if createGraphs:
+            if multi:
+                import parallelPdfAnalysisMulti
+                parallelPdfAnalysisMulti.generateGraphs(times, bandwidths,\
+                    iosTime, iosFin, writeBins, hostdirs, sizes, \
+                    processorGraphs, mpiFile, average, jobID, numAbove,numBelow)
+            else:
+                #default is just one pdf with multiple pages
+                import parallelPdfAnalysis
+                parallelPdfAnalysis.generateGraphs(times, bandwidths, iosTime,\
+                    iosFin, writeBins, hostdirs, sizes, processorGraphs, \
+                    mpiFile, average, jobID, numAbove, numBelow)
+        if interactive:
+            import interactiveAnalysis
+            interactiveAnalysis.runApp(times, bandwidths, iosTime, iosFin, \
+                writeBins, hostdirs, sizes, mpiFile, average, jobID, \
+                processorGraphs, numAbove, numBelow)
 
 if __name__ == "__main__":
-    import sys, getopt
     main(sys.argv[1:])
