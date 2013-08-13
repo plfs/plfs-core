@@ -13,7 +13,9 @@ System Requirements
 ***************************************************************************
 
 The framework requires Swig, mpi, Matplotlib, networkx, and Wxpython
-(wxpython is required only for the interactive interface). 
+(wxpython is required only for the interactive interface and mpi is only
+required for the parallel version. There is a serial version that does not
+require mpi)
 
 ***************************************************************************
 Installing
