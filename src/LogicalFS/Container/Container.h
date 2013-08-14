@@ -191,7 +191,8 @@ class Container
                                          int rank, int ranks_per_comm,
                                          string path, struct plfs_backend *b);
         static plfs_error_t indexTaskManager(deque<IndexerTask> &tasks,
-                                             Index *index,string path);
+                                             Index *index,string path, 
+                                             int rank);
         static plfs_error_t indices_from_subdir(string,PlfsMount *,
                                                 struct plfs_backend *,
                                                 struct plfs_backend **,
