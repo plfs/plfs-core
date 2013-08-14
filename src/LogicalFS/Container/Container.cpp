@@ -23,6 +23,30 @@ using namespace std;
 
 #define BLKSIZE 512
 
+// using this to avoid polluting rand() on file open
+// when using random_shuffle()
+class rand_x { 
+public:    
+    rand_x(int init) : seed(init) {}
+
+    int operator()(int limit) {
+        int divisor = RAND_MAX/(limit+1);
+        int retval;
+
+        // this throws away the top end of the random space if it's not
+        // an even divisor of the requested range to preserve uniformity
+        // alternative would be to use rand_r(&seed)%limit to be faster but
+        // mess with the distribution
+        do { 
+            retval = rand_r(&seed) / divisor;
+        } while (retval >= limit);
+
+        return retval;
+    }
+private:
+    unsigned int seed;
+};
+
 mode_t
 Container::dropping_mode(){
     mode_t mask = umask(0);
@@ -471,7 +495,7 @@ Container::populateIndex(const string& path, struct plfs_backend *canback,
 }
 
 plfs_error_t
-Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index, string path)
+Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index, string path, int rank)
 {
     plfs_error_t ret = PLFS_SUCCESS;
     if ( tasks.empty() ) {
@@ -480,8 +504,11 @@ Container::indexTaskManager(deque<IndexerTask> &tasks,Index *index, string path)
              path.c_str());
     } else {
         // shuffle might help for large parallel opens on a
-        // file w/ lots of index droppings
-        random_shuffle(tasks.begin(),tasks.end());
+        // file w/ lots of index droppings.  Use rand_x (see top
+        // of this file) instead of the default random to avoid 
+        // polluting rand() on open
+        rand_x safe_rand = rand_x(rank);
+        random_shuffle(tasks.begin(),tasks.end(), safe_rand);
         PlfsConf *pconf = get_plfs_conf();
         if ( tasks.size() == 1 || pconf->threadpool_size <= 1 ) {
             while( ! tasks.empty() ) {
@@ -692,7 +719,7 @@ Container::parAggregateIndices(vector<IndexFileInfo>& index_list,
         tasks.push_back(task);
     }
     mlog(CON_DCOMMON, "Par agg indices path %s",path.c_str());
-    indexTaskManager(tasks,&index,path);
+    indexTaskManager(tasks,&index,path,rank);
     return index;
 }
 
@@ -1071,7 +1098,7 @@ Container::aggregateIndices(const string& path, struct plfs_backend *canback,
             mlog(CON_DCOMMON, "Ag indices path is %s",path.c_str());
         }
     }
-    ret=indexTaskManager(tasks,index,path);
+    ret=indexTaskManager(tasks,index,path,uniform_rank);
     return ret;
 }
 
