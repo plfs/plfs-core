@@ -24,7 +24,9 @@ Installing
 The framework is installed with PLFS. By default, ACE is not installed. In
 order to install ACE with PLFS, set the environment variable PLFS_ACE to 1
 before building. For more information about how to
-install PLFS, please see README.install in the main folder.
+install PLFS, please see README.install in the main folder. If you are unable
+to find mpi, when running CMAKE try setting -DMPI_INCLUDE_PATH and 
+-DMPI_LIBRARY to your specific version of mpi. 
 
 ***************************************************************************
 Using the Framework

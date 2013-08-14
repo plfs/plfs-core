@@ -29,6 +29,7 @@ swig_link_libraries(plfsinterface plfs_lib)
 find_package(MPI)
 
 if (MPI_FOUND)
+	include_directories(${MPI_INCLUDE_PATH})
     project(analysis)
     add_executable(analysis analysisDataParser.cpp)
     set(CMAKE_CXX_COMPILE_FLAGS ${CMAKE_CXX_COMPILE_FLAGS} ${MPI_COMPILE_FLAGS})
