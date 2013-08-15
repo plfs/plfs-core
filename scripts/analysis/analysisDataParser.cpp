@@ -22,7 +22,7 @@ getNumberOfIndexFiles(char* query)
     fp = fopen(query, "r");
     if (fp != NULL) 
     {
-        char buffer[128]; 
+        char buffer[4096]; 
         while (fgets(buffer, sizeof(buffer), fp) != NULL)
         {
             /* this is an index file */
@@ -51,7 +51,7 @@ getPids(int* pids, char*query)
     fp = fopen(query, "r"); 
     if (fp != NULL)
     {
-        char buffer[128]; 
+        char buffer[4096]; 
         while (fgets(buffer, sizeof(buffer), fp) != NULL)
         {
             if (strstr(buffer, "index") != NULL) {
@@ -117,10 +117,13 @@ getMaxMinTimes(int numIndexFiles, int size, char* mount, double* minMax,
                 {
                     if (buffer[0] != '#') 
                     {
-                        sscanf(buffer, 
+                        int items = sscanf(buffer, 
                             "%d %c %lld %lld %lf %lf %lld %s %s", 
                             &id, &io, &offset, &length, 
                             &beg, &end, &tail, &id2, &chunk); 
+                        if (items != 9) {
+                            printf("ERROR: sscanf failed. Buffer: %s\n", buffer); 
+                        }
                         if (fileEnd < end) {
                             fileEnd = end; 
                         }
@@ -133,6 +136,11 @@ getMaxMinTimes(int numIndexFiles, int size, char* mount, double* minMax,
                     }
                 }
                 fclose(tmp); 
+            }
+            else {
+                printf("ERROR: Container_dump_index did not succeed: %s\n", 
+                        strplfserr(retv));
+                return -1; 
             }
             sendEndSum += fileEnd; /* this is the max for this pid */
             sendEndTimes[i] = fileEnd; 
@@ -155,6 +163,7 @@ getMaxMinTimes(int numIndexFiles, int size, char* mount, double* minMax,
                 MPI_COMM_WORLD); 
     minMax[0] = min; 
     minMax[1] = max; 
+    unlink(name);
     free(sendEndTimes); 
     return 0; 
 }
@@ -230,10 +239,14 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
                 {
                     if (buffer[0] != '#') 
                     {
-                        sscanf(buffer, 
+                        int items = sscanf(buffer, 
                             "%d %c %lld %lld %lf %lf %lld %s %s",
                             &id, &io, &offset, &length, 
                             &beg, &end, &tail, &id2, &chunk);
+                        if (items != 9) {
+                            printf("ERROR: sscanf failed. Buffer: %s\n", buffer); 
+                            return -1; 
+                        }
                         /* this id was arbitrary so I will change it to
                         * match the index id, which is the pid */
                         id = pid;
@@ -277,6 +290,11 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
                     }
                 }
                 fclose(tmp); 
+            }
+            else {
+                printf("ERROR: Container_dump_index did not succeed: %s\n", 
+                        strplfserr(retv)); 
+                return -1; 
             }
             /* get the difference of the end of the pid to the average and
              * use to get the standard deviation */
@@ -382,10 +400,14 @@ writeProcessorData(int numIndexFiles, int size, char* mount,
                 {
                     if(buffer[0] != '#')
                     {
-                        sscanf(buffer, 
+                        int items = sscanf(buffer, 
                             "%d %c %lld %lld %lf %lf %lld %s %s", 
                             &id, &io, &offset, &length, 
                             &beg, &end, &tail, &id2, &chunk); 
+                        if (items != 9) {
+                            printf("ERROR: sscanf failed. Buffer: %s\n", buffer); 
+                            return -1; 
+                        }
                         /* this id was arbitrary so I will change
                         * it to match the index id */
                         writeID = pid; 
@@ -429,6 +451,11 @@ writeProcessorData(int numIndexFiles, int size, char* mount,
                     }
                 }
                 fclose(tmp); 
+            }
+            else {
+                printf("ERROR: Container_dump_index did not succeed: %s\n", 
+                        strplfserr(retv));
+                return -1; 
             }
         }
     }

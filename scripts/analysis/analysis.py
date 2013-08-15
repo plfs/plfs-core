@@ -64,7 +64,7 @@ def getSizes(queryFile):
             if readlines == 2:
                 directories = line.split("/")
                 physicalFilename = directories[-1]
-                physicalFilename = physicalFilename.replace("\n", "")
+                physicalFilename = physicalFilename.strip()
                 hostdirs.append((-1, physicalFilename))
             if "//" in line:
                 line = line.replace("//", "/")
@@ -74,9 +74,9 @@ def getSizes(queryFile):
                 dataSize += statinfo.st_size
                 # add physical file locations to host dirs
                 # use regex to get the original pid
-                r = re.search('[0-9]*$', line)
-                originalRankID = r.group(0)
-                search = physicalFilename + ".*"
+                directories = line.split(".")
+                originalRankID = directories[-1].strip()
+                search = "%s%s" % (str(physicalFilename), ".*")
                 # use regex to get the hostdir line
                 m = re.search(search, line)
                 physicalFile = m.group(0)
