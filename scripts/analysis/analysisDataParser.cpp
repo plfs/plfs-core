@@ -80,7 +80,7 @@ getMaxMinTimes(int numIndexFiles, int size, char* mount, double* minMax,
     double *sendEndTimes = (double *)calloc(numIndexFiles, sizeof(double)); 
     int rank, i; 
     plfs_error_t retv;  
-    char buffer[128];
+    char buffer[4096];
     char name[50];
     FILE* tmp; 
     int id; 
@@ -203,7 +203,7 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
         printf("Could not allocate enough memory\n"); 
         return -1; 
     }
-    char buffer[128];
+    char buffer[4096];
     char name[50];
     int rank, i, pid; 
     plfs_error_t retv;  
@@ -348,7 +348,7 @@ writeProcessorData(int numIndexFiles, int size, char* mount,
     int i, rank, pid, id; 
     plfs_error_t retv; 
     char name[50];
-    char buffer[128]; 
+    char buffer[4096]; 
     FILE * tmp; 
     long long offset, length, tail;
     long long writeID; 
