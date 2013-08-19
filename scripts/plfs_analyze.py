@@ -34,7 +34,7 @@ print sys.argv[1]
 old_stdout = sys.stdout
 mytmpfile = tempfile.TemporaryFile()
 sys.stdout = mytmpfile 
-retvar = interfacedumpindexfp.container_dump_index(sys.stdout,sys.argv[1],0)
+retvar = interfacedumpindexfp.container_dump_index(sys.stdout,sys.argv[1],0, 0, 0)
 sys.stdout.flush()
 sys.stdout = old_stdout
 if(retvar!=0):
@@ -117,5 +117,6 @@ plt.subplot(212)
 plt.xlabel('Processor')
 plt.ylabel('seconds')
 plt.plot(pes,sec,'g.')
+plt.ylim(ymin=0)
 
 plt.savefig('myfig')
