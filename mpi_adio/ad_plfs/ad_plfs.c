@@ -255,12 +255,37 @@ plfs_error_t plfs_query( Plfs_fd *fd, size_t *writers, size_t *readers,
     return PLFS_ENOSYS; /* never gets here */
 }
 
-plfs_filetype plfs_get_filetype(const char *path)
+plfs_filetype plfs_get_filetype(const char *)
      __attribute__ ((weak));
 plfs_filetype plfs_get_filetype(const char *path)
 {
     no_link_abort();
     return -1; /* never gets here */
+}
+
+plfs_error_t container_num_host_dirs(int *, char *, void *, char *)
+    __attribute__ ((weak));
+plfs_error_t container_num_host_dirs(int *hostdir_count, char *target, void *vback, 
+                                     char *bm)
+{
+   no_link_abort();
+   return PLFS_ENOSYS; /* never gets here */
+}
+
+int plfs_error_to_errno(plfs_error_t)  
+    __attribute__ ((weak));
+int plfs_error_to_errno(plfs_error_t plfs_err)
+{
+   no_link_abort();
+   return -1; /* never gets here */
+}
+
+const char *strplfserr(plfs_error_t) 
+   __attribute__ ((weak));
+const char *strplfserr(plfs_error_t err)
+{
+   no_link_abort();
+   return NULL; /* never gets here */
 }
 
 /* --END CRAY ADDITION-- */
