@@ -39,7 +39,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/Modules/
 include(CheckIncludeFiles)
 check_include_files ("sys/fsuid.h" HAVE_SYS_FSUID_H)
 if (HAVE_SYS_FSUID_H)
-	add_definitions (-DHAVE_SYS_FSUID_H)
+    add_definitions (-DHAVE_SYS_FSUID_H)
 endif (HAVE_SYS_FSUID_H)
 
 #setup includes for building source
@@ -335,8 +335,8 @@ endif(FUSE_FOUND AND NOT DISABLE_FUSE)
 
 #helper tools
 foreach (SOURCE dcon.c findmesgbuf.c plfs_check_config.cpp plfs_ls.cpp
-	 plfs_flatten_index.cpp plfs_map.cpp plfs_query.cpp plfs_recover.cpp
-	 plfs_version.cpp)
+     plfs_flatten_index.cpp plfs_map.cpp plfs_query.cpp plfs_recover.cpp
+     plfs_version.cpp)
     get_filename_component(PROG ${SOURCE} NAME_WE)
     add_executable(${PROG} ${PLFS_TOOLS_DIR}/${SOURCE})
     target_link_libraries (${PROG} plfs_lib)
@@ -355,6 +355,12 @@ endforeach(SOURCE)
 #test tools
 add_subdirectory("${PLFS_TESTS_DIR}")
 
+#analysis
+if($ENV{PLFS_ACE})
+    set(PLFS_ANALYSIS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/scripts/analysis")
+    add_subdirectory("${PLFS_ANALYSIS_DIR}")
+endif()
+
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     #set devloper compiler options 
     #ALL developers should build in debug mode by default
@@ -369,9 +375,9 @@ INSTALL(TARGETS dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls
 INSTALL(FILES "${PLFS_BUILD_DIR}/plfs.h" DESTINATION ${INCLUDEDIR})
 INSTALL(FILES "${PLFS_SOURCE_DIR}/plfs_error.h" DESTINATION ${INCLUDEDIR})
 INSTALL(FILES "${PLFS_SOURCE_DIR}/Mlog/mlogfacs.h"
-	      "${PLFS_SOURCE_DIR}/plfs_internal.h" 
-	      "${PLFS_SOURCE_DIR}/Util.h" 
-    	      "${PLFS_SOURCE_DIR}/COPYRIGHT.h" DESTINATION ${INCLUDEDIR}/plfs)
+          "${PLFS_SOURCE_DIR}/plfs_internal.h" 
+          "${PLFS_SOURCE_DIR}/Util.h" 
+              "${PLFS_SOURCE_DIR}/COPYRIGHT.h" DESTINATION ${INCLUDEDIR}/plfs)
 
 #man pages
 add_subdirectory("${PLFS_MAN_DIR}")

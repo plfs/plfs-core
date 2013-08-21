@@ -1,0 +1,49 @@
+###############################################################################
+                    ACE: Analysis of Coordinated Executions
+                        An Analysis Framework for PLFS
+###############################################################################
+
+A tool for use within PLFS to visualize data and how it is stored in PLFS.
+Graphs and visualizes bandwidths, I/Os in flight, the physical file layout,
+the offsets written by each processor, and the times each processor was
+writing.
+
+***************************************************************************
+System Requirements
+***************************************************************************
+
+The framework requires Swig, mpi, Matplotlib, networkx, and Wxpython
+(wxpython is required only for the interactive interface and mpi is only
+required for the parallel version. There is a serial version that does not
+require mpi)
+
+***************************************************************************
+Installing
+***************************************************************************
+
+The framework is installed with PLFS. By default, ACE is not installed. In
+order to install ACE with PLFS, set the environment variable PLFS_ACE to 1
+before building. For more information about how to
+install PLFS, please see README.install in the main folder. If you are unable
+to find mpi, when running CMAKE try setting -DMPI_INCLUDE_PATH and 
+-DMPI_LIBRARY to your specific version of mpi. 
+
+***************************************************************************
+Using the Framework
+***************************************************************************
+
+The following is a quick-start guide for using the framework to produce
+a pdf. To start the interactive features, please see README.documentation.
+For more information about features, see README.documentation.
+
+Quick Start Guide:
+1) Go into analysis.sh and adjust the top two variables to match the
+PLFS file you wish to analyze. Make sure to give a parallel file system
+as the second variable. If you are using a SLURM system, use analysis_slurm.sh
+instead. 
+2) Within analysis.sh, adjust the mpi run command based on your current
+mpi system. (For example, on a Cray machine, you will use the aprun command)
+3) Submit analysis.sh to your job scheduler and a pdf will be produced
+that analyzes your file. You should submit the job from within the
+scripts/analysis folder.
+
