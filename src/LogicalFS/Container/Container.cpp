@@ -13,7 +13,6 @@ using namespace std;
 #include "IOStore.h"
 #include "FileOp.h"
 #include "Container.h"
-#include "OpenFile.h"
 #include "plfs.h"
 #include "plfs_private.h"
 #include "Util.h"
