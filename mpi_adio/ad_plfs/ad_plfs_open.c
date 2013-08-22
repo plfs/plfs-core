@@ -626,6 +626,7 @@ void adplfs_read_and_merge(ADIO_File fd,int rank,
      * a global index by merging all the ranks data into a single index
      * using container_parindexread_merge().
      */
+    free(index_stream); // index_stream no longer needed
     global_index_sz=container_parindexread_merge(filename,index_streams,
                                             index_sizes,np,global_index);
     check_stream(global_index_sz,rank);
@@ -730,6 +731,8 @@ void adplfs_split_and_merge(ADIO_File fd,int rank,int extra_rank,
                index_disp,MPI_CHAR,0,hostdir_comm);
     void *hostdir_index_stream;
     int hostdir_index_sz;
+    // No longer need this information
+    free(index_stream);
     // Hostdir leader
     if(!new_rank) {
         /*
@@ -741,8 +744,6 @@ void adplfs_split_and_merge(ADIO_File fd,int rank,int extra_rank,
         free(index_disp);
         free(index_sizes);
     }
-    // No longer need this information
-    free(index_stream);
     int hzc_size,global_index_sz;
     // Hostdir leader pass information to the other leaders
     if(!new_rank) {
@@ -768,6 +769,9 @@ void adplfs_split_and_merge(ADIO_File fd,int rank,int extra_rank,
         MPIALLGATHERV(hostdir_index_stream,hostdir_index_sz,MPI_CHAR,
                       index_streams,index_sizes,index_disp,MPI_CHAR,
                       hostdir_zeros_comm);
+        // free send buffers
+        free(hostdir_index_stream);
+        free(index_disp);
         // Merge these streams into a single global index
         global_index_sz=container_parindexread_merge(filename,index_streams,
                                                 index_sizes,hzc_size,
@@ -775,8 +779,6 @@ void adplfs_split_and_merge(ADIO_File fd,int rank,int extra_rank,
         check_stream(global_index_sz,rank);
         // Free all of our malloced structures
         free(index_streams);
-        free(hostdir_index_stream);
-        free(index_disp);
         free(index_sizes);
     }
 
