@@ -59,71 +59,6 @@ struct ADIOI_Fns_struct ADIO_PLFS_operations = {
 #endif
 };
 
-int plfs_protect_all(const char *file, MPI_Comm comm) {
-    int rank;
-    MPI_Comm_rank(comm,&rank);
-    plfs_error_t plfs_ret = container_protect(file,rank);
-    return -(plfs_error_to_errno(plfs_ret));
-}
-
-int ad_plfs_amode( int access_mode )
-{
-    int amode = 0; // O_META;
-    if (access_mode & ADIO_RDONLY) {
-        amode = amode | O_RDONLY;
-    }
-    if (access_mode & ADIO_WRONLY) {
-        amode = amode | O_WRONLY;
-    }
-    if (access_mode & ADIO_RDWR) {
-        amode = amode | O_RDWR;
-    }
-    if (access_mode & ADIO_EXCL) {
-        amode = amode | O_EXCL;
-    }
-    return amode;
-}
-
-
-
-int ad_plfs_hints(ADIO_File fd, int rank, char *hint)
-{
-    int hint_value=0,flag,resultlen,mpi_ret;
-    char *value;
-    char err_buffer[MPI_MAX_ERROR_STRING];
-    // get the value of broadcast
-    value = (char *) ADIOI_Malloc((MPI_MAX_INFO_VAL+1));
-    mpi_ret=MPI_Info_get(fd->info,hint,MPI_MAX_INFO_VAL,value,&flag);
-    // If there is an error on the info get the rank and the error message
-    if(mpi_ret!=MPI_SUCCESS) {
-        MPI_Error_string(mpi_ret,err_buffer,&resultlen);
-        MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
-        return -1;
-    } else {
-        if(flag) {
-            hint_value = atoi(value);
-        }
-    }
-    ADIOI_Free(value);
-    return hint_value;
-}
-
-void malloc_check(void *test_me,int rank)
-{
-    if(!test_me) {
-        plfs_debug("Rank %d failed a malloc check\n");
-        MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
-    }
-}
-
-void check_stream(int size,int rank)
-{
-    if(size<0) {
-        plfs_debug("Rank %d had a stream with a negative return size\n");
-        MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
-    }
-}
-
 #ifdef ROMIO_CRAY
 /* --BEGIN CRAY ADDITION-- */
 
@@ -320,7 +255,7 @@ plfs_error_t plfs_query( Plfs_fd *fd, size_t *writers, size_t *readers,
     return PLFS_ENOSYS; /* never gets here */
 }
 
-plfs_filetype plfs_get_filetype(const char *path)
+plfs_filetype plfs_get_filetype(const char *)
      __attribute__ ((weak));
 plfs_filetype plfs_get_filetype(const char *path)
 {
@@ -328,5 +263,95 @@ plfs_filetype plfs_get_filetype(const char *path)
     return -1; /* never gets here */
 }
 
+plfs_error_t container_num_host_dirs(int *, char *, void *, char *)
+    __attribute__ ((weak));
+plfs_error_t container_num_host_dirs(int *hostdir_count, char *target, void *vback, 
+                                     char *bm)
+{
+   no_link_abort();
+   return PLFS_ENOSYS; /* never gets here */
+}
+
+int plfs_error_to_errno(plfs_error_t)  
+    __attribute__ ((weak));
+int plfs_error_to_errno(plfs_error_t plfs_err)
+{
+   no_link_abort();
+   return -1; /* never gets here */
+}
+
+const char *strplfserr(plfs_error_t) 
+   __attribute__ ((weak));
+const char *strplfserr(plfs_error_t err)
+{
+   no_link_abort();
+   return NULL; /* never gets here */
+}
+
 /* --END CRAY ADDITION-- */
 #endif
+
+int plfs_protect_all(const char *file, MPI_Comm comm) {
+    int rank;
+    MPI_Comm_rank(comm,&rank);
+    plfs_error_t plfs_ret = container_protect(file,(pid_t)rank);
+    return -(plfs_error_to_errno(plfs_ret));
+}
+
+int ad_plfs_amode( int access_mode )
+{
+    int amode = 0; // O_META;
+    if (access_mode & ADIO_RDONLY) {
+        amode = amode | O_RDONLY;
+    }
+    if (access_mode & ADIO_WRONLY) {
+        amode = amode | O_WRONLY;
+    }
+    if (access_mode & ADIO_RDWR) {
+        amode = amode | O_RDWR;
+    }
+    if (access_mode & ADIO_EXCL) {
+        amode = amode | O_EXCL;
+    }
+    return amode;
+}
+
+
+
+int ad_plfs_hints(ADIO_File fd, int rank, char *hint)
+{
+    int hint_value=0,flag,resultlen,mpi_ret;
+    char *value;
+    char err_buffer[MPI_MAX_ERROR_STRING];
+    // get the value of broadcast
+    value = (char *) ADIOI_Malloc((MPI_MAX_INFO_VAL+1));
+    mpi_ret=MPI_Info_get(fd->info,hint,MPI_MAX_INFO_VAL,value,&flag);
+    // If there is an error on the info get the rank and the error message
+    if(mpi_ret!=MPI_SUCCESS) {
+        MPI_Error_string(mpi_ret,err_buffer,&resultlen);
+        MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
+        return -1;
+    } else {
+        if(flag) {
+            hint_value = atoi(value);
+        }
+    }
+    ADIOI_Free(value);
+    return hint_value;
+}
+
+void malloc_check(void *test_me,int rank)
+{
+    if(!test_me) {
+        plfs_debug("Rank %d failed a malloc check\n", rank);
+        MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
+    }
+}
+
+void check_stream(int size,int rank)
+{
+    if(size<0) {
+        plfs_debug("Rank %d had a stream with a negative return size\n", rank);
+        MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO);
+    }
+}

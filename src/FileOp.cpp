@@ -62,21 +62,16 @@ plfs_error_t Access( const string& path, IOStore *store, int mask )
 
     ret = store->Access( path.c_str(), F_OK );
     if ( ret == PLFS_SUCCESS ) {
-        bool mode_set=false;
         // at this point, we know the file exists
         if(checkMask(mask,W_OK|R_OK)) {
             open_mode = O_RDWR;
-            mode_set=true;
         } else if(checkMask(mask,R_OK)||checkMask(mask,X_OK)) {
             open_mode = O_RDONLY;
-            mode_set=true;
         } else if(checkMask(mask,W_OK)) {
             open_mode = O_WRONLY;
-            mode_set=true;
         } else if(checkMask(mask,F_OK)) {
             return PLFS_SUCCESS;   // we already know this
         }
-        assert(mode_set);
         mlog(FOP_DCOMMON, "The file exists attempting open");
         ret = store->Open(path.c_str(),open_mode,&fh);
         mlog(FOP_DCOMMON, "Open %s: %s",path.c_str(),ret==PLFS_SUCCESS?"Success":strplfserr(ret));

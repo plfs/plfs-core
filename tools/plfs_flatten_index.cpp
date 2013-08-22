@@ -18,8 +18,9 @@ int main (int argc, char **argv) {
         return -1;
     }
     plfs_handle_version_arg(argc, argv[1]);
-    int ret = plfs_resolvepath(target, &ppi);
-    if (ret) {
+    plfs_error_t ret = PLFS_SUCCESS;
+    ret = plfs_resolvepath(target, &ppi);
+    if (ret != PLFS_SUCCESS) {
         fprintf(stderr, "Couldn't resolve path %s\n", target);
         exit(1);
     }
