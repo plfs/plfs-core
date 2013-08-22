@@ -51,7 +51,7 @@ find_read_tasks(PLFSIndex *index, list<ReadTask> *tasks, size_t size,
         if ( ret == PLFS_SUCCESS ) {
             task.length = min(bytes_remaining,(ssize_t)task.length);
             task.buf = &(buf[bytes_traversed]);
-            task.logical_offset = offset;
+            task.logical_offset = offset + bytes_traversed;
             bytes_remaining -= task.length;
             bytes_traversed += task.length;
         }
@@ -67,7 +67,7 @@ find_read_tasks(PLFSIndex *index, list<ReadTask> *tasks, size_t size,
             // there seems to be a merging bug now too
             if ( ! tasks->empty() > 0 ) {
                 ReadTask lasttask = tasks->back();
-                if ( lasttask.fh == task.fh &&
+                if ( task.fh != NULL && lasttask.fh == task.fh &&
                         lasttask.hole == task.hole &&
                         lasttask.chunk_offset + (off_t)lasttask.length ==
                         task.chunk_offset &&

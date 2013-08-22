@@ -40,3 +40,19 @@
 
   Please see mpi_adio/README.patching for instructions on getting PLFS
   to work as a ROMIO ADIO layer.
+
+3) To install the ACE analysis framework. 
+
+   0) In order to run the tools that work with mpi, you'll need to have a version of
+      mpi installed and loaded. In order to run any of the tools, you will need 
+      to have a version of swig and the following python modules: matplotlib and 
+      networkx. If you want to run the interactive version, you will also need 
+      the wxpython python module.
+   1) Set the shell environment variable PLFS_ACE to 1 in order for the module to 
+      be built. 
+   2) If you are using a version of mpi that cmake is unable to find, set the 
+      following variables when running cmake. 
+      -DMPI_INCLUDE_PATH=/path/to/mpi/include/files to the include 
+      files of mpi and -DMPI_LIBRARY=/path/to/mpi/lib/file
+      to the file of the library .so. The library
+      file should be a library for c++ as the tool is written in c++. 

@@ -116,12 +116,12 @@ struct mlog_state {
  * global data.  this sets mlog_xst.tag to 0, meaning the log is not open.
  * this is global so mlog_filter() in mlog.h can get at it.
  */
-struct mlog_xstate mlog_xst = { 0 };
+struct mlog_xstate mlog_xst = { 0,0,0,0 };
 
 /*
  * static data.
  */
-static struct mlog_state mst = { 0 };
+static struct mlog_state mst;
 static int mlog2syslog[] = {
     LOG_DEBUG,     /* MLOG_DBUG */
     LOG_INFO,      /* MLOG_INFO */
@@ -196,7 +196,7 @@ static void mlog_getmbptrs(char **one, int *onelen, char **two, int *twolen)
  */
 static void mlog_dmesg_mbuf(char **b1p, int *b1len, char **b2p, int *b2len)
 {
-    uint32_t skip;
+    int32_t skip;
     /* get pointers */
     mlog_getmbptrs(b1p, b1len, b2p, b2len);
     /* if the buffer wasn't full, we need to adjust the pointers */
@@ -512,8 +512,8 @@ static void vmlog(int flags, const char *fmt, va_list ap)
     char facstore[16], *facstr;
     struct timeval tv;
     struct tm *tm;
-    int hlen_pt1, hlen, mlen, tlen, thisflag;
-    int resid;
+    unsigned int hlen_pt1, hlen, mlen, tlen, thisflag;
+    unsigned int resid;
     char *m1, *m2;
     int m1len, m2len, ncpy;
     //since we ignore any potential errors in MLOG let's always re-set 
@@ -1113,7 +1113,8 @@ int mlog_setlogmask(int facility, int mask)
 void mlog_setmasks(char *mstr, int mlen0)
 {
     char *m, *current, *fac, *pri, pbuf[8];
-    int mlen, facno, clen, elen, faclen, prilen, prino;
+    int mlen, facno, clen, elen, prilen, prino;
+    unsigned int faclen;
     /* not open? */
     if (!mlog_xst.tag) {
         return;
@@ -1459,7 +1460,7 @@ int mlog_findmesgbuf(char *b, int len, char **b1p, int *b1l,
 {
     char *ptr, *headend, *bufend;
     struct mlog_mbhead mb;
-    uint32_t skip;
+    int32_t skip;
     ptr = b;                                 /* current pointer */
     bufend = b + len;                        /* end of buffer */
     headend = bufend - sizeof(struct mlog_mbhead);  /* can't start from here */

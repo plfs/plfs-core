@@ -23,9 +23,10 @@ int main (int argc, char **argv) {
         if (strcmp(argv[1], "-version") != 0) { 
             printf("file: %s\n\t", argv[1]);
             const char *version;
-            int ret = container_file_version(argv[1], &version);
-            if ( ret != 0 ) {
-                printf("Error: %s\n", strerror(-ret));
+            plfs_error_t ret = PLFS_SUCCESS;
+            ret = container_file_version(argv[1], &version);
+            if ( ret != PLFS_SUCCESS ) {
+                printf("Error: %s\n", strerror(-plfs_error_to_errno(ret)));
                 printf("%s may not be on an n-1 mount point\n", argv[1]);
             } else {
                 printf("%s\n", version);

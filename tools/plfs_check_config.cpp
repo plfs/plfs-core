@@ -15,9 +15,10 @@ int main (int argc, char **argv) {
             make_dir = true;
         }
     }
-    int ret = plfs_dump_config(true, make_dir);
-    if ( ret == 0 ) std::cout << "SUCCESS" << std::endl;
+    plfs_error_t ret = PLFS_SUCCESS;
+    ret = plfs_dump_config(true, make_dir);
+    if ( ret == PLFS_SUCCESS ) std::cout << "SUCCESS" << std::endl;
     else            std::cout << "ERROR" << std::endl;
     //container_dump_index_size();
-    exit( ret );
+    exit( plfs_error_to_errno(ret) );
 }
