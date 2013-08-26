@@ -81,15 +81,13 @@ getMaxMinTimes(int numIndexFiles, int size, char* mount, double* minMax,
     int rank, i; 
     plfs_error_t retv;  
     char buffer[4096];
-    char name[50];
+    char name[4096];
     FILE* tmp; 
     int id; 
     long long offset, length, tail; 
     int pid; 
     char io; 
     double beg, end;
-    char id2[128];
-    char chunk[128];
     sendMinMax[0] = DBL_MAX; 
     sendMinMax[1] = DBL_MIN; 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
@@ -118,12 +116,14 @@ getMaxMinTimes(int numIndexFiles, int size, char* mount, double* minMax,
                     if (buffer[0] != '#') 
                     {
                         int items = sscanf(buffer, 
-                            "%d %c %lld %lld %lf %lf %lld %s %s", 
+                            "%d %c %lld %lld %lf %lf %lld", 
                             &id, &io, &offset, &length, 
-                            &beg, &end, &tail, &id2, &chunk); 
-                        if (items != 9) {
-                            printf("ERROR: sscanf failed. Buffer: %s\n", buffer); 
-                        }
+                            &beg, &end, &tail);
+                        if (items != 7) {
+                            printf("ERROR: sscanf failed. Buffer: %s\n",
+                                   buffer);
+                            return -1;
+                        } 
                         if (fileEnd < end) {
                             fileEnd = end; 
                         }
@@ -138,7 +138,7 @@ getMaxMinTimes(int numIndexFiles, int size, char* mount, double* minMax,
                 fclose(tmp); 
             }
             else {
-                printf("ERROR: Container_dump_index did not succeed: %s\n", 
+                printf("ERROR: Container_dump_index did not succeed: %s\n",
                         strplfserr(retv));
                 return -1; 
             }
@@ -156,9 +156,12 @@ getMaxMinTimes(int numIndexFiles, int size, char* mount, double* minMax,
     double localMax = sendMinMax[1];
     MPI_Barrier(MPI_COMM_WORLD); 
     MPI_Allreduce(&localMin, &min, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
     MPI_Allreduce(&localMax, &max, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
     MPI_Allreduce(&sendEndSum, endSum, 1, MPI_DOUBLE, MPI_SUM,
                 MPI_COMM_WORLD); 
+    MPI_Barrier(MPI_COMM_WORLD);
     MPI_Allreduce(sendEndTimes, endTimes, numIndexFiles, MPI_DOUBLE, MPI_SUM, 
                 MPI_COMM_WORLD); 
     minMax[0] = min; 
@@ -204,7 +207,7 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
         return -1; 
     }
     char buffer[4096];
-    char name[50];
+    char name[4096];
     int rank, i, pid; 
     plfs_error_t retv;  
     FILE* tmp; 
@@ -212,11 +215,9 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
     long long length, tail, offset; 
     char io; 
     double beg, end, delta, averageBan; 
-    char id2[128];
-    char chunk[128]; 
     int startBin, binsSpanned; 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
-    double fileEnd = DBL_MIN; 
+    double fileEnd = -1*DBL_MAX; 
     for (i = 0; i<numIndexFiles; i++) {
         if (i % size == rank) {
             /*Create a temporary file */
@@ -240,12 +241,13 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
                     if (buffer[0] != '#') 
                     {
                         int items = sscanf(buffer, 
-                            "%d %c %lld %lld %lf %lf %lld %s %s",
+                            "%d %c %lld %lld %lf %lf %lld",
                             &id, &io, &offset, &length, 
-                            &beg, &end, &tail, &id2, &chunk);
-                        if (items != 9) {
-                            printf("ERROR: sscanf failed. Buffer: %s\n", buffer); 
-                            return -1; 
+                            &beg, &end, &tail);
+                        if (items != 7) {
+                            printf("ERROR: sscanf failed. Buffer: %s\n",
+                                   buffer);
+                            return -1;
                         }
                         /* this id was arbitrary so I will change it to
                         * match the index id, which is the pid */
@@ -256,8 +258,9 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
                          * time bin gets everything from the current write */
                         binsSpanned = ceil((delta/binSize));
                         /* calculates the average of the bandwidth 
-                         * for the current write*/
-                        averageBan = length/(delta*1024*1024); 
+                         * for the current write in terms of bins covered*/
+                        averageBan = (length/(delta*1024*1024) *
+                                      (delta/binSize - floor(delta/binSize)));
                         startBin = floor((beg-min)/binSize); 
                         for (int j =0; j<binsSpanned; j++) 
                         {
@@ -347,15 +350,13 @@ writeProcessorData(int numIndexFiles, int size, char* mount,
 {
     int i, rank, pid, id; 
     plfs_error_t retv; 
-    char name[50];
+    char name[4096];
     char buffer[4096]; 
     FILE * tmp; 
     long long offset, length, tail;
     long long writeID; 
     char io; 
     double beg, end; 
-    char id2[128]; 
-    char chunk[128];
     MPI_File offsetsFile; 
     MPI_File timeFile; 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
@@ -401,13 +402,14 @@ writeProcessorData(int numIndexFiles, int size, char* mount,
                     if(buffer[0] != '#')
                     {
                         int items = sscanf(buffer, 
-                            "%d %c %lld %lld %lf %lf %lld %s %s", 
+                            "%d %c %lld %lld %lf %lf %lld", 
                             &id, &io, &offset, &length, 
-                            &beg, &end, &tail, &id2, &chunk); 
-                        if (items != 9) {
-                            printf("ERROR: sscanf failed. Buffer: %s\n", buffer); 
-                            return -1; 
-                        }
+                            &beg, &end, &tail);
+                        if (items != 7) {
+                            printf("ERROR: sscanf failed. Buffer: %s\n", 
+                                   buffer);
+                            return -1;
+                        } 
                         /* this id was arbitrary so I will change
                         * it to match the index id */
                         writeID = pid; 
@@ -453,7 +455,7 @@ writeProcessorData(int numIndexFiles, int size, char* mount,
                 fclose(tmp); 
             }
             else {
-                printf("ERROR: Container_dump_index did not succeed: %s\n", 
+                printf("ERROR: Container_dump_index did not succeed: %s\n",
                         strplfserr(retv));
                 return -1; 
             }
@@ -545,8 +547,8 @@ main( int argc, char *argv[] )
     char* queryFile = NULL;
     char* mount = NULL; 
     char* jobId = NULL;
-    char offsetMPI[128]; 
-    char timeMPI[128];
+    char offsetMPI[4096]; 
+    char timeMPI[4096];
     int c;
     /* with the -p flag, this is set to true and the processor graphs
      * will be generated */
@@ -648,6 +650,7 @@ main( int argc, char *argv[] )
     if (rank == 0) {
         average = endSum/numIndexFiles;
     }
+    MPI_Barrier(MPI_COMM_WORLD);
     MPI_Bcast(&average, 1, MPI_LONG_DOUBLE, 0, MPI_COMM_WORLD); 
     if (rank == 0) {
         binSize = (minMax[1] - minMax[0])/numBins;
