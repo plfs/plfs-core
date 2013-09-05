@@ -2,6 +2,7 @@ import analysis
 import matplotlib.pyplot as plt
 import networkx as nx
 import re
+import gc
 
 def bandwidthGraphs(times, bandwidths, iosTime, iosFin, hostdirs, sizes, units):
     logicalFilename = hostdirs[0][1]
@@ -67,12 +68,14 @@ def barGraph(writeBins, units):
     rect = ax.bar(range(n), writeBins)
     width = rect[0].get_width()
     labels = []
+    gc.disable()
     for bin in bins:
         if bin != 0:
                 (size, count) = analysis.scale(bin)
                 labels.append("%.1f%s" % (size, units[count]))
         else:
             labels.append("")
+    gc.enable()
     #add the counts to the top of each bar
     for i in xrange(n):
         count = writeBins[i]

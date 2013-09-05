@@ -177,7 +177,7 @@ int
 powersOfTwo(int input) 
 {
     int powers = 0; 
-    while (input > 2)  
+    while (input >= 2)  
     {
         input /= 2; 
         powers ++; 
@@ -194,10 +194,10 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
         int* pids)
 {
     double* sendBandwidths = (double *)calloc(numBins, sizeof(double)); 
-    int* sendIOsTime = (int *)calloc(numBins, sizeof(int)); 
-    int* sendIOsFin = (int *)calloc(numBins, sizeof(int));  
+    double* sendIOsTime = (double *)calloc(numBins, sizeof(double)); 
+    double* sendIOsFin = (double *)calloc(numBins, sizeof(double));  
     /* 51 is the number of bins in the write histogram */
-    int* sendWriteCount = (int *)calloc(51, sizeof(int)); 
+    double* sendWriteCount = (double *)calloc(51, sizeof(double)); 
     double sendSumDiffSquare = 0; 
     double sumDiffSquare = 0; 
     if ((sendBandwidths == NULL) | (sendIOsTime == NULL) | (sendIOsFin == NULL) 
@@ -264,18 +264,11 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
                         startBin = floor((beg-min)/binSize); 
                         for (int j =0; j<binsSpanned; j++) 
                         {
+                            /* writing at these bins */
                             sendBandwidths[startBin+j] += averageBan; 
-                            if (j < (binsSpanned - 1))
-                            {
-                                /* we are writing at this bin */
-                                sendIOsTime[startBin+j] += 1; 
-                            }
-                            if (j == (binsSpanned - 1))
-                            {
-                                /* we are finally done as this is our last bin*/
-                                sendIOsFin[startBin+j] += 1; 
-                            }
+                            sendIOsTime[startBin+j] += 1; 
                         }
+                        sendIOsFin[startBin+binsSpanned] += 1;
                         int writeIndex = powersOfTwo(length); 
                         /* The last bin is for all that is above 1 PiB 
                          * which is 51 as writeCounts is of length 51 */
@@ -413,41 +406,26 @@ writeProcessorData(int numIndexFiles, int size, char* mount,
                         /* this id was arbitrary so I will change
                         * it to match the index id */
                         writeID = pid; 
+                        long long mpiSendBuffer[3] = {writeID, offset, tail};
                         MPI_File_write_at(offsetsFile, 
                                     rank*offsetSize + 
                                     writesOffset*size*offsetSize, 
-                                    &writeID, 1, MPI_LONG_LONG, 
+                                    &mpiSendBuffer, 3, MPI_LONG_LONG, 
                                     MPI_STATUS_IGNORE); 
-                        MPI_File_write_at(offsetsFile, rank*offsetSize +
-                                    writesOffset*size*offsetSize +
-                                    sizeof(long long), 
-                                    &offset, 1, MPI_LONG_LONG, 
-                                    MPI_STATUS_IGNORE); 
-                        MPI_File_write_at(offsetsFile, rank*offsetSize + 
-                                    writesOffset*size*offsetSize + 
-                                    2*sizeof(long long), &tail, 1, 
-                                    MPI_LONG_LONG, MPI_STATUS_IGNORE);
                         writesOffset ++; 
                         /* see if we need to write this time out */
                         if ((numIndexFiles <= 16) ||
                             ((above) && (endTimes[i] > topCutoff)) || 
                             ((below) && (endTimes[i] < bottomCutoff))) {
                             double newId = pid;
+                            double mpiSendBuffer2[3] = {newId, beg, end};
                             /* we want to only graph the time of the job*/
                             beg -= start; 
                             end -= start; 
                             MPI_File_write_at(timeFile, rank*timeSize +
                                     writesTime*size*timeSize, 
-                                    &newId, 1, MPI_DOUBLE, 
+                                    &mpiSendBuffer2, 3, MPI_DOUBLE, 
                                     MPI_STATUS_IGNORE); 
-                            MPI_File_write_at(timeFile, rank*timeSize + 
-                                    writesTime*size*timeSize +
-                                    sizeof(double), &beg, 1, MPI_DOUBLE,
-                                    MPI_STATUS_IGNORE); 
-                            MPI_File_write_at(timeFile, rank*timeSize +
-                                    writesTime*size*timeSize + 
-                                    2*sizeof(double), &end,
-                                    1, MPI_DOUBLE, MPI_STATUS_IGNORE);
                             writesTime ++; 
                         }
                     }
@@ -550,6 +528,7 @@ main( int argc, char *argv[] )
     char offsetMPI[4096]; 
     char timeMPI[4096];
     int c;
+    int ret = 0;
     /* with the -p flag, this is set to true and the processor graphs
      * will be generated */
     bool processorGraph = false; 
@@ -645,7 +624,9 @@ main( int argc, char *argv[] )
         printf("ERROR:Could not allocate memory for ending Times\n"); 
         return -1; 
     }
-    getMaxMinTimes(numIndexFiles, size, mount, minMax, &endSum, endTimes,pids); 
+    ret = getMaxMinTimes(numIndexFiles, size, mount, minMax, &endSum, endTimes,pids); 
+    if (ret != 0)
+        MPI_Abort(MPI_COMM_WORLD, ret);
     double average; 
     if (rank == 0) {
         average = endSum/numIndexFiles;
@@ -668,19 +649,23 @@ main( int argc, char *argv[] )
         | (writeCount == NULL)) 
     {
         printf("Could not allocate data placements\n"); 
-        return -1; 
+        MPI_Abort(MPI_COMM_WORLD, -1);
     }
-    parseData(numIndexFiles, size, mount, binSize, numBins, 
+    ret = parseData(numIndexFiles, size, mount, binSize, numBins, 
                 bandwidths, iosTime, iosFin, writeCount, minMax[0], 
                 average, &stdev, pids); 
+    if (ret != 0)
+        MPI_Abort(MPI_COMM_WORLD, ret);
     MPI_Barrier(MPI_COMM_WORLD); 
     MPI_Bcast(&stdev, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     int retv; 
     if (processorGraph) 
     {
-        writeProcessorData(numIndexFiles, size, mount, offsetMPI,average, stdev,
+        ret = writeProcessorData(numIndexFiles, size, mount, offsetMPI,average, stdev,
                             endTimes, timeMPI, minMax[0], above, below, 
-                            numStdDev, pids); 
+                            numStdDev, pids);
+        if (ret != 0)
+            MPI_Abort(MPI_COMM_WORLD, ret);
     }
     int numAbove = 0; 
     int numBelow = 0; 
@@ -703,8 +688,9 @@ main( int argc, char *argv[] )
         retv = writeOutputText(outputFile,numBins,minMax,binSize,bandwidths,
                                 iosTime,iosFin,writeCount, average, numAbove, 
                                 numBelow);
-        if (retv == -1) {
-            return -1; 
+        if (retv != 0) {
+            printf("Writing output file failed!\n");
+            return retv; 
         }
     }
     free(pids); 
