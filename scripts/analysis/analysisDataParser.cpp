@@ -266,7 +266,8 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
                         {
                             /* writing at these bins */
                             sendBandwidths[startBin+j] += averageBan; 
-                            sendIOsTime[startBin+j]++; 
+                            if (j < (binsSpanned - 1))
+                                sendIOsTime[startBin+j]++; 
                         }
                         // here we increment all further bins for a running sum
                         int i = 0;
