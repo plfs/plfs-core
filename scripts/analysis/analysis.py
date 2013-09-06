@@ -42,7 +42,7 @@ def parseData(inputFile):
     iosTime = sections[2].split()
     iosFin = sections[3].split()
     writeBins = []
-    writeBins = [int(x) for x in sections[4].split()]
+    writeBins = [long(x) for x in sections[4].split()]
     average = average - startTime
     return (times, bandwidths, iosTime, iosFin, writeBins, average,\
              above, below)

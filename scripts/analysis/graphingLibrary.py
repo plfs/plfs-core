@@ -23,11 +23,12 @@ def bandwidthGraphs(times, bandwidths, iosTime, iosFin, hostdirs, sizes, units):
     ax1.get_xaxis().set_visible(False)
     ax2 = fig1.add_subplot(2, 1, 2)
     plot1, = ax2.plot(times, iosTime)
-    plot2, = ax2.plot(times, iosFin)
+    ax3 = ax2.twinx()
+    plot2, = ax3.plot(times, iosFin, 'g')
     ax2.legend([plot1, plot2], ["IOs running", "IOs finished"], prop={'size':8}) 
     ax2.set_ylabel("Number of IOs", fontsize=10)
     ax2.set_xlabel("Time", fontsize=10)
-    ax2.set_ylim([0, numberOfProcesses + 1])
+    # ax2.set_ylim([0, max(iosTime)])
 
 def networkGraph(hostdirs):
     # create the file hierarchy graph

@@ -189,15 +189,15 @@ powersOfTwo(int input)
  * standard deviation of the end times*/
 int
 parseData(int numIndexFiles, int size, char* mount, double binSize,
-        int numBins, double* bandwidths, int* iosTime, int* iosFin, 
-        int* writeCount, double min, double average, double* stdev, 
+        int numBins, double* bandwidths, long long* iosTime, long long* iosFin, 
+        long long* writeCount, double min, double average, double* stdev, 
         int* pids)
 {
     double* sendBandwidths = (double *)calloc(numBins, sizeof(double)); 
-    double* sendIOsTime = (double *)calloc(numBins, sizeof(double)); 
-    double* sendIOsFin = (double *)calloc(numBins, sizeof(double));  
+    long long* sendIOsTime = (long long *)calloc(numBins, sizeof(long long)); 
+    long long* sendIOsFin = (long long *)calloc(numBins, sizeof(long long));  
     /* 51 is the number of bins in the write histogram */
-    double* sendWriteCount = (double *)calloc(51, sizeof(double)); 
+    long long* sendWriteCount = (long long *)calloc(51, sizeof(long long)); 
     double sendSumDiffSquare = 0; 
     double sumDiffSquare = 0; 
     if ((sendBandwidths == NULL) | (sendIOsTime == NULL) | (sendIOsFin == NULL) 
@@ -266,18 +266,24 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
                         {
                             /* writing at these bins */
                             sendBandwidths[startBin+j] += averageBan; 
-                            sendIOsTime[startBin+j] += 1; 
+                            sendIOsTime[startBin+j]++; 
                         }
-                        sendIOsFin[startBin+binsSpanned] += 1;
+                        // here we increment all further bins for a running sum
+                        int i = 0;
+                        while (startBin + binsSpanned + i < numBins) 
+                        {
+                            sendIOsFin[startBin+binsSpanned+i]++;
+                            i++;
+                        }
                         int writeIndex = powersOfTwo(length); 
                         /* The last bin is for all that is above 1 PiB 
                          * which is 51 as writeCounts is of length 51 */
                         if (writeIndex >= 51)
                         {
-                            sendWriteCount[50] ++; 
+                            sendWriteCount[50]++; 
                         }
                         else {
-                            sendWriteCount[writeIndex] ++; 
+                            sendWriteCount[writeIndex]++; 
                         }
                         if (fileEnd < end) 
                         {
@@ -309,13 +315,13 @@ parseData(int numIndexFiles, int size, char* mount, double binSize,
     MPI_Allreduce(sendBandwidths, bandwidths, numBins, MPI_DOUBLE, 
                 MPI_SUM, MPI_COMM_WORLD); 
     MPI_Barrier(MPI_COMM_WORLD);
-    MPI_Allreduce(sendIOsTime, iosTime, numBins, MPI_INT, MPI_SUM, 
+    MPI_Allreduce(sendIOsTime, iosTime, numBins, MPI_LONG_LONG_INT, MPI_SUM, 
                 MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
-    MPI_Allreduce(sendIOsFin, iosFin, numBins, MPI_INT, 
+    MPI_Allreduce(sendIOsFin, iosFin, numBins, MPI_LONG_LONG_INT, 
                 MPI_SUM, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
-    MPI_Allreduce(sendWriteCount, writeCount, 51, MPI_INT, 
+    MPI_Allreduce(sendWriteCount, writeCount, 51, MPI_LONG_LONG_INT, 
                 MPI_SUM, MPI_COMM_WORLD); 
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Allreduce(&sendSumDiffSquare, &sumDiffSquare, 1, MPI_DOUBLE, 
@@ -462,8 +468,8 @@ init ( int argc, char *argv[] )
  * the write counts, and the average end time */
 int
 writeOutputText(char* outputFile, int numBins, double* minMax,
-                double binSize, double* bandwidths, int* iosTime,
-                int* iosFin, int* writeCount, double average, 
+                double binSize, double* bandwidths, long long* iosTime,
+                long long* iosFin, long long* writeCount, double average, 
                 int numAbove, int numBelow)
 {
     FILE* fp = fopen(outputFile, "w");  
@@ -486,20 +492,20 @@ writeOutputText(char* outputFile, int numBins, double* minMax,
     /* write the iosTime */
     for (int i = 0; i < numBins; i++) 
     {
-        fprintf(fp, "%d\n", iosTime[i]);
+        fprintf(fp, "%lld\n", iosTime[i]);
     }
     fprintf(fp, "%s\n", str);
     /* write iosFin */
     for (int i = 0; i < numBins; i++)
     {
-        fprintf(fp, "%d\n", iosFin[i]);
+        fprintf(fp, "%lld\n", iosFin[i]);
     }
     fprintf(fp, "%s\n", str); 
     /* write the write Counts */
     /* 51 is the number of bins in the write count list */
     for (int i = 0; i < 51; i++) 
     {
-        fprintf(fp, "%d\n", writeCount[i]); 
+        fprintf(fp, "%lld\n", writeCount[i]); 
     }
     fclose(fp);
     return 0;
@@ -640,11 +646,11 @@ main( int argc, char *argv[] )
     MPI_Bcast(&binSize, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD); 
     /* allocate data to place final counts in  */
     double * bandwidths = (double *)calloc(numBins, sizeof(double)); 
-    int * iosTime = (int *)calloc(numBins, sizeof(int)); 
-    int * iosFin = (int *)calloc(numBins, sizeof(int)); 
+    long long * iosTime = (long long *)calloc(numBins, sizeof(long long)); 
+    long long * iosFin = (long long *)calloc(numBins, sizeof(long long)); 
     /* we need 51 bins here because there are 10 bins between each 
     * size and the last is for those above PiB */
-    int * writeCount = (int *)calloc(51, sizeof(int)); 
+    long long * writeCount = (long long *)calloc(51, sizeof(long long)); 
     if ((bandwidths == NULL) | (iosTime == NULL) | (iosFin == NULL) 
         | (writeCount == NULL)) 
     {
