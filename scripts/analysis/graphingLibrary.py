@@ -2,6 +2,7 @@ import analysis
 import matplotlib.pyplot as plt
 import networkx as nx
 import re
+import gc
 
 def bandwidthGraphs(times, bandwidths, iosTime, iosFin, hostdirs, sizes, units):
     logicalFilename = hostdirs[0][1]
@@ -22,11 +23,12 @@ def bandwidthGraphs(times, bandwidths, iosTime, iosFin, hostdirs, sizes, units):
     ax1.get_xaxis().set_visible(False)
     ax2 = fig1.add_subplot(2, 1, 2)
     plot1, = ax2.plot(times, iosTime)
-    plot2, = ax2.plot(times, iosFin)
+    ax3 = ax2.twinx()
+    plot2, = ax3.plot(times, iosFin, 'g')
     ax2.legend([plot1, plot2], ["IOs running", "IOs finished"], prop={'size':8}) 
     ax2.set_ylabel("Number of IOs", fontsize=10)
     ax2.set_xlabel("Time", fontsize=10)
-    ax2.set_ylim([0, numberOfProcesses + 1])
+    # ax2.set_ylim([0, max(iosTime)])
 
 def networkGraph(hostdirs):
     # create the file hierarchy graph
@@ -42,6 +44,7 @@ def networkGraph(hostdirs):
             #these are the children
             m = re.search("hostdir\.[0-9]*/", path)
             indexNumber = m.group(0)
+            indexNumber = indexNumber[8:]
             G.add_node(indexNumber)
             G.add_edge(logicalFilename, indexNumber)
             if indexNumber not in pos: #hasn't been graphed already
@@ -67,12 +70,14 @@ def barGraph(writeBins, units):
     rect = ax.bar(range(n), writeBins)
     width = rect[0].get_width()
     labels = []
+    gc.disable()
     for bin in bins:
         if bin != 0:
                 (size, count) = analysis.scale(bin)
                 labels.append("%.1f%s" % (size, units[count]))
         else:
             labels.append("")
+    gc.enable()
     #add the counts to the top of each bar
     for i in xrange(n):
         count = writeBins[i]

@@ -148,7 +148,8 @@ class BandwidthsAndIOs(wx.Panel):
     
     def plotIO(self, times, iosTime, iosFin, numProc):
         plot1, = self.axes.plot(times, iosTime)
-        plot2, = self.axes.plot(times, iosFin)
+        ax3 = self.axes.twinx()
+        plot2, = ax3.plot(times, iosFin, 'g')
         self.axes.legend([plot1, plot2], ["IOs running", "IOs finished"], \
             prop={'size':8})
         self.axes.set_ylabel("Number of IOs", fontsize=12)

@@ -7,6 +7,7 @@ import re
 import os
 import plfsinterface
 import sys, getopt
+import gc
 
 # this is used to get the number of bytes in the offset graph on the
 # y axis label
@@ -35,15 +36,13 @@ def parseData(inputFile):
     above = int(items[4])
     below = int(items[5])
     times = []
-    for i in xrange(numBins):
-        times.append(i*delta)
+    times = [i*delta for i in range(numBins)]
     # get the rest of the information
     bandwidths = sections[1].split()
     iosTime = sections[2].split()
     iosFin = sections[3].split()
     writeBins = []
-    for item in sections[4].split():
-        writeBins.append(int(item))
+    writeBins = [long(x) for x in sections[4].split()]
     average = average - startTime
     return (times, bandwidths, iosTime, iosFin, writeBins, average,\
              above, below)
@@ -59,6 +58,7 @@ def getSizes(queryFile):
     hostdirs = []
     physicalFilename = ''
     try:
+        gc.disable()
         for line in f.readlines():
             readlines += 1
             if readlines == 2:
@@ -85,6 +85,7 @@ def getSizes(queryFile):
                 statinfo = os.stat(line)
                 indexSize += statinfo.st_size
         f.close()
+        gc.enable()
     except Exception, err:
         sys.stderr.write("ERROR:%s\n" % str(err))
         f.close()

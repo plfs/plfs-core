@@ -18,12 +18,15 @@ import plfsinterface
 import analysis
 import multiprocessing
 import graphingLibrary
+import gc
+import operator
 
 def graphPerProcessor(mpiFile,numberOfProcessors, average, jobID, above, below):
     offsets = mpiFile + "offsets" + jobID
     times = mpiFile + "times" + jobID
     fig4 = plt.figure()
     ax1 = fig4.add_subplot(2, 1, 1)
+    ax2 = fig4.add_subplot(2, 1, 2)
     offsetFile = open(offsets, "rb")
     title = ""
     if above != 0:
@@ -31,6 +34,8 @@ def graphPerProcessor(mpiFile,numberOfProcessors, average, jobID, above, below):
     if below != 0:
         title += "Number of Processors Ended Below Average: %d" % below
     # 24 is the size of the number of bytes we are reading for 3 items
+    gc.disable()
+    inputList = []
     while True:
         file = offsetFile.read(24)
         if len(file) != 24: # read the whole file
@@ -38,16 +43,39 @@ def graphPerProcessor(mpiFile,numberOfProcessors, average, jobID, above, below):
         else:
             (id, beg, end) = struct.unpack("qqq", file)
             if (id, beg, end) != (0.0, 0.0, 0.0):
-                ax1.plot([id, id], [beg, end], color="b", linewidth=1.5)
-    (low, high) = ax1.axes.get_ybound()
+                inputList.append((id, beg, end))
+    offsetFile.close();
+    gc.enable()
+
+    # so here we sort on id then by the beginning of each write in place
+    # this lets us downsample the output on the offset graph without losing
+    # *hopefully* too much real information at high write counts
+    inputList.sort( key = operator.itemgetter(0,1))
+    while len(inputList) > (100*numberOfProcessors) or len(inputList) > 65536:
+        inputList = inputList[::2] # get every other element
+    low = min(x[1] for x in inputList)
+    high = max(x[2] for x in inputList)
+    ax1.set_ylim([low,high])
+    ax1.set_xbound(lower=-1, upper= numberOfProcessors)
     ax1.set_title(title, fontsize=10)
     ax1.set_ylabel("Offset (Bytes x 1e%d)"% analysis.exponent(high))
-    #so the axis does not draw over processor 0
-    ax1.set_xlim([-1, numberOfProcessors]) 
-    ax2 = fig4.add_subplot(2, 1, 2)
-    offsetFile.close()
+    ax1.set_autoscale_on(False)
+    #average
+    ax2.set_ylabel("Time")
+    ax2.set_xlim([-1, numberOfProcessors])
+    ax2.set_xlabel('Processor')
+    ax2.axhline(average, color="y", linestyle='dashed', linewidth=2)
+    ax2.set_autoscale_on(False)
+
+    #plot everything now that the axis are set
+    ax1.plot([[x[0] for x in inputList], [x[0] for x in inputList]], 
+        [[x[1] for x in inputList], [x[2] for x in inputList]], color="b", 
+        linewidth=1.5)
+    
     timeFile = open(times, "rb") 
     # 24 is the size of the number of bytes we are reading for 3 items
+    gc.disable()
+    inputList = []
     while True:
         file = timeFile.read(24)
         if len(file) != 24:
@@ -55,13 +83,18 @@ def graphPerProcessor(mpiFile,numberOfProcessors, average, jobID, above, below):
         else:
             (id, beg, end) = struct.unpack("ddd", file)
             if (id, beg, end) != (0.0, 0.0, 0.0):
-                ax2.plot([id, id], [beg, end], linewidth=1.5)
+               inputList.append((id, beg, end))
+    gc.enable()
     timeFile.close()
-    #average
-    ax2.plot([0, numberOfProcessors], [average, average], color="y",linewidth=2)
-    ax2.set_ylabel("Time")
-    ax2.set_xlim([-1, numberOfProcessors])
-    ax2.set_xlabel('Processor')
+    inputList.sort( key = operator.itemgetter(0,1))
+    while len(inputList) > (100*numberOfProcessors) or len(inputList) > 65536:
+        inputList = inputList[::2] # get every other element
+    low = min(x[1] for x in inputList)
+    high = max(x[2] for x in inputList)
+    ax2.set_ylim([low,high])
+    ax2.plot([[x[0] for x in inputList], [x[0] for x in inputList]],
+        [[x[1] for x in inputList], [x[2] for x in inputList]], linewidth=1.5)
+
 
 def graph((function, times, bandwidths, iosTime, iosFin, writeBins, \
            hostdirs, sizes, mpiFile, average, jobID, \
