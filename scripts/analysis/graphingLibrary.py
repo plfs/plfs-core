@@ -44,6 +44,7 @@ def networkGraph(hostdirs):
             #these are the children
             m = re.search("hostdir\.[0-9]*/", path)
             indexNumber = m.group(0)
+            indexNumber = indexNumber[8:]
             G.add_node(indexNumber)
             G.add_edge(logicalFilename, indexNumber)
             if indexNumber not in pos: #hasn't been graphed already
