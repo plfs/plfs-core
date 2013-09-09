@@ -96,6 +96,9 @@ if (DISABLE_MLOG)
     add_definitions (-DMLOG_NEVERLOG)
 endif(DISABLE_MLOG)
 
+OPTION (ADMIN_TOOLS "Install admin tools to SBINDIR." OFF)
+message ("-- ADMIN_TOOLS set to ${ADMIN_TOOLS}")
+
 OPTION (DISABLE_MLOG_MACRO_OPTS "Disable Macro Opts for MLOG." OFF)
 message ("-- DISABLE_MLOG_MACRO_OPTS ${DISABLE_MLOG_MACRO_OPTS}")
 if (DISABLE_MLOG_MACRO_OPTS)
@@ -237,6 +240,10 @@ else()
     message("-- MANDIR set to ${MANDIR}")
 endif()
 
+if (NOT ADMIN_TOOLS)
+    message("-- ADMIN_TOOLS not set, admin tools will not be installed")
+endif()
+
 #setup RPATH/RUNPATH flags and shared library
 if (NOT APPLE)
     set (CMAKE_EXE_LINKER_FLAGS "-dynamic -Wl,--enable-new-dtags")
@@ -368,10 +375,16 @@ if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
     set(CMAKE_C_FLAGS "-Wall -Werror -Wshadow -Wno-long-long -Wextra ${CMAKE_C_FLAGS}")
 endif()
 
-#set up targets for make install
-INSTALL(TARGETS dcon findmesgbuf plfs_check_config plfs_flatten_index plfs_ls
-                plfs_map plfs_query plfs_recover plfs_version DESTINATION ${BINDIR}
+# setup targets for user-level tools
+INSTALL(TARGETS plfs_check_config plfs_flatten_index plfs_ls plfs_version 
+                DESTINATION ${BINDIR}
 )
+
+# only install admin toolset if defined
+if (ADMIN_TOOLS)
+    INSTALL(TARGETS dcon findmesgbuf plfs_map plfs_query plfs_recover
+                    DESTINATION ${SBINDIR})
+endif()
 INSTALL(FILES "${PLFS_BUILD_DIR}/plfs.h" DESTINATION ${INCLUDEDIR})
 INSTALL(FILES "${PLFS_SOURCE_DIR}/plfs_error.h" DESTINATION ${INCLUDEDIR})
 INSTALL(FILES "${PLFS_SOURCE_DIR}/Mlog/mlogfacs.h"

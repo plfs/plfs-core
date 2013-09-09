@@ -16,6 +16,8 @@
       "cmake [cmake flags] /path/to/plfs/src" from within your build dir.
       Please note that the build dir can not be the same as the install
       dir; the build and install dirs must be distinct from each other.
+      If admin tool installation is desired, define -DADMIN_TOOLS=yes when
+      running cmake.
    2) make
    3) make install
       The default installation path is /usr/local.
