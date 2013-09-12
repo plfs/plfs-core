@@ -5,7 +5,7 @@ plfs_symlink
 .SH SYNTAX
 #include <plfs.h>
 .PP
-int plfs_symlink( const char *path, const char *to );
+plfs_error_t plfs_symlink( const char *path, const char *to );
 
 .SH DESCRIPTION
 Creates a symbolic link named to which contains the string path
@@ -19,8 +19,14 @@ to
 name of symlink
 
 .SH RETURN VALUES
-Most PLFS functions return 0 or -errno, except write and read
-which return the number of bytes or -errno
+Almost all PLFS functions return a plfs_error_t error type with PLFS_SUCCESS 
+indicating that the function completed successfully and PLFS_E* indicating
+an error. All possible return values are enumerated in plfs_error.h and can
+be queried by calling strplfserr(plfs_error_t err) to get more detail about
+the specific error code returned.
+
+If a function fills out any data structures they are passed in as an argument
+and not returned via the return type.
 
 .SH AUTHORS
 ${AUTHORS}

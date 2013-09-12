@@ -5,7 +5,7 @@ plfs_mode
 .SH SYNTAX
 #include <plfs.h>
 .PP
-int plfs_mode( const char *path, mode_t *mode );
+plfs_error_t plfs_mode( const char *path, mode_t *mode );
 
 .SH DESCRIPTION
 Query the mode that was used to create the file.  This should only be called on a PLFS file.  
@@ -19,8 +19,14 @@ mode
 permissions for file.
 
 .SH RETURN VALUES
-Most PLFS functions return 0 or -errno, except write and read
-which return the number of bytes or -errno
+Almost all PLFS functions return a plfs_error_t error type with PLFS_SUCCESS 
+indicating that the function completed successfully and PLFS_E* indicating
+an error. All possible return values are enumerated in plfs_error.h and can
+be queried by calling strplfserr(plfs_error_t err) to get more detail about
+the specific error code returned.
+
+If a function fills out any data structures they are passed in as an argument
+and not returned via the return type.
 
 .SH AUTHORS
 ${AUTHORS}
