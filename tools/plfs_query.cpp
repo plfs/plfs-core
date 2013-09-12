@@ -16,6 +16,11 @@ using namespace std;
 #include "COPYRIGHT.h"
 #include "plfs_tool_common.h"
 
+#include "IOStore.h"
+#include "FileOp.h"
+#include "FlatFileFS.h"
+#include "plfs_error.h"
+
 void 
 show_usage(char* app_name) {
     fprintf(stderr, "Usage: %s <file> [-l]\n", app_name);
@@ -44,31 +49,33 @@ logical_from_physical(char * physical_target, std::string &file_location) {
     char * c_physical;
     string full_physical;
     int lcv;
+    plfs_error_t ret = PLFS_SUCCESS;
 
     //We'll need the full path to find the PLFS file
     if ( (c_physical = 
             realpath(physical_target, NULL)) == NULL)
     {
-        return (1);
+        return (errno_to_plfs_error(errno));
     }
 
     full_physical = string(c_physical);
     free(c_physical);
-    //The name of the PLFS file should be the directory located just
-    // above the last hostdir.<number> directory.
-    size_t hostdirPos = full_physical.rfind("/hostdir.");
-    if (hostdirPos == string::npos) {
-        return(1);
-    }
 
-    //Remove everything before the filename
-    full_physical = full_physical.substr(0, hostdirPos);
+    //For n-1 workload, the name of the PLFS file should be the directory located just
+    // above the last hostdir.<number> directory.
+    // For n-n, hostdir will not be found in the path
+    size_t hostdirPos = full_physical.rfind("/hostdir.");
+    if (hostdirPos != string::npos) {
+        // Remove everything before the filename
+        full_physical = full_physical.substr(0, hostdirPos);
+     }
+
 
     //Get the plfs conf to find which mount point the given
     //backend belongs to.
     PlfsConf * pconf = get_plfs_conf();
     if (pconf == NULL) {
-        return(1);
+        return(PLFS_ENOENT);
     } else {
         string backend;
         set<string>::const_iterator backend_itr;
@@ -109,13 +116,13 @@ logical_from_physical(char * physical_target, std::string &file_location) {
         }
 
         if (!foundBackend || !foundMountPoint) {
-            return(1);
+            return(PLFS_ENOENT);
         }
 
-        return 0;
+        return (ret);
     }
 
-    return (0);
+    return (ret);
 }
 
 int 
@@ -125,14 +132,16 @@ main (int argc, char **argv) {
     bool found_target = false;
     string dir_suffix = "";
     string metalink_suffix = "";
+    plfs_error_t ret = PLFS_SUCCESS;
+    struct plfs_physpathinfo ppi;
 
     for (i = 1; i < argc; i++) {
         plfs_handle_version_arg(argc, argv[i]);
         if (strcmp(argv[i], "-l") == 0) {
-                dir_suffix = "/";
-                metalink_suffix = "@";
+            dir_suffix = "/";
+            metalink_suffix = "@";
         } else if (!found_target) {
-                target = argv[i];
+            target = argv[i];
                 found_target = true;
         } else {
             // Found more than one target. This is an error.
@@ -143,34 +152,73 @@ main (int argc, char **argv) {
 
     if (!found_target) {
         show_usage(argv[0]);
-        exit(1);
+        return(PLFS_ENOENT);
     }
-
-    vector<plfs_pathback> files;
-    vector<plfs_pathback> dirs;
-    vector<string> metalinks;
-    //Use the container_locate fucntion to determine if this is a
-    //plfs file.
-    int ret = container_locate(target,
-            (void*)&files,
-            (void*)&dirs,
-            (void*)&metalinks);
-    if ( ret != 0 ) {
-        //Not a plfs file, attempt to treat it like a physical file
+    // First determine if this is a logical or physical path
+    ret = plfs_resolvepath(target, &ppi);
+    // if resolvepath fails, it is possible that this is a physical
+    // path and not a logical path.  Do not exit so that we can 
+    // check if this is logical path 
+    if (ret) {
         std::string logical_file;
-        if (logical_from_physical(target, logical_file) != 0) {
+        if (logical_from_physical(target, logical_file ) != 0) {
             fprintf(stderr, "Error: %s is not in a PLFS mountpoint"
-                " configured with 'workload n-1' nor is it a physical"
-                " dropping.\n", target);
+                    " configured with 'workload n-1' or 'workload n-n'"
+                    " nor is it a physical dropping.\n", target);
+            return(ret);
         } else {
             printf("Logical file location:\n%s\n", logical_file.c_str());
         }
-    } else {
+
+
+    // assuming this is a logical path now
+    } else {  
+        // This next section of code determines if we are looking at an n to 1
+        // mountpoint or an n to n mountpoint
+        vector<plfs_pathback> files;
+        vector<plfs_pathback> dirs;
+        vector<string> metalinks;
+
+        // Determine if nton workload
+        if (ppi.mnt_pt->file_type == FLAT_FILE) {
+            struct plfs_pathback pb;
+            struct stat st;
+            mode_t mode = 0;
+            // stat the path to deterime if directory or file
+            ret = ppi.canback->store->Lstat(ppi.canbpath.c_str(), &st);
+            if (ret != PLFS_SUCCESS){
+                return(ret);           
+            } else {
+                mode=st.st_mode;
+            }
+            // check if directory
+            if (S_ISDIR(mode)) {
+                vector<plfs_pathback> *dirs_p = &dirs;
+                ret = generate_backpaths(&ppi, *dirs_p);
+            }
+            // check if file
+            else if (S_ISREG(mode)) {
+                vector<plfs_pathback> *files_p = &files;
+                pb.bpath = ppi.canbpath.c_str();
+                pb.back = ppi.canback;
+                files_p->push_back(pb);
+            }
+        //  else n-1 workload
+        } else {
+            ret = container_locate(target,
+                    (void*)&files,
+                    (void*)&dirs,
+                    (void*)&metalinks);
+            if (ret) {
+              return(ret);
+            }
+  
+        } 
         printf("Physical file locations:\n");
         print_pbentries(dirs,dir_suffix.c_str());
         print_sentries(metalinks,metalink_suffix.c_str());
         print_pbentries(files,"");
     }
-
     exit( ret );
 }
+
