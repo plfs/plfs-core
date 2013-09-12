@@ -10,7 +10,8 @@ and more information is available at
  
  
 SET (SEEALSO1 "plfs(1), plfs(7), plfs_check_config(1), plfs_flatten_index(1)")
-SET (SEEALSO1 "${SEEALSO1}, plfs_map(1),plfs_version(1)")
+SET (SEEALSO1 "${SEEALSO1}, plfs_map(1), plfs_version(1), dcon(1),
+               findmesgbuf(1)")
 
 SET (SEEALSO3 "plfs(3)")
 SET (SEEALSO3 "${SEEALSO3}, plfs(7)")
@@ -96,7 +97,7 @@ SET (COPYRIGHT "./Copyright (c) 2009, Los Alamos National Security, LLC All righ
 #man pages
 #man1
 foreach (MAN1 plfs plfs_check_config plfs_ls plfs_query plfs_version
-              plfs_flatten_index plfs_map plfs_recover)
+              plfs_flatten_index plfs_map plfs_recover dcon findmesgbuf)
     configure_file( "man1/${MAN1}.1in" "${PLFS_BUILD_DIR}/share/man/man1/${MAN1}.1")
 endforeach(MAN1)
 
