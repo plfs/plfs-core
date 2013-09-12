@@ -5,7 +5,7 @@ plfs_get_filetype
 .SH SYNTAX
 #include <plfs.h>
 .PP
-int plfs_get_filetype( const char *path );
+plfs_filetype plfs_get_filetype( const char *path );
 
 .SH DESCRIPTION
 This is needed for MPI/IO to know to avoid optimizations unless
