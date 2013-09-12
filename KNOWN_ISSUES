@@ -1,0 +1,7 @@
+Issue #159
+In some cases a PLFS file will appear as a directory. This is because a PLFS
+container is actually a directory. In the case where a user does not have
+execute permission on a PLFS file (other than the owner) they cannot examine
+the contents and determine if that file is a PLFS container or a regular
+directory. There's no way around this without jeopardizing the security of 
+the PLFS file since the execute bit opens it up to vulnerabilities.
