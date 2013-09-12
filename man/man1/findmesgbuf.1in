@@ -1,0 +1,22 @@
+${COPYRIGHT}
+.TH findmesgbuf 1 "${PACKAGE_STRING}" 
+.SH NAME
+findmesgbuf
+.SH SYNOPSIS
+.B ./findmesgbuf [core dump file] 
+
+.SH DESCRIPTION
+This utility allows for the collection of mlog buffers from 
+within a core dump file from PLFS. Even without printing or 
+sending any mlog output to a file PLFS can log into mlog buffers 
+internally by settings --mlog_defmask to a chosen logging level. 
+Then, in the event of a PLFS crash, the core file can be fed through 
+findmesgbuf to extract the contents of any mlog buffers that were 
+in-memory at the time of the crash. 
+
+.SH AUTHORS
+${AUTHORS}
+
+.SH SEE ALSO
+${SEEALSO}
+
