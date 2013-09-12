@@ -103,6 +103,9 @@ Please see mpi_adio/README for information on using PLFS as a ROMIO ADIO layer.
    linking requirements in using PLFS as a ROMIO ADIO layer for what the
    linking command should look like.
 
+*** For an example of an application ported to use the PLFS native API, see
+    the open source LANL fs_test at: https://github.com/fs-test/fs_test
+
 
 ***************************************************************************
 Other Info

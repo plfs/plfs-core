@@ -1,0 +1,23 @@
+${COPYRIGHT}
+.TH dcon 1 "${PACKAGE_STRING}" 
+.SH NAME
+dcon
+.SH SYNOPSIS
+.B ./dcon [options] 
+
+.SH DESCRIPTION
+This utility allows for the collection of PLFS mlog messages through 
+UDP. By setting the MLOG_UCON environment variable and setting up the 
+appropriate settings in the plfsrc configuration file messages can be 
+collected without sending them to a global storage location.
+
+Another application is the collection of mlog messages from multiple 
+instantiations of PLFS (say, through an MPI job) into a single server 
+log.
+
+.SH AUTHORS
+${AUTHORS}
+
+.SH SEE ALSO
+${SEEALSO}
+
