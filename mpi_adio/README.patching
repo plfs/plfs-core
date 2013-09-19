@@ -70,7 +70,7 @@ to the ROMIO layer or the build system (such as MVAPICH2).
    setting some environment variables and running the configure script.
    a) for Open MPI, set the following env variables
 
-      AD_PLFS_LDFLAGS="-L/path/to/plfs/lib -dynamic -Wl,-rpath=/path/to/plfs/lib -lplfs -lstdc++ -lpthread"
+      AD_PLFS_LDFLAGS="-L/path/to/plfs/lib -dynamic -Wl,-rpath=/path/to/plfs/lib -lplfs -lpthread"
       AD_PLFS_CFLAGS="-I/path/to/plfs/include"
 
       Then, run configure with like this:
