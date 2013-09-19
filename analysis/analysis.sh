@@ -17,17 +17,20 @@ echo "Analyzing: ${PLFS_FILE}"
 cd $PBS_O_WORKDIR
 plfs_query $PLFS_FILE >& queryTemp.txt
 PLFS_QUERY=$PBS_O_WORKDIR/queryTemp.txt
-cd ../../build/bin
+cd ../build/bin
 #include a -a if you want the processor graphs to draw above the threshold
 #-b if you want them drawn before the threshold
 #-s:numberOfStandardDeviations to change the threshold
 #use the following if you are a Cray machines
+T="$(date +%s)"
 #aprun -n $NUM_PROCS ./analysis -m $PLFS_FILE -q $PLFS_QUERY -o $FILE_SYSTEM -p -a -j $PBS_JOBID
 mpirun -np $NUM_PROCS ./analysis -m $PLFS_FILE -q $PLFS_QUERY -o $FILE_SYSTEM -p -a -j $PBS_JOBID
+T="$(($(date +%s)-T))"
+echo "Time in seconds for MPI analysis: ${T}"
 cd $PBS_O_WORKDIR
 #use the following to produce pdfs
 T="$(date +%s)"
 python analysis.py -o $FILE_SYSTEM -p -q $PLFS_QUERY -g -j $PBS_JOBID
 T="$(($(date +%s)-T))"
-echo "Time in seconds: ${T}"
+echo "Time in seconds for analysis.py: ${T}"
 rm queryTemp.txt
