@@ -364,8 +364,12 @@ add_subdirectory("${PLFS_TESTS_DIR}")
 
 #analysis
 if($ENV{PLFS_ACE})
-    set(PLFS_ANALYSIS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/scripts/analysis")
+    message("-- PLFS_ACE set, building analysis tools")
+    set(PLFS_ANALYSIS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/analysis")
     add_subdirectory("${PLFS_ANALYSIS_DIR}")
+else()
+    message("-- PLFS_ACE environment variable not set, 
+            analysis tools will not be built")
 endif()
 
 if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
