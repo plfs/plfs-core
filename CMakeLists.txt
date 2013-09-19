@@ -12,8 +12,8 @@ project(plfs)
 
 #set project number X.X.X?
 set (plfs_VERSION_MAJOR 2)
-set (plfs_VERSION_MINOR 4)
-set (plfs_VERSION_PATCH 1)
+set (plfs_VERSION_MINOR 5)
+set (plfs_VERSION_PATCH 0rc1)
 set (PACKAGE_STRING "PLFS ${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}")
 set (plfs_VERSION_FULL "${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}")
 if (DEFINED plfs_VERSION_PATCH)
@@ -26,7 +26,7 @@ endif()
 
 #setup "make dist"
 set(ARCHIVE_NAME
-    ${CMAKE_PROJECT_NAME}-${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR})
+    ${CMAKE_PROJECT_NAME}-${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}.${plfs_VERSION_PATCH})
 add_custom_target(dist
     COMMAND git archive --prefix=${ARCHIVE_NAME}/ HEAD
         | bzip2 > ${CMAKE_BINARY_DIR}/${ARCHIVE_NAME}.tar.bz2
