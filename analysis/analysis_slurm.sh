@@ -17,17 +17,20 @@ echo "Analyzing: ${PLFS_FILE}"
 cd $SLURM_SUBMIT_DIR
 plfs_query $PLFS_FILE >& queryTemp.txt
 PLFS_QUERY=$SLURM_SUBMIT_DIR/queryTemp.txt
-cd ../../build/bin
+cd ../build/bin
 #include a -a if you want the processor graphs to draw above the threshold
 #-b if you want them drawn before the threshold
 #-s:numberOfStandardDeviations to change the threshold
 #use the following if you are a Cray machines
+T="$(date +%s)"
 #aprun -n $NUM_PROC ./analysis -m $PLFS_FILE -q $PLFS_QUERY -o $FILE_SYSTEM -p -a -j $SLURM_JOB_ID
 mpirun -np $NUM_PROC ./analysis -m $PLFS_FILE -q $PLFS_QUERY -o $FILE_SYSTEM -p -a -j $SLURM_JOB_ID
+T="$(($(date +%s)-T))"
+echo "Time in seconds for MPI analysis: ${T}"
 cd $SLURM_SUBMIT_DIR
 #use the following to produce pdfs
 T="$(date +%s)"
 python analysis.py -o $FILE_SYSTEM -p -q $PLFS_QUERY -g -j $SLURM_JOB_ID
 T="$(($(date +%s)-T))"
-echo "Time in seconds: ${T}"
+echo "Time in seconds for analysis.py: ${T}"
 rm queryTemp.txt
