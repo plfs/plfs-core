@@ -1485,7 +1485,7 @@ int Plfs::dbg_debug_read(char *buf, size_t size, off_t offset)
     // openFilesToString must be called from w/in a mutex
     plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
     ret = snprintf( tmpbuf, DEBUGFILESIZE,
-                    "Version %s (SVN %s) (DATA %s) (LIB %s)\n"
+                    "Version %s (DATA %s) (LIB %s)\n"
                     "Build date: %s\n"
                     "Hostname %s, %.2f Uptime\n"
                     "%s"
@@ -1495,8 +1495,7 @@ int Plfs::dbg_debug_read(char *buf, size_t size, off_t offset)
                     "%d ExtraAttempts\n"
                     "%d Opens with O_RDWR\n"
                     "%s",
-                    STR(TAG_VERSION),
-                    STR(SVN_VERSION),
+                    plfs_package_string,
                     STR(DATA_VERSION),
                     plfs_version(),
                     plfs_buildtime(),

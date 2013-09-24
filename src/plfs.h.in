@@ -15,6 +15,7 @@
 #define plfs_VERSION_MINOR @plfs_VERSION_MINOR@
 #define plfs_VERSION_PATCH @plfs_VERSION_PATCH@
 #define plfs_package_string "@PACKAGE_STRING@"
+#define DATA_VERSION @plfs_DATA_VERSION@
 //end cmake defined variables
 
 #ifdef __cplusplus
