@@ -599,7 +599,9 @@ int Plfs::getattr_helper( string expanded, const char *path,
             // when we didn't do a good job keeping
             // created containers up to date and
             // mknod thought a container existed but it didn't
+            plfs_mutex_lock( &self->container_mutex, __FUNCTION__ );
             self->createdContainers.erase( expanded );
+            plfs_mutex_unlock( &self->container_mutex, __FUNCTION__ );
         }
     }
     // ok, we've done the getattr, if we're running in direct_io mode
@@ -811,7 +813,9 @@ int Plfs::f_unlink( const char *path )
     FUSE_PLFS_ENTER;
     plfs_error_t err = plfs_unlink( strPath.c_str() );
     if ( err == PLFS_SUCCESS ) {
+        plfs_mutex_lock( &self->container_mutex, __FUNCTION__ );
         self->createdContainers.erase( strPath );
+        plfs_mutex_unlock( &self->container_mutex, __FUNCTION__ );
     }
     ret = -(plfs_error_to_errno(err));
     FUSE_PLFS_EXIT;
