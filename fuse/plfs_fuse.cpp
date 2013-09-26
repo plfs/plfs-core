@@ -337,6 +337,7 @@ int Plfs::init( int *argc, char **argv )
     pthread_mutex_init( &(fd_mutex), NULL );
     pthread_mutex_init( &(group_mutex), NULL );
     pthread_mutex_init( &(debug_mutex), NULL );
+    pthread_mutex_init( &(modes_mutex), NULL );
     // we used to make a trash container but now that we moved to library,
     // fuse layer doesn't handle silly rename
     // we also have (temporarily?) removed the dangler stuff
@@ -438,7 +439,9 @@ int Plfs::makePlfsFile( string expanded_path, mode_t mode, int flags )
             self->createdContainers.insert( expanded_path );
             mlog(FUSE_DCOMMON, "%s Stashing mode for %s: %d",
                  __FUNCTION__, expanded_path.c_str(), (int)mode );
+            plfs_mutex_lock( &self->modes_mutex, __FUNCTION__ );
             self->known_modes[expanded_path] = mode;
+            plfs_mutex_unlock( &self->modes_mutex, __FUNCTION__ );
         }
     }
     plfs_mutex_unlock( &self->container_mutex, __FUNCTION__ );
@@ -647,7 +650,9 @@ int Plfs::f_chmod (const char *path, mode_t mode)
     if ( err == PLFS_SUCCESS ) {
         mlog(FUSE_DCOMMON, "%s Stashing mode for %s: %d",
              __FUNCTION__, strPath.c_str(), (int)mode );
+        plfs_mutex_lock( &self->modes_mutex, __FUNCTION__ );
         self->known_modes[strPath] = mode;
+        plfs_mutex_unlock( &self->modes_mutex, __FUNCTION__ );
     }
     ret = -(plfs_error_to_errno(err));
     plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
@@ -1076,6 +1081,7 @@ mode_t Plfs::getMode( string expanded )
 {
     mode_t mode;
     char *whence;
+    plfs_mutex_lock( &self->modes_mutex, __FUNCTION__ );
     HASH_MAP<string, mode_t>::iterator itr =
         self->known_modes.find( expanded );
     if ( itr == self->known_modes.end() ) {
@@ -1087,6 +1093,7 @@ mode_t Plfs::getMode( string expanded )
         mode = itr->second;
         whence = (char *)"stashed value";
     }
+    plfs_mutex_unlock( &self->modes_mutex, __FUNCTION__ );
     mlog(FUSE_DCOMMON, "%s pulled mode %d from %s",
          __FUNCTION__, mode, whence);
     return mode;
@@ -1357,10 +1364,12 @@ int Plfs::f_rename( const char *path, const char *to )
             self->createdContainers.insert( toPath );
         }
         plfs_mutex_unlock( &self->container_mutex, __FUNCTION__ );
+        plfs_mutex_lock( &self->modes_mutex, __FUNCTION__ );
         if ( self->known_modes.find(strPath) != self->known_modes.end() ) {
             self->known_modes[toPath] = self->known_modes[strPath];
             self->known_modes.erase(strPath);
         }
+        plfs_mutex_unlock( &self->modes_mutex, __FUNCTION__ );
     }
     ret = -(plfs_error_to_errno(err));
     FUSE_PLFS_EXIT;
