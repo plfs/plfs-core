@@ -333,11 +333,7 @@ Optional.  The default is WARN.
 .B
   mlog_setmasks:
 .B
-    <value1>
-.B
-    <value2>
-.B
-    <value3>
+    <value1>,<value2>,<value3>
 .RS
 Resets the logging level for a subsystem (overwriting the default value).   
 Currently defined subsystems are: plfs_misc, internal, container, index, 
@@ -437,11 +433,7 @@ important and is defined by spaces only, not tabs):
 .br
   mlog_setmasks:
 .br
-    INFO
-.br
-    index=DEBUG
-.br
-    container=DEBUG
+    INFO,index=DEBUG,container=DEBUG
 .br
   mlog_file: /tmp/logs/plfs-%p-%h-%t.log
 .br

@@ -338,6 +338,7 @@ int Plfs::init( int *argc, char **argv )
     pthread_mutex_init( &(group_mutex), NULL );
     pthread_mutex_init( &(debug_mutex), NULL );
     pthread_mutex_init( &(modes_mutex), NULL );
+    pthread_mutex_init( &(write_mutex), NULL );
     // we used to make a trash container but now that we moved to library,
     // fuse layer doesn't handle silly rename
     // we also have (temporarily?) removed the dangler stuff
@@ -558,7 +559,9 @@ int Plfs::syncIfOpen( const string &expanded ) {
         Plfs_fd *pfd;
         pfd = current.fd;
         mlog(FUSE_DBG,"%s syncing %s", __FUNCTION__, pfd->getPath());
+        plfs_mutex_lock( &self->write_mutex, __FUNCTION__ );
         pfd->sync();
+        plfs_mutex_unlock( &self->write_mutex, __FUNCTION__ );
     }
     plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
     
@@ -993,29 +996,22 @@ int Plfs::f_release( const char *path, struct fuse_file_info *fi )
         SET_GROUPS( openfile->uid );
         plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
         assert( openfile->flags == fi->flags );
-        int remaining;
-        plfs_close(of, openfile->pid, openfile->uid,
-                                   fi->flags ,NULL, &remaining);
-        fi->fh = (uint64_t)NULL;
-        if ( remaining == 0 ) {
-            string pathHash = pathToHash(strPath,openfile->uid,openfile->flags);
-            mlog(FUSE_DCOMMON, "%s: Removing Open File: %s remaining: %d",
-                 __FUNCTION__, pathHash.c_str(), remaining);
-            removeOpenFile(pathHash,openfile->pid,of);
-            /*
-            // we don't need to iterate through all open files here, do we?
-            list< struct hash_element > results;
-            findAllOpenFiles ( strPath , results);
-            while( results.size()!= 0 ) {
-                struct hash_element current;
-                current = results.front();
-                results.pop_front();
+        // this is dumb, but check to see if the file is actually open...
+        if (findOpenFile(pathToHash(strPath, openfile->uid, openfile->flags)) != NULL) { 
+            int remaining;
+            plfs_close(of, openfile->pid, openfile->uid,
+                                       fi->flags ,NULL, &remaining);
+            fi->fh = (uint64_t)NULL;
+            if ( remaining == 0 ) {
+                string pathHash = pathToHash(strPath,openfile->uid,openfile->flags);
+                mlog(FUSE_DCOMMON, "%s: Removing Open File: %s remaining: %d",
+                     __FUNCTION__, pathHash.c_str(), remaining);
+                removeOpenFile(pathHash,openfile->pid,of);
+            } else {
+                mlog(FUSE_DCOMMON,
+                     "%s not yet removing open file for %s, pid %u, %d remaining",
+                     __FUNCTION__, strPath.c_str(), openfile->pid, remaining );
             }
-            */
-        } else {
-            mlog(FUSE_DCOMMON,
-                 "%s not yet removing open file for %s, pid %u, %d remaining",
-                 __FUNCTION__, strPath.c_str(), openfile->pid, remaining );
         }
         delete openfile;
         openfile = NULL;
@@ -1114,7 +1110,12 @@ int Plfs::f_write(const char *path, const char *buf, size_t size, off_t offset,
     GET_OPEN_FILE;
     plfs_error_t err;
     ssize_t bytes_written;
+    // the only place we use this lock is here and in syncIfOpen because a call to
+    // index->sync() can cause an in-progress write to break the sync and crash
+    // This should be fixed internally but fixing it here keeps us safe, if slower
+    plfs_mutex_lock( &self->write_mutex, __FUNCTION__ );
     err = plfs_write( of, buf, size, offset, fuse_get_context()->pid, &bytes_written );
+    plfs_mutex_unlock( &self->write_mutex, __FUNCTION__ );
     ret = (err == PLFS_SUCCESS) ? bytes_written : -(plfs_error_to_errno(err));
     FUSE_PLFS_EXIT;
 }

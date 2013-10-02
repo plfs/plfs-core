@@ -416,8 +416,10 @@ WriteFile::extend( off_t offset )
     plfs_error_t ret;
     ret = prepareForWrite();
     if ( ret == PLFS_SUCCESS ) {
+        Util::MutexLock( &index_mux, __FUNCTION__ );
         index->addWrite( offset, 0, open_pid, createtime, createtime );
         addWrite( offset, 0 );   // maintain metadata
+        Util::MutexUnlock( &index_mux, __FUNCTION__ );
     }
 
     return ret;
@@ -444,7 +446,9 @@ WriteFile::prepareForWrite( pid_t pid )
     }
 
     // we also defer creating index dropping. so index may be NULL.
+    Util::MutexLock(   &index_mux , __FUNCTION__);
     if ( ret == PLFS_SUCCESS && index == NULL ) {
+        Util::MutexUnlock(   &index_mux , __FUNCTION__);
         ret = openIndex( pid );
         if ( ret != PLFS_SUCCESS ) {
             mlog( WF_ERR, "%s open index failed", __FUNCTION__ );
@@ -545,12 +549,13 @@ plfs_error_t WriteFile::closeIndex( )
     struct plfs_backend *ib;
     plfs_error_t ret = PLFS_SUCCESS;
 
+    Util::MutexLock(   &index_mux , __FUNCTION__);
     // index is not opened
     if ( index == NULL ) {
+        Util::MutexUnlock(   &index_mux , __FUNCTION__);
         return ret;
     }
 
-    Util::MutexLock(   &index_mux , __FUNCTION__);
     ret = index->flush(); // XXX: ret never read
     closefh = index->getFh(&ib);
     /* XXX: a bit odd that we close the index instead of the index itself */
@@ -586,13 +591,20 @@ plfs_error_t WriteFile::truncate( off_t offset )
     plfs_error_t ret = PLFS_SUCCESS;
     Metadata::truncate( offset );
     // we may be the first writer...
+    Util::MutexLock(   &index_mux , __FUNCTION__);
     if ( index == NULL ) {
+        // this locking is nasty since every time we check the index for NULL
+        // we need to be locked to avoid races...but there are races after we unlock
+        // since other index-related functions need locking internally on index too
+        Util::MutexUnlock(   &index_mux , __FUNCTION__);
         ret = prepareForWrite();
         if ( ret != PLFS_SUCCESS ) {
             return ret;
         }
     }
+    Util::MutexLock( &index_mux, __FUNCTION__ );
     index->truncateHostIndex( offset );
+    Util::MutexUnlock( &index_mux, __FUNCTION__ );
     return PLFS_SUCCESS;
 }
 
