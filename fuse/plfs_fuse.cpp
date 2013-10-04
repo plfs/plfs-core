@@ -139,7 +139,7 @@ class generic_exception: public exception
 #define RESTORE_IDS    SET_IDS(save_uid,save_gid);
 #define SAVE_IDS uid_t s_uid = plfs_getuid(); gid_t s_gid = plfs_getgid();
 #define SET_IDS(X,Y)   plfs_setfsuid( X );    plfs_setfsgid( Y );
-#define RESTORE_GROUPS setgroups( orig_groups.size(),                   \
+#define RESTORE_GROUPS if(getuid() == 0) setgroups( orig_groups.size(),        \
                                 (const gid_t*)&(orig_groups.front()));
 #endif
 
@@ -768,7 +768,9 @@ int Plfs::set_groups( uid_t uid )
     if ( groups_ptr == NULL) {
         mlog(FUSE_DRARE, "WTF: Got a null group ptr for %d", uid);
     } else {
-        setgroups( groups_ptr->size(), (const gid_t *)&(groups_ptr->front()) );
+        if(getuid() == 0) {
+            setgroups( groups_ptr->size(), (const gid_t *)&(groups_ptr->front()) );
+        }
     }
     return 0;
 }
