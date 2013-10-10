@@ -1837,8 +1837,8 @@ Container::makeTopLevel( const string& expanded_path,
             // losers will do it too and that's a bit more overhead
             ostringstream oss2;
             oss2 << expanded_path << "/" << VERSIONPREFIX
-                 << "-tag." << STR(TAG_VERSION)
-                 << "-svn." << STR(SVN_VERSION)
+                 << "-tag." << STR(plfs_VERSION_MAJOR) << "." 
+                 << STR(plfs_VERSION_MINOR) << "." << STR(plfs_VERSION_PATCH)
                  << "-dat." << STR(DATA_VERSION)
                  << "-chk." << mnt_pt_checksum;
             if ((rv = makeDropping(oss2.str(),canback)) != PLFS_SUCCESS) {
