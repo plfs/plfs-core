@@ -1114,6 +1114,9 @@ int Plfs::f_write(const char *path, const char *buf, size_t size, off_t offset,
     GET_OPEN_FILE;
     plfs_error_t err;
     ssize_t bytes_written;
+    // this is confusing, but we're issuing a read-lock here to allow 
+    // write parallelism while blocking pfd->sync in SyncIfOpen with 
+    // a write-lock to avoid a data race internally
     pthread_rwlock_rdlock( &self->write_lock );
     err = plfs_write( of, buf, size, offset, fuse_get_context()->pid, &bytes_written );
     pthread_rwlock_unlock( &self->write_lock );
