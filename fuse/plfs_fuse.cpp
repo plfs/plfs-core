@@ -338,7 +338,7 @@ int Plfs::init( int *argc, char **argv )
     pthread_mutex_init( &(group_mutex), NULL );
     pthread_mutex_init( &(debug_mutex), NULL );
     pthread_mutex_init( &(modes_mutex), NULL );
-    pthread_mutex_init( &(write_mutex), NULL );
+    pthread_rwlock_init( &(write_lock), NULL );
     // we used to make a trash container but now that we moved to library,
     // fuse layer doesn't handle silly rename
     // we also have (temporarily?) removed the dangler stuff
@@ -559,9 +559,9 @@ int Plfs::syncIfOpen( const string &expanded ) {
         Plfs_fd *pfd;
         pfd = current.fd;
         mlog(FUSE_DBG,"%s syncing %s", __FUNCTION__, pfd->getPath());
-        plfs_mutex_lock( &self->write_mutex, __FUNCTION__ );
+        pthread_rwlock_wrlock( &self->write_lock );
         pfd->sync();
-        plfs_mutex_unlock( &self->write_mutex, __FUNCTION__ );
+        pthread_rwlock_unlock( &self->write_lock );
     }
     plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
     
@@ -1014,6 +1014,8 @@ int Plfs::f_release( const char *path, struct fuse_file_info *fi )
                      "%s not yet removing open file for %s, pid %u, %d remaining",
                      __FUNCTION__, strPath.c_str(), openfile->pid, remaining );
             }
+        } else {
+            mlog(FUSE_DRARE, "%s tried to close non-open file %s", __FUNCTION__, strPath.c_str() );
         }
         delete openfile;
         openfile = NULL;
@@ -1112,12 +1114,9 @@ int Plfs::f_write(const char *path, const char *buf, size_t size, off_t offset,
     GET_OPEN_FILE;
     plfs_error_t err;
     ssize_t bytes_written;
-    // the only place we use this lock is here and in syncIfOpen because a call to
-    // index->sync() can cause an in-progress write to break the sync and crash
-    // This should be fixed internally but fixing it here keeps us safe, if slower
-    plfs_mutex_lock( &self->write_mutex, __FUNCTION__ );
+    pthread_rwlock_rdlock( &self->write_lock );
     err = plfs_write( of, buf, size, offset, fuse_get_context()->pid, &bytes_written );
-    plfs_mutex_unlock( &self->write_mutex, __FUNCTION__ );
+    pthread_rwlock_unlock( &self->write_lock );
     ret = (err == PLFS_SUCCESS) ? bytes_written : -(plfs_error_to_errno(err));
     FUSE_PLFS_EXIT;
 }
