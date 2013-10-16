@@ -592,7 +592,9 @@ plfs_error_t WriteFile::truncate( off_t offset )
             return ret;
         }
     }
+    Util::MutexLock(   &index_mux , __FUNCTION__);
     index->truncateHostIndex( offset );
+    Util::MutexUnlock( &index_mux, __FUNCTION__ );
     return PLFS_SUCCESS;
 }
 
