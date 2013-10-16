@@ -139,7 +139,7 @@ class generic_exception: public exception
 #define RESTORE_IDS    SET_IDS(save_uid,save_gid);
 #define SAVE_IDS uid_t s_uid = plfs_getuid(); gid_t s_gid = plfs_getgid();
 #define SET_IDS(X,Y)   plfs_setfsuid( X );    plfs_setfsgid( Y );
-#define RESTORE_GROUPS setgroups( orig_groups.size(),                   \
+#define RESTORE_GROUPS if(getuid() == 0) setgroups( orig_groups.size(),        \
                                 (const gid_t*)&(orig_groups.front()));
 #endif
 
@@ -337,6 +337,8 @@ int Plfs::init( int *argc, char **argv )
     pthread_mutex_init( &(fd_mutex), NULL );
     pthread_mutex_init( &(group_mutex), NULL );
     pthread_mutex_init( &(debug_mutex), NULL );
+    pthread_mutex_init( &(modes_mutex), NULL );
+    pthread_rwlock_init( &(write_lock), NULL );
     // we used to make a trash container but now that we moved to library,
     // fuse layer doesn't handle silly rename
     // we also have (temporarily?) removed the dangler stuff
@@ -438,7 +440,9 @@ int Plfs::makePlfsFile( string expanded_path, mode_t mode, int flags )
             self->createdContainers.insert( expanded_path );
             mlog(FUSE_DCOMMON, "%s Stashing mode for %s: %d",
                  __FUNCTION__, expanded_path.c_str(), (int)mode );
+            plfs_mutex_lock( &self->modes_mutex, __FUNCTION__ );
             self->known_modes[expanded_path] = mode;
+            plfs_mutex_unlock( &self->modes_mutex, __FUNCTION__ );
         }
     }
     plfs_mutex_unlock( &self->container_mutex, __FUNCTION__ );
@@ -555,7 +559,9 @@ int Plfs::syncIfOpen( const string &expanded ) {
         Plfs_fd *pfd;
         pfd = current.fd;
         mlog(FUSE_DBG,"%s syncing %s", __FUNCTION__, pfd->getPath());
+        pthread_rwlock_wrlock( &self->write_lock );
         pfd->sync();
+        pthread_rwlock_unlock( &self->write_lock );
     }
     plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
     
@@ -599,7 +605,9 @@ int Plfs::getattr_helper( string expanded, const char *path,
             // when we didn't do a good job keeping
             // created containers up to date and
             // mknod thought a container existed but it didn't
+            plfs_mutex_lock( &self->container_mutex, __FUNCTION__ );
             self->createdContainers.erase( expanded );
+            plfs_mutex_unlock( &self->container_mutex, __FUNCTION__ );
         }
     }
     // ok, we've done the getattr, if we're running in direct_io mode
@@ -645,7 +653,9 @@ int Plfs::f_chmod (const char *path, mode_t mode)
     if ( err == PLFS_SUCCESS ) {
         mlog(FUSE_DCOMMON, "%s Stashing mode for %s: %d",
              __FUNCTION__, strPath.c_str(), (int)mode );
+        plfs_mutex_lock( &self->modes_mutex, __FUNCTION__ );
         self->known_modes[strPath] = mode;
+        plfs_mutex_unlock( &self->modes_mutex, __FUNCTION__ );
     }
     ret = -(plfs_error_to_errno(err));
     plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
@@ -758,7 +768,9 @@ int Plfs::set_groups( uid_t uid )
     if ( groups_ptr == NULL) {
         mlog(FUSE_DRARE, "WTF: Got a null group ptr for %d", uid);
     } else {
-        setgroups( groups_ptr->size(), (const gid_t *)&(groups_ptr->front()) );
+        if(getuid() == 0) {
+            setgroups( groups_ptr->size(), (const gid_t *)&(groups_ptr->front()) );
+        }
     }
     return 0;
 }
@@ -811,7 +823,9 @@ int Plfs::f_unlink( const char *path )
     FUSE_PLFS_ENTER;
     plfs_error_t err = plfs_unlink( strPath.c_str() );
     if ( err == PLFS_SUCCESS ) {
+        plfs_mutex_lock( &self->container_mutex, __FUNCTION__ );
         self->createdContainers.erase( strPath );
+        plfs_mutex_unlock( &self->container_mutex, __FUNCTION__ );
     }
     ret = -(plfs_error_to_errno(err));
     FUSE_PLFS_EXIT;
@@ -984,29 +998,24 @@ int Plfs::f_release( const char *path, struct fuse_file_info *fi )
         SET_GROUPS( openfile->uid );
         plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
         assert( openfile->flags == fi->flags );
-        int remaining;
-        plfs_close(of, openfile->pid, openfile->uid,
-                                   fi->flags ,NULL, &remaining);
-        fi->fh = (uint64_t)NULL;
-        if ( remaining == 0 ) {
-            string pathHash = pathToHash(strPath,openfile->uid,openfile->flags);
-            mlog(FUSE_DCOMMON, "%s: Removing Open File: %s remaining: %d",
-                 __FUNCTION__, pathHash.c_str(), remaining);
-            removeOpenFile(pathHash,openfile->pid,of);
-            /*
-            // we don't need to iterate through all open files here, do we?
-            list< struct hash_element > results;
-            findAllOpenFiles ( strPath , results);
-            while( results.size()!= 0 ) {
-                struct hash_element current;
-                current = results.front();
-                results.pop_front();
+        // this is dumb, but check to see if the file is actually open...
+        if (findOpenFile(pathToHash(strPath, openfile->uid, openfile->flags)) != NULL) { 
+            int remaining;
+            plfs_close(of, openfile->pid, openfile->uid,
+                                       fi->flags ,NULL, &remaining);
+            fi->fh = (uint64_t)NULL;
+            if ( remaining == 0 ) {
+                string pathHash = pathToHash(strPath,openfile->uid,openfile->flags);
+                mlog(FUSE_DCOMMON, "%s: Removing Open File: %s remaining: %d",
+                     __FUNCTION__, pathHash.c_str(), remaining);
+                removeOpenFile(pathHash,openfile->pid,of);
+            } else {
+                mlog(FUSE_DCOMMON,
+                     "%s not yet removing open file for %s, pid %u, %d remaining",
+                     __FUNCTION__, strPath.c_str(), openfile->pid, remaining );
             }
-            */
         } else {
-            mlog(FUSE_DCOMMON,
-                 "%s not yet removing open file for %s, pid %u, %d remaining",
-                 __FUNCTION__, strPath.c_str(), openfile->pid, remaining );
+            mlog(FUSE_DRARE, "%s tried to close non-open file %s", __FUNCTION__, strPath.c_str() );
         }
         delete openfile;
         openfile = NULL;
@@ -1072,6 +1081,7 @@ mode_t Plfs::getMode( string expanded )
 {
     mode_t mode;
     char *whence;
+    plfs_mutex_lock( &self->modes_mutex, __FUNCTION__ );
     HASH_MAP<string, mode_t>::iterator itr =
         self->known_modes.find( expanded );
     if ( itr == self->known_modes.end() ) {
@@ -1083,6 +1093,7 @@ mode_t Plfs::getMode( string expanded )
         mode = itr->second;
         whence = (char *)"stashed value";
     }
+    plfs_mutex_unlock( &self->modes_mutex, __FUNCTION__ );
     mlog(FUSE_DCOMMON, "%s pulled mode %d from %s",
          __FUNCTION__, mode, whence);
     return mode;
@@ -1103,7 +1114,12 @@ int Plfs::f_write(const char *path, const char *buf, size_t size, off_t offset,
     GET_OPEN_FILE;
     plfs_error_t err;
     ssize_t bytes_written;
+    // this is confusing, but we're issuing a read-lock here to allow 
+    // write parallelism while blocking pfd->sync in SyncIfOpen with 
+    // a write-lock to avoid a data race internally
+    pthread_rwlock_rdlock( &self->write_lock );
     err = plfs_write( of, buf, size, offset, fuse_get_context()->pid, &bytes_written );
+    pthread_rwlock_unlock( &self->write_lock );
     ret = (err == PLFS_SUCCESS) ? bytes_written : -(plfs_error_to_errno(err));
     FUSE_PLFS_EXIT;
 }
@@ -1353,10 +1369,12 @@ int Plfs::f_rename( const char *path, const char *to )
             self->createdContainers.insert( toPath );
         }
         plfs_mutex_unlock( &self->container_mutex, __FUNCTION__ );
+        plfs_mutex_lock( &self->modes_mutex, __FUNCTION__ );
         if ( self->known_modes.find(strPath) != self->known_modes.end() ) {
             self->known_modes[toPath] = self->known_modes[strPath];
             self->known_modes.erase(strPath);
         }
+        plfs_mutex_unlock( &self->modes_mutex, __FUNCTION__ );
     }
     ret = -(plfs_error_to_errno(err));
     FUSE_PLFS_EXIT;
@@ -1485,7 +1503,7 @@ int Plfs::dbg_debug_read(char *buf, size_t size, off_t offset)
     // openFilesToString must be called from w/in a mutex
     plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
     ret = snprintf( tmpbuf, DEBUGFILESIZE,
-                    "Version %s (SVN %s) (DATA %s) (LIB %s)\n"
+                    "Version %s (DATA %s) (LIB %s)\n"
                     "Build date: %s\n"
                     "Hostname %s, %.2f Uptime\n"
                     "%s"
@@ -1495,8 +1513,7 @@ int Plfs::dbg_debug_read(char *buf, size_t size, off_t offset)
                     "%d ExtraAttempts\n"
                     "%d Opens with O_RDWR\n"
                     "%s",
-                    STR(TAG_VERSION),
-                    STR(SVN_VERSION),
+                    plfs_package_string,
                     STR(DATA_VERSION),
                     plfs_version(),
                     plfs_buildtime(),

@@ -108,6 +108,8 @@ class Plfs : public fusexx::fuse<Plfs>
         pthread_mutex_t             fd_mutex;
         pthread_mutex_t             group_mutex;
         pthread_mutex_t             debug_mutex;
+        pthread_mutex_t             modes_mutex;
+        pthread_rwlock_t            write_lock;
         map< uid_t, vector<gid_t> > memberships;
         set< string >               createdContainers;
         HASH_MAP<string, Plfs_fd *> open_files;
