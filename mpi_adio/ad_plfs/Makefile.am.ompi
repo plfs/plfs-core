@@ -19,8 +19,8 @@
 
 include $(top_srcdir)/Makefile.options
 
-libadio_plfs_la_LDFLAGS = $(AD_PLFS_LDFLAGS)
-libadio_plfs_la_CFLAGS = $(AD_PLFS_CFLAGS)
+#libadio_plfs_la_LDFLAGS = $(AD_PLFS_LDFLAGS)
+#libadio_plfs_la_CFLAGS = $(AD_PLFS_CFLAGS)
 
 noinst_LTLIBRARIES = libadio_plfs.la
 libadio_plfs_la_SOURCES = \
