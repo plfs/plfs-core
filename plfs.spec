@@ -3,13 +3,19 @@
 # major version of PLFS
 %define pmajor	2
 # minor version of PLFS
-%define pminor	4
-# patch version of PLFS. Uncomment if not zero
-%define ppatch	1
+%define pminor	5
+# patch version of PLFS
+%define ppatch	0
+
+%if %{ppatch}==0
+%define pversion %{pmajor}.%{pminor}
+%else
+%define pversion %{pmajor}.%{pminor}.%{ppatch}
+%endif
 
 Name:		plfs
 Summary:	plfs - Parallel Log Structured File System
-Version:    %{pmajor}.%{pminor}
+Version:    %{pversion}
 Release:	%{_release}%{?dist}
 License:	LANS LLC
 Group:		System Environment/Filesystems
@@ -48,7 +54,8 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH=%{_prefix} \
       -DBINDIR:PATH=%{_bindir} \
       -DSBINDIR:PATH=%{_sbindir} \
       -DINCLUDEDIR:PATH=%{_includedir} \
-      -DMANDIR:PATH=%{_mandir}
+      -DMANDIR:PATH=%{_mandir} \
+      -DADMIN_TOOLS=yes
 
 %{__make}
 
@@ -99,25 +106,28 @@ fi
 
 %files lib
 %defattr(-,root,root,0755)
-%{_bindir}/dcon
-%{_bindir}/findmesgbuf
+%{_sbindir}/dcon
+%{_sbindir}/findmesgbuf
+%{_sbindir}/plfs_map
+%{_sbindir}/plfs_query
+%{_sbindir}/plfs_recover
 %{_bindir}/plfs_check_config
 %{_bindir}/plfs_flatten_index
-%{_bindir}/plfs_map
-%{_bindir}/plfs_recover
-%{_bindir}/plfs_query
-%{_bindir}/plfs_version
 %{_bindir}/plfs_ls
+%{_bindir}/plfs_version
 %{_libdir}/libplfs.a
 %{_libdir}/libplfs.so
-%{_libdir}/libplfs.so.%{pmajor}.%{pminor}
+%{_libdir}/libplfs.so.*
 %defattr(-,root,root,0644)
 %{_includedir}/plfs/COPYRIGHT.h
 %{_includedir}/plfs/mlogfacs.h
 %{_includedir}/plfs/plfs_internal.h
 %{_includedir}/plfs/Util.h
 %{_includedir}/plfs.h
+%{_includedir}/plfs_error.h
 %doc COPYRIGHT.h
+%{_mandir}/man1/dcon.1.gz
+%{_mandir}/man1/findmesgbuf.1.gz
 %{_mandir}/man1/plfs_check_config.1.gz
 %{_mandir}/man1/plfs_flatten_index.1.gz
 %{_mandir}/man1/plfs_map.1.gz
@@ -162,6 +172,13 @@ fi
 %{_mandir}/man7/plfs.7.gz
 
 %changelog
+* Wed Oct 30 2013 David Shrader <dshrader@lanl.gov>
+- Update to PLFS v2.5rc1
+- Implement a process that can handle either a 2-member or 3-member version
+  string without having to modify the spec file beyond the actual version
+  numbers. That is, when changing PLFS versions, it is only necessary to
+  update the actual version numbers and nothing else in the spec file.
+
 * Wed Jul 17 2013 Zhang Jingwang <jingwang.zhang@emc.com>
 - Remove the YAML library packaged with PLFS. It will be included in the
   PLFS library directly.

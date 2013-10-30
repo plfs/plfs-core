@@ -100,9 +100,13 @@ Regression testing a release
         3) PLFS can be built and used from the resulting tarball.
     4) Update plfs.spec and verify an rpm can be built with it. This will
     verify that all files listed in the spec file match what will be created
-    via 'make install'. Set "Version:" to <release> rather than <release>rc1.
-    Make sure these changes are checked in to plfs/plfs-core via the
-    appropriate method.
+    via 'make install'. For the test, set "Version:" in the spec file to
+    <release>rc1 to match the naming convention that will be used by the PLFS
+    tarball created in step 3. Once the test is complete, set "Version:" in
+    the spec file to just <release> instead of <release>rc1. This way the spec
+    file is ready for the general release (it is not anticipated that the spec
+    file will need to change between now and the actual release). Check in any
+    changes to the spec file to plfs/plfs-core via the appropriate method.
     5) If the procedure outlined in README.git has been followed, the
     committer will have a working repository with a remote defined as upstream
     that points to plfs/plfs-core. Upstream will be used directly in the
