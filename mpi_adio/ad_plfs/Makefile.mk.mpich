@@ -10,8 +10,8 @@ if BUILD_AD_PLFS
 noinst_HEADERS += adio/ad_plfs/ad_plfs.h
 
 
-AM_LDFLAGS = $(AD_PLFS_LDFLAGS)
-AM_CFLAGS = $(AD_PLFS_CFLAGS)
+#AM_LDFLAGS = $(AD_PLFS_LDFLAGS)
+#AM_CFLAGS = $(AD_PLFS_CFLAGS)
 
 romio_other_sources +=              \
 	adio/ad_plfs/ad_plfs.c          \

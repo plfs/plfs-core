@@ -70,8 +70,10 @@ to the ROMIO layer or the build system (such as MVAPICH2).
    setting some environment variables and running the configure script.
    a) for Open MPI, set the following env variables
 
-      AD_PLFS_LDFLAGS="-L/path/to/plfs/lib -dynamic -Wl,-rpath=/path/to/plfs/lib -lplfs -lpthread"
-      AD_PLFS_CFLAGS="-I/path/to/plfs/include"
+      LDFLAGS="-L/path/to/plfs/lib -dynamic -Wl,-rpath=/path/to/plfs/lib -lplfs -lpthread"
+      CFLAGS="-I/path/to/plfs/include"
+      CXXFLAGS="-I/path/to/plfs/include"
+      CCASFLAGS="-I/path/to/plfs/include"
 
       Then, run configure with like this:
 
@@ -82,7 +84,7 @@ to the ROMIO layer or the build system (such as MVAPICH2).
       Open MPI's configure process. Please see the Open MPI documentation for
       further information.
 
-   b) for MPICH and its derivatives, set the AD_PLFS_LDFLAGS and AD_PLFS_CFLAGS
+   b) for MPICH and its derivatives, set the LDFLAGS, CFLAGS, and CXXFLAGS
       env variables as with Open MPI and use the following configure command
       (with possibly more parameters passed to configure such as --prefix):
 
@@ -97,8 +99,10 @@ cd openmpi-1.4.5
 patch -p1 < /path/to/plfs/mpi_adio/patches/openmpi/ompi-1.4.x-plfs-prep.patch
 patch -p1 < /path/to/plfs/mpi_adio/patches/openmpi/ompi-plfs.patch
 ./autogen.sh
-export AD_PLFS_LDFLAGS="-L/path/to/plfs/lib -dynamic -Wl,-rpath=/path/to/plfs/lib -lplfs -lstdc++ -lpthread"
-export AD_PLFS_CFLAGS="-I/path/to/plfs/include"
+export LDFLAGS="-L/path/to/plfs/lib -dynamic -Wl,-rpath=/path/to/plfs/lib -lplfs -lstdc++ -lpthread"
+export CFLAGS="-I/path/to/plfs/include"
+export CXXFLAGS="-I/path/to/plfs/include"
+export CCASFLAGS="-I/path/to/plfs/include"
 export CPPFLAGS="-DROMIO_OPENMPI_14x"
 ./configure --with_io_romio_flags=--with-file-system=ufs+nfs+plfs --prefix=/path/to/mpi/install
 make
@@ -168,6 +172,3 @@ is necessary to manually copy in the correct Makefile:
 
 cp /path/to/plfs/source/mpi_adio/ad_plfs/Makefile.in.mpich2 \
   /path/to/MPICH2/source/src/mpi/romio/adio/ad_plfs/Makefile.in
-
-You may also need to specify CFLAGS and LDFLAGS env variables instead of 
-their AD_PLFS_ counterparts when building these older versions.
