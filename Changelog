@@ -1,3 +1,69 @@
+~~~ Version 2.5
+Improvements include (in no particular order):
+
+* Many updates to documentation and man pages
+
+* The YAML library is now included within the PLFS library
+This means it is no longer necessary to link in the YAML library. It is only
+necessary to link in libplfs when building against PLFS.
+
+* PLFS API functions now return a consistent set of return types
+The new return types are enumerated in plfs_error.h which is now part of a
+PLFS installation. Plfs.h includes plfs_error.h, so it is not necessary to
+include it separately.
+
+* PLFS adminstration tools have been moved to sbin
+Dcon, findmesgbuf, plfs_remove and plfs_query now reside in <prefix>/sbin.
+
+* New analysis tool in analysis subdirectory
+A new analysis tool has been created for analyzing PLFS files and performance.
+Please see the documentation in that directory for more information.
+
+* Removed outdated scripts and scripts directory
+The scripts directory was home to several scripts that are no longer usable.
+In many cases, they were not needed anymore.
+
+Bug fixes:
+* N-1 MPI/IO doesn't use multiple backends
+Issue #57: a bug was identified where files were not distributed evenly over
+backends when using N-1. The distribution of backend use has been optimized.
+
+* Transport Endpoint Disconnected
+Issue #166: due to race conditions and non-thread safe classes, it was
+possible to have the PLFS daemon seg fault and crash without FUSE knowing.
+Then, when FUSE goes to access anything within the PLFS mount point, an error
+would occur. The error was "Transpoint Endpoint Disconnected". Thread-safety
+has been increased and FUSE stability has been increased.
+
+* plfs_query on non-container
+Issue #190: plfs_query now does not error out when running on a flat-file
+(N-N) mountpoint.
+
+* O_EXCL in container mode
+Issue #249: poor performance was found when PLFS was told to open a file using
+O_EXCL. The performance has been improved.
+
+* PLFS and random offsets
+Issue #296: PLFS was found to use calls to rand() not uniformly across all
+ranks. This resulted in MPI processes being out of sync with each other in
+relation to randomly generated numbers. A thread-safe wrapper has been created
+and PLFS no longer interferes with running processes' random numbers.
+
+* Free buffer used in ADIO patch set
+Issue #297: Some buffers used in ad_plfs were not being properly freed. These
+buffers are now properly freed which helps with memory pressure.
+
+* Update version stamps for droppings and .plfsdebug
+Issue #317: Various locations that provide PLFS version information were not
+doing so consistently. Some of this had to do with the transition from SVN to
+GIT. Now, the process of getting the PLFS version is consistent and the
+version of PLFS that created a file is contained in that file.
+
+* EPERM from calling setgroups() with PLFS running as non-root
+Issue #318: PLFS was found to be calling setgroups() regardless of whether or
+not PLFS was running as root. Now, setgroups() is only called if PLFS is
+running as root.
+
 ~~~ Version 2.4
 PLFS 2.4 introduces many new features and enhancements in addition to the bug 
 fixes listed further below.  Improvements include (in no particular order):
