@@ -43,7 +43,9 @@ typedef struct  PlfsMount {
     LogicalFileSystem *fs_ptr;
     int max_writers;
     int glib_buffer_mbs;
+#ifdef USE_SMALLFILE
     int max_smallfile_containers; /* max cached smallfile containers */
+#endif
     unsigned checksum;
 
     /* backend filesystem info */

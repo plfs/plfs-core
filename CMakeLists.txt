@@ -25,6 +25,10 @@ if (DEFINED plfs_VERSION_PATCH)
     endif()
 endif()
 
+#some options
+option (USE_FLATFILE "Enable the flat file mode" ON)
+option (USE_SMALLFILE "Enable the small file mode" ON)
+
 #setup "make dist"
 set(ARCHIVE_NAME
     ${CMAKE_PROJECT_NAME}-${plfs_VERSION_FULL})
@@ -71,10 +75,16 @@ include_directories(${PLFS_SOURCE_DIR}/LogicalFS)
 include_directories(${PLFS_SOURCE_DIR}/LogicalFS/Container)
 include_directories(${PLFS_SOURCE_DIR}/LogicalFS/Container/Index)
 #Logical Flatfile
+if (USE_FLATFILE)
 include_directories(${PLFS_SOURCE_DIR}/LogicalFS/FlatFile)
+add_definitions (-DUSE_FLATFILE)
+endif (USE_FLATFILE)
 #Logical Smallfile
+if (USE_SMALLFILE)
 include_directories(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile)
 include_directories(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile/smallfile)
+add_definitions (-DUSE_SMALLFILE)
+endif (USE_SMALLFILE)
 #Mlog
 include_directories(${PLFS_SOURCE_DIR}/Mlog)
 #Plfsrc
@@ -190,9 +200,13 @@ endif (BUILD_IOFSL)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS logicalfs)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/Container logicalfs_container)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/Container/Index container_index)
-AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/FlatFile logicalfs_flatfile)
-AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile logicalfs_smallfile)
-AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile/smallfile smallfile)
+if (USE_FLATFILE)
+   AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/FlatFile logicalfs_flatfile)
+endif (USE_FLATFILE)
+if (USE_SMALLFILE)
+   AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile logicalfs_smallfile)
+   AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile/smallfile smallfile)
+endif (USE_SMALLFILE)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/Mlog mlog)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/Plfsrc plfsrc)
 

@@ -18,7 +18,9 @@ using namespace std;
 
 #include "IOStore.h"
 #include "FileOp.h"
+#ifdef USE_FLATFILE
 #include "FlatFileFS.h"
+#endif
 #include "plfs_error.h"
 
 void 

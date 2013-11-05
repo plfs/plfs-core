@@ -3,10 +3,14 @@
 #include "parse_conf.h"
 #include "plfs_internal.h"
 #include "mlog.h"
+#include "mlogfacs.h"
+#ifdef USE_FLATFILE
 #include "FlatFileFS.h"
+#endif
 #include "ContainerFS.h"
+#ifdef USE_SMALLFILE
 #include "SmallFileFS.h"
-
+#endif
 
 void
 set_default_mount(PlfsMount *pmnt)
@@ -18,7 +22,9 @@ set_default_mount(PlfsMount *pmnt)
     pmnt->fs_ptr = &containerfs;
     pmnt->max_writers = 4;
     pmnt->glib_buffer_mbs = 16;
+#ifdef USE_SMALLFILE
     pmnt->max_smallfile_containers = 32;
+#endif
     pmnt->checksum = (unsigned)-1;
     pmnt->backspec = pmnt->canspec = pmnt->shadowspec = NULL;
     pmnt->attached = pmnt->nback = pmnt->ncanback = pmnt->nshadowback = 0;
@@ -391,6 +397,7 @@ namespace YAML {
                    Util::fast_tokenize(pmntp.mnt_pt.c_str(),pmntp.mnt_tokens);
                }
 
+#ifdef USE_SMALLFILE
                if(node["max_smallfile_containers"]) {
                    if(!conv(node["max_smallfile_containers"],
                             pmntp.max_smallfile_containers) ||
@@ -399,23 +406,28 @@ namespace YAML {
                            new string("Illegal max_smallfile_containers");
                    }
                }
+#endif
                if(node["workload"]) {
                    string temp;
                    if(!conv(node["workload"],temp)) {
                        pmntp.err_msg = new string("Illegal workload");
                    }
+#ifdef USE_FLATFILE
                    else if(temp == "file_per_proc" || temp == "n-n") {
                        pmntp.file_type = FLAT_FILE;
                        pmntp.fs_ptr = &flatfs;
                    }
+#endif
                    else if(temp == "shared_file" || temp == "n-1") {
                        pmntp.file_type = CONTAINER;
                        pmntp.fs_ptr = &containerfs;
                    }
+#ifdef USE_SMALLFILE
                    else if(temp == "small_file" || temp == "1-n") {
                        pmntp.file_type = SMALL_FILE;
                        pmntp.fs_ptr = new SmallFileFS(pmntp.max_smallfile_containers);
                    }
+#endif
                    else {
                        pmntp.err_msg = new string("Unknown workload type");
                    }
