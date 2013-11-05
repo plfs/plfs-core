@@ -16,7 +16,11 @@ endforeach(SOURCE)
 
 find_package(CPPUNIT)
 if (CPPUNIT_FOUND)
-    foreach (SOURCE plfsunit.cpp smallfileunit.cpp)
+    set (plfs_UT_TOOLS plfsunit.cpp)
+    if (USE_SMALLFILE)
+       set (plfs_UT_TOOLS ${plfs_UT_TOOLS} smallfileunit.cpp)
+    endif (USE_SMALLFILE)
+    foreach (SOURCE ${plfs_UT_TOOLS})
         get_filename_component(PROG ${SOURCE} NAME_WE)
         add_executable(${PROG} ${PLFS_TESTS_DIR}/${SOURCE}
 			       ${PLFS_TESTS_DIR}/unitmain.cpp)

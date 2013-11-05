@@ -657,11 +657,13 @@ plfs_dump_config(int check_dirs, int make_dir)
                                    pmnt->statfs->c_str(),ret,make_dir);
             }
         }
+#ifdef USE_SMALLFILE
         if (pmnt->file_type == SMALL_FILE) {
             cout << "\tMax writers: " << pmnt->max_writers << endl;
             cout << "\tMax cached smallfile containers: " 
                 << pmnt->max_smallfile_containers << endl;
         }
+#endif
         cout << "\tChecksum: " << pmnt->checksum << endl;
     }
     return ret;
