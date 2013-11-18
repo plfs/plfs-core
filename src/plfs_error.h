@@ -1,3 +1,14 @@
+/*
+ * This file is separate from plfs.h for a few reasons (in no particular order):
+ * 1. These definitions are used internally in PLFS (where plfs.h is not included) 
+ *    as well as externally when using the PLFS API.
+ * 2. Users need to be aware of these return codes and their translation from 
+ *    PLFS-specific codes into human readable strings and/or generic errnos.
+ * 3. By keeping this separate users of the PLFS API will be forced to at least
+ *    know of the existence of the PLFS-specific return codes enumerated below.
+ */
+
+
 #ifndef __PLFS_ERROR__
 #define __PLFS_ERROR__
 
