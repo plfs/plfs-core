@@ -13,7 +13,7 @@ project(plfs)
 #set project number X.X.X?
 set (plfs_VERSION_MAJOR 2)
 set (plfs_VERSION_MINOR 5)
-set (plfs_VERSION_PATCH 0)
+set (plfs_VERSION_PATCH 1)
 set (plfs_DATA_VERSION 1.0)
 set (PACKAGE_STRING "PLFS ${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}")
 set (plfs_VERSION_FULL "${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}")
