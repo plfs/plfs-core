@@ -70,6 +70,9 @@ include_directories(${PLFS_SOURCE_DIR}/LogicalFS)
 #Logical Container
 include_directories(${PLFS_SOURCE_DIR}/LogicalFS/Container)
 include_directories(${PLFS_SOURCE_DIR}/LogicalFS/Container/Index)
+include_directories(${PLFS_SOURCE_DIR}/LogicalFS/Container/ByteRangeIndex)
+include_directories(${PLFS_SOURCE_DIR}/LogicalFS/Container/MDHIMIndex)
+include_directories(${PLFS_SOURCE_DIR}/LogicalFS/Container/PatternIndex)
 #Logical Flatfile
 include_directories(${PLFS_SOURCE_DIR}/LogicalFS/FlatFile)
 #Logical Smallfile
