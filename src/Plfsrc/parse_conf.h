@@ -4,7 +4,6 @@
 #include "yaml-cpp/yaml.h"
 #include "IOStore.h"
 #include "LogicalFS.h"
-#include "Container.h"
 #include <syslog.h>
 
 /*

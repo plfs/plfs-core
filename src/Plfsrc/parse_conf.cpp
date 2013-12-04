@@ -3,10 +3,9 @@
 #include "parse_conf.h"
 #include "plfs_internal.h"
 #include "mlog.h"
-#include "FlatFileFS.h"
 #include "ContainerFS.h"
+#include "FlatFileFS.h"
 #include "SmallFileFS.h"
-
 
 void
 set_default_mount(PlfsMount *pmnt)
@@ -478,7 +477,7 @@ namespace YAML {
                    if (!backspec.empty()) {
                        pmntp.backspec = strdup(backspec.c_str());
                        pmntp.checksum = 
-                           (unsigned)Container::hashValue(backspec.c_str());
+                           (unsigned)Util::hashValue(backspec.c_str());
                    }
                    if (!canspec.empty())
                        pmntp.canspec = strdup(canspec.c_str());

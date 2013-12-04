@@ -36,6 +36,23 @@ extern "C" {
                                         const char **version);
 
     /**
+     * container_flatten_index: flatten a container's index
+     *
+     * XXX: this is a top-level function that bypasses the LogicalFS layer
+     * (a hook for tools/plfs_flatten_index.cpp)
+     *
+     * XXX: redundant code here --- we've got this version and then
+     * the plfs_flatten_index() API that maps down to ContainerFD
+     * compress index.   what's the difference?  which is better? 
+     * you have to open  (in RDONLY?) with the other API?   not sure.
+     *
+     * @param ppip container to flatten
+     * @return PLFS_SUCCESS or error code
+     */
+    plfs_error_t container_flatten_index(struct plfs_physpathinfo *ppip);
+
+
+    /**
      * container_dump_index: print out information about a file's
      * index to the given stdio file pointer.
      *

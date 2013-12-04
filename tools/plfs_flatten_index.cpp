@@ -8,9 +8,7 @@
 int main (int argc, char **argv) {
     const char *target;
     struct plfs_physpathinfo ppi;
-    struct plfs_pathback pb;
     plfs_error_t perr;
-    Index *index;
 
     if (argc > 1) {
         target = argv[1];
@@ -24,25 +22,9 @@ int main (int argc, char **argv) {
         fprintf(stderr, "Couldn't resolve path %s\n", target);
         exit(1);
     }
-    
-    /*
-     * XXXCDC: clearly we assume containerfs here and we totally
-     * bypass the logicalfs layer.  maybe "compress_metadata" should
-     * be a logicalfs operation?
-     */
-    pb.bpath = ppi.canbpath;
-    pb.back = ppi.canback;
 
-    index = new Index(pb.bpath, pb.back);
-    perr = Container::populateIndex(pb.bpath, pb.back, index, false, false, 0);
-    if (perr != PLFS_SUCCESS) {
-        fprintf(stderr, "populateIndex of %s failed (%s)\n",
-                target, strplfserr(perr));
-        exit(1);
-    }
-    perr = Container::flattenIndex(pb.bpath, pb.back, index);
-    delete index;
-    
+    perr = container_flatten_index(&ppi);
+
     if (perr != PLFS_SUCCESS) {
         fprintf(stderr, "flattenIndex of %s failed (%s)\n",
                 target, strplfserr(perr));
@@ -52,3 +34,4 @@ int main (int argc, char **argv) {
     }
     exit(0);
 }
+

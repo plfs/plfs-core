@@ -4,7 +4,6 @@
 #include <limits.h>
 #include "plfs_tool_common.h"
 #include "plfs.h"
-#include "Container.h"
 
 void show_usage(char* app_name) {
     fprintf(stderr, "Usage: %s [-version] <filename>\n", app_name);

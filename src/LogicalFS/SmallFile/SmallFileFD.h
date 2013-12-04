@@ -4,6 +4,7 @@
 #include "plfs_private.h"
 #include "SmallFileFS.h"
 #include "LogicalFD.h"
+#include "PLFSIndex.h"
 #include <pthread.h>
 #include <string>
 #include <tr1/memory>

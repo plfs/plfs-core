@@ -497,7 +497,7 @@ plfs_check_dir(string type, const char *prefix, IOStore *store, string bpath,
                type.c_str(), prefix, directory);
         return(PLFS_ENOENT);
     }
-    rv = mkdir_dash_p(bpath, false, store);
+    rv = mkdir_dash_p(bpath, 0755, false, store);
     if (rv != PLFS_SUCCESS) {
         printf("Attempt to create directory %s%s failed (%s)\n",
                prefix, directory, strplfserr(rv));
@@ -731,7 +731,7 @@ plfs_stats( void *vptr )
 // returns PLFS_SUCCESS or PLFS_E*
 // if it sees EEXIST, it silently ignores it and returns PLFS_SUCCESS
 plfs_error_t
-mkdir_dash_p(const string& path, bool parent_only, IOStore *store)
+mkdir_dash_p(const string& path, mode_t mode, bool parent_only, IOStore *store)
 {
     string recover_path;
     vector<string> canonical_tokens;
@@ -744,7 +744,7 @@ mkdir_dash_p(const string& path, bool parent_only, IOStore *store)
     for(size_t i=0 ; i < last; i++) {
         recover_path += "/";
         recover_path += canonical_tokens[i];
-        plfs_error_t ret = store->Mkdir(recover_path.c_str(), CONTAINER_MODE);
+        plfs_error_t ret = store->Mkdir(recover_path.c_str(), mode);
         if ( ret != PLFS_SUCCESS && ret != PLFS_EEXIST ) { // some other error
             return(ret);
         }

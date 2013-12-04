@@ -9,6 +9,21 @@ using namespace std;
 
 #define SVNVERS $Rev$
 
+/*
+ * add a DT_ container type to the types in dirent.h.   this is so we
+ * can tell the difference between a logical directory and a container.
+ *
+ * XXX: in theory, this should be confined to LogicalFS/Container, but
+ * the FileOp module currently needs it...
+ */
+enum {
+    /* 
+     * XXX: -1 is an attempt to choose a value that doesn't clash
+     * with the system dirent.h values (we don't check though).
+     */
+    DT_CONTAINER = (unsigned char)-1
+};
+
 /**
  * plfs_pathinfo: the upper-level PLFS code uses this structure to cache
  * the results of translating a logical path into a physical path (e.g.
@@ -39,7 +54,8 @@ string expand_macros(const char *target);
 
 const char *skipPrefixPath(const char *path);
 
-plfs_error_t mkdir_dash_p(const string& path, bool parent_only, IOStore *);
+plfs_error_t mkdir_dash_p(const string& path, mode_t mode, 
+                          bool parent_only, IOStore *);
 
 plfs_error_t plfs_backends_op(struct plfs_physpathinfo *ppip, FileOp& op);
 plfs_error_t plfs_resolvepath(const char *logical, struct plfs_physpathinfo *ppip);

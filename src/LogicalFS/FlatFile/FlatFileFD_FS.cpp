@@ -467,7 +467,7 @@ FlatFileSystem::resolvepath_finish(struct plfs_physpathinfo *ppip)
      */
     at_root = (ppip->filename == NULL);
     
-    hash_val = Container::hashValue((at_root) ? "/" : ppip->filename);
+    hash_val = Util::hashValue((at_root) ? "/" : ppip->filename);
     hash_val = hash_val % ppip->mnt_pt->ncanback;
     ppip->canback = ppip->mnt_pt->canonical_backends[hash_val];
 

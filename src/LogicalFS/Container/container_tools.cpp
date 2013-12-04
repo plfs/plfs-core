@@ -4,7 +4,6 @@
 #include "COPYRIGHT.h"
 #include "plfs.h"
 #include "plfs_private.h"
-#include "Container.h"
 
 #include "container_tools.h"
 
@@ -19,9 +18,13 @@ using namespace std;
 int
 container_dump_index_size()
 {
+#if 0
     ContainerEntry e;
     cout << "An index entry is size " << sizeof(e) << endl;
     return (int)sizeof(e);
+#else
+    return(PLFS_ENOTSUP);
+#endif
 }
 
 /**
@@ -40,6 +43,7 @@ container_dump_index_size()
 plfs_error_t
 container_file_version(const char *logicalpath, const char **version)
 {
+#if 0
     plfs_error_t ret = PLFS_SUCCESS;
     struct plfs_physpathinfo ppi;
     struct plfs_pathback pb;
@@ -58,6 +62,46 @@ container_file_version(const char *logicalpath, const char **version)
     }
     *version = Container::version(&pb);
     return (*version ? PLFS_SUCCESS : PLFS_ENOENT);
+#else
+    return(PLFS_ENOTSUP);
+#endif
+}
+
+/**
+ * container_flatten_index: flatten a container's index
+ *
+ * XXX: this is a top-level function that bypasses the LogicalFS layer
+ * (a hook for tools/plfs_flatten_index.cpp)
+ *
+ * XXX: redundant code here --- we've got this version and then
+ * the plfs_flatten_index() API that maps down to ContainerFD
+ * compress index.   what's the difference?  which is better? 
+ * you have to open  (in RDONLY?) with the other API?   not sure.
+ *
+ * @param ppip container to flatten
+ * @return PLFS_SUCCESS or error code
+ */
+plfs_error_t container_flatten_index(struct plfs_physpathinfo *ppip) {
+#if 0
+    plfs_error_t perr;
+    Index *index;
+
+    /*
+     * XXXCDC: clearly we assume containerfs here and we totally
+     * bypass the logicalfs layer.  maybe "compress_metadata" should
+     * be a logicalfs operation?
+     */
+    index = new Index(ppip->canbpath, ppip->canback);
+    perr = Container::populateIndex(ppip->canbpath, ppip->canback, 
+                                    index, false, false, 0);
+    if (perr == PLFS_SUCCESS) {
+    perr = Container::flattenIndex(ppip->canbpath, ppip->canback, index);
+    }
+    delete index;
+    returun(perr);
+#else
+    return(PLFS_ENOTSUP);
+#endif
 }
 
 /**
@@ -81,6 +125,7 @@ plfs_error_t
 container_dump_index(FILE *fp, const char *logicalpath, int compress, 
         int uniform_restart, pid_t uniform_restart_rank)
 {
+#if 0
     plfs_error_t ret = PLFS_SUCCESS;
     struct plfs_physpathinfo ppi;
     ret = plfs_resolvepath(logicalpath, &ppi);
@@ -101,6 +146,9 @@ container_dump_index(FILE *fp, const char *logicalpath, int compress,
         fprintf(fp,"%s",oss.str().c_str());
     }
     return(ret);
+#else
+    return(PLFS_ENOTSUP);
+#endif
 }
 
 /**
@@ -122,6 +170,7 @@ plfs_error_t
 container_locate(const char *logicalpath, void *files_ptr,
                  void *dirs_ptr, void *metalinks_ptr)
 {
+#if 0
     plfs_error_t ret = PLFS_SUCCESS;
     struct plfs_physpathinfo ppi;
     ret = plfs_resolvepath(logicalpath, &ppi);
@@ -173,8 +222,12 @@ container_locate(const char *logicalpath, void *files_ptr,
     }
     //*target = path;
     return(ret);
+#else
+    return(PLFS_ENOTSUP);
+#endif
 }
 
+#if 0
 /**
  * recover_directory: helper function for container_recover.
  * restores a lost directory hierarch.
@@ -197,7 +250,9 @@ recover_directory(struct plfs_physpathinfo *ppip, bool parent_only)
         ret = mkdir_dash_p(itr->bpath,parent_only,itr->back->store);
     }
     return ret;
+    return(PLFS_ENOTSUP);
 }
+#endif
 
 
 /**
@@ -227,6 +282,7 @@ recover_directory(struct plfs_physpathinfo *ppip, bool parent_only)
 plfs_error_t
 container_recover(const char *logicalpath)
 {
+#if 0
     plfs_error_t ret = PLFS_SUCCESS;
     struct plfs_physpathinfo ppi;
 
@@ -314,4 +370,7 @@ container_recover(const char *logicalpath)
                canonical_pb.bpath.c_str());
     }
     return(ret);
+#else
+    return(PLFS_ENOTSUP);
+#endif
 }
