@@ -112,7 +112,8 @@ typedef void *Plfs_dirp;
     plfs_error_t plfs_getxattr(Plfs_fd *fd, void *value, const char *key, size_t len);
 
     /* Set the exteded attribute */ 
-    plfs_error_t plfs_setxattr(Plfs_fd *fd, const void *value, const char *key);
+    plfs_error_t plfs_setxattr(Plfs_fd *fd, const void *value, 
+                               const char *key, size_t len);
 
     plfs_error_t plfs_link( const char *path, const char *to );
 
