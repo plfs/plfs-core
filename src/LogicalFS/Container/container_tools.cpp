@@ -18,7 +18,7 @@ using namespace std;
 int
 container_dump_index_size()
 {
-#if 0
+#if 0 /* XXXIDX */
     ContainerEntry e;
     cout << "An index entry is size " << sizeof(e) << endl;
     return (int)sizeof(e);
@@ -43,7 +43,7 @@ container_dump_index_size()
 plfs_error_t
 container_file_version(const char *logicalpath, const char **version)
 {
-#if 0
+#if 0 /* XXXIDX */
     plfs_error_t ret = PLFS_SUCCESS;
     struct plfs_physpathinfo ppi;
     struct plfs_pathback pb;
@@ -82,7 +82,7 @@ container_file_version(const char *logicalpath, const char **version)
  * @return PLFS_SUCCESS or error code
  */
 plfs_error_t container_flatten_index(struct plfs_physpathinfo *ppip) {
-#if 0
+#if 0 /* XXXIDX */
     plfs_error_t perr;
     Index *index;
 
@@ -125,7 +125,7 @@ plfs_error_t
 container_dump_index(FILE *fp, const char *logicalpath, int compress, 
         int uniform_restart, pid_t uniform_restart_rank)
 {
-#if 0
+#if 0 /* XXXIDX */
     plfs_error_t ret = PLFS_SUCCESS;
     struct plfs_physpathinfo ppi;
     ret = plfs_resolvepath(logicalpath, &ppi);
@@ -170,7 +170,7 @@ plfs_error_t
 container_locate(const char *logicalpath, void *files_ptr,
                  void *dirs_ptr, void *metalinks_ptr)
 {
-#if 0
+#if 0 /* XXXIDX */
     plfs_error_t ret = PLFS_SUCCESS;
     struct plfs_physpathinfo ppi;
     ret = plfs_resolvepath(logicalpath, &ppi);
@@ -227,7 +227,7 @@ container_locate(const char *logicalpath, void *files_ptr,
 #endif
 }
 
-#if 0
+#if 0 /* XXXIDX */
 /**
  * recover_directory: helper function for container_recover.
  * restores a lost directory hierarch.
@@ -282,7 +282,7 @@ recover_directory(struct plfs_physpathinfo *ppip, bool parent_only)
 plfs_error_t
 container_recover(const char *logicalpath)
 {
-#if 0
+#if 0 /* XXXIDX */
     plfs_error_t ret = PLFS_SUCCESS;
     struct plfs_physpathinfo ppi;
 
