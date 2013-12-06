@@ -49,4 +49,4 @@ plfs_error_t containerfs_truncate_helper(struct plfs_physpathinfo *ppip,
 
 extern ContainerFileSystem containerfs;
 
-#endif
+#endif /* __CONTAINERFS_H_ */

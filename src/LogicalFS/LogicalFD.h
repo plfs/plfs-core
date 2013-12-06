@@ -10,10 +10,13 @@ class Plfs_fd
     public:
         // for use of flat_file.
         virtual ~Plfs_fd() = 0;
-        virtual plfs_error_t open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
-                         mode_t mode, Plfs_open_opt *open_opt) = 0;
-        virtual plfs_error_t close(pid_t, uid_t, int flags, Plfs_close_opt *, int *num_ref) = 0;
-        virtual plfs_error_t read(char *buf, size_t size, off_t offset, ssize_t *bytes_read) = 0;
+        virtual plfs_error_t open(struct plfs_physpathinfo *ppip, int flags, 
+                                  pid_t pid, mode_t mode, 
+                                  Plfs_open_opt *open_opt) = 0;
+        virtual plfs_error_t close(pid_t, uid_t, int flags, 
+                                   Plfs_close_opt *, int *num_ref) = 0;
+        virtual plfs_error_t read(char *buf, size_t size, off_t offset, 
+                                  ssize_t *bytes_read) = 0;
         virtual plfs_error_t write(const char *buf, size_t size, off_t offset,
                               pid_t pid, ssize_t *bytes_written) = 0;
         virtual plfs_error_t sync() = 0;
@@ -35,7 +38,8 @@ class Plfs_fd
         // functions that all might not necessarily implement
         // XXXCDC: PATH? -- SHOULD BE CACHED IN OBJECT?
         virtual plfs_error_t compress_metadata(const char *path) = 0;
-        virtual plfs_error_t getxattr(void *value, const char *key, size_t len) = 0;
+        virtual plfs_error_t getxattr(void *value, const char *key, 
+                                      size_t len) = 0;
         virtual plfs_error_t setxattr(const void *value, const char *key,
                              size_t len) = 0;
 

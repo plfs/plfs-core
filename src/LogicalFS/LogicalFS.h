@@ -28,9 +28,12 @@ class
                           int open_file) = 0;
         virtual plfs_error_t chown(struct plfs_physpathinfo *ppip,
                           uid_t u, gid_t g ) = 0;
-        virtual plfs_error_t chmod(struct plfs_physpathinfo *ppip, mode_t mode ) = 0;
-        virtual plfs_error_t getmode(struct plfs_physpathinfo *ppip, mode_t *mode ) = 0;
-        virtual plfs_error_t access(struct plfs_physpathinfo *ppip, int mask ) = 0;
+        virtual plfs_error_t chmod(struct plfs_physpathinfo *ppip, 
+                                   mode_t mode ) = 0;
+        virtual plfs_error_t getmode(struct plfs_physpathinfo *ppip, 
+                                     mode_t *mode ) = 0;
+        virtual plfs_error_t access(struct plfs_physpathinfo *ppip, 
+                                    int mask ) = 0;
         virtual plfs_error_t rename(struct plfs_physpathinfo *ppip,
                            struct plfs_physpathinfo *ppip_to) = 0;
         virtual plfs_error_t link(struct plfs_physpathinfo *ppip,
@@ -50,10 +53,12 @@ class
                             struct plfs_physpathinfo *ppip_to) = 0;
         virtual plfs_error_t statvfs(struct plfs_physpathinfo *ppip, 
                             struct statvfs *stbuf) = 0;
-        virtual plfs_error_t flush_writes(struct plfs_physpathinfo * /* ppip */) {return PLFS_SUCCESS;};
-        virtual plfs_error_t invalidate_cache(struct plfs_physpathinfo * /* ppip */)
-        {return PLFS_SUCCESS;};
-        virtual plfs_error_t resolvepath_finish(struct plfs_physpathinfo *ppip) = 0;
+        virtual plfs_error_t flush_writes(struct plfs_physpathinfo *) 
+                             {return PLFS_SUCCESS;};
+        virtual plfs_error_t invalidate_cache(struct plfs_physpathinfo *)
+                             {return PLFS_SUCCESS;};
+        virtual plfs_error_t resolvepath_finish(struct plfs_physpathinfo *ppip) 
+                             = 0;
 };
 
 #endif
