@@ -192,7 +192,7 @@ AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/IOStore/FUSE/IOFSL iostore_iofsl)
 endif (BUILD_IOFSL)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS logicalfs)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/Container logicalfs_container)
-AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/Container/Index container_index)
+AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/Container/ByteRangeIndex container_br_index)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/FlatFile logicalfs_flatfile)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile logicalfs_smallfile)
 AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile/smallfile smallfile)
@@ -202,7 +202,7 @@ AUX_SOURCE_DIRECTORY(${PLFS_SOURCE_DIR}/Plfsrc plfsrc)
 
 SET(SRCDIR ${plfs_src_dir} ${iostore} ${iostore_glib} ${iostore_hdfs} 
            ${iostore_posix} ${iostore_pvfs} ${iostore_fuse} ${iostore_iofsl}
-           ${logicalfs} ${logicalfs_container} ${container_index} ${logicalfs_flatfile}
+           ${logicalfs} ${logicalfs_container} ${container_br_index} ${logicalfs_flatfile}
            ${logicalfs_smallfile} ${smallfile} ${mlog} ${plfsrc}
 )
 

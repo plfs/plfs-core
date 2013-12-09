@@ -1,4 +1,6 @@
 
+class Container_OpenFile;   /* forward decl. */
+
 /**
  * index_record: structure that contains the result of an index query
  */
@@ -28,9 +30,11 @@ struct index_record {
  * ContainerIndex: pure virtual class for container index
  */
 class ContainerIndex {
+    virtual const char *index_name(void) = 0;
+
     virtual plfs_error_t index_open(Container_OpenFile *cof,
                                     int open_flags) = 0;
-    virtual plfs_errot_t index_close(Container_OpenFile *cof,
+    virtual plfs_error_t index_close(Container_OpenFile *cof,
                                      int open_flags) = 0;
     virtual plfs_error_t index_add(Container_OpenFile *cof,
                                    size_t nbytes, off_t offset, pid_t pid) = 0;
@@ -45,3 +49,14 @@ class ContainerIndex {
                                     off_t *st_size_p, blkcnt_t *st_blocks_p,
                                     blksize_t *st_blksize_p) = 0;
 };
+
+/*
+ * allocation/management support
+ */
+#define CI_UNKNOWN   0
+#define CI_BYTERANGE 1
+#define CI_PATTERN   2
+#define CI_MDHIM     3
+
+int container_index_id(char *spec);
+class ContainerIndex *container_index_alloc(PlfsMount *pmnt);
