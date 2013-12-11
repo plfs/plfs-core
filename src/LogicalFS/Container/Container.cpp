@@ -5,6 +5,44 @@
 #include "plfs_private.h"
 #include "Container.h"
 
+
+/**
+ * fetchMeta: get data from metafile name
+ *
+ * @param metafile_name the filename to parse
+ * @param last_offset returned last offset
+ * @param total_bytes returned total byte count
+ * @param time returned time
+ * @return the hostname
+ */
+static string 
+fetchMeta(const string& metafile_name, off_t *last_offset,
+          size_t *total_bytes, struct timespec *time)
+{
+    istringstream iss( metafile_name );
+    string host;
+    char dot;
+    iss >> *last_offset >> dot >> *total_bytes
+        >> dot >> time->tv_sec >> dot
+        >> time->tv_nsec >> dot >> host;
+    time->tv_nsec *= 1000; /* convert from micro */
+    return host;
+}
+
+
+/**
+ * istype: see if a dropping is a particular type (e.g. OPENPREFIX)
+ *
+ * @param dropping the dropping name
+ * @param type the type to check for
+ * @return true if it is of the req'd type
+ */
+static bool    
+istype(const string& dropping, const char *type)
+{
+    return (dropping.compare(0,strlen(type),type)==0);
+}               
+
 /**
  * Container::getAccessFilePath: generate access file from container path
  *
@@ -16,6 +54,20 @@ Container::getAccessFilePath(const string& path)
 {   
     string accessfile( path + "/" + ACCESSFILE );
     return accessfile;
+}            
+
+/**
+ * Container::getMetaDirPath: generate meta dir file from container path.
+ * don't ever assume that this exists bec it's possible that it doesn't yet.
+ *
+ * @param path container path
+ * @return the container's metadir path
+ */
+string
+Container::getMetaDirPath(const string& path) 
+{   
+    string metadir( path + "/" + METADIR );
+    return metadir;
 }            
 
 /**
@@ -210,3 +262,77 @@ Container::resolveMetalink(const string& metalink, struct plfs_backend *mback,
 
     return ret;
 }
+
+/*
+ * truncateMeta: truncate operation on the METADIR
+ *
+ * it's unlikely but if a previously closed file is truncated
+ * somewhere in the middle, then future stats on the file will be
+ * incorrect because they'll reflect incorrect droppings in METADIR,
+ * so we need to go through the droppings in METADIR and modify or
+ * remove droppings that show an offset beyond this truncate point
+ *
+ * @param path canonical container path
+ * @param offset the offset we are truncating to
+ * @param back the backend
+ * @return PLFS_SUCCESS or PLFS_E*
+ */
+plfs_error_t
+Container::truncateMeta(const string& path, off_t offset,
+                        struct plfs_backend *back)
+{
+    plfs_error_t ret = PLFS_SUCCESS;
+    set<string>entries;
+    ReaddirOp op(NULL,&entries,false,true);
+    string meta_path = getMetaDirPath(path);
+    if (op.op(meta_path.c_str(),DT_DIR, back->store)!=PLFS_SUCCESS) {
+        mlog(CON_DRARE, "%s wtf", __FUNCTION__ );
+        return PLFS_SUCCESS;
+    }
+    for(set<string>::iterator itr=entries.begin(); itr!=entries.end(); itr++) {
+        if (istype(*itr,OPENPREFIX)) {
+            continue;    // don't remove open droppings
+        }
+        string full_path( meta_path );
+        full_path+="/";
+        full_path+=(*itr);
+        off_t last_offset;
+        size_t total_bytes;
+        struct timespec time;
+        ostringstream oss;
+        string host = fetchMeta(itr->c_str(),&last_offset,&total_bytes,&time);
+        if(last_offset > offset) {
+            oss << meta_path << "/" << offset << "."
+                << offset    << "." << time.tv_sec
+                << "." << time.tv_nsec << "." << host;
+            ret = back->store->Rename(full_path.c_str(), oss.str().c_str());
+            //if a sibling raced us we may see ENOENT
+            if (ret != PLFS_SUCCESS and ret == PLFS_ENOENT) {
+               ret = PLFS_SUCCESS;
+            }
+            if ( ret != PLFS_SUCCESS ) {
+                mlog(CON_DRARE, "%s wtf, Rename: %s",__FUNCTION__,
+                     strplfserr(ret));
+            }
+        }
+    }
+    return ret;
+}
+
+/*
+ * Utime: just need to do the access file
+ *
+ * @param path canonical path of container dir
+ * @param back canonical backend 
+ * @param ut new time infor to set
+ * @return PLFS_SUCCESS or PLFS_E*
+ */
+plfs_error_t
+Container::Utime(const string& path, struct plfs_backend *back,
+                  const struct utimbuf *ut)
+{
+    string accessfile = getAccessFilePath(path);
+    mlog(CON_DAPI, "%s on %s", __FUNCTION__,path.c_str());
+    return(back->store->Utime(accessfile.c_str(),ut));
+}
+

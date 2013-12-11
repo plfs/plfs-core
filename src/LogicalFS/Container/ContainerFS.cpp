@@ -257,6 +257,82 @@ file_operation(struct plfs_physpathinfo *ppip, FileOp& op)
 /***********************************************************************/
 
 /*
+ * exported helper functions (shared with ContainerFD)
+ */
+
+/**
+ * containerfs_zero_helper: helper function for ContainterFileSystem
+ * and Container_fd truncate routines when we are zeroing out all the
+ * data in a file.  we break this case of truncate out into its own
+ * helper function as an optimization.  when you are zeroing a file,
+ * you do not need to do a getattr/stat on it to determine its current
+ * size, so this saves us from having to do that extra operation.
+ *
+ * note that this code only changes on-disk data.  changes for
+ * in-memory data for open files is handled by Container_fd.  (note
+ * that it is not possible to update in-memory data in all cases, e.g.
+ * when another process has a file open.)
+ *
+ * also note that if the file is not open (by us), but is open by
+ * someone else, then when TruncateOp unlinks the dropping files the
+ * kernel may rename them to a tmp filename until the last process
+ * closes them (e.g. .nfs*).  in that case, we cannot remove the
+ * dropping directory (hostdir) because it isn't empty.  (this case
+ * could cause unexpected behavior).
+ *
+ * if open_file is true, then we truncate all the droppings.
+ * if open_file is false, then we unlink all the droppings.
+ *
+ * @param ppip container path (caller already verified it is container)
+ * @param open_file if true, we truncate droppings rather than unlink
+ * @return PLFS_SUCCESS or an error code
+ */
+plfs_error_t
+containerfs_zero_helper(struct plfs_physpathinfo *ppip, int open_file)
+{
+    plfs_error_t ret;
+    string access;
+    mlog(PLFS_DAPI, "%s called (canbpath=%s)", __FUNCTION__,
+         ppip->canbpath.c_str());
+
+    /*
+     * first check to make sure we are allowed to truncate this all
+     * the droppings are global so we can truncate them but the access
+     * file has the correct permissions.
+     */
+    access = Container::getAccessFilePath(ppip->canbpath);
+    ret = ppip->canback->store->Truncate(access.c_str(), 0);
+    mlog(PLFS_DCOMMON, "Tested truncate of %s: %d",access.c_str(),ret);
+    if ( ret == PLFS_SUCCESS ) {
+        TruncateOp op(open_file);
+
+        /*
+         * XXXIDX XXXCDC: need a callback to inform index to dump for
+         * cases where the data isn't stored inline in the container
+         * directory.
+         */
+           
+        /*
+         * ignore ENOENT since it is possible that the set of files
+         * can contain duplicates.  duplicates are possible bec a
+         * backend can be defined in both shadow_backends and backends
+         */
+        op.ignoreErrno(PLFS_ENOENT);
+        op.ignore(ACCESSFILE);
+        op.ignore(OPENPREFIX);
+        op.ignore(VERSIONPREFIX);
+        ret = file_operation(ppip, op);
+        if (ret == PLFS_SUCCESS && open_file == 1) {
+            ret = Container::truncateMeta(ppip->canbpath, 0, ppip->canback);
+        }
+    }
+
+    return(ret);
+}
+
+/***********************************************************************/
+
+/*
  * main ContainerFileSystem routines for the LogicalFileSystem
  */
 
@@ -368,7 +444,39 @@ plfs_error_t
 ContainerFileSystem::trunc(struct plfs_physpathinfo *ppip, off_t offset,
                            int open_file)
 {
-    return(PLFS_ENOTSUP);
+    plfs_error_t ret = PLFS_SUCCESS;
+    mode_t mode = 0;
+    struct stat stbuf;
+
+    if (!is_container_file(ppip, &mode)) { /* path not a container file */
+        if (mode == 0) {
+            ret = PLFS_ENOENT;  /* is_container_file rets mode 0 for this */
+        } else {
+            /* let I/O store handle all non-container truncs */
+            ret = ppip->canback->store->Truncate(ppip->canbpath.c_str(),
+                                                 offset);
+        }
+        return(ret);
+    }
+    
+    if (offset == 0) {
+        /* no need to getattr in this case */
+        ret = containerfs_zero_helper(ppip, open_file);
+    } else {
+        stbuf.st_size = 0;
+        /* sz_only isn't accurate in this case, hardwire to false */
+        ret = this->getattr(ppip, &stbuf, false /* sz_only */);
+        /* clearly caching the size in stbuf isn't atomic ... */
+        if (ret == PLFS_SUCCESS) {
+            ret = containerfs_truncate_helper(ppip, offset, stbuf.st_size, 0);
+        }
+    }
+
+    if (ret == PLFS_SUCCESS) {
+        ret = Container::Utime(ppip->canbpath, ppip->canback, NULL);
+    }
+    
+    return(ret);
 }
 
 /*

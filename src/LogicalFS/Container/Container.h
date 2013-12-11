@@ -33,12 +33,17 @@ class Container
 {
  public:
     static string getAccessFilePath( const string& path);
-    static mode_t getmode( const string&, struct plfs_backend * );
+    static string getMetaDirPath( const string& );
+    static mode_t getmode(const string&, struct plfs_backend *);
     static bool isContainer(const struct plfs_pathback *physical_path,
                             mode_t *);
+    static plfs_error_t truncateMeta(const string& path, off_t offset,
+                                     struct plfs_backend *back);
     static plfs_error_t resolveMetalink(const string &, struct plfs_backend *, 
                                         PlfsMount *, string &,
                                         struct plfs_backend **);
+    static plfs_error_t Utime(const string& path, struct plfs_backend *,
+                              const struct utimbuf *buf);
 };
 
 #endif /* __CONTAINER_H__ */
