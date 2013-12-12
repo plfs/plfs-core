@@ -13,6 +13,7 @@ class XAttr
         XAttr(string key, const void* value, size_t vlen);
         const void* getValue();
         string getKey();
+        size_t getLen();
         ~XAttr();
 
     private:

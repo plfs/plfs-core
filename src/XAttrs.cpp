@@ -28,6 +28,11 @@ string XAttr::getKey()
     return key;
 }
 
+size_t XAttr::getLen()
+{
+    return vlen;
+}
+
 XAttr::~XAttr() 
 {
     free(this->value);
