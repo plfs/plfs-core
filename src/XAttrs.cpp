@@ -95,10 +95,7 @@ plfs_error_t XAttrs::getXAttr(string key, size_t len, XAttr **ret_xattr)
         return ret;
     }
 
-    char* value = (char*) malloc (len);
-    memcpy(value, &buf, len);
-    XAttr *xattr = new XAttr(key, (const void*)value, len);
-    free(value);
+    XAttr *xattr = new XAttr(key, &buf, len);
     ret = this->canback->store->Close(fh);
     if (ret == PLFS_SUCCESS) {
         mlog(IDX_DAPI, "%s: Closed file: %s", __FUNCTION__,
