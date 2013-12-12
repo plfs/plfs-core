@@ -30,6 +30,7 @@ struct index_record {
  * ContainerIndex: pure virtual class for container index
  */
 class ContainerIndex {
+ public:
     virtual const char *index_name(void) = 0;
 
     virtual plfs_error_t index_open(Container_OpenFile *cof,
@@ -43,11 +44,18 @@ class ContainerIndex {
                                      off_t input_offset,
                                      size_t input_length, 
                                      vector<index_record> &result) = 0;
-    virtual plfs_error_t index_truncate(struct plfs_physpathinfo *ppip,
+    virtual plfs_error_t index_truncate(Container_OpenFile *cof,
                                         off_t offset) = 0;
+
     virtual plfs_error_t index_getattr_size(struct plfs_physpathinfo *ppip, 
-                                    off_t *st_size_p, blkcnt_t *st_blocks_p,
-                                    blksize_t *st_blksize_p) = 0;
+                                            off_t *st_size_p,
+                                            blkcnt_t *st_blocks_p,
+                                            blksize_t *st_blksize_p) = 0;
+
+    virtual plfs_error_t index_droppings_trunc(struct plfs_physpathinfo *ppip,
+                                               off_t offset) = 0;
+    virtual plfs_error_t index_droppings_zero(struct plfs_physpathinfo *ppip)
+        = 0;
 };
 
 /*

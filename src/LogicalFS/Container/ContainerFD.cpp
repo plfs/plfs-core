@@ -126,3 +126,8 @@ Container_fd::renamefd(struct plfs_physpathinfo *ppip_to)
     return(PLFS_ENOTSUP);
 }
 
+plfs_error_t
+Container_fd::extend(off_t offset)
+{
+    return(PLFS_ENOTSUP);
+}

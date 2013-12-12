@@ -6,6 +6,7 @@
 #include "Container.h"
 #include "ContainerFS.h"
 #include "ContainerFD.h"
+#include "ContainerIndex.h"
 
 /*
  * containerfs is src/Plfsrc/parse_conf.cpp's link to container mode
@@ -261,6 +262,93 @@ file_operation(struct plfs_physpathinfo *ppip, FileOp& op)
  */
 
 /**
+ * containerfs_truncate_helper: helper function for
+ * ContainterFileSystem and Container_fd truncate routines.   3 cases
+ * are possible: no file size change, shrink file, grow file.   we
+ * assume the offset==0 case has already be handled (to avoid having
+ * to do a getattr operation).
+ *
+ * note that Container::Truncate() only handles the "shrink a file"
+ * case, so we have to layer the other cases on top of it........
+ * (XXX: might restructure at some point?)
+ * 
+ * note that this code only changes on-disk data.  changes for
+ * in-memory data for open files is handled by Container_fd.  (note
+ * that it is not possible to update in-memory data in all cases, e.g.
+ * when another process has a file open.)
+ *
+ * note that "ppip" cannot be null (due to this code).  this is why
+ * the "ppip" arg to LogicalFD::trunc() is required and has been
+ * retained (XXX can we get rid of this requirement?)
+ *
+ * @param ppip container path (caller already verified it is container)
+ * @param offset the offset we want
+ * @param cur_st_size current size (only used if offset != 0)
+ * @param pid the pid to use if we need to open to extend
+ * @return PLFS_SUCCESS or an error code
+ */
+plfs_error_t
+containerfs_truncate_helper(struct plfs_physpathinfo *ppip,
+                            off_t offset, off_t cur_st_size, pid_t pid)
+{
+    plfs_error_t ret = PLFS_SUCCESS;
+
+    mlog(PLFS_DAPI, "%s called (canbpath=%s)", __FUNCTION__,
+         ppip->canbpath.c_str());
+
+    if (cur_st_size == offset) {        /* case 1: no size change */
+
+        /* this is easy because there is nothing to do... */
+
+    } else if (cur_st_size > offset) {  /* case 2: shrink file */
+
+        /*
+         * XXX: we've got two calling paths here: ftruncate and
+         * truncate.  if we are called from the ftruncate path then we
+         * already have a ContainerIndex allocated (the open file) but
+         * we allocate a temporary one here anyway.  on the other
+         * hand, if we are called from the truncate path then we do
+         * not have a ContainerIndex and we need to allocate a
+         * temporary one in order to be able to call the correct
+         * index_droppings_trunc() routine.
+         */
+        ContainerIndex *ci;
+        ci = container_index_alloc(ppip->mnt_pt);
+        if (ci == NULL) {
+            ret = PLFS_ENOMEM;
+        } else {
+            ret = ci->index_droppings_trunc(ppip, offset);
+            delete ci;
+        }
+        mlog(PLFS_DCOMMON, "%s: shrink ret %d", __FUNCTION__, ret);
+
+    } else {                            /* case 3: grow file */
+
+        /* extend the file by doing a zero byte write at offset */
+        Container_fd *c_pfd;
+        Plfs_fd *pfd;
+        int num_ref;
+        
+        c_pfd = new Container_fd();   /* malloc+init */
+        pfd = c_pfd;                  /* a Plfs_fd alias for c_pfd */
+
+        /* mode shouldn't matter since file is there are !O_CREAT */
+        ret = containerfs.open(&pfd, ppip, O_WRONLY, pid, 0777, NULL);
+        if (ret != PLFS_SUCCESS) {
+
+        } else {
+            uid_t uid = 0; /* just needed for stats */
+            ret = c_pfd->extend(offset);
+            (void)c_pfd->close(pid, uid, O_WRONLY, NULL, &num_ref);
+        }
+        delete(c_pfd);               /* free */
+        
+    }
+
+    return(ret);
+}
+
+/**
  * containerfs_zero_helper: helper function for ContainterFileSystem
  * and Container_fd truncate routines when we are zeroing out all the
  * data in a file.  we break this case of truncate out into its own
@@ -304,19 +392,44 @@ containerfs_zero_helper(struct plfs_physpathinfo *ppip, int open_file)
     ret = ppip->canback->store->Truncate(access.c_str(), 0);
     mlog(PLFS_DCOMMON, "Tested truncate of %s: %d",access.c_str(),ret);
     if ( ret == PLFS_SUCCESS ) {
-        TruncateOp op(open_file);
 
         /*
-         * XXXIDX XXXCDC: need a callback to inform index to dump for
-         * cases where the data isn't stored inline in the container
-         * directory.
+         * we need to signal to external indexes that we are zeroing.
+         * this can be a no-op for indexes that store their data in
+         * the container directories.
+         *
+         * XXX: would be nice to have a way to short circuit this for
+         * indexes that don't need it.)
+         *
+         * XXX: we've got two calling paths here: ftruncate and
+         * truncate.  if we are called from the ftruncate path then we
+         * already have a ContainerIndex allocated (the open file) but
+         * we allocate a temporary one here anyway.  on the other
+         * hand, if we are called from the truncate path then we do
+         * not have a ContainerIndex and we need to allocate a
+         * temporary one in order to be able to call the correct
+         * index_droppings_zero() routine.
          */
-           
+        ContainerIndex *ci;
+        ci = container_index_alloc(ppip->mnt_pt);
+        if (ci == NULL) {
+            ret = PLFS_ENOMEM;
+            goto err_out;
+        }
+        ret = ci->index_droppings_zero(ppip);
+        delete ci;
+        if (ret != PLFS_SUCCESS)  {
+            goto err_out;
+        }
+
         /*
-         * ignore ENOENT since it is possible that the set of files
-         * can contain duplicates.  duplicates are possible bec a
-         * backend can be defined in both shadow_backends and backends
+         * now get rid of all the droppings (except for the access
+         * file, meta files, and version files).  we ignore ENOENT
+         * since it is possible that the set of files can contain
+         * duplicates.  duplicates are possible bec a backend can be
+         * defined in both shadow_backends and backends.
          */
+        TruncateOp op(open_file);
         op.ignoreErrno(PLFS_ENOENT);
         op.ignore(ACCESSFILE);
         op.ignore(OPENPREFIX);
@@ -326,7 +439,7 @@ containerfs_zero_helper(struct plfs_physpathinfo *ppip, int open_file)
             ret = Container::truncateMeta(ppip->canbpath, 0, ppip->canback);
         }
     }
-
+ err_out:
     return(ret);
 }
 
