@@ -10,14 +10,15 @@
 class XAttr
 {
     public:
-        XAttr(string key, const void* value);
+        XAttr(string key, const void* value, size_t vlen);
         const void* getValue();
         string getKey();
         ~XAttr();
 
     private:
         string key;
-        const void* value;
+        void* value;
+        size_t vlen;
 };
 
 class XAttrs

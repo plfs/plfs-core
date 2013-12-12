@@ -10,10 +10,12 @@
 #include "plfs_private.h"
 #include "IOStore.h"
 
-XAttr::XAttr(string newkey, const void* newvalue)
+XAttr::XAttr(string newkey, const void* newvalue, const size_t len)
 {
     this->key = newkey;
-    this->value = newvalue;
+    this->vlen = len;
+    this->value = malloc(this->vlen);
+    memcpy(this->value, newvalue, this->vlen);
 }
  
 const void* XAttr::getValue()
@@ -28,6 +30,7 @@ string XAttr::getKey()
 
 XAttr::~XAttr() 
 {
+    free(this->value);
 }
 
 XAttrs::XAttrs( string newpath, struct plfs_backend *newback ) 
@@ -89,7 +92,7 @@ plfs_error_t XAttrs::getXAttr(string key, size_t len, XAttr **ret_xattr)
 
     char* value = (char*) malloc (len);
     memcpy(value, &buf, len);
-    XAttr *xattr = new XAttr(key, (const void*)value);
+    XAttr *xattr = new XAttr(key, (const void*)value, len);
     free(value);
     ret = this->canback->store->Close(fh);
     if (ret == PLFS_SUCCESS) {
