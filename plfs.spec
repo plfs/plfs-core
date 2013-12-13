@@ -162,6 +162,7 @@ fi
 %{_mandir}/man3/plfs_readlink.3.gz
 %{_mandir}/man3/plfs_rename.3.gz
 %{_mandir}/man3/plfs_rmdir.3.gz
+%{_mandir}/man3/plfs_setxattr.3.gz
 %{_mandir}/man3/plfs_statvfs.3.gz
 %{_mandir}/man3/plfs_symlink.3.gz
 %{_mandir}/man3/plfs_sync.3.gz
