@@ -10,6 +10,15 @@
 #define DROPPING_MODE  (S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH)
 #define CONTAINER_MODE (DROPPING_MODE | S_IXUSR |S_IXGRP | S_IXOTH)
 
+typedef enum {
+    TMP_SUBDIR, PERM_SUBDIR
+} subdir_type;
+
+enum
+parentStatus {
+    PARENT_CREATED,PARENT_ABSENT
+};
+
 /**
  * ContainerPaths: struct with all the various container paths computed
  */
@@ -32,7 +41,17 @@ typedef struct {
 class Container
 {
  public:
-    static string getAccessFilePath( const string& path);
+    static plfs_error_t create(struct plfs_physpathinfo *,
+                               const string&, mode_t mode, int flags, 
+                               int *extra_attempts,pid_t, bool lazy_subdir );
+    static plfs_error_t findContainerPaths(const string&, PlfsMount *,
+                                           const string&,
+                                           struct plfs_backend *,
+                                           ContainerPaths&);
+    static string getAccessFilePath(const string& path);
+    static size_t getHostDirId(const string&);
+    static string getHostDirPath(const string&,
+                                 const string&, subdir_type );
     static string getMetaDirPath( const string& );
     static mode_t getmode(const string&, struct plfs_backend *);
     static bool isContainer(const struct plfs_pathback *physical_path,

@@ -469,11 +469,75 @@ ContainerFileSystem::open(Plfs_fd **pfd, struct plfs_physpathinfo *ppip,
     return(ret);
 }
 
+/*
+ * create
+ *
+ * some callers pass O_TRUNC in the flags and expect this code to do a
+ * truncate.  it does, so it's all good.  But just be careful to make
+ * sure that this code continues to also do a truncate (actually done
+ * in Container::create)
+ *
+ * note: in posix the following is true:
+ *
+ *    creat(path, mode) == open(path, O_CREAT|O_TRUNC|O_WRONLY, mode)
+ *
+ * two things to note: posix create does not take a flag arg, and
+ * both posix calls return open file descriptors.
+ *
+ * in logicalfs, create() has a flag arg but we ignore all the
+ * provided bits except for O_EXCL and instead do what posix
+ * does (CREAT|TRUNC|WRONLY).   logicalfs also does not return
+ * an open file descriptor... it just creates the file.   if you
+ * want to do I/O to the file, you have to open with a second call.
+ */
 plfs_error_t
 ContainerFileSystem::create(struct plfs_physpathinfo *ppip, mode_t mode,
                             int flags, pid_t pid)
 {
-    return(PLFS_ENOTSUP);
+    plfs_error_t ret = PLFS_SUCCESS;
+    int new_flags = O_WRONLY|O_CREAT|O_TRUNC;
+    if(flags & O_EXCL){
+        new_flags |= O_EXCL;   /* the only bit from caller we preserve */
+    }
+    flags = new_flags;
+
+    // for some reason, the ad_plfs_open that calls this passes a mode
+    // that fails the S_ISREG check... change to just check for fifo
+    if (S_ISFIFO(mode)) {
+        mlog(PLFS_DRARE, "%s on non-regular file %s?",__FUNCTION__,
+             ppip->bnode.c_str());
+        return(PLFS_ENOSYS);
+    }
+    // ok.  For instances in which we ALWAYS want shadow containers
+    // such as we have a canonical location which is remote and slow
+    // and we want ALWAYS to store subdirs in faster shadows, then we
+    // want to create the subdir's lazily.  This means that the subdir
+    // will not be created now and later when procs try to write to
+    // the file, they will discover that the subdir doesn't exist and
+    // they'll set up the shadow and the metalink at that time
+    bool lazy_subdir = false;
+    if (ppip->mnt_pt->shadowspec != NULL) {
+        // ok, user has explicitly set a set of shadow_backends this
+        // suggests that the user wants the subdir somewhere else
+        // beside the canonical location.  Let's double check though.
+        ContainerPaths paths;
+        ret = Container::findContainerPaths(ppip->bnode, ppip->mnt_pt,
+                                            ppip->canbpath, ppip->canback,
+                                            paths);
+        if (ret != PLFS_SUCCESS) {
+            return(ret);
+        }
+        lazy_subdir = !(paths.shadow==paths.canonical);
+        mlog(INT_DCOMMON, "Due to explicit shadow_backends directive, setting "
+             "subdir %s to be created %s", paths.shadow.c_str(),
+             (lazy_subdir?"lazily":"eagerly"));
+    }
+    int attempt = 0;
+    char *hostname;
+    Util::hostname(&hostname);
+    ret =  Container::create(ppip, hostname, mode, flags, &attempt,
+                             pid, lazy_subdir);
+    return(ret);
 }
 
 plfs_error_t
@@ -519,6 +583,10 @@ ContainerFileSystem::rename(struct plfs_physpathinfo *ppip,
     return(PLFS_ENOTSUP);
 }
 
+/*
+ * this one probably can't work actually since you can't hard link a
+ * directory and plfs containers are physical directories
+ */
 plfs_error_t
 ContainerFileSystem::link(struct plfs_physpathinfo * /* ppip */,
                           struct plfs_physpathinfo * /* ppip_to */)
