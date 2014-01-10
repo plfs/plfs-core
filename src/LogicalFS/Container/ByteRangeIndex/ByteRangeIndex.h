@@ -19,9 +19,10 @@ public:
                              vector<index_record> &result);
     plfs_error_t index_truncate(Container_OpenFile *cof, off_t offset);
 
-    plfs_error_t index_getattr_size(struct plfs_physpathinfo *ppip, 
-                                    off_t *st_size_p, blkcnt_t *st_blocks_p,
-                                    blksize_t *st_blksize_p);
+    plfs_error_t index_getattr_size(struct plfs_physpathinfo *ppip,
+                                    struct stat *stbuf,
+                                    set<string> *openset,
+                                    set<string> *metaset);
 
     plfs_error_t index_droppings_trunc(struct plfs_physpathinfo *ppip,
                                        off_t offset);

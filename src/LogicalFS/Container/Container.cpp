@@ -3,8 +3,10 @@
  */
 
 #include "plfs_private.h"
+#include "mlog_oss.h"
 #include "Container.h"
 #include "ContainerFS.h"
+#include "ContainerIndex.h"
 
 
 /**
@@ -402,6 +404,16 @@ createHelper(struct plfs_physpathinfo *ppip, const string& hostname,
     return ret;
 }
 
+#define BLKSIZE 512
+
+blkcnt_t
+Container::bytesToBlocks( size_t total_bytes )
+{   
+    /* XXX: why floating point over int? */
+    return (blkcnt_t)ceil((float)total_bytes/BLKSIZE);
+    //return (blkcnt_t)((total_bytes + BLKSIZE - 1) & ~(BLKSIZE-1));
+}
+
 // This should be in a mutex if multiple procs on the same node try to create
 // it at the same time
 plfs_error_t
@@ -617,6 +629,158 @@ file_mode( mode_t mode )
     int dirmask  = ~(S_IFDIR);
     mode         = ( mode & dirmask ) | S_IFREG;
     return mode;
+}
+
+/*
+ * discover_openhosts: function that interates over the set of files
+ * in a metadir to find hosts that have the container open.  helper
+ * function for getattr.  the filename format is open.host.pid.  note
+ * that the we have to be careful, as the host can contain the "."
+ * character as part of a FQDN (maybe we should have used something
+ * other than "."?).  the resulting set of open hostnames is returned
+ * in openhosts.
+ */
+static plfs_error_t
+discover_openhosts(set<string> &entries, set<string> &openhosts)
+{
+    set<string>::iterator itr; 
+    string host;
+    for(itr=entries.begin(); itr!=entries.end(); itr++) {
+        if (istype(*itr,OPENPREFIX)) {
+            host = (*itr);
+            host.erase(0,strlen(OPENPREFIX));  /* remove prefix */
+            host.erase(host.rfind("."), host.size()); /* remove pid w/rfind */
+            mlog(CON_DCOMMON, "Host %s has open handle", host.c_str());
+            openhosts.insert(host);
+        }   
+    }   
+    return PLFS_SUCCESS;
+}
+
+/**
+ * Container::getattr: does stat of a PLFS file
+ *
+ * @param ppip pathinfo for container of interest
+ * @param stbuf where to place the results
+ * @return PLFS_SUCCESS or PLFS_E*
+ */
+plfs_error_t
+Container::getattr(struct plfs_physpathinfo *ppip, struct stat *stbuf)
+{
+    plfs_error_t ret = PLFS_SUCCESS;
+    plfs_error_t rv;
+
+    /*
+     * we need to walk our on-store data and maybe consult our index
+     * to build up the stat information.  we can't just look at the
+     * data dropping files to determine file size, since that doesn't
+     * account for overwrites or for trunc() calls that extend the
+     * file's size.
+     */
+
+    /* first get permissions, ownership, etc. from the access file */
+    string accessfile = getAccessFilePath(ppip->canbpath);
+    rv = ppip->canback->store->Lstat(accessfile.c_str(), stbuf);
+    if (rv != PLFS_SUCCESS) {
+        mlog(CON_DRARE, "%s lstat of %s failed: %s",
+             __FUNCTION__, accessfile.c_str(), strplfserr( rv ) );
+        return(rv);
+    }
+    
+    /* blot out stuff we don't want from the access file */
+    stbuf->st_size    = 0;
+    stbuf->st_blocks  = 0;
+    stbuf->st_mode    = file_mode(stbuf->st_mode);
+
+    /*
+     * next we consult the metadir to see if we can resovle the
+     * getattr without having to read the index.  the metadir tells
+     * us if the file is currently open (via OPENPREFIX.host.pid
+     * dropping files) and last_offset/sizes (via
+     * last_offset.size.sec.usec.host dropping files).
+     */
+    set<string> entries, openHosts, validMeta;
+    set<string>::iterator itr;
+    ReaddirOp rop(NULL,&entries,false,true);
+    ret = rop.op(getMetaDirPath(ppip->canbpath).c_str(), DT_DIR,
+                 ppip->canback->store);
+
+    /*
+     * ignore ENOENT from readdir, we could have a freshly created
+     * container that doesn't yet have a metadir.
+     */
+    if (ret != PLFS_SUCCESS && ret != PLFS_ENOENT) {
+        mlog(CON_DRARE, "readdir of %s returned %d (%s)", 
+            getMetaDirPath(ppip->canbpath).c_str(), ret, strplfserr(ret));
+        return ret;
+    } 
+    ret = PLFS_SUCCESS;
+
+    /* generate set of all hosts with file open, ignores ret val. */
+    (void) discover_openhosts(entries, openHosts);
+    
+    /* examine all last_offset/size droppings to generate size info */
+    for(itr=entries.begin(); itr!=entries.end(); itr++) {
+        off_t last_offset;
+        size_t total_bytes;
+        struct timespec time;
+        mss::mlog_oss oss(CON_DCOMMON);
+
+        if (istype(*itr,OPENPREFIX)) {  /* already in openHosts */
+            continue;
+        }
+
+        /*
+         * parse filename: last_offset.size.sec.usec.host
+         *
+         * note that it is possible (and ok) for a single host to have
+         * more than one record.  these records are generated when a
+         * file open for writing is closed.
+         */
+        string host = fetchMeta(*itr, &last_offset, &total_bytes, &time);
+
+        /* the metadata could be stale if file is open */
+        if (openHosts.find(host) != openHosts.end()) {
+            mlog(CON_DRARE, "Can't use metafile %s because %s has an "
+                 " open handle", itr->c_str(), host.c_str() );
+            continue;
+        }
+        oss  << "Pulled meta " << last_offset << " " << total_bytes
+             << ", " << time.tv_sec << "." << time.tv_nsec
+             << " on host " << host;
+        oss.commit();
+
+        stbuf->st_size   =  max( stbuf->st_size, last_offset );
+        stbuf->st_blocks += bytesToBlocks( total_bytes );
+        stbuf->st_mtime  =  max( stbuf->st_mtime, time.tv_sec );
+        validMeta.insert(host);
+    }
+    /*
+     * if the file is open, then the metadata could be stale.
+     * the index may have more recent data, so we consult it.
+     *
+     * e.g. for the ByteRangeIndex, an open hosts index dropping can
+     * have newer offset info than the metadata.  note that this isn't
+     * perfect, unwritten index records may be cached in memory
+     * (meaning there is no easy way we can get at them).
+     */
+    if ( openHosts.size() > 0 ) {
+
+        ContainerIndex *ci;
+        ci = container_index_alloc(ppip->mnt_pt);
+        if (ci == NULL) {
+            ret = PLFS_ENOMEM;
+        } else {
+            ret = ci->index_getattr_size(ppip, stbuf, &openHosts, &validMeta);
+            delete ci;
+        }
+
+    }
+
+    mlog(CON_DCOMMON, "getattr: %s: open=%d, size=%ld, blocks=%ld, blksz=%d",
+         ppip->canbpath.c_str(), (int)openHosts.size(), stbuf->st_size,
+         stbuf->st_blocks, (int)stbuf->st_blksize);
+    return(ret);
 }
 
 /**

@@ -41,6 +41,7 @@ typedef struct {
 class Container
 {
  public:
+    static blkcnt_t bytesToBlocks( size_t total_bytes );
     static plfs_error_t create(struct plfs_physpathinfo *,
                                const string&, mode_t mode, int flags, 
                                int *extra_attempts,pid_t, bool lazy_subdir );
@@ -53,6 +54,7 @@ class Container
     static string getHostDirPath(const string&,
                                  const string&, subdir_type );
     static string getMetaDirPath( const string& );
+    static plfs_error_t getattr(struct plfs_physpathinfo *, struct stat *);
     static mode_t getmode(const string&, struct plfs_backend *);
     static bool isContainer(const struct plfs_pathback *physical_path,
                             mode_t *);

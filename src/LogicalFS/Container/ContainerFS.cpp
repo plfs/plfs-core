@@ -614,11 +614,38 @@ ContainerFileSystem::utime(struct plfs_physpathinfo *ppip, struct utimbuf *ut)
     return(ret);
 }
 
+/*
+ * this should only be called if the uid has already been checked
+ */
 plfs_error_t
 ContainerFileSystem::getattr(struct plfs_physpathinfo *ppip, struct stat *stbuf,
                              int /* sz_only */)
 {
-    return(PLFS_ENOTSUP);
+    plfs_error_t ret = PLFS_SUCCESS;
+    mode_t mode = 0;
+    mlog(PLFS_DAPI, "%s on %s", __FUNCTION__, ppip->canbpath.c_str());
+
+    if (!is_container_file(ppip, &mode)) {
+
+        /* note: is_container_file API fails with mode 0 on ENOENT */
+        if (mode == 0) {
+            ret = PLFS_ENOENT;
+        } else {
+            mlog(PLFS_DCOMMON, "%s on non plfs file %s", __FUNCTION__,
+                 ppip->canbpath.c_str());
+            ret = ppip->canback->store->Lstat(ppip->canbpath.c_str(), stbuf);
+        }
+    
+    } else {
+    
+        ret = Container::getattr(ppip, stbuf);
+        mode = S_IFREG;
+
+    }
+   
+    mlog(PLFS_DAPI, "%s(%s) = %d (mode=%d)", __FUNCTION__,
+         ppip->canbpath.c_str(), ret, mode);
+    return(ret);
 }
 
 plfs_error_t
