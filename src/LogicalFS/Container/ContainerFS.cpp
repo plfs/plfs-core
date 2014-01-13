@@ -580,7 +580,107 @@ plfs_error_t
 ContainerFileSystem::rename(struct plfs_physpathinfo *ppip,
                             struct plfs_physpathinfo *ppip_to)
 {
-    return(PLFS_ENOTSUP);
+    plfs_error_t ret = PLFS_SUCCESS;
+    mode_t mode;
+    int isfile;
+
+    mlog(INT_DAPI, "%s: %s -> %s", __FUNCTION__, ppip->canbpath.c_str(),
+         ppip_to->canbpath.c_str());
+
+    /* first check if there is a file already at dst.  If so, remove it. */
+    if (is_container_file(ppip_to, NULL)) {
+        ret = ContainerFileSystem::unlink(ppip_to);
+        if (ret) {
+            return(PLFS_ENOENT);    /* should never happen; check anyway */
+        }
+    }
+
+    isfile = is_container_file(ppip, &mode);
+    
+    /* symlink: do single rename (maybe from one backend to another) */
+    if (S_ISLNK(mode)) {
+        ret = Util::CopyFile(ppip->canbpath.c_str(), ppip->canback->store,
+                             ppip_to->canbpath.c_str(),
+                             ppip_to->canback->store);
+        if (ret == PLFS_SUCCESS){
+            ret = ContainerFileSystem::unlink(ppip);
+        }
+        return(ret);
+    }
+
+    /*
+     * call unlink here because it does a check to determine if a
+     * directory is empty or not.  If the directory is not empty,
+     * this function will not proceed because rename does not work
+     * on a non-empty destination...
+     */
+    ret = ContainerFileSystem::unlink(ppip_to);
+    if (ret == PLFS_ENOTEMPTY ) {
+        return(ret);
+    }
+    
+    /* get the list of all possible entries for both src and dest */
+    vector<plfs_pathback> srcs, dsts;
+    vector<plfs_pathback>::iterator itr;
+    if ( (ret = generate_backpaths(ppip, srcs)) != PLFS_SUCCESS ) {
+        return(ret);
+    }
+    if ( (ret = generate_backpaths(ppip_to, dsts)) != PLFS_SUCCESS ) {
+        return(ret);
+    }
+    assert(srcs.size()==dsts.size());
+
+    /*
+     * for dirs and containers, iterate a rename over all the
+     * backends.  ignore ENOENT (may not have been created).
+     */
+    for(size_t i = 0; i < srcs.size(); i++) {
+        plfs_error_t err;
+        struct plfs_backend *curback;
+
+        curback = srcs[i].back;
+        /*
+         * find_all_expansions should keep backends in sync between
+         * srcs[i] and dsts[i], but check anyway...
+         */
+        assert(curback == dsts[i].back);
+        err = curback->store->Rename(srcs[i].bpath.c_str(),
+                                     dsts[i].bpath.c_str());
+        if (err == PLFS_ENOENT) {
+            err = PLFS_SUCCESS;    // a file might not be distributed on all
+        }
+        if (err != PLFS_SUCCESS) {
+            ret = err;    // keep trying but save the error
+        }
+        mlog(INT_DCOMMON, "rename %s to %s: %d",
+             srcs[i].bpath.c_str(),dsts[i].bpath.c_str(),err);
+    }
+
+    /*
+     * if the canonical location of a container file moved to a new
+     * backend (due to hashing), then we need to recover the file
+     * (that will fix all the metadata).
+     */
+    bool moved = (ppip->canback != ppip_to->canback);
+    if (moved && isfile) {
+        plfs_pathback opb, npb;
+        /*
+         * careful!  opb.bpath used to be ppip->canbpath, but we
+         * renamed it to the "to" above.  So the ppip->canbpath is
+         * no longer valid.   we need the old mount point with the new
+         * bnode name...
+         */
+        opb.bpath = ppip->canback->bmpoint + "/" + ppip_to->bnode;
+        opb.back = ppip->canback;
+        npb.bpath = ppip_to->canbpath;
+        npb.back = ppip_to->canback;
+#if 0
+        ret = Container::transferCanonical(&opb, &npb,
+                                           ppip->canback->bmpoint,
+                                           ppip_to->canback->bmpoint, mode);
+#endif
+    }
+    return(ret);
 }
 
 /*
@@ -725,6 +825,7 @@ ContainerFileSystem::unlink(struct plfs_physpathinfo *ppip)
         plfs_backends_op(ppip, cop);
         ContainerFileSystem::chown(ppip, stbuf.st_uid, stbuf.st_gid );
     }
+    /* XXXCDC: index_droppings_unlink callback for externally stored index? */
     return(ret);
 }
 

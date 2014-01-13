@@ -860,6 +860,330 @@ readMetalink(const string& srcbpath, struct plfs_backend *srcback,
 }
 
 
+/* XXXCDC: only called from createMetalink, merge in? */
+static size_t
+decomposeHostDirPath(const string& hostdir,
+                     string& container_path, size_t& id)
+{
+    size_t lastdot = hostdir.rfind('.');
+    id = atoi(hostdir.substr(lastdot+1).c_str());
+    string hostdir_without_dot = hostdir.substr(0,lastdot); 
+    size_t lastslash = hostdir_without_dot.rfind('/');
+    container_path = hostdir_without_dot.substr(0,lastslash); 
+    return 0;
+}
+
+
+/**
+ * createMetalink: try and create a metalink on the specified backend.
+ * if it fails because a sibling made a different metalink at the same
+ * location, then keep trying to find an available one.  if the
+ * metalink is successfully created, then the shadow container (and
+ * hostdir) will be created.  if we fail because there are no
+ * available hostdir slots in the canonical, use an already existing
+ * subdir in the canonical container instead.  NOTE: this means that a
+ * successful createMetalink() may return with the physical_hostdir in
+ * the canonical container instead of the shadow (physbackp will point
+ * to the correct backend chosen).
+ *
+ * @param canback canonical backend for the container
+ * @param shadowback the shadow backend we want to use
+ * @param canonical_hostdir bpath to hostdir on canback
+ * @param physical_hostdir resulting bpath to hostdir on shadow
+ * @param physbackp the backend physical_hostdir is on
+ * @param use_metalink set to true if using metalink
+ * @return PLFS_SUCCESS on success, PLFS_E* on failure
+ */
+static plfs_error_t
+createMetalink(struct plfs_backend *canback,
+               struct plfs_backend *shadowback,
+               const string& canonical_hostdir,
+               string& physical_hostdir,
+               struct plfs_backend **physbackp,
+               bool& use_metalink) {
+
+    PlfsConf *pconf = get_plfs_conf();  /* for num_hostdirs */
+    string container_path;              /* canonical bpath to container */
+    size_t current_hostdir;             /* canonical hostdir# from caller */
+    string canonical_path_without_id;   /* canonical hostdir bpath w/o id */
+    ostringstream oss, shadow;
+    size_t i;
+    plfs_error_t ret = PLFS_SUCCESS;
+    int id = 0, dir_id = 0;
+
+    ret = PLFS_EIO;  /* to be safe */
+
+    /*
+     * no need to check pconf to see if it is null, if we get this far
+     * into the code, we've definitely already loaded the config.
+     */
+       
+    /* break up canonical_hostdir bpath into 2 parts */
+    decomposeHostDirPath(canonical_hostdir, container_path, current_hostdir);
+    canonical_path_without_id = container_path + '/' + HOSTDIRPREFIX;
+
+    /*
+     * shadow: the string stored in the metalink in canonical container.
+     * examples:  23/pana/volume12/.plfs_store
+     *            18hdfs://example.com:8000/h/plfs
+     */
+    shadow << canback->bmpoint.size() << shadowback->prefix <<
+        shadowback->bmpoint;
+
+    /*
+     * now we want put a hostdir metalink in the canonical container.
+     * we need to find a free hostdir index number (the numbers are
+     * chosen using a hash of the hostname, so it is possible for
+     * multiple users to want to try and use the same number.   if
+     * our number is busy, we try the next.  if we can't find a free
+     * slot, we can just use a hostdir from the canonical container.
+     */
+    for ( i = 0, dir_id = -1 ; i < (unsigned int) pconf->num_hostdirs ; i++) {
+        /* start with current and go from there, wrapping as needed... */
+        id = (current_hostdir + i) % pconf->num_hostdirs;
+
+        /* put bpath to canonical hostdir slot we are trying in oss */
+        oss.str(std::string());  /* cryptic C++, zeros oss? */
+        oss << canonical_path_without_id << id;
+
+        /* attempt to create the metalink */
+        ret = canback->store->Symlink(shadow.str().c_str(), oss.str().c_str());
+
+        /* if successful, we can stop */
+        if (ret == PLFS_SUCCESS) {
+            mlog(CON_DAPI, "%s: wrote %s into %s",
+                 __FUNCTION__, shadow.str().c_str(), oss.str().c_str());
+            break;
+        }
+
+        /* remember the first normal directory we hit */
+        if (Util::isDirectory(oss.str().c_str(), canback->store)) {
+            if (dir_id == -1) {
+                dir_id = id;
+            }
+            continue;
+        }
+
+        /* if failed, see if someone else created our metalink for us */
+        size_t sz;
+        struct plfs_backend *mlback;
+        if (readMetalink(oss.str(), canback, NULL, sz,
+                         &mlback) == PLFS_SUCCESS) {
+            ostringstream tmp;
+            tmp << sz << mlback->prefix << mlback->bmpoint;
+            if (strcmp(tmp.str().c_str(), shadow.str().c_str()) == 0) {
+                mlog(CON_DCOMMON, "same metalink already created");
+                ret = PLFS_SUCCESS;
+                break;
+            }
+        }
+    } /* end of for i loop */
+
+    /* generate physical_hostdir and set physbackp */
+    ostringstream physical;
+    if (ret != PLFS_SUCCESS) {                /* we failed */
+        if (dir_id != -1) {        /* but we found a directory we can use */
+            physical << canonical_path_without_id << dir_id;
+            physical_hostdir = physical.str();
+            *physbackp = canback;
+            return(PLFS_SUCCESS);
+        }
+        mlog(CON_DCOMMON, "%s failed bec no free hostdir entry is found"
+             ,__FUNCTION__);
+        return(ret);
+    }
+
+    use_metalink = true; /*XXX: not totally clear how this is used */
+    physical << shadowback->bmpoint << '/'
+             << canonical_path_without_id.substr(canback->bmpoint.size())
+             << id;
+    physical_hostdir = physical.str();
+    *physbackp = shadowback;
+
+    /* create shadow container and its hostdir */
+    string parent = physical_hostdir.substr(0,
+                                            physical_hostdir.find(HOSTDIRPREFIX)
+                                           );
+    mlog(CON_DCOMMON, "Making absent parent %s", parent.c_str());
+    ret = makeSubdir(parent, DROPPING_MODE, shadowback);
+    if (ret == PLFS_SUCCESS || ret == PLFS_EEXIST) {
+        mlog(CON_DCOMMON, "Making hostdir %s", physical_hostdir.c_str());
+        ret = makeSubdir(physical_hostdir, DROPPING_MODE, shadowback);
+        if (ret == PLFS_SUCCESS || ret == PLFS_EEXIST) {
+            ret = PLFS_SUCCESS;
+        }
+    }
+    if( ret!=PLFS_SUCCESS ) {
+        physical_hostdir.clear();
+    }
+    return(ret);
+}
+
+/*
+ * transferCanonical: the canonical location of a container has changed
+ * (e.g. due to a rename).   move the necessary metainformation from the
+ * old canonical container to the new one.   we recurse on METADIR
+ * to copy all the zero length files there.  the old ("from") container
+ * becomes a shadow container.  (this isn't an atomic op, so apps may
+ * get confused trying to access a container while a tranfer is in
+ * progress.
+ *
+ * @param from the old canonical container bpath
+ * @param to the new canonical container bpath
+ * @param from_backend old canonical backend
+ * @param to_backend new canonical backend
+ * @param mode mode to create new stuff with
+ * @return PLFS_SUCCESS or PLFS_E*
+ */
+static plfs_error_t
+transferCanonical(const plfs_pathback *from,
+                  const plfs_pathback *to,
+                  const string& from_backend,
+                  const string& to_backend, mode_t mode)
+{
+    /*
+     * the general idea:
+     *   foreach entry in from:
+     *      empty file: move to new canonical container
+     *      symlink: move to new canonical container (identical link content)
+     *      dir:   METADIR => recurse
+     *             subdir  => create metalink in new container back to us
+     *      else: assert(0) -- unexpected file in backend, shouldn't happen
+     */
+    plfs_error_t ret = PLFS_SUCCESS;
+    mlog(CON_DAPI, "%s need to transfer from %s into %s",
+         __FUNCTION__, from->bpath.c_str(), to->bpath.c_str());
+    map<string,unsigned char> entries;
+    map<string,unsigned char>::iterator itr;
+    string old_path, new_path;
+    ReaddirOp rop(&entries,NULL,false,true);
+    UnlinkOp uop;
+    CreateOp cop(mode);
+    cop.ignoreErrno(PLFS_EEXIST);
+    cop.ignoreErrno(PLFS_EISDIR);
+
+    /* read old canonical dir to get list of items to look at */
+    ret = rop.op(from->bpath.c_str(), DT_DIR, from->back->store);
+    if ( ret != PLFS_SUCCESS) {
+        return ret;
+    }
+
+    /* make sure the new canonical dir is present */
+    ret = cop.op(to->bpath.c_str(),DT_CONTAINER,to->back->store);
+    if ( ret != PLFS_SUCCESS) {
+        return ret;
+    }
+
+    /* now process each entry in the old canonical dir */
+    for(itr = entries.begin();
+        itr != entries.end() && ret == PLFS_SUCCESS; itr++) {
+        // set up full paths
+        old_path = from->bpath;
+        old_path += "/";
+        old_path += itr->first;
+        new_path = to->bpath;
+        new_path += "/";
+        new_path += itr->first;   /* first: path */
+        switch(itr->second) {     /* second: type */
+        case DT_REG:
+            /*
+             * all top-level files within container are zero-length
+             * except for global index.  We should really copy global
+             * index over.  Someone do that later.  Now we just ophan
+             * it.  for the zero length ones, just create them new,
+             * delete old.
+             */
+            int size;
+            Util::Filesize(old_path.c_str(), from->back->store, &size);
+            if (size == 0) {
+                ret = cop.op(new_path.c_str(), DT_REG, to->back->store);
+                if (ret == PLFS_SUCCESS) {
+                    ret = uop.op(old_path.c_str(), DT_REG, from->back->store);
+                }
+            } else {
+                if(istype(itr->first,GLOBALINDEX)) {
+                    /* XXX: copy global index (currently we just discard) */
+                } else {
+                    /* something unexpected in container */
+                    assert(0 && itr->first=="");  /* shouldn't happen */
+                }
+            }
+            break;
+
+        case DT_LNK: {
+            /*
+             * found a metalink within 'from' to some 3rd container 'other'.
+             * we need to recreate this metalink to 'other' in 'to' UNLESS
+             * 'other' is 'to' (in which case we don't need to do anything).
+             */
+            size_t sz;               /* we don't need this */
+            string physical_hostdir; /* we don't need this */
+            bool use_metalink;       /* we don't need this */
+            string canonical_backend = to_backend;
+            struct plfs_backend *mbackout, *physback;
+            /* XXX: readMetalink would be more efficient with mountpoint */
+            ret = readMetalink(old_path, from->back, NULL, sz, &mbackout);
+
+            if (ret == PLFS_SUCCESS &&
+                canonical_backend != mbackout->bmpoint) {
+
+                ret = createMetalink(to->back, mbackout, new_path,
+                                     physical_hostdir, &physback,
+                                     use_metalink);
+            }
+            if (ret==PLFS_SUCCESS) {
+                ret = uop.op(old_path.c_str(), DT_LNK, from->back->store);
+            }
+        }
+        break;
+        case DT_DIR:
+            /* two cases: METADIR and a HOSTDIR */
+            if (istype(itr->first, METADIR)) {
+                struct plfs_pathback opb, npb;
+                opb.bpath = old_path;
+                opb.back = from->back;
+                npb.bpath = new_path;
+                npb.back = to->back;
+                /* recurse to copy zero lenght METADIR files */
+                ret = transferCanonical(&opb, &npb,
+                                        from_backend,to_backend,mode);
+
+            } else if (istype(itr->first,HOSTDIRPREFIX)) {
+                /*
+                 * former canonical container is now a shadow container.
+                 * must move Metalinks over to new canonical container.
+                 */
+                string physical_hostdir; /* we don't need this */
+                bool use_metalink;       /* we don't need this */
+                string canonical_backend = to_backend;
+                string shadow_backend = from_backend;
+                struct plfs_backend *physback;
+
+                ret = createMetalink(to->back, from->back,
+                                     new_path, physical_hostdir, &physback,
+                                     use_metalink);
+            } else {
+                /*
+                 * something unexpected if we're here try including
+                 * the string in the assert so we get a printout maybe
+                 * of the offensive string
+                 */
+                assert(0 && itr->first=="");
+            }
+            break;
+
+        default:
+            mlog(CON_CRIT, "WTF? %s %d",__FUNCTION__,__LINE__);
+            assert(0);
+            ret = PLFS_ENOSYS;
+            break;
+        }
+    }
+    /* we did everything we could.  Hopefully that's enough. */
+    return(ret);
+}
+
+
 /**
  * resolveMetalink: read a metalink and replace the canonical backend
  * in the metalink with the shadow backend read from the link.  can be
