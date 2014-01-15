@@ -852,7 +852,21 @@ ContainerFileSystem::unlink(struct plfs_physpathinfo *ppip)
         plfs_backends_op(ppip, cop);
         ContainerFileSystem::chown(ppip, stbuf.st_uid, stbuf.st_gid );
     }
-    /* XXXCDC: index_droppings_unlink callback for externally stored index? */
+
+    /* tell index, in case droppings are stored externally */
+    if (ret == PLFS_SUCCESS) {
+        ContainerIndex *ci;
+        plfs_error_t rv = PLFS_ENOMEM;
+        ci = container_index_alloc(ppip->mnt_pt);
+        if (ci) {
+            rv = ci->index_droppings_unlink(ppip);
+            delete ci;
+        }
+        if (rv != PLFS_SUCCESS) {
+            mlog(PLFS_INFO, "unlink: %s: index unlink failed (%s)",
+                 ppip->canbpath.c_str(), strplfserr(rv));
+        }
+    }
     return(ret);
 }
 

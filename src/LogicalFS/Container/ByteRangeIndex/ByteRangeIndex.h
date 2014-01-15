@@ -28,6 +28,7 @@ public:
                   struct plfs_physpathinfo *dst);
     plfs_error_t index_droppings_trunc(struct plfs_physpathinfo *ppip,
                                        off_t offset);
+    plfs_error_t index_droppings_unlink(struct plfs_physpathinfo *ppip);
     plfs_error_t index_droppings_zero(struct plfs_physpathinfo *ppip);
  private:
     /*

@@ -142,6 +142,15 @@ ByteRangeIndex::index_droppings_trunc(struct plfs_physpathinfo *ppip,
 }
 
 plfs_error_t
+ByteRangeIndex::index_droppings_unlink(struct plfs_physpathinfo *ppip) {
+    /*
+     * nothing additional to do here, as we let container unlink
+     * delete all our index droppings for us.
+     */
+    return(PLFS_SUCCESS);
+}
+
+plfs_error_t
 ByteRangeIndex::index_droppings_zero(struct plfs_physpathinfo *ppip) {
     /*
      * nothing additional to do here, as we let containerfs_zero_helper
