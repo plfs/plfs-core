@@ -48,6 +48,23 @@ ByteRangeIndex::index_getattr_size(struct plfs_physpathinfo *ppip,
 }
 
 /**
+ * index_droppings_rename: rename an index after a container has been
+ * moved.
+ *
+ * @param src old pathname
+ * @param dst new pathname
+ * @return PLFS_SUCCESS or PLFS_E*
+ */
+plfs_error_t ByteRangeIndex::index_droppings_rename(
+                  struct plfs_physpathinfo *src,
+                  struct plfs_physpathinfo *dst) {
+
+    /* nothing to do, since our data was moved with the container */
+
+    return(PLFS_SUCCESS);
+}
+
+/**
  * index_droppings_trunc: this should be called when the truncate
  * offset is less than the current size of the file.  we don't actually
  * remove any data here, we just edit index files and meta droppings.

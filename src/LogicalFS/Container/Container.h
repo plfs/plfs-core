@@ -63,6 +63,10 @@ class Container
     static plfs_error_t resolveMetalink(const string &, struct plfs_backend *, 
                                         PlfsMount *, string &,
                                         struct plfs_backend **);
+    static plfs_error_t transferCanonical(const plfs_pathback *from,
+                                          const plfs_pathback *to,
+                                          const string& from_backend, 
+                                          const string& to_backend, mode_t);
     static plfs_error_t Utime(const string& path, struct plfs_backend *,
                               const struct utimbuf *buf);
 };

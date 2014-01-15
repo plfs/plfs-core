@@ -52,6 +52,8 @@ class ContainerIndex {
                                             set<string> *openset,
                                             set<string> *metaset) = 0;
 
+    virtual plfs_error_t index_droppings_rename(struct plfs_physpathinfo *src,
+                                          struct plfs_physpathinfo *dst) = 0;
     virtual plfs_error_t index_droppings_trunc(struct plfs_physpathinfo *ppip,
                                                off_t offset) = 0;
     virtual plfs_error_t index_droppings_zero(struct plfs_physpathinfo *ppip)

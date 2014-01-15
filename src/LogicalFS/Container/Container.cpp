@@ -1035,11 +1035,11 @@ createMetalink(struct plfs_backend *canback,
  * @param mode mode to create new stuff with
  * @return PLFS_SUCCESS or PLFS_E*
  */
-static plfs_error_t
-transferCanonical(const plfs_pathback *from,
-                  const plfs_pathback *to,
-                  const string& from_backend,
-                  const string& to_backend, mode_t mode)
+plfs_error_t
+Container::transferCanonical(const plfs_pathback *from,
+                             const plfs_pathback *to,
+                             const string& from_backend,
+                             const string& to_backend, mode_t mode)
 {
     /*
      * the general idea:
@@ -1179,7 +1179,12 @@ transferCanonical(const plfs_pathback *from,
             break;
         }
     }
-    /* we did everything we could.  Hopefully that's enough. */
+    /*
+     * we did everything we could.  Hopefully that's enough.
+     *
+     * XXX: if we got an error, we may have left the container in an
+     * odd state (we don't have full error recovery).
+     */
     return(ret);
 }
 

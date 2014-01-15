@@ -650,7 +650,8 @@ ContainerFileSystem::rename(struct plfs_physpathinfo *ppip,
             err = PLFS_SUCCESS;    // a file might not be distributed on all
         }
         if (err != PLFS_SUCCESS) {
-            ret = err;    // keep trying but save the error
+            /* XXX: no error recovery */
+            ret = err;    /* keep trying but save the error */
         }
         mlog(INT_DCOMMON, "rename %s to %s: %d",
              srcs[i].bpath.c_str(),dsts[i].bpath.c_str(),err);
@@ -674,12 +675,38 @@ ContainerFileSystem::rename(struct plfs_physpathinfo *ppip,
         opb.back = ppip->canback;
         npb.bpath = ppip_to->canbpath;
         npb.back = ppip_to->canback;
-#if 0
-        ret = Container::transferCanonical(&opb, &npb,
-                                           ppip->canback->bmpoint,
+        ret = Container::transferCanonical(&opb, &npb, ppip->canback->bmpoint,
                                            ppip_to->canback->bmpoint, mode);
-#endif
     }
+
+    /*
+     * need to tell externally stored indexes about the move
+     */
+    if (ret == PLFS_SUCCESS) {
+        ContainerIndex *ci;
+        ci = container_index_alloc(ppip->mnt_pt);
+        if (ci == NULL) {
+            ret = PLFS_ENOMEM;
+        } else {
+            ret = ci->index_droppings_rename(ppip, ppip_to);
+            delete ci;
+        }
+        if (ret != PLFS_SUCCESS) {
+
+            /*
+             * XXX: we don't have an error recovery path here (or
+             * above).  if this starts failing there is no easy way to
+             * back it out (we'd need to undo all renames, metalink
+             * ops, and copies we've done).  if we hit this unlikely
+             * error, just complain loudly about it.
+             */
+            mlog(CON_CRIT, "rename: %s %s->%s: partial failure: %s!  HELP!",
+                 ppip->mnt_pt->mnt_pt.c_str(), ppip->bnode.c_str(),
+                 ppip_to->bnode.c_str(), strplfserr(ret));
+            
+        }
+    }
+    
     return(ret);
 }
 
