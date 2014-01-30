@@ -144,6 +144,7 @@ plfs_error_t
 Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
                    mode_t mode, Plfs_open_opt *open_opt)
 {
+    mlog(PLFS_DBG2, "XXXACXXX - ENTER src/LogicalFS/Container/Container_fd::%s\n", __FUNCTION__ );
     plfs_error_t ret = PLFS_SUCCESS;
     Container_OpenFile **pfd = &this->fd;  /* NULL if just new'd */
     WriteFile *wf      = NULL;
@@ -171,6 +172,8 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
          * XXX: no API to get parent LogicalFS from a LogicalFD,
          * so we go to containerfs object to get create call.
          */
+        mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: called with O_CREATE\n", __FUNCTION__ );
+        mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to containerfs.create\n", __FUNCTION__ );
         ret = containerfs.create( ppip, mode, flags, pid );
         if (ret == 0 && flags & O_TRUNC) { // create did truncate
             // this assumes that container_create did the truncate!
@@ -180,6 +183,8 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
         }
     }
     if ( ret == PLFS_SUCCESS && flags & O_TRUNC && !truncated) {
+        mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: called with O_TRUNC\n", __FUNCTION__ );
+        mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to containerfs.create\n", __FUNCTION__ );
         ret = containerfs.trunc(ppip, 0, (int)true);
         if (ret == 0) {
             truncated = true;
@@ -196,14 +201,18 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
     // for reads, create an index if needed, otherwise add a new reader
     // this is so that any permission errors are returned on open
     if ( ret == PLFS_SUCCESS && isWriter(flags) ) {
+        mlog(PLFS_DBG, "isWriter\n");
         if ( *pfd ) {
+            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to Container_Openfile->getWritefile()\n", __FUNCTION__ );
             wf = (*pfd)->getWritefile();
         }
-        if ( wf == NULL ) {
+        if ( wf == NULL ) {     
+            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: wf is NULL, create a new one\n", __FUNCTION__ );
             // do we delete this on error?
             size_t indx_sz = 0;
             if(open_opt&&open_opt->pinter==PLFS_MPIIO &&
                     open_opt->buffer_index) {
+                mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: get indx_sz from plfsconf\n", __FUNCTION__ );
                 // this means we want to flatten on close
                 indx_sz = get_plfs_conf()->buffer_mbs;
             }
@@ -213,6 +222,7 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
              */
             char *hostname;
             Util::hostname(&hostname);
+            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to new WriteFile\n", __FUNCTION__ );
             wf = new WriteFile(ppip->canbpath, hostname, mode,
                                indx_sz, pid, ppip->bnode, ppip->canback,
                                ppip->mnt_pt);
@@ -220,11 +230,13 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
         }
         bool defer_open = get_plfs_conf()->lazy_droppings;
         int num_writers;
+        mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to WriteFile->addPrepareWriter\n", __FUNCTION__ );
         ret = wf->addPrepareWriter(pid, mode, true, defer_open, ppip->bnode,
                                    ppip->mnt_pt, ppip->canbpath,
                                    ppip->canback, &num_writers);
         mlog(INT_DCOMMON, "%s added writer: %d", __FUNCTION__, num_writers );
         if ( ret == PLFS_SUCCESS && new_writefile && !defer_open ) {
+            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to WriteFile->openIndex\n", __FUNCTION__ );
             ret = wf->openIndex( pid );
         }
         if ( ret != PLFS_SUCCESS && wf ) {
@@ -233,18 +245,23 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
         }
     }
     if ( ret == PLFS_SUCCESS && isReader(flags)) {
+        mlog(PLFS_DBG, "isReader\n");
         if ( *pfd ) {
+            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to Container_Openfile*->getIndex()\n", __FUNCTION__ );
             index = (*pfd)->getIndex();
         }
         if ( index == NULL ) {
+            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: index is NULL\n", __FUNCTION__ );
             // do we delete this on error?
             index = new Index(ppip->canbpath, ppip->canback);
             new_index = true;
             // Did someone pass in an already populated index stream?
             if (open_opt && open_opt->index_stream !=NULL) {
                 //Convert the index stream to a global index
+                mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to Index->global_from_stream\n", __FUNCTION__ );
                 index->global_from_stream(open_opt->index_stream);
             } else {
+                mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to Container::populateIndex\n", __FUNCTION__ );
                 ret = Container::populateIndex(ppip->canbpath, ppip->canback,
                    index,true,
                    open_opt ? open_opt->uniform_restart_enable : 0,
@@ -279,11 +296,13 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
     }
     if ( ret == PLFS_SUCCESS && ! *pfd ) {
         // do we delete this on error?
+        mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to new Container_OpenFile\n", __FUNCTION__ );
         *pfd = new Container_OpenFile( wf, index, pid, mode,
                                        ppip->canbpath.c_str(), ppip->canback);
         // we create one open record for all the pids using a file
         // only create the open record for files opened for writing
         if ( wf ) {
+            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: Create open record for files opened for writing\n", __FUNCTION__ );
             bool add_meta = true;
             if (open_opt && open_opt->pinter==PLFS_MPIIO && pid != 0 ) {
                 add_meta = false;
@@ -291,6 +310,7 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
             if (add_meta) {
                 char *hostname;
                 Util::hostname(&hostname);
+                mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: Call to Container::addOpenRecord\n", __FUNCTION__ );
                 ret = Container::addOpenrecord(ppip->canbpath, ppip->canback,
                                                hostname,pid);
             }
@@ -298,9 +318,11 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
         //cerr << __FUNCTION__ << " added open record for " << path << endl;
     } else if ( ret == PLFS_SUCCESS ) {
         if ( wf && new_writefile) {
+            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: Call to Container_OpenFile->setWriteFile\n", __FUNCTION__ );
             (*pfd)->setWritefile( wf );
         }
         if ( index && new_index ) {
+            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: Call to Container_OpenFile->setIndex\n", __FUNCTION__ );
             (*pfd)->setIndex(index);
         }
     }
@@ -308,13 +330,16 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
         // do we need to incrementOpens twice if O_RDWR ?
         // if so, we need to decrement twice in close
         if (wf && isWriter(flags)) {
+            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: Call to Container_OpenFile->incrementOpens (wf && isWriter(flags))\n", __FUNCTION__ );
             (*pfd)->incrementOpens(1);
         }
         if(index && isReader(flags)) {
+            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: Call to Container_OpenFile->incrementOpens (index && isReader(flags))\n", __FUNCTION__ );
             (*pfd)->incrementOpens(1);
         }
         plfs_reference_count(*pfd);
         if (open_opt && open_opt->reopen==1) {
+            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: Call to Container_OpenFile->setIndex\n", __FUNCTION__ );
             (*pfd)->setReopen();
         }
     }
@@ -419,7 +444,9 @@ Container_fd::close(pid_t pid, uid_t uid, int open_flags,
 plfs_error_t
 Container_fd::read(char *buf, size_t size, off_t offset, ssize_t *bytes_read)
 {
+    mlog(PLFS_DBG2, "XXXACXXX - ENTER src/LogicalFS/Container/Container_fd::%s\n", __FUNCTION__);
     bool new_index_created = false;
+    mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to this->fd->getIndex\n", __FUNCTION__);
     Index *index = this->fd->getIndex();
     ssize_t len = -1;
     plfs_error_t ret = PLFS_SUCCESS;
@@ -431,6 +458,7 @@ Container_fd::read(char *buf, size_t size, off_t offset, ssize_t *bytes_read)
     // so that new writes are re-indexed for new reads
     // basically O_RDWR is possible but it can reduce read BW
     if (index == NULL) {
+        mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to new Index\n", __FUNCTION__);
         index = new Index(this->fd->getPath(), this->fd->getCanBack());
         if ( index ) {
             // if they tried to do uniform restart, it will only work at open
@@ -438,6 +466,7 @@ Container_fd::read(char *buf, size_t size, off_t offset, ssize_t *bytes_read)
             // to make it work, we'll have to store the uniform restart info
             // into the Container_OpenFile
             new_index_created = true;
+            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to Container::PopulateIndex\n", __FUNCTION__);
             ret = Container::populateIndex(this->fd->getPath(),
                                            this->fd->getCanBack(),
                                            index,false,false,0);
@@ -446,6 +475,7 @@ Container_fd::read(char *buf, size_t size, off_t offset, ssize_t *bytes_read)
         }
     }
     if ( ret == PLFS_SUCCESS ) {
+        mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to plfs_reader\n", __FUNCTION__);
         ret = plfs_reader(this->fd,buf,size,offset,index, &len);
     }
     mlog(PLFS_DAPI, "Read request on %s at offset %ld for %ld bytes: ret %d len %ld",
@@ -490,6 +520,7 @@ plfs_error_t
 Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
                     ssize_t *bytes_written)
 {
+    mlog(PLFS_DBG2, "XXXACXXX - ENTER src/LogicalFS/Container/Container_fd::%s\n", __FUNCTION__);
     Container_OpenFile *pfd = this->fd;
     // this can fail because this call is not in a mutex so it's possible
     // that some other thread in a close is changing ref counts right now
@@ -513,7 +544,9 @@ Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
     */
     plfs_error_t ret = PLFS_SUCCESS;
     ssize_t written;
+    mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to Container_OpenFile->getWriteFile\n", __FUNCTION__);
     WriteFile *wf = pfd->getWritefile();
+    mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to WriteFile->write\n", __FUNCTION__);
     ret = wf->write(buf, size, offset, pid, &written);
     mlog(PLFS_DAPI, "%s: Wrote to %s, offset %ld, size %ld: ret %ld",
          __FUNCTION__, pfd->getPath(), (long)offset, (long)size, (long)ret);

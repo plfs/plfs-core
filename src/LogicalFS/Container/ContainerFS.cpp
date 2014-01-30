@@ -157,16 +157,20 @@ ContainerFileSystem::open(Plfs_fd **pfd, struct plfs_physpathinfo *ppip,
                           int flags, pid_t pid, mode_t mode,
                           Plfs_open_opt *open_opt)
 {
+    mlog(PLFS_DBG2, "XXXACXXX - ENTER src/LogicalFS/Container/ContainerFileSystem::%s\n", __FUNCTION__);
     plfs_error_t ret;
     bool newly_created = false;
     // possible that we just reuse the current one
     // or we need to make a new open
     if (*pfd == NULL) {
         newly_created = true;
+        mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/ContainerFileSystem::%s: call to new Container_fd()\n", __FUNCTION__);
         *pfd = new Container_fd();
     }
+    mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/ContainerFileSystem::%s: call to Plfs_fd->open\n", __FUNCTION__);
     ret = (*pfd)->open(ppip, flags, pid, mode, open_opt);
     if (ret != PLFS_SUCCESS && newly_created) {
+        mlog(PLFS_DBG, "Deleting Plfs_fd**\n");
         delete (*pfd);
         *pfd = NULL;
     }

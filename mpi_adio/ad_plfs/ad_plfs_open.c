@@ -308,8 +308,11 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     MPI_Comm hostdir_comm;
     int hostdir_rank, write_mode;
     open_opt.reopen = 0;
+    open_opt.mdhim_comm = (void *)fd->comm;
+    plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: MDHIM Comm set.\n", myname);
     // get a hostdir comm to use to serialize write a bit
     write_mode = (fd->access_mode==ADIO_RDONLY?0:1);
+    plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: write_mode = %d\n", myname, write_mode);
     if (write_mode) {
         char *hostname;
         plfs_gethostname(&hostname);
@@ -357,6 +360,8 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
         // here we are either writing or reading without optimizations
         open_opt.pinter = PLFS_MPIIO;
         open_opt.index_stream=NULL;
+
+        plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call to ad_plfs_hints\n", myname);
         close_flatten = ad_plfs_hints(fd,rank,"plfs_flatten_close");
         // Let's only buffer when the flatten on close hint is passed
         // and we are in WRONLY mode
@@ -367,13 +372,16 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
         if (write_mode && hostdir_rank) {
             plfs_barrier(hostdir_comm,rank);
         }
+        plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call to plfs_open\n",myname);
         plfs_err = plfs_open( pfd, fd->filename, amode, rank, perm ,&open_opt);
         if (write_mode && !hostdir_rank) {
+            plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call to plfs_barrier\n",myname);
             plfs_barrier(hostdir_comm,rank);
         }
     }
     // clean up the communicator we used
     if (write_mode) {
+        plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call call to MPI_Comm_freee\n",myname);
         MPI_Comm_free(&hostdir_comm);
     }
     if (err == 0) {
