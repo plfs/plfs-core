@@ -58,7 +58,10 @@ plfs_error_t mkdir_dash_p(const string& path, mode_t mode,
                           bool parent_only, IOStore *);
 
 plfs_error_t plfs_backends_op(struct plfs_physpathinfo *ppip, FileOp& op);
-plfs_error_t plfs_resolvepath(const char *logical, struct plfs_physpathinfo *ppip);
+plfs_error_t plfs_copypathinfo(struct plfs_physpathinfo *dest,
+                               struct plfs_physpathinfo *src);
+plfs_error_t plfs_resolvepath(const char *logical, 
+                              struct plfs_physpathinfo *ppip);
 
 /* plfs_init
     it just warms up the plfs structures used in expandPath
