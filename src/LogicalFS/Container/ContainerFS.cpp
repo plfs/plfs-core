@@ -460,6 +460,13 @@ ContainerFileSystem::open(Plfs_fd **pfd, struct plfs_physpathinfo *ppip,
     if (*pfd == NULL) {
         newly_created = true;
         *pfd = new Container_fd();
+    } else {
+        /*
+         * XXX: I don't think this case happens anymore, as plfs_open()
+         * currently always calls directly to Container_fd::open() if
+         * *pfd is non-NULL.   so newly_created will always be true
+         * in this function.
+         */
     }
     ret = (*pfd)->open(ppip, flags, pid, mode, open_opt);
     if (ret != PLFS_SUCCESS && newly_created) {
