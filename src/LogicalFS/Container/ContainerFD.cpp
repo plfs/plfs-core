@@ -253,6 +253,8 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
         if ( index == NULL ) {
             mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: index is NULL\n", __FUNCTION__ );
             // do we delete this on error?
+            // mdhim-mod at 
+            /******************
             index = new Index(ppip->canbpath, ppip->canback);
             new_index = true;
             // Did someone pass in an already populated index stream?
@@ -273,6 +275,9 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
                     index = NULL;
                 }
             }
+            *****************/
+            // mdhim-mod at
+            ret = PLFS_SUCCESS
         }
         if ( ret == PLFS_SUCCESS ) {
             index->incrementOpens(1);
@@ -280,6 +285,7 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
         // can't cache index if error or if in O_RDWR
         // be nice to be able to cache but trying to do so
         // breaks things.  someone should fix this one day
+
         if (index) {
             bool delete_index = false;
             if (ret!=PLFS_SUCCESS) {
@@ -321,10 +327,11 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
             mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: Call to Container_fd->setWriteFile\n", __FUNCTION__ );
             (*pfd)->setWritefile( wf );
         }
-        if ( index && new_index ) {
-            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: Call to Container_fd->setIndex\n", __FUNCTION__ );
-            (*pfd)->setIndex(index);
-        }
+        // mdhim-mod at
+        //if ( index && new_index ) {
+        //    (*pfd)->setIndex(index);
+        //}
+        // mdhim-mod at
     }
     if (ret == PLFS_SUCCESS) {
         // do we need to incrementOpens twice if O_RDWR ?
@@ -333,8 +340,11 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
             mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: Call to Container_fd->incrementOpens (wf && isWriter(flags))\n", __FUNCTION__ );
             (*pfd)->incrementOpens(1);
         }
+        // mdhim-mod at
         if(index && isReader(flags)) {
             mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: Call to Container_fd->incrementOpens (index && isReader(flags))\n", __FUNCTION__ );
+        if(index != NULL  && isReader(flags)) {
+        // mdhim-mod at
             (*pfd)->incrementOpens(1);
         }
         plfs_reference_count(*pfd);
@@ -457,6 +467,8 @@ Container_fd::read(char *buf, size_t size, off_t offset, ssize_t *bytes_read)
     // build an index now, but destroy it after this IO
     // so that new writes are re-indexed for new reads
     // basically O_RDWR is possible but it can reduce read BW
+// mdhim-mod at
+/********
     if (index == NULL) {
         mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to new Index\n", __FUNCTION__);
         index = new Index(this->fd->getPath(), this->fd->getCanBack());
@@ -474,6 +486,8 @@ Container_fd::read(char *buf, size_t size, off_t offset, ssize_t *bytes_read)
             ret = PLFS_EIO;
         }
     }
+************/
+// mdhim-mod at
     if ( ret == PLFS_SUCCESS ) {
         mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to plfs_reader\n", __FUNCTION__);
         ret = plfs_reader(this->fd,buf,size,offset,index, &len);
