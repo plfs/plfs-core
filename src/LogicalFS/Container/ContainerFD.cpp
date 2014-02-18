@@ -203,7 +203,7 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
     if ( ret == PLFS_SUCCESS && isWriter(flags) ) {
         mlog(PLFS_DBG, "isWriter\n");
         if ( *pfd ) {
-            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to Container_Openfile->getWritefile()\n", __FUNCTION__ );
+            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to Container_Fd->getWritefile()\n", __FUNCTION__ );
             wf = (*pfd)->getWritefile();
         }
         if ( wf == NULL ) {     
@@ -318,11 +318,11 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
         //cerr << __FUNCTION__ << " added open record for " << path << endl;
     } else if ( ret == PLFS_SUCCESS ) {
         if ( wf && new_writefile) {
-            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: Call to Container_OpenFile->setWriteFile\n", __FUNCTION__ );
+            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: Call to Container_fd->setWriteFile\n", __FUNCTION__ );
             (*pfd)->setWritefile( wf );
         }
         if ( index && new_index ) {
-            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: Call to Container_OpenFile->setIndex\n", __FUNCTION__ );
+            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: Call to Container_fd->setIndex\n", __FUNCTION__ );
             (*pfd)->setIndex(index);
         }
     }
@@ -330,16 +330,16 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
         // do we need to incrementOpens twice if O_RDWR ?
         // if so, we need to decrement twice in close
         if (wf && isWriter(flags)) {
-            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: Call to Container_OpenFile->incrementOpens (wf && isWriter(flags))\n", __FUNCTION__ );
+            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: Call to Container_fd->incrementOpens (wf && isWriter(flags))\n", __FUNCTION__ );
             (*pfd)->incrementOpens(1);
         }
         if(index && isReader(flags)) {
-            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: Call to Container_OpenFile->incrementOpens (index && isReader(flags))\n", __FUNCTION__ );
+            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: Call to Container_fd->incrementOpens (index && isReader(flags))\n", __FUNCTION__ );
             (*pfd)->incrementOpens(1);
         }
         plfs_reference_count(*pfd);
         if (open_opt && open_opt->reopen==1) {
-            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: Call to Container_OpenFile->setIndex\n", __FUNCTION__ );
+            mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: Call to Container_fd->setIndex\n", __FUNCTION__ );
             (*pfd)->setReopen();
         }
     }

@@ -167,7 +167,7 @@ ContainerFileSystem::open(Plfs_fd **pfd, struct plfs_physpathinfo *ppip,
         mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/ContainerFileSystem::%s: call to new Container_fd()\n", __FUNCTION__);
         *pfd = new Container_fd();
     }
-    mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/ContainerFileSystem::%s: call to Plfs_fd->open\n", __FUNCTION__);
+    mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/ContainerFileSystem::%s: call to Container_fd->open\n", __FUNCTION__);
     ret = (*pfd)->open(ppip, flags, pid, mode, open_opt);
     if (ret != PLFS_SUCCESS && newly_created) {
         mlog(PLFS_DBG, "Deleting Plfs_fd**\n");
