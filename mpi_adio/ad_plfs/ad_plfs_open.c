@@ -16,15 +16,16 @@
 #define VERBOSE_DEBUG 0
 #define BIT_ARRAY_LENGTH MAX_HOSTDIRS
 
+
 typedef char Bitmap;
-Bitmap bitmap[BIT_ARRAY_LENGTH/8];
+Bitmap bitmap[BIT_ARRAY_LENGTH/CHAR_BIT];
 
 // check whether bit is set in our bitmap
 int
 adplfs_bitIsSet( long n, char *bitmap )
 {
-    long whichByte = n / 8;
-    int  whichBit  = n % 8;
+    long whichByte = n / CHAR_BIT;
+    int  whichBit  = n % CHAR_BIT;
     return ((bitmap[whichByte] << whichBit) & 0x80) != 0;
 }
 
@@ -32,8 +33,8 @@ adplfs_bitIsSet( long n, char *bitmap )
 void
 adplfs_setBit( long n, char *bitmap )
 {
-    long whichByte = n / 8;
-    int  whichBit  = n % 8;
+    long whichByte = n / CHAR_BIT;
+    int  whichBit  = n % CHAR_BIT;
     char temp = bitmap[whichByte];
     bitmap[whichByte] = (char)(temp | (0x80 >> whichBit));
 }
@@ -42,8 +43,8 @@ adplfs_setBit( long n, char *bitmap )
 void
 adplfs_clearBit( long n, char *bitmap )
 {
-    long whichByte = n / 8;
-    int  whichBit  = n % 8;
+    long whichByte = n / CHAR_BIT;
+    int  whichBit  = n % CHAR_BIT;
     char temp = bitmap[whichByte];
     bitmap[whichByte] = (char)(temp & ~(0x80 >> whichBit));
 }
@@ -145,7 +146,17 @@ Bit bitmap[BIT_ARRAY_LENGTH]={0};
         MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO); \
     } \
 }
-
+#define MPITYPESIZE(A,B) \
+{ \
+        ret = MPI_Type_size(A,B); \
+        if(ret!=MPI_SUCCESS) { \
+            int resultlen; \
+            char err_buffer[MPI_MAX_ERROR_STRING]; \
+            MPI_Error_string(ret,err_buffer,&resultlen); \
+            printf("Error:%s | Rank:%d\n",err_buffer,rank); \
+            MPI_Abort(MPI_COMM_WORLD,MPI_ERR_IO); \
+        } \
+}
 
 int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
                 int amode,int rank);
@@ -499,7 +510,7 @@ int adplfs_par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
                    int amode,int rank, void **global_index)
 {
     // Each rank and the number of processes playing
-    int np,extra_rank,ret;
+    int np,extra_rank,ret,mpi_size;
     void *pmount, *pback;
     MPI_Comm_size(fd->comm, &np);
     // Rank 0 reads the top level directory and sets the
@@ -512,7 +523,8 @@ int adplfs_par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     char *filename;  /* bpath to container */
     plfs_expand_path(fd->filename,&filename,&pmount,&pback);
     // Rank 0 only code
-    int bitmap_bcast_sz = (BIT_ARRAY_LENGTH/8)/sizeof(MPI_CHAR);
+    MPITYPESIZE(MPI_CHAR, &mpi_size);
+    int bitmap_bcast_sz = (BIT_ARRAY_LENGTH/CHAR_BIT)/mpi_size;
     memset(bitmap,0,bitmap_bcast_sz);
     if(!rank) {
         // Find out how many hostdirs we currently have
@@ -637,10 +649,14 @@ void adplfs_read_and_merge(ADIO_File fd,int rank,
 void adplfs_bcast_bitmap(MPI_Comm comm, int rank)
 {
     int ret;
-    int bitmap_bcast_sz = (BIT_ARRAY_LENGTH/8)/sizeof(MPI_UNSIGNED_CHAR);
+    int mpi_size;
+
+    MPITYPESIZE(MPI_CHAR, &mpi_size)
+    int bitmap_bcast_sz = (BIT_ARRAY_LENGTH/CHAR_BIT)/mpi_size;
     BITMAP_PRINT;
     MPIBCAST(bitmap,bitmap_bcast_sz,MPI_UNSIGNED_CHAR,0,comm);
     BITMAP_PRINT;
+      
 }
 
 // If ranks > hostdirs we can split up our comm
@@ -851,7 +867,7 @@ char *adplfs_count_to_hostdir(Bitmap *bitmap,int stop_point,int *count,
 {
     char hostdir_num[16];
     plfs_debug("Searching bitmap from %d to %d\n",*count,stop_point);
-    while((*hostdir_found)<stop_point) {
+    while((*hostdir_found)<stop_point && *count < BIT_ARRAY_LENGTH) {
         if(adplfs_bitIsSet(*count,bitmap)) {
             (*hostdir_found)++;
         }
