@@ -1301,6 +1301,7 @@ void
 Index::addWrite( off_t offset, size_t length, pid_t pid,
                  double begin_timestamp, double end_timestamp )
 {
+    mlog(PLFS_DBG, "XXXACXXX - ENTER Index::%s\n", __FUNCTION__);
     Metadata::addWrite( offset, length );
     // check whether incoming abuts with last and we want to compress
     if ( get_plfs_conf()->compress_contiguous && !hostIndex.empty() &&

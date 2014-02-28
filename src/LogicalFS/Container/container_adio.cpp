@@ -194,6 +194,7 @@ plfs_error_t
 container_hostdir_zero_rddir(void **entries,const char *path,int /* rank */,
                         void *pmount, void *pback, int *ret_size)
 {
+    mlog(PLFS_DBG2, "XXXACXXX - %s::%s\n", __FILE__,__FUNCTION__);
     plfs_error_t ret;
     PlfsMount *mnt = (PlfsMount *)pmount;
     struct plfs_backend *canback = (struct plfs_backend *)pback;
@@ -201,6 +202,7 @@ container_hostdir_zero_rddir(void **entries,const char *path,int /* rank */,
     struct plfs_backend *idxback;
     int size;
     IndexFileInfo converter;
+    mlog(PLFS_DBG2, "XXXACXXX - %s::%s: call to Container::indices_from_subdir\n", __FILE__,__FUNCTION__);
     ret = Container::indices_from_subdir(path, mnt, canback, &idxback,
                                          index_droppings);
     if (ret!=PLFS_SUCCESS) {
@@ -209,6 +211,7 @@ container_hostdir_zero_rddir(void **entries,const char *path,int /* rank */,
     }
     mlog(INT_DCOMMON, "Found [%lu] index droppings in %s",
          (unsigned long)index_droppings.size(),path);
+    mlog(PLFS_DBG2, "XXXACXXX - %s::%s: call to converter.listToStream\n", __FILE__,__FUNCTION__);
     ret = converter.listToStream(index_droppings, &size, entries);
     *ret_size = size;
     return ret;
@@ -232,6 +235,7 @@ container_parindex_read(int rank, int ranks_per_comm, void *index_files,
                         void **index_stream, char *top_level,
                         int *ret_index_size)
 {
+    mlog(PLFS_DBG2, "XXXACXXX - %s::%s:\n", __FILE__,__FUNCTION__);
     size_t index_stream_sz;
     vector<IndexFileInfo> cvt_list;
     IndexFileInfo converter;
@@ -269,11 +273,13 @@ container_parindex_read(int rank, int ranks_per_comm, void *index_files,
      * global_to_stream tried to optimize the chunk path strings by
      * stripping the common parts, but we don't do that anymore).
      */
+    mlog(PLFS_DBG2, "XXXACXXX - %s::%s: call to Index::index\n", __FILE__,__FUNCTION__);
     Index index(top_level, NULL);
     cvt_list.erase(cvt_list.begin());  /* discard first entry on list */
     //Everything seems fine at this point
     mlog(INT_DCOMMON, "Rank |%d| List Size|%lu|",rank,
          (unsigned long)cvt_list.size());
+    mlog(PLFS_DBG2, "XXXACXXX - %s::%s: call to Container::parAggregateIndices\n", __FILE__,__FUNCTION__);
     index=Container::parAggregateIndices(cvt_list,rank,ranks_per_comm,
                                          bpath,backend);
     mlog(INT_DCOMMON, "Ranks |%d| About to convert global to stream",rank);
@@ -281,6 +287,7 @@ container_parindex_read(int rank, int ranks_per_comm, void *index_files,
     index_path=top_level;        /* XXX: not needed anymore */
     index.setPath(index_path);   /* XXX: not needed anymore */
     // Index should be populated now
+    mlog(PLFS_DBG2, "XXXACXXX - %s::%s: call to index.global_to_stream\n", __FILE__,__FUNCTION__);
     index.global_to_stream(index_stream,&index_stream_sz);
     *ret_index_size = (int)index_stream_sz;
     return PLFS_SUCCESS;
