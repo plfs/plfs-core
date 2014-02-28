@@ -6,6 +6,10 @@
 #include "mlog.h"
 #include "mlogfacs.h"
 #include "mlog_oss.h"
+// XXX AC: mdhim-mod
+#include "mdhim.h"
+#include "mdhim_options.h"
+// XXX AC: mdhim-mod
 
 // TODO:
 // this global variable should be a plfs conf
@@ -152,6 +156,11 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
     bool new_writefile = false;
     bool new_index     = false;
     bool truncated     = false; // don't truncate twice
+
+    // XXX AC: mdhim-mod
+    struct mdhim_t *md; // mdhim structure pointer
+    mdhim_options_t *db_opts; // structure used to set up the database for mdhim
+    
     /*
     if ( pid == 0 && open_opt && open_opt->pinter == PLFS_MPIIO ) {
         // just one message per MPI open to make sure the version is right
@@ -277,7 +286,21 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
             }
             *****************/
             // mdhim-mod at
-            ret = PLFS_SUCCESS
+            // XXX AC: mdhim-mod
+            // set mdhim options
+            db_opts = mdhim_options_init();
+            mdhim_options_set_db_path(db_opts, (char *)ppip->canbpath);
+            mdhim_options_set_db_name(db_opts, (char *)ppip->filename);
+            // Should be user defined
+            mdhim_options_set_db_type(db_opts, LEVELDB);
+            mdhim_options_set_key_type(db_opts, MDHIM_LONG_INT_KEY);
+            mdhim_options_set_debug_level(db_opts, MLOG_CRIT);
+            mdhim_options_set_max_recs_per_slice(db_opts, 1);
+            mdhim_options_set_server_factor(db_opts, 10);
+            mdhim_options_set_value_append(db_opts, 0);
+
+            md = mdhimInit(open_opt->mdhim_comm, db_opts);
+            ret = PLFS_SUCCESS;
         }
         if ( ret == PLFS_SUCCESS ) {
             index->incrementOpens(1);
