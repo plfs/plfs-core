@@ -3,6 +3,8 @@
 #include "mlog_oss.h"
 #include "PLFSIndex.h"
 
+#include "mdhim.h"
+
 // a struct for making reads be multi-threaded
 typedef struct {
     IOSHandle *fh;
@@ -96,11 +98,11 @@ find_read_tasks(PLFSIndex *index, list<ReadTask> *tasks, size_t size,
 // mdhim-mod at
 // This function performs an mdhimGet with operation specifying the type of get
 // to perform.  The mdhim value associated with the key is returned. 
-struct mdhim_getrm_t *mdhim_get(struct mdhim_t md, unsigned long long int key,
-                       int operation);
+struct mdhim_getrm_t *mdhim_get(struct mdhim_t *md, unsigned long long int key,
+                       int operation)
 {
-    struct mdhim_getrm_t mdhim_value;
-    mdhim_value = mdhimGet(struct mdhim_t md, &key, sizeof(key), operation);
+    struct mdhim_getrm_t *mdhim_value;
+    mdhim_value = mdhimGet( md, &key, sizeof(key), operation);
     return mdhim_value;
 }
 
@@ -111,7 +113,13 @@ plfs_error_t
 find_read_tasks_mdhim(struct mdhim_t *md, PLFSIndex *index, list<ReadTask> *tasks, 
                       size_t size, off_t offset, char *buf)
 {
-    
+    struct plfs_record {
+        unsigned long long int logical_offset;
+        unsigned long long int size;
+        char dropping_file[PATH_MAX];
+        unsigned long long int physical_offset;
+    };
+
     plfs_error_t ret;
     ssize_t bytes_remaining =size;
     ssize_t bytes_traversed =0;
@@ -119,16 +127,18 @@ find_read_tasks_mdhim(struct mdhim_t *md, PLFSIndex *index, list<ReadTask> *task
     struct plfs_record *plfs_value;
 
     ReadTask task;
-    struct_plfs_record *mdhim_plfs;
-    struct mdhim_getrm_t *read_mdhim
+    struct plfs_record *mdhim_plfs;
+    struct mdhim_getrm_t *read_mdhim;
     char dropping_file[PATH_MAX];
     char physical_offset;
-    int ret = PLFS_SUCCESS;
+    ret = PLFS_SUCCESS;
+    struct mdhim_getrm_t *mdhim_ret;
+    unsigned long long int mdhim_value_size;
     
     
-    get_rx_mag = mdhimGet(md, (unsigned long long int)offset, MDHIM_GET_EQ);
+    get_rx_msg = mdhim_get(md, (unsigned long long int)offset, MDHIM_GET_EQ);
     if (!get_rx_msg || get_rx_msg->error) {
-        ret = mdhimGet(md, (unsigned long long int)offset, MDHIM_GET_PREV);
+        mdhim_ret = mdhim_get(md, (unsigned long long int)offset, MDHIM_GET_PREV);
         if (!get_rx_msg || get_rx_msg->error) {
             // This is an error condition since not finding keys
             ret = PLFS_EINVAL;
@@ -138,19 +148,19 @@ find_read_tasks_mdhim(struct mdhim_t *md, PLFSIndex *index, list<ReadTask> *task
     
     do {
           
-       task.fh = NULL
-       task.chunk_offset = mdhim_value->physical_offset;
+       task.fh = NULL;
+       task.chunk_offset = plfs_value->physical_offset;
        //task.length = mdhim_value->size;
        task.backend = NULL;
        task.hole = NULL;
        task.chunk_id = NULL;
        mdhim_value_size = plfs_value->size;
-       task.path = plfs_value->path;
+       task.path = plfs_value->dropping_file;
 
-       if (mdhim_key == offset)
+       if (plfs_value->logical_offset == offset)
              if (size <= mdhim_value_size) { 
                  bytes_remaining = 0;
-                 task.length = size 
+                 task.length = size;
                  // fill task info
               }
          else {
@@ -160,7 +170,7 @@ find_read_tasks_mdhim(struct mdhim_t *md, PLFSIndex *index, list<ReadTask> *task
          }
       
          if (bytes_remaining) {
-             get_rx_mag = mdhimGet(md, (unsigned long long int)offset, MDHIM_GET_NEXT);
+             get_rx_msg = mdhim_get(md, (unsigned long long int)offset, MDHIM_GET_NEXT);
          }
          tasks->push_back(task);
      } while(bytes_remaining && ret == PLFS_SUCCESS && task.length);
@@ -300,7 +310,7 @@ plfs_reader(struct mdhim_t *md, void * /* pfd */, char *buf, size_t size, off_t 
     index->lock(__FUNCTION__); // in case another FUSE thread in here
     // mdhim-mod at
     //plfs_error_t plfs_ret = find_read_tasks(index,&tasks,size,offset,buf);
-    plfs_error_t plfs_ret = find_read_tasks_mdhim(struct mdhim_t *md, index,&tasks,size,offset,buf);
+    plfs_error_t plfs_ret = find_read_tasks_mdhim(md, index,&tasks,size,offset,buf);
     // mdhim-mod at
     index->unlock(__FUNCTION__); // in case another FUSE thread in here
     // let's leave early if possible to make remaining code cleaner by
