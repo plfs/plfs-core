@@ -596,6 +596,7 @@ Container::indices_from_subdir(string path, PlfsMount *cmnt,
                                struct plfs_backend **ibackp,
                                vector<IndexFileInfo> &indices)
 {
+    mlog(PLFS_DBG2, "XXXACXXX - %s::%s\n", __FILE__,__FUNCTION__);
     plfs_error_t ret;
     string resolved;
     struct plfs_backend *iback;
@@ -603,12 +604,14 @@ Container::indices_from_subdir(string path, PlfsMount *cmnt,
 
     /* see if it is a metalink (may need to switch backends) */
     iback = canback;
+    mlog(PLFS_DBG2, "XXXACXXX - %s::%s: call to resolveMetalink\n", __FILE__,__FUNCTION__);
     ret = resolveMetalink(path, canback, cmnt, resolved, &iback);
     if (ret == PLFS_SUCCESS) {
         path = resolved;  /* overwrites param ... */
     }        
 
     /* have correct backend now, collect indices from subdir */
+    mlog(PLFS_DBG2, "XXXACXXX - %s::%s: call to collectIndices\n", __FILE__,__FUNCTION__);
     ret = collectIndices(path, iback, index_files, false);
     if (ret!=PLFS_SUCCESS) {
         return ret;

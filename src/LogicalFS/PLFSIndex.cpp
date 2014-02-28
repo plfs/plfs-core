@@ -92,6 +92,28 @@ find_read_tasks(PLFSIndex *index, list<ReadTask> *tasks, size_t size,
     } while(bytes_remaining && ret == PLFS_SUCCESS && task.length);
     return(ret);
 }
+
+// mdhim-mod at
+/*** This task will mimic a global index lookup but in this case will use mdhim 
+     to populate tasks list
+****/
+plfs_error_t
+find_read_tasks_mdhim(PLFSIndex *index, list<ReadTask> *tasks, size_t size,
+                off_t offset, char *buf)
+{
+}
+// mdhim-mod at
+
+
+
+
+
+
+
+
+
+
+
 /* @param ret_readlen returns bytes read */
 /* ret PLFS_SUCCESS or PLFS_E* */
 plfs_error_t
@@ -211,7 +233,10 @@ plfs_reader(void * /* pfd */, char *buf, size_t size, off_t offset,
     // except this thread which can't remove it now since it's using it now
     // plfs_reference_count(pfd);
     index->lock(__FUNCTION__); // in case another FUSE thread in here
-    plfs_error_t plfs_ret = find_read_tasks(index,&tasks,size,offset,buf);
+    // mdhim-mod at
+    //plfs_error_t plfs_ret = find_read_tasks(index,&tasks,size,offset,buf);
+    plfs_error_t plfs_ret = find_read_tasks_mdhim(index,&tasks,size,offset,buf);
+    // mdhim-mod at
     index->unlock(__FUNCTION__); // in case another FUSE thread in here
     // let's leave early if possible to make remaining code cleaner by
     // not worrying about these conditions
