@@ -282,7 +282,7 @@ reader_thread( void *va )
 // returns PLFS_SUCCESS or PLFS_E*
 // TODO: rename this to container_reader or something better
 plfs_error_t
-plfs_reader(void * /* pfd */, char *buf, size_t size, off_t offset,
+plfs_reader(struct mdhim_t *md, void * /* pfd */, char *buf, size_t size, off_t offset,
             PLFSIndex *index, ssize_t *bytes_read)
 {
     ssize_t total = 0;  // no bytes read so far
@@ -300,7 +300,7 @@ plfs_reader(void * /* pfd */, char *buf, size_t size, off_t offset,
     index->lock(__FUNCTION__); // in case another FUSE thread in here
     // mdhim-mod at
     //plfs_error_t plfs_ret = find_read_tasks(index,&tasks,size,offset,buf);
-    plfs_error_t plfs_ret = find_read_tasks_mdhim(index,&tasks,size,offset,buf);
+    plfs_error_t plfs_ret = find_read_tasks_mdhim(struct mdhim_t *md, index,&tasks,size,offset,buf);
     // mdhim-mod at
     index->unlock(__FUNCTION__); // in case another FUSE thread in here
     // let's leave early if possible to make remaining code cleaner by
