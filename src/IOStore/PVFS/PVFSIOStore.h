@@ -17,19 +17,20 @@ class PVFSIOSHandle: public IOSHandle {
     PVFSIOSHandle(PVFS_object_ref newref, PVFS_credentials newcreds, int &ret);
     ~PVFSIOSHandle();
 
-    int Fstat(struct stat *buf);
-    int Fsync();
-    int Ftruncate(off_t length);
-    int GetDataBuf(void **bufp, size_t length);
-    ssize_t Pread(void *buf, size_t count, off_t offset);
-    ssize_t Pwrite(const void *buf, size_t count, off_t offset);
-    ssize_t Read(void *buf, size_t length);
-    int ReleaseDataBuf(void *buf, size_t length);
-    off_t Size();
-    ssize_t Write(const void *buf, size_t len);
+    plfs_error_t Fstat(struct stat *buf);
+    plfs_error_t Fsync();
+    plfs_error_t Ftruncate(off_t length);
+    plfs_error_t GetDataBuf(void **bufp, size_t length);
+    plfs_error_t Pread(void *buf, size_t count, off_t offset, ssize_t *read);
+    plfs_error_t Pwrite(const void *buf, size_t count, off_t offset, 
+                        ssize_t *written);
+    plfs_error_t Read(void *buf, size_t length, ssize_t *read);
+    plfs_error_t ReleaseDataBuf(void *buf, size_t length);
+    plfs_error_t Size(off_t *ret_offset);
+    plfs_error_t Write(const void *buf, size_t len, ssize_t *written);
 
  private:
-    int Close();
+    plfs_error_t Close();
     PVFS_object_ref ref;      /* the open object's handle */
     PVFS_credentials creds;   /* creds used to access it */
     int gotlock;              /* active mutex */
@@ -44,10 +45,10 @@ class PVFSIOSDirHandle: public IOSDirHandle {
                      int &ret);
     ~PVFSIOSDirHandle();
 
-    int Readdir_r(struct dirent *dst, struct dirent **dret);
+    plfs_error_t Readdir_r(struct dirent *dst, struct dirent **dret);
 
  private:
-    int Closedir();
+    plfs_error_t Closedir();
     PVFS_object_ref ref;              /* the open object's handle */
     PVFS_credentials creds;           /* creds used to access it */
 
@@ -67,26 +68,29 @@ class PVFSIOSDirHandle: public IOSDirHandle {
 
 class PVFSIOStore: public IOStore {
  public:
-    int Access(const char *path, int amode);
-    int Chmod(const char *path, mode_t mode);
-    int Chown(const char *path, uid_t owner, gid_t group);
-    int Lchown(const char *path, uid_t owner, gid_t group);
-    int Lstat(const char *path, struct stat *buf);
-    int Mkdir(const char *path, mode_t mode);
-    class IOSHandle *Open(const char *bpath, int flags, mode_t mode, int &ret);
-    class IOSDirHandle *Opendir(const char *bpath, int &ret);
-    int Rename(const char *from, const char *to);
-    int Rmdir(const char *path);
-    int Stat(const char *path, struct stat *buf);
-    int Statvfs(const char *path, struct statvfs *stbuf);
-    int Symlink(const char *name1, const char *name2);
-    ssize_t Readlink(const char *path, char *buf, size_t bufsiz);
-    int Truncate(const char *path, off_t length);
-    int Unlink(const char *path);
-    int Utime(const char *path, const utimbuf *timep);
+    plfs_error_t Access(const char *path, int amode);
+    plfs_error_t Chmod(const char *path, mode_t mode);
+    plfs_error_t Chown(const char *path, uid_t owner, gid_t group);
+    plfs_error_t Lchown(const char *path, uid_t owner, gid_t group);
+    plfs_error_t Lstat(const char *path, struct stat *buf);
+    plfs_error_t Mkdir(const char *path, mode_t mode);
+    plfs_error_t Open(const char *bpath, int flags, mode_t mode, 
+                      class IOSHandle **ret_store);
+    plfs_error_t Opendir(const char *bpath, class IOSDirHandle **ret_dhand);
+    plfs_error_t Rename(const char *from, const char *to);
+    plfs_error_t Rmdir(const char *path);
+    plfs_error_t Stat(const char *path, struct stat *buf);
+    plfs_error_t Statvfs(const char *path, struct statvfs *stbuf);
+    plfs_error_t Symlink(const char *name1, const char *name2);
+    plfs_error_t Readlink(const char *path, char *buf, size_t bufsiz,
+                          ssize_t *readlen);
+    plfs_error_t Truncate(const char *path, off_t length);
+    plfs_error_t Unlink(const char *path);
+    plfs_error_t Utime(const char *path, const utimbuf *timep);
 
-    static class PVFSIOStore *PVFSIOStore_xnew(char *phys_path, int *prelenp,
-                                               char **bmpointp);
+    static plfs_error_t PVFSIOStore_xnew(char *phys_path, int *prelenp,
+                                         char **bmpointp, 
+                                         class IOStore **ret_store);
     
  private:
     PVFS_fs_id fsid;                /* filesystem id */
