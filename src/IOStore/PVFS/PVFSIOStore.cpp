@@ -482,8 +482,8 @@ plfs_error_t PVFSIOSHandle::Fstat(struct stat *buf) {
  *
  * @return 0
  */
-int PVFSIOSHandle::Fsync() {
-    return(0);
+plfs_error_t PVFSIOSHandle::Fsync() {
+    return(PLFS_SUCCESS);
 }
 
 /**
@@ -652,14 +652,14 @@ plfs_error_t PVFSIOSHandle::Read(void *buf, size_t count, ssize_t *bytes_read) {
     plfs_error_t ret;
 
     off = this->mypos;
-    ret = this->Pread(&readlen, buf, count, off);
+    ret = this->Pread(buf, count, off, &readlen);
     if (readlen > 0) {
         pthread_mutex_lock(&this->poslock);
         this->mypos += readlen;
         pthread_mutex_unlock(&this->poslock);
     }
     *bytes_read = readlen;
-    return ret
+    return ret;
 }
 
 /**
@@ -682,7 +682,6 @@ plfs_error_t PVFSIOSHandle::ReleaseDataBuf(void* addr, size_t len) {
  */
 plfs_error_t PVFSIOSHandle::Size(off_t *ret_offset) {
     struct stat st;
-    int nev;
     plfs_error_t ret;
 
     ret = this->Fstat(&st);
@@ -707,7 +706,7 @@ plfs_error_t PVFSIOSHandle::Write(const void* buf, size_t len, ssize_t *bytes_wr
     plfs_error_t ret;
 
     off = this->mypos;
-    ret = this->Pwrite(&writelen, buf, len, off);
+    ret = this->Pwrite(buf, len, off, &writelen);
     if (writelen > 0) {
         pthread_mutex_lock(&this->poslock);
         this->mypos += writelen;
@@ -912,7 +911,7 @@ plfs_error_t PVFSIOSDirHandle::Readdir_r(struct dirent *dst, struct dirent **dre
 plfs_error_t PVFSIOStore::PVFSIOStore_xnew(char *phys_path,
                                            int *prelenp,
                                            char **bmpointp,
-                                           class PVFSIOStore **ret_store) {
+                                           class IOStore **ret_store) {
     char *p, *sl, *cp;
     int plen, rv, pev;
     class PVFSIOStore *pio;
@@ -937,6 +936,7 @@ plfs_error_t PVFSIOStore::PVFSIOStore_xnew(char *phys_path,
         goto error;
     }
     strncpy(cp, p, sl - p);
+    cp[sl - p] = 0;   /* null terminate it too... */
 
     pio = new PVFSIOStore;
     if (pio == NULL) {
@@ -1332,6 +1332,9 @@ plfs_error_t PVFSIOStore::Opendir(const char *bpath, class IOSDirHandle **ret_dh
     PVFS_credentials creds;
     int nev, dhs;
     PVFSIOSDirHandle *dhand;
+
+    /* avoid gcc uninit'd var error in new below */
+    memset(&ref, 0, sizeof(ref)); 
 
     cpath = pvfsios_dedup_slash(bpath);
     if (cpath) {
