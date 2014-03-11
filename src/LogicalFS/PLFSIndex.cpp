@@ -3,6 +3,7 @@
 #include "mlog_oss.h"
 #include "PLFSIndex.h"
 
+// XXX AC: mdhim-mod 
 #include "mdhim.h"
 
 // a struct for making reads be multi-threaded
@@ -309,8 +310,8 @@ plfs_reader(struct mdhim_t *md, void * /* pfd */, char *buf, size_t size, off_t 
     // plfs_reference_count(pfd);
     index->lock(__FUNCTION__); // in case another FUSE thread in here
     // mdhim-mod at
-    //plfs_error_t plfs_ret = find_read_tasks(index,&tasks,size,offset,buf);
-    plfs_error_t plfs_ret = find_read_tasks_mdhim(md, index,&tasks,size,offset,buf);
+    plfs_error_t plfs_ret = find_read_tasks(index,&tasks,size,offset,buf);
+    //plfs_error_t plfs_ret = find_read_tasks_mdhim(md, index,&tasks,size,offset,buf);
     // mdhim-mod at
     index->unlock(__FUNCTION__); // in case another FUSE thread in here
     // let's leave early if possible to make remaining code cleaner by

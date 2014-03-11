@@ -48,6 +48,12 @@ set(PLFS_SOURCE_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set(PLFS_TOOLS_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/tools")
 set(PLFS_TESTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tests")
 set(PLFS_MAN_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/man")
+# XXX AC mdhim-mod
+set(MDHIM_SOURCE_DIR "/users/acaldwell/projects/sources/mdhim/mdhim-tng/src")
+set(UTHASH_SOURCE_DIR "${MDHIM_SOURCE_DIR}/uthash")
+set(MPI_SOURCE_DIR
+    "/users/acaldwell/projects/mvapich2-1.9/include")
+# XXX AC mdhim-mod
 
 #BUILD_DIR is where we build from
 set(PLFS_BUILD_DIR "${CMAKE_BINARY_DIR}")
@@ -79,6 +85,13 @@ include_directories(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile/smallfile)
 include_directories(${PLFS_SOURCE_DIR}/Mlog)
 #Plfsrc
 include_directories(${PLFS_SOURCE_DIR}/Plfsrc)
+# XXX AC mdhim-mod
+include_directories(${MDHIM_SOURCE_DIR})
+include_directories(${UTHASH_SOURCE_DIR})
+include_directories(${MPI_SOURCE_DIR})
+
+# XXX AC mdhim-mod
+
 #user defined search paths
 foreach(path ${CMAKE_INCLUDE_PATH})
   include_directories(${path})
@@ -261,12 +274,12 @@ include_directories (src/Plfsrc/yaml-cpp/boost)
 add_library(plfs_lib SHARED ${SRCDIR} ${sources} ${public_headers}
 ${private_headers} ${contrib_headers} ${contrib_public_headers}
 ${contrib_private_headers})
-SET_TARGET_PROPERTIES(plfs_lib PROPERTIES OUTPUT_NAME plfs)
-set_target_properties(plfs_lib PROPERTIES
-        VERSION "${plfs_VERSION_FULL}"
-        SOVERSION "${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}"
-        PROJECT_LABEL "plfs_lib shared")
-
+#SET_TARGET_PROPERTIES(plfs_lib PROPERTIES OUTPUT_NAME plfs)
+#set_target_properties(plfs_lib PROPERTIES
+#        VERSION "${plfs_VERSION_FULL}"
+#        SOVERSION "${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}"
+#        PROJECT_LABEL "plfs_lib shared")
+#
 #target_link_libraries (plfs_lib plfs-yaml)
 if (NOT DISABLE_STATIC_LIB)
     add_library(plfs_lib_static STATIC ${SRCDIR} ${sources} ${public_headers}
@@ -359,6 +372,9 @@ foreach (SOURCE dcon.c findmesgbuf.c plfs_check_config.cpp plfs_ls.cpp
         target_link_libraries (${PROG} ${IOFSL_LIBRARIES})
     endif(BUILD_IOFSL)
 endforeach(SOURCE)
+# XXX AC mdhim-mod
+target_link_libraries(plfs_lib ${MDHIM_SOURCE_DIR}/libmdhim.a)
+# XXX AC mdhim-mod
 
 #test tools
 add_subdirectory("${PLFS_TESTS_DIR}")

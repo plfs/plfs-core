@@ -9,6 +9,7 @@
 // XXX AC: mdhim-mod
 #include "mdhim.h"
 #include "mdhim_options.h"
+#include "partitioner_define.h"
 // XXX AC: mdhim-mod
 
 // TODO:
@@ -289,8 +290,8 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
             // XXX AC: mdhim-mod
             // set mdhim options
             db_opts = mdhim_options_init();
-            mdhim_options_set_db_path(db_opts, (char *)ppip->canbpath);
-            mdhim_options_set_db_name(db_opts, (char *)ppip->filename);
+            mdhim_options_set_db_path(db_opts, const_cast<char *>(ppip->canbpath.c_str()));
+            mdhim_options_set_db_name(db_opts, const_cast<char *>(ppip->filename));
             // Should be user defined
             mdhim_options_set_db_type(db_opts, LEVELDB);
             mdhim_options_set_key_type(db_opts, MDHIM_LONG_INT_KEY);
@@ -366,6 +367,7 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
         // mdhim-mod at
         if(index && isReader(flags)) {
             mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: Call to Container_fd->incrementOpens (index && isReader(flags))\n", __FUNCTION__ );
+        }
         if(index != NULL  && isReader(flags)) {
         // mdhim-mod at
             (*pfd)->incrementOpens(1);
