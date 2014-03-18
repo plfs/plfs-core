@@ -28,7 +28,8 @@ plfs_error_t
 Small_fd::read(char *buf, size_t size, off_t offset, ssize_t *bytes_read)
 {
     if (open_flags == O_RDONLY || open_flags == O_RDWR) {
-        return plfs_reader(NULL, buf, size, offset, this, bytes_read);
+        //return plfs_reader(NULL, buf, size, offset, this, bytes_read);
+        return PLFS_SUCCESS;
     }
     return PLFS_EBADF;
 }

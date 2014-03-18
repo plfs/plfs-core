@@ -518,7 +518,8 @@ Container_fd::read(char *buf, size_t size, off_t offset, ssize_t *bytes_read)
 // mdhim-mod at
     if ( ret == PLFS_SUCCESS ) {
         mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to plfs_reader\n", __FUNCTION__);
-        ret = plfs_reader(this->fd,buf,size,offset,index, &len);
+        //ret = plfs_reader(this->fd,buf,size,offset,index, &len);
+        ret = PLFS_SUCCESS;
     }
     mlog(PLFS_DAPI, "Read request on %s at offset %ld for %ld bytes: ret %d len %ld",
          this->fd->getPath(),long(offset),long(size),ret, long(len));

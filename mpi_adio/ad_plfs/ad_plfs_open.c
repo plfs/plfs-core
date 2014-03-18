@@ -319,7 +319,7 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     MPI_Comm hostdir_comm;
     int hostdir_rank, write_mode;
     open_opt.reopen = 0;
-    open_opt.mdhim_comm = (void *)fd->comm;
+    open_opt.mdhim_comm = (void *)(fd->comm);
     plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: MDHIM Comm set.\n", myname);
     // get a hostdir comm to use to serialize write a bit
     write_mode = (fd->access_mode==ADIO_RDONLY?0:1);

@@ -1,5 +1,6 @@
 #define MLOG_FACSARRAY   /* need to define before include mlog .h files */
-
+                       
+#include "mlogfacs.h"
 #include "parse_conf.h"
 #include "plfs_internal.h"
 #include "mlog.h"
