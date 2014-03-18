@@ -258,6 +258,9 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
         if ( *pfd ) {
             mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to Container_Openfile*->getIndex()\n", __FUNCTION__ );
             index = (*pfd)->getIndex();
+            //mdhim-mod at 
+            index = NULL;
+            //mdhim-mod at 
         }
         if ( index == NULL ) {
             mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: index is NULL\n", __FUNCTION__ );
