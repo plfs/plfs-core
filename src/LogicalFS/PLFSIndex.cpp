@@ -107,11 +107,12 @@ struct mdhim_getrm_t *mdhim_get(struct mdhim_t *md, unsigned long long int key,
     return mdhim_value;
 }
 
-/*** This task will mimic a global index lookup but in this case will use mdhim 
-     to populate tasks list
+/*** 
+  This function will mimic a global index lookup but in this case will use mdhim 
+  to populate tasks list
 ****/
 plfs_error_t
-find_read_tasks_mdhim(struct mdhim_t *md, PLFSIndex *index, list<ReadTask> *tasks, 
+find_read_tasks_mdhim(struct mdhim_t *md, struct plfs_backdend *bkend,PLFSIndex *index, list<ReadTask> *tasks, 
                       size_t size, off_t offset, char *buf)
 {
     struct plfs_record {
@@ -136,15 +137,18 @@ find_read_tasks_mdhim(struct mdhim_t *md, PLFSIndex *index, list<ReadTask> *task
     struct mdhim_getrm_t *mdhim_ret;
     unsigned long long int mdhim_value_size;
     
+    // Determine if offset matches mdhim key by call mdhim_get with MDHIM_GET_EQ
     
     get_rx_msg = mdhim_get(md, (unsigned long long int)offset, MDHIM_GET_EQ);
     if (!get_rx_msg || get_rx_msg->error) {
+        // Key did not match opposite so get previous key
         mdhim_ret = mdhim_get(md, (unsigned long long int)offset, MDHIM_GET_PREV);
         if (!get_rx_msg || get_rx_msg->error) {
             // This is an error condition since not finding keys
             ret = PLFS_EINVAL;
         }
     }
+    // Point to returned value from mdhim_get
     plfs_value = (struct plfs_record *)get_rx_msg->value;
     
     do {
@@ -152,11 +156,13 @@ find_read_tasks_mdhim(struct mdhim_t *md, PLFSIndex *index, list<ReadTask> *task
        task.fh = NULL;
        task.chunk_offset = plfs_value->physical_offset;
        //task.length = mdhim_value->size;
-       task.backend = NULL;
+       task.backend = bkend;
        task.hole = NULL;
        task.chunk_id = NULL;
        mdhim_value_size = plfs_value->size;
        task.path = plfs_value->dropping_file;
+       
+       // Determine if how many bytes remain so that looping (mdhim_get) continues
 
        if (plfs_value->logical_offset == offset)
              if (size <= mdhim_value_size) { 
@@ -170,10 +176,12 @@ find_read_tasks_mdhim(struct mdhim_t *md, PLFSIndex *index, list<ReadTask> *task
                  task.length = bytes_traversed; 
          }
       
+         // Do another mdhim_get
          if (bytes_remaining) {
              get_rx_msg = mdhim_get(md, (unsigned long long int)offset, MDHIM_GET_NEXT);
          }
          tasks->push_back(task);
+         mdhim_full_release_msg(get_rx_msg);
      } while(bytes_remaining && ret == PLFS_SUCCESS && task.length);
  }
 
@@ -292,8 +300,12 @@ reader_thread( void *va )
 // @param bytes_read returns bytes read
 // returns PLFS_SUCCESS or PLFS_E*
 // TODO: rename this to container_reader or something better
+// mdhim-mod at
+//plfs_error_t
+//plfs_reader( void * /* pfd */, char *buf, size_t size, off_t offset,
+//             PLFSIndex *index, ssize_t *bytes_read)
 plfs_error_t
-plfs_reader(struct mdhim_t *md, void * /* pfd */, char *buf, size_t size, off_t offset,
+plfs_reader(struct mdhim_t *md, struct plfs_backend *bkend, void * /* pfd */, char *buf, size_t size, off_t offset,
             PLFSIndex *index, ssize_t *bytes_read)
 {
     ssize_t total = 0;  // no bytes read so far
@@ -310,8 +322,13 @@ plfs_reader(struct mdhim_t *md, void * /* pfd */, char *buf, size_t size, off_t 
     // plfs_reference_count(pfd);
     index->lock(__FUNCTION__); // in case another FUSE thread in here
     // mdhim-mod at
+<<<<<<< HEAD
     plfs_error_t plfs_ret = find_read_tasks(index,&tasks,size,offset,buf);
     //plfs_error_t plfs_ret = find_read_tasks_mdhim(md, index,&tasks,size,offset,buf);
+=======
+    //plfs_error_t plfs_ret = find_read_tasks(index,&tasks,size,offset,buf);
+    plfs_error_t plfs_ret = find_read_tasks_mdhim(md, bkend, index,&tasks,size,offset,buf);
+>>>>>>> 77e67e1968b364a2390e242f9994f548f60d0ef5
     // mdhim-mod at
     index->unlock(__FUNCTION__); // in case another FUSE thread in here
     // let's leave early if possible to make remaining code cleaner by

@@ -30,9 +30,19 @@ public:
  * This function takes care of thread pool and open file cache. The only
  * thing you need to do is providing a class derived from PLFSIndex.
  */
+<<<<<<< HEAD
 //plfs_error_t plfs_reader(void *unused, char *buf, size_t size,
 //                         off_t offset, PLFSIndex *index, ssize_t *bytes_read);
 plfs_error_t plfs_reader(struct mdhim_t *md, void * /* pfd */, char *buf, size_t size, off_t offset,
             PLFSIndex *index, ssize_t *bytes_read);
+=======
+// mdhim-mod at
+//plfs_error_t plfs_reader(void *unused, char *buf, size_t size,
+//                         off_t offset, PLFSIndex *index, ssize_t *bytes_read);
+plfs_error_t plfs_reader(struct mdhim_t *md, struct plfs_backend *bkend,
+                         void *unused, char *buf, size_t size,
+                         off_t offset, PLFSIndex *index, ssize_t *bytes_read);
+// mdhim-mod at
+>>>>>>> 77e67e1968b364a2390e242f9994f548f60d0ef5
 
 #endif
