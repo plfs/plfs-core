@@ -112,7 +112,7 @@ struct mdhim_getrm_t *mdhim_get(struct mdhim_t *md, unsigned long long int key,
   to populate tasks list
 ****/
 plfs_error_t
-find_read_tasks_mdhim(struct mdhim_t *md, struct plfs_backdend *bkend,PLFSIndex *index, list<ReadTask> *tasks, 
+find_read_tasks_mdhim(struct mdhim_t *md, struct plfs_backend *bkend,PLFSIndex *index, list<ReadTask> *tasks, 
                       size_t size, off_t offset, char *buf)
 {
     struct plfs_record {
@@ -322,13 +322,9 @@ plfs_reader(struct mdhim_t *md, struct plfs_backend *bkend, void * /* pfd */, ch
     // plfs_reference_count(pfd);
     index->lock(__FUNCTION__); // in case another FUSE thread in here
     // mdhim-mod at
-<<<<<<< HEAD
-    plfs_error_t plfs_ret = find_read_tasks(index,&tasks,size,offset,buf);
     //plfs_error_t plfs_ret = find_read_tasks_mdhim(md, index,&tasks,size,offset,buf);
-=======
     //plfs_error_t plfs_ret = find_read_tasks(index,&tasks,size,offset,buf);
     plfs_error_t plfs_ret = find_read_tasks_mdhim(md, bkend, index,&tasks,size,offset,buf);
->>>>>>> 77e67e1968b364a2390e242f9994f548f60d0ef5
     // mdhim-mod at
     index->unlock(__FUNCTION__); // in case another FUSE thread in here
     // let's leave early if possible to make remaining code cleaner by
