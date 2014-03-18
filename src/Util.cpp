@@ -25,12 +25,12 @@
 #include <stdarg.h>
 using namespace std;
 
+#include "mlogfacs.h"
 #include "plfs_private.h"
 #include "IOStore.h"
 #include "FileOp.h"
 #include "Util.h"
 #include "LogMessage.h"
-#include "mlogfacs.h"
 #include "Container.h"
 #include "mlog_oss.h"
 #include "mlog.h"

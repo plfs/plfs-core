@@ -354,6 +354,10 @@ elseif (NOT DISABLE_FUSE)
     message(FATAL_ERROR "FUSE not found and DISABLE_FUSE not specified")
 endif(FUSE_FOUND AND NOT DISABLE_FUSE)
 
+## XXX AC mdhim-mod
+target_link_libraries(plfs_lib ${MDHIM_SOURCE_DIR}/libmdhim.so.1)
+# XXX AC mdhim-mod
+
 #helper tools
 foreach (SOURCE dcon.c findmesgbuf.c plfs_check_config.cpp plfs_ls.cpp
      plfs_flatten_index.cpp plfs_map.cpp plfs_query.cpp plfs_recover.cpp
@@ -372,9 +376,6 @@ foreach (SOURCE dcon.c findmesgbuf.c plfs_check_config.cpp plfs_ls.cpp
         target_link_libraries (${PROG} ${IOFSL_LIBRARIES})
     endif(BUILD_IOFSL)
 endforeach(SOURCE)
-# XXX AC mdhim-mod
-target_link_libraries(plfs_lib ${MDHIM_SOURCE_DIR}/libmdhim.a)
-# XXX AC mdhim-mod
 
 #test tools
 add_subdirectory("${PLFS_TESTS_DIR}")
@@ -401,7 +402,7 @@ INSTALL(TARGETS plfs_check_config plfs_flatten_index plfs_ls plfs_version
                 DESTINATION ${BINDIR}
 )
 
-# only install admin toolset if defined
+## only install admin toolset if defined
 if (ADMIN_TOOLS)
     INSTALL(TARGETS dcon findmesgbuf plfs_map plfs_query plfs_recover
                     DESTINATION ${SBINDIR})

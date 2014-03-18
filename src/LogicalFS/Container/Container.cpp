@@ -10,11 +10,11 @@
 #include <libgen.h>
 using namespace std;
 
+#include "plfs_private.h"
 #include "IOStore.h"
 #include "FileOp.h"
 #include "Container.h"
 #include "plfs.h"
-#include "plfs_private.h"
 #include "Util.h"
 #include "ThreadPool.h"
 #include "mlog.h"

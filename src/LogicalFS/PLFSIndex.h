@@ -1,6 +1,7 @@
 #ifndef __PLFSINDEX_H__
 #define __PLFSINDEX_H__
 #include "IOStore.h"
+#include "mdhim.h"
 
 
 /**
@@ -29,7 +30,9 @@ public:
  * This function takes care of thread pool and open file cache. The only
  * thing you need to do is providing a class derived from PLFSIndex.
  */
-plfs_error_t plfs_reader(void *unused, char *buf, size_t size,
-                         off_t offset, PLFSIndex *index, ssize_t *bytes_read);
+//plfs_error_t plfs_reader(void *unused, char *buf, size_t size,
+//                         off_t offset, PLFSIndex *index, ssize_t *bytes_read);
+plfs_error_t plfs_reader(struct mdhim_t *md, void * /* pfd */, char *buf, size_t size, off_t offset,
+            PLFSIndex *index, ssize_t *bytes_read);
 
 #endif

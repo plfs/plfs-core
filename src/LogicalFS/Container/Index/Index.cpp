@@ -19,11 +19,11 @@
 #include <stdlib.h>
 
 #include <time.h>
+#include "plfs_private.h"
 #include "plfs.h"
 #include "IOStore.h"
 #include "Container.h"
 #include "Index.h"
-#include "plfs_private.h"
 #include "mlog_oss.h"
 
 HostEntry::HostEntry()
