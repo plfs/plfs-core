@@ -15,6 +15,8 @@ public:
                              size_t input_length, 
                              vector<index_record> &result);
     plfs_error_t index_truncate(struct plfs_physpathinfo *ppip, off_t offset);
+    plfs_error_t index_new_wdrop(Container_OpenFile *cof,
+                                 string ts, pid_t pid);
     plfs_error_t index_getattr_size(struct plfs_physpathinfo *ppip,
                                     struct stat *stbuf,
                                     set<string> *openset,

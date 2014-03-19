@@ -4,9 +4,9 @@
 
 #include "plfs_private.h"
 #include "Container.h"
+#include "ContainerIndex.h"
 #include "ContainerFS.h"
 #include "ContainerFD.h"
-#include "ContainerIndex.h"
 
 /*
  * containerfs is src/Plfsrc/parse_conf.cpp's link to container mode

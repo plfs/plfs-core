@@ -41,6 +41,12 @@ ByteRangeIndex::index_truncate(Container_OpenFile *cof, off_t offset) {
 }
 
 plfs_error_t
+ByteRangeIndex::index_new_wdrop(Container_OpenFile *cof, string ts,
+                                pid_t pid) {
+    return(PLFS_ENOTSUP);
+}
+
+plfs_error_t
 ByteRangeIndex::index_getattr_size(struct plfs_physpathinfo *ppip, 
                                    struct stat *stbuf, set<string> *openset,
                                    set<string> *metaset) {

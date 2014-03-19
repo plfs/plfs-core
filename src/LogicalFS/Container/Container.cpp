@@ -8,7 +8,15 @@
 #include "ContainerFS.h"
 #include "ContainerIndex.h"
 
-
+/*
+ * local prototypes
+ */
+static plfs_error_t createMetalink(struct plfs_backend *canback,
+                                   struct plfs_backend *shadowback,
+                                   const string& canonical_hostdir,
+                                   string& physical_hostdir,
+                                   struct plfs_backend **physbackp,
+                                   bool& use_metalink);
 /**
  * fetchMeta: get data from metafile name
  *
@@ -440,6 +448,130 @@ Container::create(struct plfs_physpathinfo *ppip,
 }
 
 /**
+ * establish_writehostdir: creates a hostdir for a writer to put
+ * droppings into.  we can either create the dir in the canonical
+ * container, or we can create a shadow container and put a Metalink
+ * to it into the canonical container.  we may fail if we lose a race
+ * with some other process...
+ *
+ * @param paths path info for logical file (incls. canonical+shadow info)
+ * @param mode directory mode to use
+ * @param physical_hostdir bpath of resulting hostdir goes here
+ * @param phys_backp physical_hostdir's backend is placed here
+ * @param use_metalink set to true if we created a metalink on another backend
+ * @returns PLFS_SUCCESS or PLFS_E*
+ */
+plfs_error_t
+Container::establish_writehostdir(const ContainerPaths& paths,
+                                  mode_t mode, string& physical_hostdir,
+                                  struct plfs_backend **phys_backp,
+                                  bool& use_metalink) {
+    char *hostname;
+    Util::hostname(&hostname);
+    plfs_error_t ret = PLFS_SUCCESS;
+
+    /* if it's a shadow container, then link it in */
+    if (paths.shadowback != paths.canonicalback ||
+        paths.shadow != paths.canonical) {  /* XXX: string compare needed? */
+        /*
+         * link the shadow hostdir into its canonical location some
+         * errors are OK: indicate merely that we lost race to sibling
+         */
+        mlog(INT_DCOMMON,"Need to link %s at %s into %s",
+             paths.shadow.c_str(), paths.shadow_backend.c_str(),
+             paths.canonical.c_str());
+        ret = createMetalink(paths.canonicalback,paths.shadowback,
+                             paths.canonical_hostdir, physical_hostdir,
+                             phys_backp, use_metalink);
+    } else {
+        use_metalink = false;
+        // make the canonical container and hostdir
+        mlog(CON_DCOMMON,"Making canonical hostdir at %s w/parent",
+             paths.canonical.c_str());
+        ret = makeSubdir(paths.canonical.c_str(),mode,paths.canonicalback);
+
+        if (ret == PLFS_SUCCESS ||
+            ret == PLFS_EEXIST || ret == PLFS_EISDIR) { /* otherwise fail */
+            PlfsConf *pconf = get_plfs_conf();
+            size_t current_hostdir = getHostDirId(hostname), id = 0;
+            bool subdir = false;
+            string canonical_path_without_id =
+                paths.canonical + '/' + HOSTDIRPREFIX;
+            ostringstream oss;
+
+            /*
+             * just in case we can't find a slot to make a hostdir
+             * let's try to use someone else's metalink
+             */
+            bool metalink_found = false;
+            string possible_metalink;
+            struct plfs_backend *possible_metaback;
+
+            /*
+             * loop all possible hostdir # to try to make subdir
+             * directory or use the first existing one (or try to find
+             * a valid metalink if all else fails)
+             */
+            for(size_t i = 0; i < (unsigned int) pconf->num_hostdirs; i ++ ) {
+                id = (current_hostdir + i)%pconf->num_hostdirs;
+                oss.str(std::string());
+                oss << canonical_path_without_id << id;
+                ret = makeSubdir(oss.str().c_str(),mode,paths.canonicalback);
+                if (Util::isDirectory(oss.str().c_str(),
+                                      paths.canonicalback->store)) {
+                    /* made subdir (or another proc did it for us) */
+                    ret = PLFS_SUCCESS;
+                    subdir = true;
+                    mlog(CON_DAPI, "%s: Making subdir %s in canonical : %d",
+                         __FUNCTION__, oss.str().c_str(), ret);
+                    physical_hostdir = oss.str();
+                    *phys_backp = paths.canonicalback;
+                    break;
+                } else if ( !metalink_found ) {
+                    /* we couldn't make a subdir here.  Is it a metalink? */
+                    /* XXX: mountpoint would be nice */
+                    plfs_error_t my_ret;
+                    my_ret = Container::resolveMetalink(oss.str(),
+                                                        paths.canonicalback,
+                                                        NULL,
+                                                        possible_metalink,
+                                                        &possible_metaback);
+                    if (my_ret == PLFS_SUCCESS) {
+                        metalink_found = true; /* possible_meta* are valid */
+                    }
+                }
+            }   /* for size ... */
+
+            if(!subdir) {
+                mlog(CON_DCOMMON, "Make subdir in %s failed bec no available"
+                     "entry is found : %d", paths.canonical.c_str(), ret);
+                if (metalink_found) {
+                    mlog(CON_DRARE, "Not able to create a canonical hostdir."
+                        " Will use metalink %s", possible_metalink.c_str());
+                    physical_hostdir = possible_metalink;
+                    *phys_backp = possible_metaback;
+                    /*
+                     * try to make the subdir and it's parent in case
+                     * our sibling who created the metalink hasn't yet
+                     */
+                    size_t last_slash = physical_hostdir.find_last_of('/');
+                    string parent_dir = physical_hostdir.substr(0,last_slash);
+                    ret = makeSubdir(parent_dir.c_str(),mode,possible_metaback);
+                    ret = makeSubdir(physical_hostdir.c_str(),mode,
+                                     possible_metaback); 
+                } else {
+                    mlog(CON_DRARE, "BIG PROBLEM: %s on %s failed (%s)",
+                            __FUNCTION__, paths.canonical.c_str(),
+                            strplfserr(ret));
+                }
+            }   /* !subdir */
+
+        }
+    }
+    return(ret);
+}
+
+/**
  * findContainerPaths: generates a bunch of derived paths from a bnode
  * and PlfsMount
  *
@@ -491,7 +623,6 @@ Container::findContainerPaths(const string& bnode, PlfsMount *pmnt,
     /* canbpath == paths.canonical_backend + "/" + bnode */
     paths.canonical_hostdir=Container::getHostDirPath(paths.canonical,
                                                       hostname, PERM_SUBDIR);
-    string canonical_hostdir; // full path to the canonical hostdir
     return PLFS_SUCCESS;  // no expansion errs.  All paths derived and returned
 }
 

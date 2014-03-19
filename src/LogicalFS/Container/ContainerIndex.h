@@ -46,6 +46,8 @@ class ContainerIndex {
                                      vector<index_record> &result) = 0;
     virtual plfs_error_t index_truncate(Container_OpenFile *cof,
                                         off_t offset) = 0;
+    virtual plfs_error_t index_new_wdrop(Container_OpenFile *cof,
+                                         string ts, pid_t pid) = 0;
 
     virtual plfs_error_t index_getattr_size(struct plfs_physpathinfo *ppip,
                                             struct stat *stbuf,

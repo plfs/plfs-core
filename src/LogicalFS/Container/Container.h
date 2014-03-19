@@ -45,6 +45,11 @@ class Container
     static plfs_error_t create(struct plfs_physpathinfo *,
                                const string&, mode_t mode, int flags, 
                                int *extra_attempts,pid_t, bool lazy_subdir );
+    static plfs_error_t establish_writehostdir(const ContainerPaths& paths,
+                                               mode_t mode,
+                                               string& physical_hostdir,
+                                               struct plfs_backend **phys_backp,
+                                               bool& use_metalink);
     static plfs_error_t findContainerPaths(const string&, PlfsMount *,
                                            const string&,
                                            struct plfs_backend *,
