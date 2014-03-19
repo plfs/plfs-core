@@ -373,19 +373,6 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
             //   open_opt.index_stream=global_index;
         // mdhim-mod at
             plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call to plfs_open\n", myname);
-        // mdhim-mod at
-        //void *global_index;
-        // mdhim-mod at
-        // Function to start the parallel index read
-        //err = adplfs_par_index_read(fd,pfd,error_code,perm,amode,rank,
-        //                     &global_index);
-        err = 0;
-        // mdhim-mod at
-        if (err == 0) {
-            open_opt.pinter = PLFS_MPIIO;
-        // mdhim-mod at
-            //open_opt.index_stream=global_index;
-        // mdhim-mod at
             plfs_err = plfs_open(pfd,fd->filename,amode,rank,perm,&open_opt);
         // mdhim-mod at
             //free(global_index);
