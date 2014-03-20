@@ -41,6 +41,11 @@ typedef struct {
 class Container
 {
  public:
+    static plfs_error_t addOpenrecord(const string&, struct plfs_backend *,
+                                           const char *, pid_t );
+    static plfs_error_t removeOpenrecord(const string&, struct plfs_backend *,
+                                         const char *, pid_t );
+
     static blkcnt_t bytesToBlocks( size_t total_bytes );
     static plfs_error_t create(struct plfs_physpathinfo *,
                                const string&, mode_t mode, int flags, 

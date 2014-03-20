@@ -351,7 +351,7 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
  * @param rwflags trimmed version of open flags (RD, WR, or RDWR)
  * @param pid the pid opening the file
  * @param mode the mode to open the file in
- * @param oppen_opt open options
+ * @param open_opt open options
  * @return PLFS_SUCCESS or error code
  */
 plfs_error_t 
@@ -359,12 +359,13 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
                                pid_t pid, mode_t mode, Plfs_open_opt *open_opt) 
 {
     plfs_error_t ret = PLFS_SUCCESS;
+    Container_OpenFile *cof;
+    bool add_meta;
 
     /*
      * at this point we know we are creating and initing a brand new
      * Container_OpenFile.
      */
-    Container_OpenFile *cof;
     cof = new Container_OpenFile;    /* asserts on malloc failure */
     if (cof == NULL) {
         ret = PLFS_ENOMEM;           /* could do this if we didn't assert */
@@ -433,6 +434,20 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
 
         cof->fhs_writers[pid]++;
         cof->max_writers++;
+
+        /*
+         * we create one open record for all the pids using a file
+         * and we only do it for files that have been opened for
+         * writing.  for mpi jobs, only rank 0 creates the record.
+         * (errors in creating the record are ignored, we keep going)
+         */
+        add_meta = (open_opt && open_opt->pinter == PLFS_MPIIO
+                    && pid != 0) ? false : true;
+        if (add_meta) {
+            /* ignore error ? */
+            (void) Container::addOpenrecord(ppip->canbpath, ppip->canback,
+                                            cof->hostname, pid);
+        }
     }
 
     /*
@@ -462,98 +477,6 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
     }
 
     return(ret);
-#if 0
-    if ( ret == PLFS_SUCCESS && isReader(flags)) {
-        if ( *pfd ) {
-            index = (*pfd)->getIndex();
-        }
-        if ( index == NULL ) {
-            // do we delete this on error?
-            index = new Index(ppip->canbpath, ppip->canback);
-            new_index = true;
-            // Did someone pass in an already populated index stream?
-            if (open_opt && open_opt->index_stream !=NULL) {
-                //Convert the index stream to a global index
-                index->global_from_stream(open_opt->index_stream);
-            } else {
-                ret = Container::populateIndex(ppip->canbpath, ppip->canback,
-                   index,true,
-                   open_opt ? open_opt->uniform_restart_enable : 0,
-                   open_opt ? open_opt->uniform_restart_rank : 0 );
-                if ( ret != PLFS_SUCCESS ) {
-                    mlog(INT_DRARE, "%s failed to create index on %s: %s",
-                         __FUNCTION__, ppip->canbpath.c_str(), strplfserr(ret));
-                    delete(index);
-                    index = NULL;
-                }
-            }
-        }
-        if ( ret == PLFS_SUCCESS ) {
-            index->incrementOpens(1);
-        }
-        // can't cache index if error or if in O_RDWR
-        // be nice to be able to cache but trying to do so
-        // breaks things.  someone should fix this one day
-        if (index) {
-            bool delete_index = false;
-            if (ret!=PLFS_SUCCESS) {
-                delete_index = true;
-            }
-            if (!cache_index_on_rdwr && isWriter(flags)) {
-                delete_index = true;
-            }
-            if (delete_index) {
-                delete index;
-                index = NULL;
-            }
-        }
-    }
-
-    if ( ret == PLFS_SUCCESS && ! *pfd ) {
-        // do we delete this on error?
-        *pfd = new Container_OpenFile( wf, index, pid, mode,
-                                       ppip->canbpath.c_str(), ppip->canback);
-        // we create one open record for all the pids using a file
-        // only create the open record for files opened for writing
-        if ( wf ) {
-            bool add_meta = true;
-            if (open_opt && open_opt->pinter==PLFS_MPIIO && pid != 0 ) {
-                add_meta = false;
-            }
-            if (add_meta) {
-                char *hostname;
-                Util::hostname(&hostname);
-                ret = Container::addOpenrecord(ppip->canbpath, ppip->canback,
-                                               hostname,pid);
-            }
-        }
-        //cerr << __FUNCTION__ << " added open record for " << path << endl;
-    } else if ( ret == PLFS_SUCCESS ) {
-        if ( wf && new_writefile) {
-            (*pfd)->setWritefile( wf );
-        }
-        if ( index && new_index ) {
-            (*pfd)->setIndex(index);
-        }
-    }
-    if (ret == PLFS_SUCCESS) {
-        // do we need to incrementOpens twice if O_RDWR ?
-        // if so, we need to decrement twice in close
-        if (wf && isWriter(flags)) {
-            (*pfd)->incrementOpens(1);
-        }
-        if(index && isReader(flags)) {
-            (*pfd)->incrementOpens(1);
-        }
-        plfs_reference_count(*pfd);
-        if (open_opt && open_opt->reopen==1) {
-            (*pfd)->setReopen();
-        }
-    }
-    return(ret);
-#else
-    return(PLFS_ENOTSUP);
-#endif
 }
 
 plfs_error_t 

@@ -9,6 +9,138 @@ plfs_error_t
 ByteRangeIndex::index_open(Container_OpenFile *cof,
                                         int open_flags, 
                                         Plfs_open_opt *open_opt) {
+#if 0
+    // this next chunk of code works similarly for writes and reads
+    // for writes, create a writefile if needed, otherwise add a new writer
+    // create the write index file after the write data file so that the
+    // hostdir is already created
+    // for reads, create an index if needed, otherwise add a new reader
+    // this is so that any permission errors are returned on open
+    if ( ret == PLFS_SUCCESS && isWriter(flags) ) {
+        if ( *pfd ) {
+            wf = (*pfd)->getWritefile();
+        }
+        if ( wf == NULL ) {
+            // do we delete this on error?
+            size_t indx_sz = 0;
+            if(open_opt&&open_opt->pinter==PLFS_MPIIO &&
+                    open_opt->buffer_index) {
+                // this means we want to flatten on close
+                indx_sz = get_plfs_conf()->buffer_mbs;
+            }
+            /*
+             * wf starts with the canonical backend.   the openAddWriter()
+             * call below may change it (e.g. to a shadow backend).
+             */
+            char *hostname;
+            Util::hostname(&hostname);
+            wf = new WriteFile(ppip->canbpath, hostname, mode,
+                               indx_sz, pid, ppip->bnode, ppip->canback,
+                               ppip->mnt_pt);
+            new_writefile = true;
+        }
+        bool defer_open = get_plfs_conf()->lazy_droppings;
+        int num_writers;
+        ret = wf->addPrepareWriter(pid, mode, true, defer_open, ppip->bnode,
+                                   ppip->mnt_pt, ppip->canbpath,
+                                   ppip->canback, &num_writers);
+        mlog(INT_DCOMMON, "%s added writer: %d", __FUNCTION__, num_writers );
+        if ( ret == PLFS_SUCCESS && new_writefile && !defer_open ) {
+            ret = wf->openIndex( pid );
+        }
+        if ( ret != PLFS_SUCCESS && wf ) {
+            delete wf;
+            wf = NULL;
+        }
+    }
+    if ( ret == PLFS_SUCCESS && isReader(flags)) {
+        if ( *pfd ) {
+            index = (*pfd)->getIndex();
+        }
+        if ( index == NULL ) {
+            // do we delete this on error?
+            index = new Index(ppip->canbpath, ppip->canback);
+            new_index = true;
+            // Did someone pass in an already populated index stream?
+            if (open_opt && open_opt->index_stream !=NULL) {
+                //Convert the index stream to a global index
+                index->global_from_stream(open_opt->index_stream);
+            } else {
+                ret = Container::populateIndex(ppip->canbpath, ppip->canback,
+                   index,true,
+                   open_opt ? open_opt->uniform_restart_enable : 0,
+                   open_opt ? open_opt->uniform_restart_rank : 0 );
+                if ( ret != PLFS_SUCCESS ) {
+                    mlog(INT_DRARE, "%s failed to create index on %s: %s",
+                         __FUNCTION__, ppip->canbpath.c_str(), strplfserr(ret));
+                    delete(index);
+                    index = NULL;
+                }
+            }
+        }
+        if ( ret == PLFS_SUCCESS ) {
+            index->incrementOpens(1);
+        }
+        // can't cache index if error or if in O_RDWR
+        // be nice to be able to cache but trying to do so
+        // breaks things.  someone should fix this one day
+        if (index) {
+            bool delete_index = false;
+            if (ret!=PLFS_SUCCESS) {
+                delete_index = true;
+            }
+            if (!cache_index_on_rdwr && isWriter(flags)) {
+                delete_index = true;
+            }
+            if (delete_index) {
+                delete index;
+                index = NULL;
+            }
+        }
+    }
+    if ( ret == PLFS_SUCCESS && ! *pfd ) {
+        // do we delete this on error?
+        *pfd = new Container_OpenFile( wf, index, pid, mode,
+                                       ppip->canbpath.c_str(), ppip->canback);
+        // we create one open record for all the pids using a file
+        // only create the open record for files opened for writing
+        if ( wf ) {
+            bool add_meta = true;
+            if (open_opt && open_opt->pinter==PLFS_MPIIO && pid != 0 ) {
+                add_meta = false;
+            }
+            if (add_meta) {
+                char *hostname;
+                Util::hostname(&hostname);
+                ret = Container::addOpenrecord(ppip->canbpath, ppip->canback,
+                                               hostname,pid);
+            }
+        }
+        //cerr << __FUNCTION__ << " added open record for " << path << endl;
+    } else if ( ret == PLFS_SUCCESS ) {
+        if ( wf && new_writefile) {
+            (*pfd)->setWritefile( wf );
+        }
+        if ( index && new_index ) {
+            (*pfd)->setIndex(index);
+        }
+    }
+    if (ret == PLFS_SUCCESS) {
+        // do we need to incrementOpens twice if O_RDWR ?
+        // if so, we need to decrement twice in close
+        if (wf && isWriter(flags)) {
+            (*pfd)->incrementOpens(1);
+        }
+        if(index && isReader(flags)) {
+            (*pfd)->incrementOpens(1);
+        }
+        plfs_reference_count(*pfd);
+        if (open_opt && open_opt->reopen==1) {
+            (*pfd)->setReopen();
+        }
+    }
+    return(ret);
+#endif
     return(PLFS_ENOTSUP);
 }
 
@@ -316,3 +448,4 @@ Container::getattr( const string& path, struct plfs_backend *canback,
     return ret;
 }
 #endif
+

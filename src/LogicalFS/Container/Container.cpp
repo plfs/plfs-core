@@ -412,6 +412,54 @@ createHelper(struct plfs_physpathinfo *ppip, const string& hostname,
     return ret;
 }
 
+static string
+get_openrecord( const string& path, const char *host, pid_t pid)
+{
+    ostringstream oss;
+    oss << Container::getMetaDirPath( path ) << "/" <<
+        OPENPREFIX << host << "." << pid;
+    mlog(CON_DAPI, "created open record path %s", oss.str().c_str() );
+    string retstring = oss.str(); // suppress valgrind complaint
+    return retstring;
+}
+
+
+/**
+ * Container::addOpenrecord: add an open record dropping.  if it fails
+ * because the openhostdir isn't there, try and create.
+ *
+ * @param path the bpath to the canonical container
+ * @param canback the backend the canonical container resides on
+ * @param host the host to create the record under
+ * @param pid the pid to create the record number
+ * @return PLFS_SUCCESS on success otherwise PLFS_E*
+ */
+plfs_error_t Container::addOpenrecord(const string& canbpath,
+                                      struct plfs_backend *canback,
+                                      const char *hostname, pid_t pid) {
+    string openrecord = get_openrecord( canbpath, hostname, pid );
+    plfs_error_t ret = Util::MakeFile( openrecord.c_str(), DROPPING_MODE,
+                                       canback->store );
+    if (ret == PLFS_ENOENT || ret == PLFS_ENOTDIR) {
+        makeSubdir( getMetaDirPath(canbpath), CONTAINER_MODE, canback );
+        ret = Util::MakeFile(openrecord.c_str(), DROPPING_MODE, canback->store);
+    }
+    if ( ret != PLFS_SUCCESS ) {
+        mlog(CON_INFO, "Couldn't make openrecord %s: %s",
+             openrecord.c_str(), strplfserr( ret ) );
+    }
+    return(ret);
+}
+
+/* returns PLFS_SUCCESS or PLFS_E* */
+plfs_error_t
+Container::removeOpenrecord(const string& path,struct plfs_backend *canback,
+                            const char *host, pid_t pid)
+{
+    string openrecord = get_openrecord( path, host, pid );
+    return canback->store->Unlink( openrecord.c_str() );
+}
+
 #define BLKSIZE 512
 
 blkcnt_t
