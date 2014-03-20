@@ -224,6 +224,10 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
      * do anything beyond what FUSE expects.   long term we should
      * the reference counting up into FUSE and not handle sharing
      * at this level (see email note on plfs-devel).
+     *
+     * also note that open_opt is only used when opening a new FD.
+     * if *pfd is non-null, then open_opt is ignored.
+     *
      * XXXCDC on Feb 2014.
      */
     if (*pfd != NULL &&
