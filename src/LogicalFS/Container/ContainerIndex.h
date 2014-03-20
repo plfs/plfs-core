@@ -34,7 +34,7 @@ class ContainerIndex {
     virtual const char *index_name(void) = 0;
 
     virtual plfs_error_t index_open(Container_OpenFile *cof,
-                                    int open_flags) = 0;
+                                    int open_flags, Plfs_open_opt *oopt) = 0;
     virtual plfs_error_t index_close(Container_OpenFile *cof,
                                      int open_flags) = 0;
     virtual plfs_error_t index_add(Container_OpenFile *cof,

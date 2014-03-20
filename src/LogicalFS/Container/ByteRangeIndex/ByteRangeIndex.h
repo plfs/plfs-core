@@ -9,7 +9,8 @@ public:
 
     const char *index_name(void) { return("ByteRange"); };
 
-    plfs_error_t index_open(Container_OpenFile *cof, int open_flags);
+    plfs_error_t index_open(Container_OpenFile *cof, int open_flags, 
+                            Plfs_open_opt *open_opt);
     plfs_error_t index_close(Container_OpenFile *cof, int open_flags);
     plfs_error_t index_add(Container_OpenFile *cof, size_t nbytes,
                            off_t offset, pid_t pid);

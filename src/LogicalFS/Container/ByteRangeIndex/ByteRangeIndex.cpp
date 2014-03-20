@@ -7,7 +7,8 @@ ByteRangeIndex::~ByteRangeIndex() {  };              /* destructor */
 
 plfs_error_t
 ByteRangeIndex::index_open(Container_OpenFile *cof,
-                                        int open_flags) {
+                                        int open_flags, 
+                                        Plfs_open_opt *open_opt) {
     return(PLFS_ENOTSUP);
 }
 

@@ -389,7 +389,7 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
         goto done;
     }
 
-    ret = cof->cof_index->index_open(cof, rwflags);
+    ret = cof->cof_index->index_open(cof, rwflags, open_opt);
     if (ret != PLFS_SUCCESS) {
         goto done;
     }
@@ -459,57 +459,6 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
 
     return(ret);
 #if 0
-
-    // one problem is that we fail if we're asked to overwrite a normal file
-    // in RDWR mode, we increment reference count twice.  make sure to decrement
-    // twice on the close
-
-    WriteFile *wf      = NULL;
-    Index     *index   = NULL;
-
-    // this next chunk of code works similarly for writes and reads
-    // for writes, create a writefile if needed, otherwise add a new writer
-    // create the write index file after the write data file so that the
-    // hostdir is already created
-    // for reads, create an index if needed, otherwise add a new reader
-    // this is so that any permission errors are returned on open
-    if ( ret == PLFS_SUCCESS && isWriter(flags) ) {
-        if ( *pfd ) {
-            wf = (*pfd)->getWritefile();
-        }
-        if ( wf == NULL ) {
-            // do we delete this on error?
-            size_t indx_sz = 0;
-            if(open_opt&&open_opt->pinter==PLFS_MPIIO &&
-                    open_opt->buffer_index) {
-                // this means we want to flatten on close
-                indx_sz = get_plfs_conf()->buffer_mbs;
-            }
-            /*
-             * wf starts with the canonical backend.   the openAddWriter()
-             * call below may change it (e.g. to a shadow backend).
-             */
-            char *hostname;
-            Util::hostname(&hostname);
-            wf = new WriteFile(ppip->canbpath, hostname, mode,
-                               indx_sz, pid, ppip->bnode, ppip->canback,
-                               ppip->mnt_pt);
-            new_writefile = true;
-        }
-        bool defer_open = get_plfs_conf()->lazy_droppings;
-        int num_writers;
-        ret = wf->addPrepareWriter(pid, mode, true, defer_open, ppip->bnode,
-                                   ppip->mnt_pt, ppip->canbpath,
-                                   ppip->canback, &num_writers);
-        mlog(INT_DCOMMON, "%s added writer: %d", __FUNCTION__, num_writers );
-        if ( ret == PLFS_SUCCESS && new_writefile && !defer_open ) {
-            ret = wf->openIndex( pid );
-        }
-        if ( ret != PLFS_SUCCESS && wf ) {
-            delete wf;
-            wf = NULL;
-        }
-    }
     if ( ret == PLFS_SUCCESS && isReader(flags)) {
         if ( *pfd ) {
             index = (*pfd)->getIndex();
@@ -555,6 +504,7 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
             }
         }
     }
+
     if ( ret == PLFS_SUCCESS && ! *pfd ) {
         // do we delete this on error?
         *pfd = new Container_OpenFile( wf, index, pid, mode,
