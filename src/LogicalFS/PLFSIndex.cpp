@@ -116,11 +116,18 @@ find_read_tasks_mdhim(struct mdhim_t *md, struct plfs_backend *bkend,PLFSIndex *
                       size_t size, off_t offset, char *buf)
 {
     struct plfs_record {
-        unsigned long long int logical_offset;
+        //unsigned long long int logical_offset;
+        off_t logical_offset;
         unsigned long long int size;
         char dropping_file[PATH_MAX];
         unsigned long long int physical_offset;
     };
+
+
+    PLFSIndex *stub_index = index;
+    stub_index++;
+    char *stub_buf = buf;
+    stub_buf++;
 
     plfs_error_t ret;
     ssize_t bytes_remaining =size;
@@ -129,12 +136,12 @@ find_read_tasks_mdhim(struct mdhim_t *md, struct plfs_backend *bkend,PLFSIndex *
     struct plfs_record *plfs_value;
 
     ReadTask task;
-    struct plfs_record *mdhim_plfs;
-    struct mdhim_getrm_t *read_mdhim;
-    char dropping_file[PATH_MAX];
-    char physical_offset;
+    //struct plfs_record *mdhim_plfs;
+    //struct mdhim_getrm_t *read_mdhim;
+    //char dropping_file[PATH_MAX];
+    //char physical_offset;
     ret = PLFS_SUCCESS;
-    struct mdhim_getrm_t *mdhim_ret;
+    //struct mdhim_getrm_t *mdhim_ret;
     unsigned long long int mdhim_value_size;
     
     // Determine if offset matches mdhim key by call mdhim_get with MDHIM_GET_EQ
@@ -142,10 +149,12 @@ find_read_tasks_mdhim(struct mdhim_t *md, struct plfs_backend *bkend,PLFSIndex *
     get_rx_msg = mdhim_get(md, (unsigned long long int)offset, MDHIM_GET_EQ);
     if (!get_rx_msg || get_rx_msg->error) {
         // Key did not match opposite so get previous key
-        mdhim_ret = mdhim_get(md, (unsigned long long int)offset, MDHIM_GET_PREV);
+        //mdhim_ret = mdhim_get(md, (unsigned long long int)offset, MDHIM_GET_PREV);
+        get_rx_msg = mdhim_get(md, (unsigned long long int)offset, MDHIM_GET_PREV);
         if (!get_rx_msg || get_rx_msg->error) {
             // This is an error condition since not finding keys
             ret = PLFS_EINVAL;
+            return ret;
         }
     }
     // Point to returned value from mdhim_get
@@ -164,13 +173,13 @@ find_read_tasks_mdhim(struct mdhim_t *md, struct plfs_backend *bkend,PLFSIndex *
        
        // Determine if how many bytes remain so that looping (mdhim_get) continues
 
-       if (plfs_value->logical_offset == offset)
+       if (plfs_value->logical_offset == offset) {
              if (size <= mdhim_value_size) { 
                  bytes_remaining = 0;
                  task.length = size;
                  // fill task info
               }
-         else {
+         } else {
                  bytes_remaining -= mdhim_value_size - offset;
                  bytes_traversed += mdhim_value_size - offset; 
                  task.length = bytes_traversed; 
@@ -183,6 +192,7 @@ find_read_tasks_mdhim(struct mdhim_t *md, struct plfs_backend *bkend,PLFSIndex *
          tasks->push_back(task);
          mdhim_full_release_msg(get_rx_msg);
      } while(bytes_remaining && ret == PLFS_SUCCESS && task.length);
+ return PLFS_SUCCESS;
  }
 
 
@@ -320,13 +330,19 @@ plfs_reader(struct mdhim_t *md, struct plfs_backend *bkend, void * /* pfd */, ch
     // removes their handle, but no-one can remove the handle being used here
     // except this thread which can't remove it now since it's using it now
     // plfs_reference_count(pfd);
-    index->lock(__FUNCTION__); // in case another FUSE thread in here
+
+    // mdhim-mod at
+    // had to comment this out not sure about implications right now
+    //index->lock(__FUNCTION__); // in case another FUSE thread in here
+
+    // mdhim-mod at
+
     // mdhim-mod at
     //plfs_error_t plfs_ret = find_read_tasks_mdhim(md, index,&tasks,size,offset,buf);
     //plfs_error_t plfs_ret = find_read_tasks(index,&tasks,size,offset,buf);
     plfs_error_t plfs_ret = find_read_tasks_mdhim(md, bkend, index,&tasks,size,offset,buf);
+    //index->unlock(__FUNCTION__); // in case another FUSE thread in here
     // mdhim-mod at
-    index->unlock(__FUNCTION__); // in case another FUSE thread in here
     // let's leave early if possible to make remaining code cleaner by
     // not worrying about these conditions
     // tasks is empty for a zero length file or an EOF

@@ -49,10 +49,9 @@ set(PLFS_TOOLS_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/tools")
 set(PLFS_TESTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tests")
 set(PLFS_MAN_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/man")
 # XXX AC mdhim-mod
-set(MDHIM_SOURCE_DIR "/users/acaldwell/projects/sources/mdhim/mdhim-tng/src")
+set(MDHIM_SOURCE_DIR "/users/atorrez/Testing-ext/mdhim-dynamic/mdhim-tng/src")
 set(UTHASH_SOURCE_DIR "${MDHIM_SOURCE_DIR}/uthash")
-set(MPI_SOURCE_DIR
-    "/users/acaldwell/projects/mvapich2-1.9/include")
+set(MPI_SOURCE_DIR "/users/atorrez/plfs/mvapich-dynamic/include")
 # XXX AC mdhim-mod
 
 #BUILD_DIR is where we build from
@@ -274,13 +273,13 @@ include_directories (src/Plfsrc/yaml-cpp/boost)
 add_library(plfs_lib SHARED ${SRCDIR} ${sources} ${public_headers}
 ${private_headers} ${contrib_headers} ${contrib_public_headers}
 ${contrib_private_headers})
-#SET_TARGET_PROPERTIES(plfs_lib PROPERTIES OUTPUT_NAME plfs)
-#set_target_properties(plfs_lib PROPERTIES
-#        VERSION "${plfs_VERSION_FULL}"
-#        SOVERSION "${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}"
-#        PROJECT_LABEL "plfs_lib shared")
-#
-#target_link_libraries (plfs_lib plfs-yaml)
+SET_TARGET_PROPERTIES(plfs_lib PROPERTIES OUTPUT_NAME plfs)
+set_target_properties(plfs_lib PROPERTIES
+        VERSION "${plfs_VERSION_FULL}"
+        SOVERSION "${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}"
+        PROJECT_LABEL "plfs_lib shared")
+
+target_link_libraries (plfs_lib plfs-yaml)
 if (NOT DISABLE_STATIC_LIB)
     add_library(plfs_lib_static STATIC ${SRCDIR} ${sources} ${public_headers}
 ${private_headers} ${contrib_headers} ${contrib_public_headers}

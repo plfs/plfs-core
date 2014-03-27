@@ -155,12 +155,14 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
     WriteFile *wf      = NULL;
     Index     *index   = NULL;
     bool new_writefile = false;
-    bool new_index     = false;
+    // XXX AC: mdhim-mod
+    //bool new_index     = false;
+    // XXX AC: mdhim-mod
     bool truncated     = false; // don't truncate twice
 
     // XXX AC: mdhim-mod
-    struct mdhim_t *md; // mdhim structure pointer
-    mdhim_options_t *db_opts; // structure used to set up the database for mdhim
+//    struct mdhim_t *md; // mdhim structure pointer
+//    mdhim_options_t *db_opts; // structure used to set up the database for mdhim
     
     /*
     if ( pid == 0 && open_opt && open_opt->pinter == PLFS_MPIIO ) {
@@ -293,8 +295,11 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
             // XXX AC: mdhim-mod
             // set mdhim options
             db_opts = mdhim_options_init();
-            mdhim_options_set_db_path(db_opts, const_cast<char *>(ppip->canbpath.c_str()));
-            mdhim_options_set_db_name(db_opts, const_cast<char *>(ppip->filename));
+            //mdhim_options_set_db_path(db_opts, const_cast<char *>(ppip->canbpath.c_str()));
+            //mdhim_options_set_db_path(db_opts, const_cast<char *>("/users/atorrez/Testing-ext/mdhim-dynamic/mdhim-tng/tests/single_tests"));
+            mdhim_options_set_db_path(db_opts, const_cast<char *>("./"));
+            //mdhim_options_set_db_name(db_opts, const_cast<char *>(ppip->filename));
+            mdhim_options_set_db_name(db_opts, const_cast<char *>("out.1395179441"));
             // Should be user defined
             mdhim_options_set_db_type(db_opts, LEVELDB);
             mdhim_options_set_key_type(db_opts, MDHIM_LONG_INT_KEY);
@@ -306,9 +311,9 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
             md = mdhimInit(open_opt->mdhim_comm, db_opts);
             ret = PLFS_SUCCESS;
         }
-        if ( ret == PLFS_SUCCESS ) {
-            index->incrementOpens(1);
-        }
+        //if ( ret == PLFS_SUCCESS ) {
+        //    index->incrementOpens(1);
+        //}
         // can't cache index if error or if in O_RDWR
         // be nice to be able to cache but trying to do so
         // breaks things.  someone should fix this one day
@@ -487,6 +492,10 @@ Container_fd::read(char *buf, size_t size, off_t offset, ssize_t *bytes_read)
     mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to this->fd->getIndex\n", __FUNCTION__);
     Index *index = this->fd->getIndex();
     ssize_t len = -1;
+    // XXX AC: mdhim-mod
+    char *stub_ptr = buf;
+    stub_ptr++;
+    // XXX AC: mdhim-mod
     plfs_error_t ret = PLFS_SUCCESS;
     mlog(PLFS_DAPI, "Read request on %s at offset %ld for %ld bytes",
          this->fd->getPath(),long(offset),long(size));
@@ -518,7 +527,7 @@ Container_fd::read(char *buf, size_t size, off_t offset, ssize_t *bytes_read)
 // mdhim-mod at
     if ( ret == PLFS_SUCCESS ) {
         mlog(PLFS_DBG2, "XXXACXXX - src/LogicalFS/Container/Container_fd::%s: call to plfs_reader\n", __FUNCTION__);
-        //ret = plfs_reader(this->fd,buf,size,offset,index, &len);
+        ret = plfs_reader(md, this->fd->getCanBack(), this->fd,buf,size,offset,index, &len);
         ret = PLFS_SUCCESS;
     }
     mlog(PLFS_DAPI, "Read request on %s at offset %ld for %ld bytes: ret %d len %ld",

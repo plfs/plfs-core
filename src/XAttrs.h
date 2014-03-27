@@ -4,7 +4,7 @@
 #include "COPYRIGHT.h"
 #include "Util.h"
 
-#define MAX_KEY_LEN 256
+#define MAX_KEY_LEN_1 256
 #define MAX_VALUE_LEN 512
 
 class XAttr

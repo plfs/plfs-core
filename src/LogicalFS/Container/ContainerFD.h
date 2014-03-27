@@ -100,6 +100,9 @@ class Container_fd : public Plfs_fd
         
     private:
         Container_OpenFile *fd;
+        struct mdhim_t *md;       // mdhim structure pointer
+        mdhim_options_t *db_opts; // structure used to set up the database for mdhim
+
 };
 
 #endif

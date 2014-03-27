@@ -27,6 +27,18 @@ Small_fd::close(pid_t /* pid */, uid_t /* u */, int /* flags */,
 plfs_error_t
 Small_fd::read(char *buf, size_t size, off_t offset, ssize_t *bytes_read)
 {
+    char *stub_buf = buf;
+    size_t stub_size = size;
+    off_t stub_offset = offset;
+    ssize_t *stub_bytes_read = bytes_read;
+
+    stub_buf++;
+    stub_size++;
+    stub_offset++;
+    stub_bytes_read++;   
+
+
+ 
     if (open_flags == O_RDONLY || open_flags == O_RDWR) {
         //return plfs_reader(NULL, buf, size, offset, this, bytes_read);
         return PLFS_SUCCESS;

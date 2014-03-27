@@ -124,7 +124,7 @@ plfs_error_t XAttrs::setXAttr(string key, const void* value, size_t len)
     IOSHandle *fh;
     string full_path;
 
-    if (key.length() > MAX_KEY_LEN) {
+    if (key.length() > MAX_KEY_LEN_1) {
         mlog(IDX_DRARE, "%s: key: %s is exceeds the maximum key length", __FUNCTION__,
              key.c_str());
         return PLFS_TBD;
