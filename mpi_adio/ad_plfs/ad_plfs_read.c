@@ -53,6 +53,7 @@ MPIIO_TIMER_START(RSYSIO);
         //enters this function but rank 1 does not for example)
         //plfs_barrier(fd->comm,rank);
     }
+    plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_read::%s: call to plfs_read\n", myname);
     err = plfs_read( fd->fs_ptr, buf, len, myoff, &bytes_read );
 #ifdef HAVE_STATUS_SET_BYTES
     if (err == PLFS_SUCCESS ) {

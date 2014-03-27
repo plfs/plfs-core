@@ -45,6 +45,7 @@ typedef void *Plfs_dirp;
            constructing a "global" index from one single on-disk index file */
         int  uniform_restart_enable; 
         pid_t  uniform_restart_rank;
+        void * mdhim_comm;  /* The mpi communicator to be passed to MDHIM */
     } Plfs_open_opt;
 
     typedef struct {

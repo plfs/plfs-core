@@ -1,9 +1,9 @@
 #ifndef __PLFS_PRIVATE__
 #define __PLFS_PRIVATE__
 
+#include "mlogfacs.h"
 #include "parse_conf.h"
 #include "plfs_internal.h"
-#include "mlogfacs.h"
 #include "FileOp.h"
 using namespace std;
 

@@ -46,6 +46,7 @@ MPIIO_TIMER_START(WSYSIO);
     }
     plfs_debug( "%s: offset %ld len %ld rank %d\n",
                 myname, (long)myoff, (long)len, rank );
+    plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_read::%s: call to plfs_write\n", myname);
     err = plfs_write( fd->fs_ptr, buf, len, myoff, rank, &bytes_written );
 #ifdef HAVE_STATUS_SET_BYTES
     if (err == PLFS_SUCCESS ) {

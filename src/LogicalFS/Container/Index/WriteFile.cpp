@@ -465,6 +465,7 @@ WriteFile::prepareForWrite( pid_t pid )
 plfs_error_t
 WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid, ssize_t *bytes_written)
 {
+    mlog(PLFS_DBG, "XXXACXXX - ENTER src/LogicalFS/Container/Index/WriteFile::%s:\n", __FUNCTION__);
     plfs_error_t ret = PLFS_SUCCESS;
     ssize_t written = 0;
 
@@ -489,6 +490,7 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid, ssize_t 
             // TODO: why is 1024 a magic number?
             int flush_count = 1024;
             if (write_count%flush_count==0) {
+                mlog(PLFS_DBG, "XXXACXXX - src/LogicalFS/Container/Index/WriteFile::%s: call to index->flush\n", __FUNCTION__);
                 ret = index->flush();
                 // Check if the index has grown too large stop buffering
                 if(index->memoryFootprintMBs() > index_buffer_mbs) {
@@ -498,6 +500,7 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid, ssize_t 
                 }
             }
             if (ret == PLFS_SUCCESS) {
+                mlog(PLFS_DBG, "XXXACXXX - src/LogicalFS/Container/Index/WriteFile::%s: call to addWrite\n", __FUNCTION__);
                 addWrite(offset, size);    // track our own metadata
             }
             Util::MutexUnlock( &index_mux, __FUNCTION__ );
@@ -511,6 +514,8 @@ WriteFile::write(const char *buf, size_t size, off_t offset, pid_t pid, ssize_t 
 // returns PLFS_SUCCESS or PLFS_E*
 plfs_error_t WriteFile::openIndex( pid_t pid )
 {
+
+    mlog(PLFS_DBG, "XXXACXXX - ENTER src/LogicalFS/Container/Index/WriteFile::%s\n", __FUNCTION__);
     plfs_error_t ret = PLFS_SUCCESS;
 
     Util::MutexLock( &index_mux, __FUNCTION__ );
@@ -523,6 +528,7 @@ plfs_error_t WriteFile::openIndex( pid_t pid )
     string index_path;
     /* note: this uses subdirback from obj to open */
     IOSHandle *fh;
+    mlog(PLFS_DBG, "XXXACXXX - src/LogicalFS/Container/Index/WriteFile::%s: call to openIndexFile\n", __FUNCTION__);
     ret = openIndexFile(subdir_path, hostname, pid, DROPPING_MODE,
                         &index_path, &fh);
     if ( ret == PLFS_SUCCESS ) {
@@ -602,7 +608,10 @@ plfs_error_t WriteFile::truncate( off_t offset )
 plfs_error_t WriteFile::openIndexFile(string path, string host, pid_t p, mode_t m,
                                       string *index_path, IOSHandle **ret_hand)
 {
+    mlog(PLFS_DBG, "XXXACXXX - ENTER src/LogicalFS/Container/Index/WriteFile::%s\n", __FUNCTION__);
+    mlog(PLFS_DBG, "XXXACXXX - src/LogicalFS/Container/Index/WriteFile::%s: call to Container::getIndexPath\n", __FUNCTION__);
     *index_path = Container::getIndexPath(path,host,p,createtime);
+    mlog(PLFS_DBG, "XXXACXXX - src/LogicalFS/Container/Index/WriteFile::%s: call to openFile\n", __FUNCTION__);
     return openFile(*index_path,m,ret_hand);
 }
 
@@ -617,10 +626,12 @@ plfs_error_t WriteFile::openDataFile(string path, string host, pid_t p,
 plfs_error_t
 WriteFile::openFile(string physicalpath, mode_t xmode, IOSHandle **ret_hand )
 {
+    mlog(PLFS_DBG, "XXXACXXX - ENTER src/LogicalFS/Container/Index/WriteFile::%s\n", __FUNCTION__);
     mode_t old_mode=umask(0);
     int flags = O_WRONLY | O_APPEND | O_CREAT;
     IOSHandle *fh;
     plfs_error_t rv;
+    mlog(PLFS_DBG, "XXXACXXX - src/LogicalFS/Container/Index/WriteFile::%s: call to this->subdirback->store->Open\n", __FUNCTION__);
     rv = this->subdirback->store->Open(physicalpath.c_str(), flags, xmode, &fh);
     mlog(WF_DAPI, "%s.%s open %s : %p %s",
          __FILE__, __FUNCTION__,

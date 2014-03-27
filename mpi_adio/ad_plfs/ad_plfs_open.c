@@ -319,8 +319,12 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     MPI_Comm hostdir_comm;
     int hostdir_rank, write_mode;
     open_opt.reopen = 0;
+    //open_opt.mdhim_comm = (void *)((uintptr_t)(fd->comm));
+    open_opt.mdhim_comm = &fd->comm;
+    plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: MDHIM Comm set.\n", myname);
     // get a hostdir comm to use to serialize write a bit
     write_mode = (fd->access_mode==ADIO_RDONLY?0:1);
+    plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: write_mode = %d\n", myname, write_mode);
     if (write_mode) {
         char *hostname;
         plfs_gethostname(&hostname);
@@ -333,6 +337,7 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     }
     // get specified behavior from hints
     if (fd->access_mode==ADIO_RDONLY) {
+        plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: fd->access_mode==ADIO_RDONLY\n", myname);
         disabl_broadcast = ad_plfs_hints(fd,rank,"plfs_disable_broadcast");
         parallel_index_read =!ad_plfs_hints(fd,rank,"plfs_disable_paropen");
         uniform_restart=ad_plfs_hints(fd,rank,"plfs_uniform_restart");
@@ -343,31 +348,47 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
         // has code to make sure that all ranks have the same value
         // for the hint
     } else {
+        plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: fs->access_mode!=ADIO_RDONLY\n", myname);
         disabl_broadcast = 1; // don't create an index unless we're in read mode
         compress_flag=0;
     }
     if (fd->access_mode == ADIO_RDONLY && uniform_restart){
+        plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: fd->access_mode==ADIO_RDONLY && uniform_restart\n", myname);
         open_opt.uniform_restart_enable = 1;
         open_opt.uniform_restart_rank = rank;
         plfs_err = plfs_open(pfd,fd->filename,amode,rank,perm,&open_opt);
     }else if( fd->access_mode==ADIO_RDONLY && parallel_index_read) {
-        void *global_index;
+        plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: fd->access_mode==ADIO_RDONLY && parallel_index_read\n", myname);
+        // mdhim-mod at
+        //void *global_index;
+        //mdhim-mod at
         // Function to start the parallel index read
-        err = adplfs_par_index_read(fd,pfd,error_code,perm,amode,rank,
-                             &global_index);
+        plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call to adplfs_par_index_read\n", myname);
+        //err = adplfs_par_index_read(fd,pfd,error_code,perm,amode,rank,
+        //                     &global_index);
+        err = 0;
+        // mdhim-mod at
         if (err == 0) {
             open_opt.pinter = PLFS_MPIIO;
-            open_opt.index_stream=global_index;
+        // mdhim-mod at
+            //   open_opt.index_stream=global_index;
+        // mdhim-mod at
+            plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call to plfs_open\n", myname);
             plfs_err = plfs_open(pfd,fd->filename,amode,rank,perm,&open_opt);
-            free(global_index);
+        // mdhim-mod at
+            //free(global_index);
+        // mdhim-mod at
         }
     } else if(fd->access_mode==ADIO_RDONLY && !disabl_broadcast) {
+        plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: fd->access_mode==ADIO_RDONLY && !disabl_broadcast\n", myname);
         // If we are RDONLY and broadcast isn't disabled let's broadcast it
         err = adplfs_broadcast_index(pfd,fd,error_code,perm,amode,rank,compress_flag);
     } else {
         // here we are either writing or reading without optimizations
         open_opt.pinter = PLFS_MPIIO;
         open_opt.index_stream=NULL;
+
+        plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call to ad_plfs_hints\n", myname);
         close_flatten = ad_plfs_hints(fd,rank,"plfs_flatten_close");
         // Let's only buffer when the flatten on close hint is passed
         // and we are in WRONLY mode
@@ -378,13 +399,16 @@ int adplfs_open_helper(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
         if (write_mode && hostdir_rank) {
             plfs_barrier(hostdir_comm,rank);
         }
+        plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call to plfs_open\n",myname);
         plfs_err = plfs_open( pfd, fd->filename, amode, rank, perm ,&open_opt);
         if (write_mode && !hostdir_rank) {
+            plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call to plfs_barrier\n",myname);
             plfs_barrier(hostdir_comm,rank);
         }
     }
     // clean up the communicator we used
     if (write_mode) {
+        plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call call to MPI_Comm_free\n",myname);
         MPI_Comm_free(&hostdir_comm);
     }
     if (err == 0) {
@@ -509,6 +533,7 @@ int adplfs_broadcast_index(Plfs_fd **pfd, ADIO_File fd,
 int adplfs_par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
                    int amode,int rank, void **global_index)
 {
+    plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s\n", __FUNCTION__);
     // Each rank and the number of processes playing
     int np,extra_rank,ret,mpi_size;
     void *pmount, *pback;
@@ -521,6 +546,7 @@ int adplfs_par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     // Only used is ranks per comm equals zero
     int hostdir_per_rank=0;
     char *filename;  /* bpath to container */
+    plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call to plfs_expand_path\n", __FUNCTION__);
     plfs_expand_path(fd->filename,&filename,&pmount,&pback);
     // Rank 0 only code
     MPITYPESIZE(MPI_CHAR, &mpi_size);
@@ -564,11 +590,13 @@ int adplfs_par_index_read(ADIO_File fd,Plfs_fd **pfd,int *error_code,int perm,
     // Here we split on the ranks per comm. Should not be necessary
     // to check return values. Functions will abort if an error is encountered
     if(ranks_per_comm) {
+        plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call to adplfs_split_and_merge\n", __FUNCTION__);
         adplfs_split_and_merge(fd,rank,extra_rank,
                                ranks_per_comm,np,filename, pmount, pback,
                                global_index);
     }
     if(!ranks_per_comm) {
+        plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call to adplfs_read_and_merge\n", __FUNCTION__);
         adplfs_read_and_merge(fd,rank,np,hostdir_per_rank, filename,
                               pmount, pback, global_index);
     }
@@ -583,6 +611,7 @@ void adplfs_read_and_merge(ADIO_File fd,int rank,
                            int np,int hostdir_per_rank,char *filename,
                            void *pmount, void *pback, void **global_index)
 {
+    plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s:\n", __FUNCTION__);
     char *targets;
     int index_sz,ret,count,*index_sizes,*index_disp,index_total_size=0;
     int global_index_sz;
@@ -604,6 +633,7 @@ void adplfs_read_and_merge(ADIO_File fd,int rank,
      * this results in a merged index stream (index_stream of index_sz
      * bytes).
      */
+    plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call to container_hostdir_rddir\n", __FUNCTION__);
     container_hostdir_rddir(&index_stream,targets,
                                 rank,filename,pmount,pback,&index_sz);
     // Make sure it was malloced
@@ -639,6 +669,7 @@ void adplfs_read_and_merge(ADIO_File fd,int rank,
      * using container_parindexread_merge().
      */
     free(index_stream); // index_stream no longer needed
+    plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call to container_parindexread_merge\n", __FUNCTION__);
     global_index_sz=container_parindexread_merge(filename,index_streams,
                                             index_sizes,np,global_index);
     check_stream(global_index_sz,rank);
@@ -670,6 +701,7 @@ void adplfs_split_and_merge(ADIO_File fd,int rank,int extra_rank,
     void *index_stream;
     MPI_Comm hostdir_comm,hostdir_zeros_comm;
     // Group index is the color
+    plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call to adplfs_rank_to_group_index\n", __FUNCTION__);
     group_index = adplfs_rank_to_group_index(rank,ranks_per_comm,extra_rank);
     // Split the world communicator
     MPI_Comm_split(fd->comm,group_index,rank,&hostdir_comm);
@@ -686,18 +718,23 @@ void adplfs_split_and_merge(ADIO_File fd,int rank,int extra_rank,
     MPI_Comm_split(fd->comm,color,rank,&hostdir_zeros_comm);
     // Hostdir zeros
     if(!new_rank) {
+        plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: new_rank == %d\n", __FUNCTION__, new_rank);
         char *subdir;
         // Broadcast the bitmap to the leaders
         BITMAP_PRINT;
+        plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call to adplfs_bcast_bitmap\n", __FUNCTION__);
         adplfs_bcast_bitmap(hostdir_zeros_comm,rank);
         BITMAP_PRINT;
         // Convert my group index into the dir I should read
         // could be a Metalink
+        plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call to adplfs_bitmap_to_dirname\n", __FUNCTION__);
         subdir= adplfs_bitmap_to_dirname(bitmap,group_index,filename,0,np);
 
         // Hostdir zero reads the hostdir and converts into a list
+        plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call to container_hostdir_zero_rddir\n", __FUNCTION__);
         container_hostdir_zero_rddir((void **)&index_files,subdir,rank,
                                       pmount, pback, &buf_sz);
+        plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call to check_stream\n", __FUNCTION__);
         check_stream(buf_sz,rank);
         free(subdir);
     }
@@ -718,6 +755,7 @@ void adplfs_split_and_merge(ADIO_File fd,int rank,int extra_rank,
      * hostdir and rank).  the first entry of index_files contains
      * the physical path to the hostdir to read...
      */
+    plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call to container_parindex_read\n", __FUNCTION__);
     container_parindex_read(new_rank,hc_sz,index_files,&index_stream,
                               filename,&buf_sz);
     check_stream(buf_sz,rank);
@@ -755,6 +793,7 @@ void adplfs_split_and_merge(ADIO_File fd,int rank,int extra_rank,
          * the rank 0 for this hostdir merges the result of the
          * reads into a single index for this hostdir.
          */
+        plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call to container_parindexread_merge\n", __FUNCTION__);
         hostdir_index_sz=container_parindexread_merge(filename,index_streams,
                          index_sizes,hc_sz,&hostdir_index_stream);
         free(index_disp);
@@ -789,6 +828,7 @@ void adplfs_split_and_merge(ADIO_File fd,int rank,int extra_rank,
         free(hostdir_index_stream);
         free(index_disp);
         // Merge these streams into a single global index
+        plfs_debug("XXXACXXX - mpi_adio/ad_plfs/ad_plfs_open::%s: call to container_parindexread_merge\n", __FUNCTION__);
         global_index_sz=container_parindexread_merge(filename,index_streams,
                                                 index_sizes,hzc_size,
                                                 global_index);

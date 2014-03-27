@@ -326,8 +326,10 @@ plfs_open(Plfs_fd **pfd, const char *path, int flags, pid_t pid, mode_t m,
     ret = plfs_resolvepath(stripped_path, &ppi);
     if (ret == PLFS_SUCCESS) {
         if (*pfd) {
+            mlog(PLFS_DBG2, "XXXACXXX - src/plfs::%s calling Plfs_fd->open\n",__FUNCTION__);
             ret = (*pfd)->open(&ppi, flags, pid, m, open_opt);
         } else {
+            mlog(PLFS_DBG2, "XXXACXXX - src/plfs::%s calling plfs_physpathinfo->PlfsMount->LogicalFileSystem->open\n",__FUNCTION__);
             ret = ppi.mnt_pt->fs_ptr->open(pfd, &ppi, flags, pid, m, open_opt);
         }
     }
@@ -360,6 +362,7 @@ plfs_read(Plfs_fd *fd, char *buf, size_t size, off_t offset, ssize_t *bytes_read
     oss << fd->getPath() << " -> " <<offset << ", " << size;
     debug_enter(__FUNCTION__,oss.str());
     memset(buf, (int)'z', size);
+    mlog(PLFS_DBG2, "XXXACXXX - src/plfs::%s calling Plfs_fd->read\n",__FUNCTION__);
     plfs_error_t ret = fd->read(buf, size, offset, bytes_read);
     debug_exit(__FUNCTION__,oss.str(),ret);
     return ret;
@@ -672,6 +675,7 @@ plfs_write(Plfs_fd *fd, const char *buf, size_t size,
     debug_enter(__FUNCTION__,oss.str());
     plfs_error_t wret = PLFS_SUCCESS;
     if (size > 0){
+        mlog(PLFS_DBG2, "XXXACXXX - src/plfs::%s calling Plfs_fd->write\n",__FUNCTION__);
          wret = fd->write(buf, size, offset, pid, bytes_written);
     }
     debug_exit(__FUNCTION__,oss.str(),wret);

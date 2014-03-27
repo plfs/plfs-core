@@ -3,6 +3,9 @@
 #include "mlog_oss.h"
 #include "PLFSIndex.h"
 
+// XXX AC: mdhim-mod 
+#include "mdhim.h"
+
 // a struct for making reads be multi-threaded
 typedef struct {
     IOSHandle *fh;
@@ -92,6 +95,119 @@ find_read_tasks(PLFSIndex *index, list<ReadTask> *tasks, size_t size,
     } while(bytes_remaining && ret == PLFS_SUCCESS && task.length);
     return(ret);
 }
+
+// mdhim-mod at
+// This function performs an mdhimGet with operation specifying the type of get
+// to perform.  The mdhim value associated with the key is returned. 
+struct mdhim_getrm_t *mdhim_get(struct mdhim_t *md, unsigned long long int key,
+                       int operation)
+{
+    struct mdhim_getrm_t *mdhim_value;
+    mdhim_value = mdhimGet( md, &key, sizeof(key), operation);
+    return mdhim_value;
+}
+
+/*** 
+  This function will mimic a global index lookup but in this case will use mdhim 
+  to populate tasks list
+****/
+plfs_error_t
+find_read_tasks_mdhim(struct mdhim_t *md, struct plfs_backend *bkend,PLFSIndex *index, list<ReadTask> *tasks, 
+                      size_t size, off_t offset, char *buf)
+{
+    struct plfs_record {
+        //unsigned long long int logical_offset;
+        off_t logical_offset;
+        unsigned long long int size;
+        char dropping_file[PATH_MAX];
+        unsigned long long int physical_offset;
+    };
+
+
+    PLFSIndex *stub_index = index;
+    stub_index++;
+    char *stub_buf = buf;
+    stub_buf++;
+
+    plfs_error_t ret;
+    ssize_t bytes_remaining =size;
+    ssize_t bytes_traversed =0;
+    struct mdhim_getrm_t *get_rx_msg;
+    struct plfs_record *plfs_value;
+
+    ReadTask task;
+    //struct plfs_record *mdhim_plfs;
+    //struct mdhim_getrm_t *read_mdhim;
+    //char dropping_file[PATH_MAX];
+    //char physical_offset;
+    ret = PLFS_SUCCESS;
+    //struct mdhim_getrm_t *mdhim_ret;
+    unsigned long long int mdhim_value_size;
+    
+    // Determine if offset matches mdhim key by call mdhim_get with MDHIM_GET_EQ
+    
+    get_rx_msg = mdhim_get(md, (unsigned long long int)offset, MDHIM_GET_EQ);
+    if (!get_rx_msg || get_rx_msg->error) {
+        // Key did not match opposite so get previous key
+        //mdhim_ret = mdhim_get(md, (unsigned long long int)offset, MDHIM_GET_PREV);
+        get_rx_msg = mdhim_get(md, (unsigned long long int)offset, MDHIM_GET_PREV);
+        if (!get_rx_msg || get_rx_msg->error) {
+            // This is an error condition since not finding keys
+            ret = PLFS_EINVAL;
+            return ret;
+        }
+    }
+    // Point to returned value from mdhim_get
+    plfs_value = (struct plfs_record *)get_rx_msg->value;
+    
+    do {
+          
+       task.fh = NULL;
+       task.chunk_offset = plfs_value->physical_offset;
+       //task.length = mdhim_value->size;
+       task.backend = bkend;
+       task.hole = NULL;
+       task.chunk_id = NULL;
+       mdhim_value_size = plfs_value->size;
+       task.path = plfs_value->dropping_file;
+       
+       // Determine if how many bytes remain so that looping (mdhim_get) continues
+
+       if (plfs_value->logical_offset == offset) {
+             if (size <= mdhim_value_size) { 
+                 bytes_remaining = 0;
+                 task.length = size;
+                 // fill task info
+              }
+         } else {
+                 bytes_remaining -= mdhim_value_size - offset;
+                 bytes_traversed += mdhim_value_size - offset; 
+                 task.length = bytes_traversed; 
+         }
+      
+         // Do another mdhim_get
+         if (bytes_remaining) {
+             get_rx_msg = mdhim_get(md, (unsigned long long int)offset, MDHIM_GET_NEXT);
+         }
+         tasks->push_back(task);
+         mdhim_full_release_msg(get_rx_msg);
+     } while(bytes_remaining && ret == PLFS_SUCCESS && task.length);
+ return PLFS_SUCCESS;
+ }
+
+
+// mdhim-mod at
+
+
+
+
+
+
+
+
+
+
+
 /* @param ret_readlen returns bytes read */
 /* ret PLFS_SUCCESS or PLFS_E* */
 plfs_error_t
@@ -194,8 +310,12 @@ reader_thread( void *va )
 // @param bytes_read returns bytes read
 // returns PLFS_SUCCESS or PLFS_E*
 // TODO: rename this to container_reader or something better
+// mdhim-mod at
+//plfs_error_t
+//plfs_reader( void * /* pfd */, char *buf, size_t size, off_t offset,
+//             PLFSIndex *index, ssize_t *bytes_read)
 plfs_error_t
-plfs_reader(void * /* pfd */, char *buf, size_t size, off_t offset,
+plfs_reader(struct mdhim_t *md, struct plfs_backend *bkend, void * /* pfd */, char *buf, size_t size, off_t offset,
             PLFSIndex *index, ssize_t *bytes_read)
 {
     ssize_t total = 0;  // no bytes read so far
@@ -210,9 +330,19 @@ plfs_reader(void * /* pfd */, char *buf, size_t size, off_t offset,
     // removes their handle, but no-one can remove the handle being used here
     // except this thread which can't remove it now since it's using it now
     // plfs_reference_count(pfd);
-    index->lock(__FUNCTION__); // in case another FUSE thread in here
-    plfs_error_t plfs_ret = find_read_tasks(index,&tasks,size,offset,buf);
-    index->unlock(__FUNCTION__); // in case another FUSE thread in here
+
+    // mdhim-mod at
+    // had to comment this out not sure about implications right now
+    //index->lock(__FUNCTION__); // in case another FUSE thread in here
+
+    // mdhim-mod at
+
+    // mdhim-mod at
+    //plfs_error_t plfs_ret = find_read_tasks_mdhim(md, index,&tasks,size,offset,buf);
+    //plfs_error_t plfs_ret = find_read_tasks(index,&tasks,size,offset,buf);
+    plfs_error_t plfs_ret = find_read_tasks_mdhim(md, bkend, index,&tasks,size,offset,buf);
+    //index->unlock(__FUNCTION__); // in case another FUSE thread in here
+    // mdhim-mod at
     // let's leave early if possible to make remaining code cleaner by
     // not worrying about these conditions
     // tasks is empty for a zero length file or an EOF
@@ -238,7 +368,7 @@ plfs_reader(void * /* pfd */, char *buf, size_t size, off_t offset,
             vector<void *> *stati    = threadpool.getStati();
             for( size_t t = 0; t < num_threads; t++ ) {
                 void *status = (*stati)[t];
-                ret = (ssize_t)status;
+               ret = (ssize_t)status;
                 mlog(INT_DCOMMON, "Thread %d returned %d", (int)t,int(ret));
                 if ( ret < 0 ) {
                     plfs_error = errno_to_plfs_error(-ret);

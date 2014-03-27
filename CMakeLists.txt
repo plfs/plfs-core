@@ -48,6 +48,11 @@ set(PLFS_SOURCE_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set(PLFS_TOOLS_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/tools")
 set(PLFS_TESTS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/tests")
 set(PLFS_MAN_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/man")
+# XXX AC mdhim-mod
+set(MDHIM_SOURCE_DIR "/users/atorrez/Testing-ext/mdhim-dynamic/mdhim-tng/src")
+set(UTHASH_SOURCE_DIR "${MDHIM_SOURCE_DIR}/uthash")
+set(MPI_SOURCE_DIR "/users/atorrez/plfs/mvapich-dynamic/include")
+# XXX AC mdhim-mod
 
 #BUILD_DIR is where we build from
 set(PLFS_BUILD_DIR "${CMAKE_BINARY_DIR}")
@@ -79,6 +84,13 @@ include_directories(${PLFS_SOURCE_DIR}/LogicalFS/SmallFile/smallfile)
 include_directories(${PLFS_SOURCE_DIR}/Mlog)
 #Plfsrc
 include_directories(${PLFS_SOURCE_DIR}/Plfsrc)
+# XXX AC mdhim-mod
+include_directories(${MDHIM_SOURCE_DIR})
+include_directories(${UTHASH_SOURCE_DIR})
+include_directories(${MPI_SOURCE_DIR})
+
+# XXX AC mdhim-mod
+
 #user defined search paths
 foreach(path ${CMAKE_INCLUDE_PATH})
   include_directories(${path})
@@ -267,7 +279,7 @@ set_target_properties(plfs_lib PROPERTIES
         SOVERSION "${plfs_VERSION_MAJOR}.${plfs_VERSION_MINOR}"
         PROJECT_LABEL "plfs_lib shared")
 
-#target_link_libraries (plfs_lib plfs-yaml)
+target_link_libraries (plfs_lib plfs-yaml)
 if (NOT DISABLE_STATIC_LIB)
     add_library(plfs_lib_static STATIC ${SRCDIR} ${sources} ${public_headers}
 ${private_headers} ${contrib_headers} ${contrib_public_headers}
@@ -341,6 +353,10 @@ elseif (NOT DISABLE_FUSE)
     message(FATAL_ERROR "FUSE not found and DISABLE_FUSE not specified")
 endif(FUSE_FOUND AND NOT DISABLE_FUSE)
 
+## XXX AC mdhim-mod
+target_link_libraries(plfs_lib ${MDHIM_SOURCE_DIR}/libmdhim.so.1)
+# XXX AC mdhim-mod
+
 #helper tools
 foreach (SOURCE dcon.c findmesgbuf.c plfs_check_config.cpp plfs_ls.cpp
      plfs_flatten_index.cpp plfs_map.cpp plfs_query.cpp plfs_recover.cpp
@@ -385,7 +401,7 @@ INSTALL(TARGETS plfs_check_config plfs_flatten_index plfs_ls plfs_version
                 DESTINATION ${BINDIR}
 )
 
-# only install admin toolset if defined
+## only install admin toolset if defined
 if (ADMIN_TOOLS)
     INSTALL(TARGETS dcon findmesgbuf plfs_map plfs_query plfs_recover
                     DESTINATION ${SBINDIR})

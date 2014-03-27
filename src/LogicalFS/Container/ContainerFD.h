@@ -4,6 +4,9 @@
 #include "plfs.h"
 #include "LogicalFD.h"
 
+// XXX AC: mdhim-mod
+#include "mdhim.h"
+
 class Container_OpenFile : public Metadata
 {
     public:
@@ -43,6 +46,11 @@ class Container_OpenFile : public Metadata
             return reopen;
         };
 
+        // XXX AC: mdhim-mod
+        struct mdhim_t * get_mdhim() {
+            return this->mdhim_ptr;
+        }
+
     private:
         WriteFile *writefile;
         Index     *index;
@@ -53,6 +61,9 @@ class Container_OpenFile : public Metadata
         struct plfs_backend *canback;
         time_t    ctime;
         bool      reopen;
+        // XXX AC: mdhim-mod
+        struct mdhim_t *mdhim_ptr;
+        // XXX AC: mdhim-mod
 };
 
 class Container_fd : public Plfs_fd
@@ -89,6 +100,9 @@ class Container_fd : public Plfs_fd
         
     private:
         Container_OpenFile *fd;
+        struct mdhim_t *md;       // mdhim structure pointer
+        mdhim_options_t *db_opts; // structure used to set up the database for mdhim
+
 };
 
 #endif
