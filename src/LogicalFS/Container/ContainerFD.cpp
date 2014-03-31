@@ -3,10 +3,33 @@
  */
 
 #include "plfs_private.h"
+#include "XAttrs.h"
 #include "Container.h"
 #include "ContainerIndex.h"
 #include "ContainerFS.h"
 #include "ContainerFD.h"
+
+/*
+ * note on revised reference counting: Container_fd can only be in one
+ * open mode (WRONLY, RDONLY, RDWR), and that mode won't change.  when
+ * a Container_fd is first opened (reference count going from 0 to 1),
+ * it will not have a Container_OpenFile (cof).  When the cof is
+ * created an index will be allocated for it using
+ * container_index_alloc.  Then it will be opened using index_open.
+ * additional references to fd will cause the cof->refcnt to be bumped
+ * (index_open is not called again).   when the fd is closed, the
+ * cof->refcnt is dropped by 1.  If it drops to zero, then the index
+ * is closed and removed.
+ *
+ * for writing, the index is notified when a new write data droping is
+ * created (index_new_wdop) or close (index_closing_wdrop).  the write
+ * droppings are identified by pid number (note tha under MPI we
+ * overload the pid with the MPI rank number instead).
+ *
+ * so the index itself doesn't have to reference count, but it does
+ * have to track open writing droppings so that when a write occurs
+ * it knows which log is getting the data (using the pid).
+ */
 
 
 Container_fd::Container_fd() 
@@ -55,7 +78,8 @@ static plfs_error_t try_openwritedropping(Container_OpenFile *cof,
 
     /* tell index about new dropping */
     if (rv == PLFS_SUCCESS) {
-        rv = cof->cof_index->index_new_wdrop(cof, ts.str(), pid);
+        rv = cof->cof_index->index_new_wdrop(cof, ts.str(), pid,
+                                             drop_pathstream.str().c_str());
 
         if (rv != PLFS_SUCCESS) {
             /* ignore errors in clean up */
@@ -71,6 +95,54 @@ static plfs_error_t try_openwritedropping(Container_OpenFile *cof,
 
     return(rv);
 }
+
+/**
+ * close_writedropping: check for and close any of a pid's write logs
+ *
+ * @param cof the open file we are working with
+ * @param pid the pid of the closing process
+ * @return result of close operation or SUCCESS if not open
+ */
+static plfs_error_t close_writedropping(Container_OpenFile *cof, pid_t pid) {
+    plfs_error_t rv = PLFS_SUCCESS;
+    plfs_error_t rvidx;
+    map<pid_t,IOSHandle *>::iterator pid_itr;
+    IOSHandle *ofh;
+    ostringstream ts, drop_pathstream;
+    map<IOSHandle *,string>::iterator path_itr;
+
+    pid_itr = cof->fhs.find(pid);
+
+    if (pid_itr != cof->fhs.end()) {         /* is dropping open? */
+
+        /* extract IOSHandle and remove it from the map */
+        ofh = pid_itr->second;
+        cof->fhs.erase(pid);
+
+        /* regenerate dropping pathname */
+        ts.setf(ios::fixed,ios::floatfield);
+        ts << cof->createtime;
+        drop_pathstream << cof->subdir_path << "/" << DATAPREFIX <<
+            ts.str() << "." << cof->hostname << "." << pid;
+
+        /* tell index dropping is going bye-bye */
+        rvidx = cof->cof_index->index_closing_wdrop(cof, ts.str(), pid,
+                                        drop_pathstream.str().c_str());
+        /* XXXCDC: should log any errors, but keep going */
+
+        /* clear out any data in paths map */
+        path_itr = cof->paths.find(ofh);
+        if (path_itr != cof->paths.end()) {
+            cof->paths.erase(ofh);
+        }
+
+        /* and finally close the dropping file */
+        rv = cof->subdirback->store->Close(ofh);
+    }
+
+    return(rv);
+}
+
 
 /**
  * Container_fd::establish_writedroping: create a dropping for writing
@@ -386,6 +458,9 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
     cof->pid = pid;
     cof->mode = mode;
     /* old: ctime, not used? */
+    cof->last_offset = 0;
+    cof->total_bytes = 0;
+    cof->synced = true;
 
     /* allocate an index */
     cof->cof_index = container_index_alloc(ppip->mnt_pt);
@@ -427,7 +502,7 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
 
             ret = this->establish_writedropping(pid);
             if (ret != PLFS_SUCCESS) {
-                cof->cof_index->index_close(cof, rwflags);
+                cof->cof_index->index_close(cof, rwflags, NULL);
                 goto done;
             }
         }
@@ -480,9 +555,153 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
 }
 
 plfs_error_t 
-Container_fd::close(pid_t, uid_t, int flags, Plfs_close_opt *, int *)
+Container_fd::close(pid_t pid, uid_t uid, int open_flags,
+                    Plfs_close_opt *close_opt, int *num_ref)
 {
-    return(PLFS_ENOTSUP);
+    plfs_error_t ret = PLFS_SUCCESS;
+    Container_OpenFile *cof;
+    int left;
+
+    cof = this->fd;
+    if (cof == NULL) {
+        return(PLFS_EBADF);    /* shouldn't happen, but check anyway */
+    }
+
+    /* XXX: might compare open_flags arg with cof->openflags, should match */
+
+    /*
+     * it is worth noting that reading and writing are handled
+     * differently.  for writing, each PID has its own private log
+     * file open.  so when a writing PID closes, we should close off
+     * any state associated with the write log as we are done with it.
+     * on the other hand, for reading all the open data logs are
+     * shared across all PIDs.  so we currently only close data
+     * droppings open for read when the final reference to this fd is
+     * dropped.
+     */
+
+    if (cof->openflags != O_RDONLY) {  /* writeable? */
+        /*
+         * remove state related to the write log here, before we
+         * drop the main reference to the open fd.
+         */
+        Util::MutexLock(&cof->data_mux, __FUNCTION__);
+        left = cof->fhs_writers[pid] - 1;
+        cof->fhs_writers[pid] = left;
+        if (left <= 0) {
+            cof->fhs_writers.erase(pid);
+            close_writedropping(cof, pid);
+        }
+        Util::MutexUnlock(&cof->data_mux, __FUNCTION__);
+        /* XXX: should log close error after unlock */
+    }
+    
+    /*
+     * now drop main reference count and if there are still active
+     * references remaining, then we can just return now.
+     */
+    left = --cof->refcnt;
+    if (left > 0) {
+        return(ret);
+    }
+    
+    /*
+     * we've dropped the final reference to the cof, so now we know we
+     * need to dispose of it.   first dispose of the index.
+     * XXX: look at return values and log errors
+     */
+    cof->cof_index->index_close(cof, open_flags, close_opt);
+    container_index_free(cof->cof_index);
+    cof->cof_index = NULL;
+
+    /*
+     * now close any open data droppings open for reading (write
+     * droppings are already taken care of above).
+     */
+    if (cof->openflags != O_WRONLY) { /* readable? */
+        map<string, rdchunkhand>::iterator cnk_itr;
+        struct plfs_backend *bend;
+        IOSHandle *fh;
+        
+        Util::MutexLock(&cof->data_mux, __FUNCTION__);
+        for (cnk_itr = cof->rdchunks.begin() ;
+             cnk_itr != cof->rdchunks.end() ; cnk_itr++) {
+
+            bend = cnk_itr->second.backend;
+            fh = cnk_itr->second.fh;
+            if (bend != NULL && fh != NULL) {
+                cnk_itr->second.fh = NULL;   /* to be safe? */
+
+                /* XXXCDC: should check/log errors */
+                bend->store->Close(fh);
+            }
+
+        }
+        Util::MutexUnlock(&cof->data_mux, __FUNCTION__);
+        /*
+         * note: the cof destructor will free the rest of the rdchunks map
+         * when we delete cof (below).
+         */
+    }
+
+    /*
+     * for writeable fds, we need to update the metadata
+     */
+    if (cof->openflags != O_RDONLY) {  /* writeable? */
+        off_t m_lastoffset;
+        size_t m_totalbytes;
+        bool drop_meta = true;  /* only false if ADIO and !rank 0 */
+
+        if (close_opt && close_opt->pinter == PLFS_MPIIO) {
+            if (pid == 0) {    /* rank 0 ? */
+                if(close_opt->valid_meta) {
+                    mlog(PLFS_DCOMMON, "Grab meta from ADIO gathered info");
+                    m_lastoffset = close_opt->last_offset;
+                    m_totalbytes = close_opt->total_bytes;
+                } else {
+                    mlog(PLFS_DCOMMON, "Grab info from glob merged idx");
+                    m_lastoffset = cof->last_offset;
+                    m_totalbytes = cof->total_bytes;
+                }
+            } else {
+                drop_meta = false;    /* not rank 0, don't drop */
+            }
+        } else {
+            m_lastoffset = cof->last_offset;
+            m_totalbytes = cof->total_bytes;
+        }
+
+        if ( drop_meta ) {
+            size_t m_maxwriters = cof->max_writers;
+            if (close_opt && close_opt->num_procs > m_maxwriters) {
+                m_maxwriters = close_opt->num_procs;
+            }
+            Container::addMeta(m_lastoffset, m_totalbytes,
+                               cof->pathcpy.canbpath,
+                               cof->pathcpy.canback,
+                               cof->hostname, uid, cof->createtime,
+                               close_opt ? close_opt->pinter : -1,
+                               m_maxwriters);
+            Container::removeOpenrecord(cof->pathcpy.canbpath,
+                                        cof->pathcpy.canback,
+                                        cof->hostname,
+                                        cof->pid);
+        }
+        
+    }
+
+    pthread_mutex_destroy(&cof->index_mux);
+    pthread_mutex_destroy(&cof->data_mux);
+
+    /*
+     * finally, get rid of the cof and return.  note that stuff
+     * allocated for cof->pathcpy gets freed as part of the delete
+     * below...
+     */
+    delete cof;
+    this->fd = NULL;
+    
+    return(ret);
 }
 
 plfs_error_t 
@@ -501,30 +720,227 @@ Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
 plfs_error_t 
 Container_fd::sync()
 {
+#if 0
+    /*
+     * XXXCDC: goal would be to sync open datalogs and also
+     * flush out to disk any buffered index records to disk,
+     * we can do the data log files, we'd need a callout for
+     * the index.
+     */
+    return(this->fd->getWritefile() ?
+           this->fd->getWritefile()->sync() : PLFS_SUCCESS);
+#endif
     return(PLFS_ENOTSUP);
 }
 
 plfs_error_t 
 Container_fd::sync(pid_t pid)
 {
+    /*
+     * XXXCDC: sync, but only for a specific PID's log.
+     *
+     * XXXCDC: goal would be to sync open datalogs and also
+     * flush out to disk any buffered index records to disk,
+     * we can do the data log files, we'd need a callout for
+     * the index.
+     */
+#if 0
+    return(this->fd->getWritefile() ?
+           this->fd->getWritefile()->sync(pid) : PLFS_SUCCESS);
+#endif
     return(PLFS_ENOTSUP);
 }
 
 plfs_error_t 
 Container_fd::trunc(off_t offset, struct plfs_physpathinfo *ppip) 
 {
+    /*
+     * XXXCDC: break out into cases, syncing with the FS version.
+     * must be open for writing.  for non-zero truncate, this is
+     * an index-only type operation, we don't truncate datalogs.
+     */
+#if 0
+    plfs_error_t ret = PLFS_SUCCESS;
+    Container_OpenFile *myof;
+    WriteFile *wf;
+    struct stat stbuf;
+
+    /* if we are doing an fstat, then the file must be open, right? */
+    myof = this->fd;
+    if (myof == NULL) {
+        mlog(PLFS_DRARE, "%s: on a non-open file?", __FUNCTION__);
+        return(PLFS_EINVAL);
+    }
+    wf = myof->getWritefile();  /* non-null only if open for writing */
+    if (!wf) {
+        return(PLFS_EBADF);     /* not open for writing */
+    }
+    
+    /* we know we have a plfs container file, since it is already open */
+    if (offset == 0) {
+        /* no need to getattr in this case */
+        ret = containerfs_zero_helper(ppip, 1 /* open_file is true */);
+    } else {
+        stbuf.st_size = 0;
+        /* sz_only isn't accurate in this case, wire false */
+        ret = this->getattr(&stbuf, false /* sz_only */); 
+        if (ret == PLFS_SUCCESS) {
+
+            if (stbuf.st_size < offset) {
+                /* optimization: use our open writeable handle to extend */
+                ret = wf->extend(offset);
+            } else {
+                ret = containerfs_truncate_helper(ppip, offset, stbuf.st_size,
+                                                  myof->getPid());
+            }
+
+        }   /* getattr success */
+    }       /* offset != 0 */
+
+    /* if we actually modified the container, update open file handle */
+    if (ret == PLFS_SUCCESS) {
+        mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
+
+        /* in the case that extend file, need not truncateHostIndex */
+        if (offset <= stbuf.st_size) {
+            ret = Container::truncateMeta(ppip->canbpath, offset,
+                                          ppip->canback);
+            if (ret == PLFS_SUCCESS) {
+                ret = wf->truncate( offset );
+            }
+        }
+
+        myof->truncate( offset ); /* XXX: what if ret!=success? */
+
+        /*
+         * here's a problem, if the file is open for writing, we've
+         * already opened fds in there.  So the droppings are
+         * deleted/resized and our open handles are messed up
+         * it's just a little scary if this ever happens following
+         * a rename because the writefile will attemptto restore
+         * them at the old path...
+         */
+        if (ret == PLFS_SUCCESS) {
+            bool droppings_were_truncd = (offset == 0);
+            mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
+            ret = wf->restoreFds(droppings_were_truncd);
+
+            if ( ret != PLFS_SUCCESS ) {
+                mlog(PLFS_DRARE, "%s:%d failed: %s",
+                     __FUNCTION__, __LINE__, strplfserr(ret));
+            }
+        }
+        mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
+    }
+
+    mlog(PLFS_DCOMMON, "%s %s to %u: %d",__FUNCTION__, ppip->canbpath.c_str(),
+         (uint)offset, ret);
+
+    if ( ret == PLFS_SUCCESS ) {    /* update the timestamp */
+        ret = Container::Utime(ppip->canbpath, ppip->canback, NULL );
+    }
+    return(ret);
+
+#endif
     return(PLFS_ENOTSUP);
 }
 
 plfs_error_t 
 Container_fd::getattr(struct stat *stbuf, int sz_only)
 {
+#if 0
+    /*
+     * XXXCDC: might not be too bad
+     */
+      plfs_error_t ret = PLFS_SUCCESS;
+    string fdpath;
+    struct plfs_backend *backend;
+    WriteFile *wf;
+    int im_lazy;
+
+    /* if this is an open file, then it has to be a container */
+    fdpath = this->fd->getPath();
+    backend = this->fd->getCanBack();
+    wf = this->fd->getWritefile();
+
+    im_lazy = (sz_only && wf && !this->fd->isReopen());
+
+    mlog(PLFS_DAPI, "%s on open file %s (lazy=%d)", __FUNCTION__,
+         fdpath.c_str(), im_lazy);
+    memset(stbuf, 0, sizeof(*stbuf));   /* XXX: necessary? */
+    
+    if (im_lazy) {
+        /* successfully skipped the heavyweight getattr call */
+        ret = PLFS_SUCCESS;
+    } else {
+        ret = Container::getattr(fdpath, backend, stbuf);
+    }
+    
+    if (ret == PLFS_SUCCESS && wf) {
+        off_t last_offset;
+        size_t total_bytes;
+        wf->getMeta(&last_offset, &total_bytes);
+        mlog(PLFS_DCOMMON, "got meta from openfile: %lu last offset, "
+             "%ld total bytes", (unsigned long)last_offset,
+             (unsigned long)total_bytes);
+        if (last_offset > stbuf->st_size) {
+            stbuf->st_size = last_offset;
+        }
+        if (im_lazy) {
+            stbuf->st_blocks = Container::bytesToBlocks(total_bytes);
+        }
+    }
+    
+    mlog(PLFS_DAPI, "%s: getattr(%s) size=%ld, ret=%s", __FUNCTION__,
+         fdpath.c_str(), (unsigned long)stbuf->st_size,
+         (ret == PLFS_SUCCESS) ? "AOK" : strplfserr(ret));
+    
+    return(ret);
+ 
+#endif
     return(PLFS_ENOTSUP);
 }
 
 plfs_error_t 
 Container_fd::query(size_t *, size_t *, size_t *, bool *reopen)
 {
+#if 0
+    /*
+     * XXXCDC: looks not too bad
+     */
+    WriteFile *wf = fd->getWritefile();
+    Index     *ix = fd->getIndex();
+    if (writers) {
+        *writers = 0;
+    }
+    if (readers) {
+        *readers = 0;
+    }
+    if (bytes_written) {
+        *bytes_written = 0;
+    }
+    if ( wf && writers ) {
+        *writers = wf->numWriters();
+    }
+    if ( ix && readers ) {
+        *readers = ix->incrementOpens(0);
+    }
+    if ( wf && bytes_written ) {
+        off_t  last_offset;
+        size_t total_bytes;
+        wf->getMeta( &last_offset, &total_bytes );
+        mlog(PLFS_DCOMMON, "container_query Got meta from openfile: "
+             "%lu last offset, "
+             "%ld total bytes", (unsigned long)last_offset,
+             (unsigned long)total_bytes);
+        *bytes_written = total_bytes;
+    }
+    if (reopen) {
+        *reopen = fd->isReopen();
+    }
+    return PLFS_SUCCESS;
+
+#endif
     return(PLFS_ENOTSUP);
 }
 
@@ -537,18 +953,27 @@ Container_fd::is_good()
 int 
 Container_fd::incrementOpens(int amount)
 {
+    /*
+     * XXXCDC: no longer necessary?
+     */
     return(PLFS_ENOTSUP);
 }
 
 void 
 Container_fd::setPath(string p, struct plfs_backend *b)
 {
+    /*
+     * XXXCDC: see if we can dump this
+     */
     return /* (PLFS_ENOTSUP) */;
 }
 
 const char *
 Container_fd::getPath()
 {
+    /*
+     * XXXCDC: see if we can dump this
+     */
     /*return(PLFS_ENOTSUP);*/
     return(NULL);
 }
@@ -556,29 +981,125 @@ Container_fd::getPath()
 plfs_error_t 
 Container_fd::compress_metadata(const char *path)
 {
+    /*
+     * XXXCDC: what to do with this?  maybe some sort of "optimize"
+     * callback to index?  (compression means flatten for the ByteRange.
+     */
+#if 0
+    struct plfs_pathback container;
+    plfs_error_t ret = PLFS_SUCCESS;
+    Index *index;
+    bool newly_created = false;
+
+    container.bpath = fd->getPath();
+    container.back = fd->getCanBack();
+
+    if ( fd && fd->getIndex() ) {
+        index = fd->getIndex();
+    } else {
+        index = new Index(container.bpath, container.back);
+        newly_created = true;
+        // before we populate, need to blow away any old one
+        ret = Container::populateIndex(container.bpath, container.back,
+                index,false,false,0);
+        /* XXXCDC: why are we ignoring return value of populateIndex? */
+    }
+
+    if (Container::isContainer(&container, NULL)) {
+        ret = Container::flattenIndex(container.bpath, container.back,
+                                      index);
+    } else {
+        ret = PLFS_EBADF; // not sure here.  Maybe return SUCCESS?
+    }
+    if (newly_created) {
+        delete index;
+    }
+    return(ret);
+
+#endif
     return(PLFS_ENOTSUP);
 }
 
 plfs_error_t 
 Container_fd::getxattr(void *value, const char *key, size_t len)
 {
-    return(PLFS_ENOTSUP);
+    Container_OpenFile *cof = this->fd;
+    XAttrs *xattrs;
+    XAttr *xattr;
+    plfs_error_t ret = PLFS_SUCCESS;
+    
+    xattrs = new XAttrs(cof->pathcpy.canbpath, cof->pathcpy.canback);
+    ret = xattrs->getXAttr(string(key), len, &xattr);
+    if (ret != PLFS_SUCCESS) {
+        return ret;
+    }
+    
+    memcpy(value, xattr->getValue(), len);
+    delete(xattr);
+    delete(xattrs);
+    
+    return(ret);
 }
 
 plfs_error_t 
 Container_fd::setxattr(const void *value, const char *key, size_t len)
 {
-    return(PLFS_ENOTSUP);
+    Container_OpenFile *cof = this->fd;
+    stringstream sout;
+    XAttrs *xattrs;
+    plfs_error_t ret = PLFS_SUCCESS;
+    
+    mlog(PLFS_DBG, "In %s: Setting xattr - key: %s, value: %s\n",
+         __FUNCTION__, key, (char *)value);
+    xattrs = new XAttrs(cof->pathcpy.canbpath, cof->pathcpy.canback);
+    ret = xattrs->setXAttr(string(key), value, len);
+    if (ret != PLFS_SUCCESS) {
+        mlog(PLFS_DBG, "In %s: Error writing upc object size\n",
+             __FUNCTION__);
+    }
+    
+    delete(xattrs);
+    
+    return(ret);
 }
 
 plfs_error_t 
 Container_fd::renamefd(struct plfs_physpathinfo *ppip_to)
 {
+    /*
+     * XXXCDC: check this
+     */
+#if 0
+    plfs_error_t ret = PLFS_SUCCESS;
+    this->fd->setPath(ppip_to->canbpath, ppip_to->canback);
+    WriteFile *wf = this->fd->getWritefile();
+    if ( wf )
+        wf->setPhysPath(ppip_to); 
+    return(ret);
+#endif
     return(PLFS_ENOTSUP);
 }
 
 plfs_error_t
 Container_fd::extend(off_t offset)
 {
+    /* XXXCDC: how does this translate? */
+#if 0
+    Container_OpenFile *myfd;
+    WriteFile *wf;
+ 
+    myfd = this->fd;
+    if (myfd == NULL) {
+        return(PLFS_EINVAL);
+    }
+ 
+    wf = myfd->getWritefile();
+    if (wf == NULL) {
+        return(PLFS_EBADF);   /* not open for writing */
+    }
+ 
+    return(wf->extend(offset));
+
+#endif
     return(PLFS_ENOTSUP);
 }

@@ -423,6 +423,71 @@ get_openrecord( const string& path, const char *host, pid_t pid)
     return retstring;
 }
 
+/**
+ * Container::addMeta: this function drops a file in the metadir that
+ * contains stat info so we can later satisfy stats using just readdir
+ *
+ * @return PLFS_SUCCESS or error code
+ */
+plfs_error_t
+Container::addMeta( off_t last_offset, size_t total_bytes,
+                    const string& path, struct plfs_backend *canback,
+                    const string& host, uid_t uid,
+                    double createtime, int interface, size_t max_writers)
+{
+    string metafile;
+    struct timeval time;
+    plfs_error_t ret = PLFS_SUCCESS;
+    if ( gettimeofday( &time, NULL ) != 0 ) {
+        ret = errno_to_plfs_error(errno);   /* error# ok */
+        mlog(CON_CRIT, "WTF: gettimeofday in %s failed: %s",
+             __FUNCTION__, strplfserr(ret));
+        return(ret);
+    }
+    ostringstream oss;
+    oss << getMetaDirPath(path) << "/"
+        << last_offset << "." << total_bytes  << "."
+        << time.tv_sec << "." << time.tv_usec << "."
+        << host;
+    metafile = oss.str();
+    mlog(CON_DCOMMON, "Creating metafile %s", metafile.c_str() );
+    ret = Util::MakeFile(metafile.c_str(), DROPPING_MODE, canback->store);
+    if (ret == PLFS_ENOENT || ret == PLFS_ENOTDIR) {  /* can be ignored */
+        ret = PLFS_SUCCESS;
+    }
+    // now let's maybe make a global summary dropping
+    PlfsConf *pconf = get_plfs_conf();
+    if (pconf->global_sum_io.store != NULL) {
+        string path_without_slashes = path;
+        size_t pos = path_without_slashes.find("/");
+        double bw = ((double)last_offset/(Util::getTime()-createtime))/1048576;
+        while(pos!=string::npos) {
+            path_without_slashes.replace(pos,1,"_");
+            pos = path_without_slashes.find("/");
+        }
+        ostringstream oss_global;
+        oss_global
+                << std::setprecision(2) << std::fixed
+                << pconf->global_sum_io.bmpoint << "/"
+                << "SZ:" << last_offset << "."
+                << "BL:" << total_bytes  << "."
+                << "OT:" << createtime << "."
+                << "CT:" << Util::getTime() << "."
+                << "BW:" << bw << "."
+                << "IN:" << interface << "."
+                << "NP:" << max_writers << "."
+                << "HO:" << host << "."
+                << "UI:" << uid << "."
+                << "PA:" << path_without_slashes;
+        metafile = oss_global.str().substr(0,PATH_MAX);
+        mlog(CON_DCOMMON, "Creating metafile %s", metafile.c_str() );
+        /* ignores makefile errors */
+        Util::MakeFile(metafile.c_str(), DROPPING_MODE,
+                       pconf->global_sum_io.store);
+    }
+    return ret;
+}
+
 
 /**
  * Container::addOpenrecord: add an open record dropping.  if it fails

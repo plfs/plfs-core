@@ -145,7 +145,97 @@ ByteRangeIndex::index_open(Container_OpenFile *cof,
 }
 
 plfs_error_t
-ByteRangeIndex::index_close(Container_OpenFile *cof, int open_flags) {
+ByteRangeIndex::index_close(Container_OpenFile *cof, int open_flags,
+                            Plfs_close_opt *close_opt) {
+#if 0
+    plfs_error_t ret = PLFS_SUCCESS;
+    WriteFile *wf    = this->fd->getWritefile();
+    Index     *index = this->fd->getIndex();
+    size_t writers = 0, readers = 0, ref_count = 0;
+    // be careful.  We might enter here when we have both writers and readers
+    // make sure to remove the appropriate open handle for this thread by
+    // using the original open_flags
+    // clean up after writes
+    if ( isWriter(open_flags) ) {
+        assert(wf);
+        int tmp_writers;
+        wf->removeWriter( pid, &tmp_writers );
+        writers = tmp_writers;
+        if ( writers == 0 ) {
+            off_t  last_offset;
+            size_t total_bytes;
+            bool drop_meta = true; // in ADIO, only 0; else, everyone
+            if(close_opt && close_opt->pinter==PLFS_MPIIO) {
+                if (pid==0) {
+                    if(close_opt->valid_meta) {
+                        mlog(PLFS_DCOMMON, "Grab meta from ADIO gathered info");
+                        last_offset=close_opt->last_offset;
+                        total_bytes=close_opt->total_bytes;
+                    } else {
+                        mlog(PLFS_DCOMMON, "Grab info from glob merged idx");
+                        last_offset=index->lastOffset();
+                        total_bytes=index->totalBytes();
+                    }
+                } else {
+                    drop_meta = false;
+                }
+            } else {
+                wf->getMeta( &last_offset, &total_bytes );
+            }
+            if ( drop_meta ) {
+                size_t max_writers = wf->maxWriters();
+                if (close_opt && close_opt->num_procs > max_writers) {
+                    max_writers = close_opt->num_procs;
+                }
+                char *hostname;
+                Util::hostname(&hostname);
+                Container::addMeta(last_offset, total_bytes,
+                                   this->fd->getPath(),
+                                   this->fd->getCanBack(),
+                                   hostname,uid,wf->createTime(),
+                                   close_opt?close_opt->pinter:-1,
+                                   max_writers);
+                Container::removeOpenrecord( this->fd->getPath(),
+                                             this->fd->getCanBack(),
+                                             hostname,
+                                             this->fd->getPid());
+            }
+            // the pfd remembers the first pid added which happens to be the
+            // one we used to create the open-record
+            delete wf;
+            wf = NULL;
+            this->fd->setWritefile(NULL);
+        } else {
+            ret = PLFS_SUCCESS;
+        }
+        ref_count = this->fd->incrementOpens(-1);
+        // Clean up reads moved fd reference count updates
+    }
+    if (isReader(open_flags) && index) {
+        assert( index );
+        readers = index->incrementOpens(-1);
+        if ( readers == 0 ) {
+            delete index;
+            index = NULL;
+            this->fd->setIndex(NULL);
+        }
+        ref_count = this->fd->incrementOpens(-1);
+    }
+    mlog(PLFS_DCOMMON, "%s %s: %d readers, %d writers, %d refs remaining",
+         __FUNCTION__, this->fd->getPath(), (int)readers, (int)writers,
+         (int)ref_count);
+    // make sure the reference counting is correct
+    plfs_reference_count(this->fd);
+    if ( ret == PLFS_SUCCESS && ref_count == 0 ) {
+        mss::mlog_oss oss(PLFS_DCOMMON);
+        oss << __FUNCTION__ << " removing OpenFile " << this->fd;
+        oss.commit();
+        delete this->fd;
+        this->fd = NULL;
+    }
+    *num_ref = ref_count;
+    return ret;
+#endif
     return(PLFS_ENOTSUP);
 }
 
@@ -174,8 +264,14 @@ ByteRangeIndex::index_truncate(Container_OpenFile *cof, off_t offset) {
 }
 
 plfs_error_t
+ByteRangeIndex::index_closing_wdrop(Container_OpenFile *cof, string ts,
+                                    pid_t pid, const char *filename) {
+    return(PLFS_ENOTSUP);
+}
+
+plfs_error_t
 ByteRangeIndex::index_new_wdrop(Container_OpenFile *cof, string ts,
-                                pid_t pid) {
+                                pid_t pid, const char *filename) {
     return(PLFS_ENOTSUP);
 }
 

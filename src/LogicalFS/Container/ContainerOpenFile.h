@@ -2,6 +2,16 @@
 #define __CONTAINEROPENFILE_H_
 
 /*
+ * rdchunkhand: read chunk handle (for open data droppings we save the
+ * backend and open file handle).
+ */
+struct rdchunkhand {
+    struct plfs_backend *backend;
+    IOSHandle *fh;
+};
+
+
+/*
  * Container_OpenFile (COF): data structures associated with an open file
  */
 
@@ -13,6 +23,11 @@ class Container_OpenFile {
     int reopen_mode;   /* XXX: disables im_lazy in Container_fd::getattr() */
     pid_t pid;         /* needed to remove open record */
     mode_t mode;       /* used when reopening at restorefd time */
+    /* Metadata */
+    off_t last_offset;
+    size_t total_bytes;
+    bool synced;
+
 
     /* time_t ctime; */ /* XXXCDC: present, but unused in old code */
 
@@ -57,7 +72,7 @@ class Container_OpenFile {
 
     /* READ SIDE */
     /* map prefix+bpath => open chunk handle, protected with data_mux */
-    map<string, IOSHandle *> rdchunks;
+    map<string, struct rdchunkhand> rdchunks;
     /* END READ SIDE */
 };
 

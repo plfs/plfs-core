@@ -41,6 +41,9 @@ typedef struct {
 class Container
 {
  public:
+    static plfs_error_t addMeta(off_t, size_t, const string&,
+                                struct plfs_backend *,
+                                const string&,uid_t,double,int,size_t);
     static plfs_error_t addOpenrecord(const string&, struct plfs_backend *,
                                            const char *, pid_t );
     static plfs_error_t removeOpenrecord(const string&, struct plfs_backend *,

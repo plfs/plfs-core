@@ -11,7 +11,8 @@ public:
 
     plfs_error_t index_open(Container_OpenFile *cof, int open_flags, 
                             Plfs_open_opt *open_opt);
-    plfs_error_t index_close(Container_OpenFile *cof, int open_flags);
+    plfs_error_t index_close(Container_OpenFile *cof, int open_flags,
+                             Plfs_close_opt *close_opt);
     plfs_error_t index_add(Container_OpenFile *cof, size_t nbytes,
                            off_t offset, pid_t pid);
     plfs_error_t index_sync(Container_OpenFile *cof);
@@ -19,8 +20,10 @@ public:
                              size_t input_length, 
                              vector<index_record> &result);
     plfs_error_t index_truncate(Container_OpenFile *cof, off_t offset);
+    plfs_error_t index_closing_wdrop(Container_OpenFile *cof,
+                                     string ts, pid_t pid, const char *fn);
     plfs_error_t index_new_wdrop(Container_OpenFile *cof,
-                                 string ts, pid_t pid);
+                                 string ts, pid_t pid, const char *fn);
 
     plfs_error_t index_getattr_size(struct plfs_physpathinfo *ppip,
                                     struct stat *stbuf,

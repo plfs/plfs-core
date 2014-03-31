@@ -36,7 +36,7 @@ class ContainerIndex {
     virtual plfs_error_t index_open(Container_OpenFile *cof,
                                     int open_flags, Plfs_open_opt *oopt) = 0;
     virtual plfs_error_t index_close(Container_OpenFile *cof,
-                                     int open_flags) = 0;
+                                     int open_flags, Plfs_close_opt *copt) = 0;
     virtual plfs_error_t index_add(Container_OpenFile *cof,
                                    size_t nbytes, off_t offset, pid_t pid) = 0;
     virtual plfs_error_t index_sync(Container_OpenFile *cof) = 0;
@@ -46,8 +46,12 @@ class ContainerIndex {
                                      vector<index_record> &result) = 0;
     virtual plfs_error_t index_truncate(Container_OpenFile *cof,
                                         off_t offset) = 0;
+    virtual plfs_error_t index_closing_wdrop(Container_OpenFile *cof,
+                                             string ts, pid_t pid,
+                                             const char *filename) = 0;
     virtual plfs_error_t index_new_wdrop(Container_OpenFile *cof,
-                                         string ts, pid_t pid) = 0;
+                                         string ts, pid_t pid,
+                                         const char *filename) = 0;
 
     virtual plfs_error_t index_getattr_size(struct plfs_physpathinfo *ppip,
                                             struct stat *stbuf,
@@ -74,3 +78,4 @@ class ContainerIndex {
 
 int container_index_id(char *spec);
 class ContainerIndex *container_index_alloc(PlfsMount *pmnt);
+plfs_error_t container_index_free(ContainerIndex *ci);

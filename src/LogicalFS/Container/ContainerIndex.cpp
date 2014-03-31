@@ -50,3 +50,19 @@ class ContainerIndex *container_index_alloc(PlfsMount *pmnt) {
     }
     return(ci);
 }
+
+/**
+ * container_index_free: free index no longer in use
+ *
+ * @param ci the index to free
+ * @return PLFS_SUCCESS or error
+ */
+plfs_error_t container_index_free(ContainerIndex *ci) {
+    
+    /* XXX: add some logging? */
+    
+    delete ci;
+    return(PLFS_SUCCESS);
+    
+}
+
