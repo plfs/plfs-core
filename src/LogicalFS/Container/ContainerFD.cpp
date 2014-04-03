@@ -714,7 +714,55 @@ plfs_error_t
 Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid, 
                     ssize_t *bytes_written)
 {
-    return(PLFS_ENOTSUP);
+    plfs_error_t ret = PLFS_SUCCESS;   
+    Container_OpenFile *cof = this->fd;
+    map<pid_t,IOSHandle *>::iterator pid_itr;
+    IOSHandle *wfh;
+    ssize_t written;
+    double begin, end;
+
+    /*
+     * get filehandle for data dropping.  it may not be open yet, if
+     * we delayed the opening to the first write operation.
+     * XXXCDC: do we need to lock this to read it?  YES!
+     */
+    pid_itr = cof->fhs.find(pid);  /* XXXCDC: LOCK */
+    wfh = (pid_itr == cof->fhs.end()) ? NULL : pid_itr->second; /*XXXCDC:LOCK*/
+
+    if (wfh == NULL) {
+        ret = this->establish_writedropping(pid);
+        if (ret == PLFS_SUCCESS) {
+            wfh = cof->fhs[pid];
+        }
+    }
+    
+    if (ret != PLFS_SUCCESS) {
+        goto done;
+    }
+
+    begin = Util::getTime();
+    written = 0;
+    if (size != 0) {
+        ret = wfh->Write(buf, size, &written);
+    }
+    end = Util::getTime();
+
+    if (written) {
+        cof->total_bytes += written;
+        if (offset + (off_t) written > cof->last_offset) {
+            cof->last_offset = offset + written;
+        }
+        cof->synced = false;
+    }
+
+    if (ret == PLFS_SUCCESS) {
+        ret = cof->cof_index->index_add(cof, written, offset,
+                                        pid, begin, end);
+    }
+
+
+ done:
+    return(ret);
 }
 
 plfs_error_t 

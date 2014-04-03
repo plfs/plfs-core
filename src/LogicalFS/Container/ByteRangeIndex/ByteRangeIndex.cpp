@@ -242,7 +242,24 @@ ByteRangeIndex::index_close(Container_OpenFile *cof, int open_flags,
 
 plfs_error_t
 ByteRangeIndex::index_add(Container_OpenFile *cof, size_t nbytes,
-                          off_t offset, pid_t pid) {
+                          off_t offset, pid_t pid, double begin,
+                          double end) {
+#if 0
+            write_count++;
+            Util::MutexLock(   &index_mux , __FUNCTION__);
+            index->addWrite( offset, written, pid, begin, end );
+            // TODO: why is 1024 a magic number?
+            int flush_count = 1024;
+            if (write_count%flush_count==0) {
+                ret = index->flush();
+                // Check if the index has grown too large stop buffering
+                if(index->memoryFootprintMBs() > index_buffer_mbs) {
+                    index->stopBuffering();
+                    mlog(WF_DCOMMON, "The index grew too large, "
+                         "no longer buffering");
+                }
+            }
+#endif
     return(PLFS_ENOTSUP);
 }
 
@@ -272,6 +289,7 @@ ByteRangeIndex::index_closing_wdrop(Container_OpenFile *cof, string ts,
 plfs_error_t
 ByteRangeIndex::index_new_wdrop(Container_OpenFile *cof, string ts,
                                 pid_t pid, const char *filename) {
+    /* XXXCDC: open pid's index dropping for writing here, save FH */
     return(PLFS_ENOTSUP);
 }
 

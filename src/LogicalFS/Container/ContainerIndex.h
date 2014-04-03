@@ -38,7 +38,8 @@ class ContainerIndex {
     virtual plfs_error_t index_close(Container_OpenFile *cof,
                                      int open_flags, Plfs_close_opt *copt) = 0;
     virtual plfs_error_t index_add(Container_OpenFile *cof,
-                                   size_t nbytes, off_t offset, pid_t pid) = 0;
+                                   size_t nbytes, off_t offset, pid_t pid,
+                                   double begin, double end) = 0;
     virtual plfs_error_t index_sync(Container_OpenFile *cof) = 0;
     virtual plfs_error_t index_query(Container_OpenFile *cof,
                                      off_t input_offset,
