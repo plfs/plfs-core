@@ -387,10 +387,11 @@ void hdfs_execute(const char *name, void *a, void (*hand)(void *ap)) {
 plfs_error_t HDFSIOStore::HDFSIOStore_xnew(char *phys_path,
                                            int *prelenp,
                                            char **bmpointp,
-                                           class HDFSIOStore **hiostore) {
+                                           class IOStore **hiostore) {
     char *p, *sl, *host, *col;
     int plen, port, rv;
     class HDFSIOStore *hio;
+    *hiostore = NULL;
 
     /* do some one-time module init stuff here, first */
     pthread_mutex_lock(&hst.gts_mux);
@@ -1208,7 +1209,8 @@ plfs_error_t HDFSIOSHandle::Size(off_t *ret_offset) {
  * @param bytes_written return byte count
  * @return PLFS_SUCCESS or PLFS_E* on error
  */
-plfs_error_t HDFSIOSHandle::Write(const void* buf, size_t len, ssize_t *bytes_written) {
+plfs_error_t HDFSIOSHandle::Write(const void* buf, size_t len, 
+                                  ssize_t *bytes_written) {
     ssize_t rv;
     rv = hdfsWrite_wrap(this->hfs, this->hfd, buf, len);
     *bytes_written = rv;
