@@ -806,7 +806,7 @@ plfs_error_t
 Container_fd::sync(pid_t pid)
 {
     plfs_error_t ret = PLFS_SUCCESS;  
-    Container_OpenFile *cof;
+    Container_OpenFile *cof; 
     map<pid_t,IOSHandle *>::iterator pid_itr;
     plfs_error_t idxret;
 
@@ -1030,31 +1030,21 @@ Container_fd::is_good()
     return(true);
 }
 
-int 
-Container_fd::incrementOpens(int amount)
-{
-    /*
-     * XXXCDC: no longer necessary?
-     */
-    return(PLFS_ENOTSUP);
-}
-
-void 
-Container_fd::setPath(string p, struct plfs_backend *b)
-{
-    /*
-     * XXXCDC: see if we can dump this
-     */
-    return /* (PLFS_ENOTSUP) */;
-}
-
 const char *
-Container_fd::getPath()
+Container_fd::backing_path()
 {
+    Container_OpenFile *cof;
+
+    cof = this->fd;
     /*
-     * XXXCDC: see if we can dump this
+     * NOTE: we know that ContainerFS inits ppi's optional canbpath
+     * string, so we can return it here.  otherwise, we'd return
+     * cof->bnode.c_str().   this string is only used for debugging
+     * logs.
      */
-    /*return(PLFS_ENOTSUP);*/
+    if (cof != NULL)
+        return(cof->pathcpy.canbpath.c_str());
+
     return(NULL);
 }
 

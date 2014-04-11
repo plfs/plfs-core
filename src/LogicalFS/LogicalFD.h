@@ -29,14 +29,11 @@ class Plfs_fd
                           size_t *bytes_written, bool *reopen) = 0;
         virtual bool is_good() = 0;
 
-        // Functions leaked to FUSE and ADIO:
-        virtual int incrementOpens(int amount) = 0;
-        /*XXXCDC: getPath/setPath... how are these fns used? */
-        virtual void setPath( string p, struct plfs_backend *b ) = 0;
-        virtual const char *getPath() = 0;
+        /* backing_path is for debugging mlog calls */
+        virtual const char *backing_path() = 0;
 
         // functions that all might not necessarily implement
-        // XXXCDC: PATH? -- SHOULD BE CACHED IN OBJECT?
+
         virtual plfs_error_t compress_metadata(const char *path) = 0;
         virtual plfs_error_t getxattr(void *value, const char *key, 
                                       size_t len) = 0;

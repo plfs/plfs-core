@@ -182,7 +182,7 @@ plfs_error_t
 plfs_close(Plfs_fd *fd, pid_t pid, uid_t u, int open_flags,
            Plfs_close_opt *close_opt, int *num_ref)
 {
-    string debug_out = fd->getPath();
+    string debug_out = fd->backing_path();
     debug_enter(__FUNCTION__,debug_out);
     plfs_error_t ret = fd->close(pid, u, open_flags, close_opt, num_ref);
     debug_exit(__FUNCTION__,debug_out,ret);
@@ -313,7 +313,7 @@ plfs_open(Plfs_fd **pfd, const char *path, int flags, pid_t pid, mode_t m,
     assert( *pfd || path );
     plfs_error_t ret = PLFS_SUCCESS;
     struct plfs_physpathinfo ppi;
-    debug_enter(__FUNCTION__,(*pfd) ? (*pfd)->getPath(): path);
+    debug_enter(__FUNCTION__,(*pfd) ? (*pfd)->backing_path(): path);
     const char *stripped_path;
     /*
      * XXXCDC: calling skip but path could be null?  can this happen
@@ -331,7 +331,7 @@ plfs_open(Plfs_fd **pfd, const char *path, int flags, pid_t pid, mode_t m,
             ret = ppi.mnt_pt->fs_ptr->open(pfd, &ppi, flags, pid, m, open_opt);
         }
     }
-    debug_exit(__FUNCTION__,(*pfd) ? (*pfd)->getPath(): path,ret);
+    debug_exit(__FUNCTION__,(*pfd) ? (*pfd)->backing_path(): path,ret);
     return ret;
 }
 
@@ -339,7 +339,7 @@ plfs_error_t
 plfs_query(Plfs_fd *fd, size_t *writers, size_t *readers,
            size_t *bytes_written, int *lazy_stat)
 {
-    debug_enter(__FUNCTION__,fd->getPath());
+    debug_enter(__FUNCTION__,fd->backing_path());
     bool reopen;
     plfs_error_t ret = PLFS_SUCCESS;
     assert( fd != NULL);
@@ -349,7 +349,7 @@ plfs_query(Plfs_fd *fd, size_t *writers, size_t *readers,
         *lazy_stat = pconf->lazy_stat && !reopen;
         mlog(MLOG_DBG, "plfs_query lazy_stat: %d.\n", *lazy_stat);
     }
-    debug_exit(__FUNCTION__,fd->getPath(),ret);
+    debug_exit(__FUNCTION__,fd->backing_path(),ret);
     return ret;
 }
 
@@ -357,7 +357,7 @@ plfs_error_t
 plfs_read(Plfs_fd *fd, char *buf, size_t size, off_t offset, ssize_t *bytes_read)
 {
     mss::mlog_oss oss;
-    oss << fd->getPath() << " -> " <<offset << ", " << size;
+    oss << fd->backing_path() << " -> " <<offset << ", " << size;
     debug_enter(__FUNCTION__,oss.str());
     memset(buf, (int)'z', size);
     plfs_error_t ret = fd->read(buf, size, offset, bytes_read);
@@ -569,9 +569,9 @@ plfs_symlink(const char *from, const char *to)
 
 plfs_error_t
 plfs_sync(Plfs_fd *fd) {
-    debug_enter(__FUNCTION__,fd->getPath());
+    debug_enter(__FUNCTION__,fd->backing_path());
     plfs_error_t ret = fd->sync();
-    debug_exit(__FUNCTION__,fd->getPath(),ret);
+    debug_exit(__FUNCTION__,fd->backing_path(),ret);
     return ret;
 }
 
@@ -580,9 +580,9 @@ plfs_sync(Plfs_fd *fd) {
 int
 plfs_sync(Plfs_fd *fd, pid_t pid)
 {
-    debug_enter(__FUNCTION__,fd->getPath());
+    debug_enter(__FUNCTION__,fd->backing_path());
     int ret = fd->sync(pid);
-    debug_exit(__FUNCTION__,fd->getPath(),ret);
+    debug_exit(__FUNCTION__,fd->backing_path(),ret);
     return ret;
 }
 */
@@ -590,7 +590,7 @@ plfs_sync(Plfs_fd *fd, pid_t pid)
 plfs_error_t
 plfs_trunc(Plfs_fd *fd, const char *path, off_t offset, int open_file)
 {
-    debug_enter(__FUNCTION__,fd ? fd->getPath():path);
+    debug_enter(__FUNCTION__,fd ? fd->backing_path():path);
     plfs_error_t ret;
     const char *stripped_path;
     stripped_path = skipPrefixPath(path);
@@ -619,7 +619,7 @@ plfs_trunc(Plfs_fd *fd, const char *path, off_t offset, int open_file)
             ret = PLFS_EINVAL;
         }
     }
-    debug_exit(__FUNCTION__,fd ? fd->getPath():path,ret);
+    debug_exit(__FUNCTION__,fd ? fd->backing_path():path,ret);
     return ret;
 }
 
@@ -668,7 +668,7 @@ plfs_write(Plfs_fd *fd, const char *buf, size_t size,
            off_t offset, pid_t pid, ssize_t *bytes_written)
 {
     mss::mlog_oss oss(PLFS_DAPI);
-    oss << fd->getPath() << " -> " <<offset << ", " << size;
+    oss << fd->backing_path() << " -> " <<offset << ", " << size;
     debug_enter(__FUNCTION__,oss.str());
     plfs_error_t wret = PLFS_SUCCESS;
     if (size > 0){
@@ -682,27 +682,27 @@ plfs_write(Plfs_fd *fd, const char *buf, size_t size,
 plfs_error_t
 plfs_flatten_index(Plfs_fd *fd, const char *logical)
 {
-    debug_enter(__FUNCTION__,fd->getPath());
+    debug_enter(__FUNCTION__,fd->backing_path());
     plfs_error_t ret = fd->compress_metadata(logical); /* XXXCDC: logical? */
-    debug_exit(__FUNCTION__,fd->getPath(),ret);
+    debug_exit(__FUNCTION__,fd->backing_path(),ret);
     return ret;
 }
 
 /* Get the extended attribute */
 plfs_error_t
 plfs_getxattr(Plfs_fd *fd, void *value, const char *key, size_t len) {
-    debug_enter(__FUNCTION__,fd->getPath());
+    debug_enter(__FUNCTION__,fd->backing_path());
     plfs_error_t ret = fd->getxattr(value, key, len);
-    debug_exit(__FUNCTION__,fd->getPath(),ret);
+    debug_exit(__FUNCTION__,fd->backing_path(),ret);
     return ret;
 }
 
 /* Set the exteded attribute */ 
 plfs_error_t
 plfs_setxattr(Plfs_fd *fd, const void *value, const char *key, size_t len) {
-    debug_enter(__FUNCTION__,fd->getPath());
+    debug_enter(__FUNCTION__,fd->backing_path());
     plfs_error_t ret = fd->setxattr(value, key, len);
-    debug_exit(__FUNCTION__,fd->getPath(),ret);
+    debug_exit(__FUNCTION__,fd->backing_path(),ret);
     return ret;
 }
 

@@ -28,10 +28,8 @@ class Container_fd : public Plfs_fd
     plfs_error_t query(size_t *, size_t *, size_t *, bool *reopen);
     bool is_good();
 
-    // Functions leaked to FUSE and ADIO:
-    int incrementOpens(int amount);
-    void setPath(string p, struct plfs_backend *b);
-    const char *getPath();
+    /* backing_path is for debugging mlog calls */
+    const char *backing_path();
 
     plfs_error_t compress_metadata(const char *path);
     plfs_error_t getxattr(void *value, const char *key, size_t len);

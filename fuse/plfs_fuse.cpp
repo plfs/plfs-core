@@ -558,7 +558,7 @@ int Plfs::syncIfOpen( const string &expanded ) {
         results.pop_front();
         Plfs_fd *pfd;
         pfd = current.fd;
-        mlog(FUSE_DBG,"%s syncing %s", __FUNCTION__, pfd->getPath());
+        mlog(FUSE_DBG,"%s syncing %s", __FUNCTION__, pfd->backing_path());
         pthread_rwlock_wrlock( &self->write_lock );
         pfd->sync();
         pthread_rwlock_unlock( &self->write_lock );
@@ -951,10 +951,6 @@ int Plfs::f_open(const char *path, struct fuse_file_info *fi)
             self->o_rdwrs++;
         }
     }
-    if ( err == PLFS_SUCCESS ) {
-        mlog(FUSE_DCOMMON, "%s %s has %d references", __FUNCTION__, path,
-             pfd->incrementOpens(0));
-    }
     plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
     // we can safely add more writers to an already open file
     // bec FUSE checks f_access before allowing an f_open
@@ -1235,7 +1231,7 @@ string Plfs::openFilesToString(bool verbose)
         mlog(FUSE_DCOMMON, "%s openFile %s", __FUNCTION__, itr->first.c_str());
         if ( verbose ) {
             plfs_query( itr->second, &writers, &readers, NULL, NULL );
-            oss << itr->second->getPath() << ", ";
+            oss << itr->second->backing_path() << ", ";
             oss << readers << " readers, "
                 << writers << " writers. " << endl;
         } else {

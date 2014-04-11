@@ -149,18 +149,6 @@ Small_fd::is_good()
     return true;
 }
 
-int
-Small_fd::incrementOpens(int /* amount */)
-{
-    return PLFS_SUCCESS;
-}
-
-void
-Small_fd::setPath(string p, struct plfs_backend * /* back */)
-{
-    path_ = p;
-}
-
 plfs_error_t
 Small_fd::compress_metadata(const char * /* path */)
 {
@@ -168,7 +156,7 @@ Small_fd::compress_metadata(const char * /* path */)
 }
 
 const char *
-Small_fd::getPath()
+Small_fd::backing_path()
 {
     return path_.c_str();
 }

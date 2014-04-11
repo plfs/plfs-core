@@ -33,17 +33,12 @@ class Flat_fd : public Plfs_fd
         plfs_error_t compress_metadata(const char * /* xpath */) {
             return PLFS_SUCCESS;
         }
-        int incrementOpens(int /* amount */) {
-            return 1;
-        }
-        void setPath( string p, struct plfs_backend *b ) {
-            /* XXXCDC: who calls this?  */
-            this->bnode = p;
-            if (b) this->back = b;
-        }
-        const char *getPath() {
+
+        /* backing_path is for debugging mlog calls */
+        const char *backing_path() {
             return bnode.c_str();
         }
+
         plfs_error_t renamefd(struct plfs_physpathinfo *ppip_to) {
             /*
              * XXXCDC: this is not good enough, as it does not handle

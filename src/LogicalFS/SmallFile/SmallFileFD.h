@@ -45,9 +45,9 @@ class Small_fd : public Plfs_fd, public PLFSIndex
                                   off_t logical);
 
         plfs_error_t compress_metadata(const char *path);
-        int incrementOpens(int amount);
-        void setPath(string p, struct plfs_backend *b);
-        const char *getPath();
+        /* backing_path is for debugging mlog calls */
+        const char *backing_path();
+
         plfs_error_t renamefd(struct plfs_physpathinfo *ppip_to);
         plfs_error_t getxattr(void * /* val */, const char * /* key */, 
                      size_t /* len */) {return PLFS_ENOSYS;};
