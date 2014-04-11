@@ -714,7 +714,7 @@ plfs_error_t
 Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid, 
                     ssize_t *bytes_written)
 {
-    plfs_error_t ret = PLFS_SUCCESS;   
+    plfs_error_t ret = PLFS_SUCCESS;    
     Container_OpenFile *cof = this->fd;
     map<pid_t,IOSHandle *>::iterator pid_itr;
     IOSHandle *wfh;
@@ -768,35 +768,67 @@ Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
 plfs_error_t 
 Container_fd::sync()
 {
-#if 0
-    /*
-     * XXXCDC: goal would be to sync open datalogs and also
-     * flush out to disk any buffered index records to disk,
-     * we can do the data log files, we'd need a callout for
-     * the index.
-     */
-    return(this->fd->getWritefile() ?
-           this->fd->getWritefile()->sync() : PLFS_SUCCESS);
-#endif
-    return(PLFS_ENOTSUP);
+    plfs_error_t ret = PLFS_SUCCESS;  
+    Container_OpenFile *cof;
+    map<pid_t,IOSHandle *>::iterator pid_itr;
+    plfs_error_t firsterr, curerr;
+
+    cof = this->fd;
+
+    if (cof->openflags != O_RDONLY) {   /* no need to sync r/o fd */
+
+        /* sync data first */
+        Util::MutexLock(&cof->data_mux, __FUNCTION__);
+        for (pid_itr = cof->fhs.begin(), firsterr = PLFS_SUCCESS ;
+             pid_itr != cof->fhs.end() ; pid_itr++) {
+
+            curerr = pid_itr->second->Fsync();
+            if (curerr != PLFS_SUCCESS && firsterr == PLFS_SUCCESS) {
+                /* save first error, but keep trying to do the rest */
+                firsterr = curerr;
+            }
+        }
+        Util::MutexUnlock(&cof->data_mux, __FUNCTION__);
+
+        /* now tell index to sync - index does its own locking */
+        curerr = cof->cof_index->index_sync(cof);
+        if (curerr != PLFS_SUCCESS && firsterr == PLFS_SUCCESS) {
+            firsterr = curerr;
+        }
+
+        ret = firsterr;
+    }
+
+    return(ret);
 }
 
 plfs_error_t 
 Container_fd::sync(pid_t pid)
 {
-    /*
-     * XXXCDC: sync, but only for a specific PID's log.
-     *
-     * XXXCDC: goal would be to sync open datalogs and also
-     * flush out to disk any buffered index records to disk,
-     * we can do the data log files, we'd need a callout for
-     * the index.
-     */
-#if 0
-    return(this->fd->getWritefile() ?
-           this->fd->getWritefile()->sync(pid) : PLFS_SUCCESS);
-#endif
-    return(PLFS_ENOTSUP);
+    plfs_error_t ret = PLFS_SUCCESS;  
+    Container_OpenFile *cof;
+    map<pid_t,IOSHandle *>::iterator pid_itr;
+    plfs_error_t idxret;
+
+    cof = this->fd;
+
+    if (cof->openflags != O_RDONLY) {   /* no need to sync r/o fd */
+        /* sync data first */
+        Util::MutexLock(&cof->data_mux, __FUNCTION__);
+        pid_itr = cof->fhs.find(pid);
+        if (pid_itr != cof->fhs.end()) {
+            ret = pid_itr->second->Fsync();
+        }
+        Util::MutexUnlock(&cof->data_mux, __FUNCTION__);
+
+        /* now tell index to sync - index does its own locking */
+        idxret = cof->cof_index->index_sync(cof);
+        if (idxret != PLFS_SUCCESS && ret == PLFS_SUCCESS) {
+            ret = idxret;  /* data ok, but index write error */
+        }
+    }
+
+    return(ret);
 }
 
 plfs_error_t 
