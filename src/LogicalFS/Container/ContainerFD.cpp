@@ -1091,23 +1091,21 @@ Container_fd::renamefd(struct plfs_physpathinfo *ppip_to)
 plfs_error_t
 Container_fd::extend(off_t offset)
 {
-    /* XXXCDC: how does this translate? */
-#if 0
-    Container_OpenFile *myfd;
-    WriteFile *wf;
- 
-    myfd = this->fd;
-    if (myfd == NULL) {
-        return(PLFS_EINVAL);
-    }
- 
-    wf = myfd->getWritefile();
-    if (wf == NULL) {
-        return(PLFS_EBADF);   /* not open for writing */
-    }
- 
-    return(wf->extend(offset));
+    plfs_error_t ret;
+    Container_OpenFile *cof;
+    double beginend;
 
-#endif
-    return(PLFS_ENOTSUP);
+    cof = this->fd;
+
+    if (cof->openflags == O_RDONLY) {
+
+        ret = PLFS_EBADF;   /* not open for writing */
+
+    } else {
+        beginend = Util::getTime();
+        ret = cof->cof_index->index_add(cof, 0, offset, cof->pid,
+                                        beginend, beginend);
+    }
+        
+    return(ret);
 }
