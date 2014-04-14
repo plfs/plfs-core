@@ -982,46 +982,26 @@ Container_fd::getattr(struct stat *stbuf, int sz_only)
 }
 
 plfs_error_t 
-Container_fd::query(size_t *, size_t *, size_t *, bool *reopen)
+Container_fd::query(size_t *writers, size_t *readers,
+                    size_t *bytes_written, bool *reopen)
 {
-#if 0
-    /*
-     * XXXCDC: looks not too bad
-     */
-    WriteFile *wf = fd->getWritefile();
-    Index     *ix = fd->getIndex();
+    Container_OpenFile *cof;
+
+    cof = this->fd;
+
     if (writers) {
-        *writers = 0;
+        *writers = (cof->openflags != O_RDONLY) ? cof->refcnt : 0;
     }
     if (readers) {
-        *readers = 0;
+        *readers = (cof->openflags != O_WRONLY) ? cof->refcnt : 0;
     }
     if (bytes_written) {
-        *bytes_written = 0;
-    }
-    if ( wf && writers ) {
-        *writers = wf->numWriters();
-    }
-    if ( ix && readers ) {
-        *readers = ix->incrementOpens(0);
-    }
-    if ( wf && bytes_written ) {
-        off_t  last_offset;
-        size_t total_bytes;
-        wf->getMeta( &last_offset, &total_bytes );
-        mlog(PLFS_DCOMMON, "container_query Got meta from openfile: "
-             "%lu last offset, "
-             "%ld total bytes", (unsigned long)last_offset,
-             (unsigned long)total_bytes);
-        *bytes_written = total_bytes;
+        *bytes_written = cof->total_bytes;
     }
     if (reopen) {
-        *reopen = fd->isReopen();
+        *reopen = (cof->reopen_mode != 0);
     }
-    return PLFS_SUCCESS;
-
-#endif
-    return(PLFS_ENOTSUP);
+    return(PLFS_SUCCESS);
 }
 
 bool 
