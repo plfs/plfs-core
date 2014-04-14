@@ -44,7 +44,7 @@ class Small_fd : public Plfs_fd, public PLFSIndex
                                   bool *hole, pid_t *chunk_id,
                                   off_t logical);
 
-        plfs_error_t compress_metadata(const char *path);
+        plfs_error_t optimize_access();
         /* backing_path is for debugging mlog calls */
         const char *backing_path();
 

@@ -34,7 +34,7 @@ class Plfs_fd
 
         // functions that all might not necessarily implement
 
-        virtual plfs_error_t compress_metadata(const char *path) = 0;
+        virtual plfs_error_t optimize_access() = 0;
         virtual plfs_error_t getxattr(void *value, const char *key, 
                                       size_t len) = 0;
         virtual plfs_error_t setxattr(const void *value, const char *key,

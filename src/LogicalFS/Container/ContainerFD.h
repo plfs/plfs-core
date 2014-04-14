@@ -31,7 +31,7 @@ class Container_fd : public Plfs_fd
     /* backing_path is for debugging mlog calls */
     const char *backing_path();
 
-    plfs_error_t compress_metadata(const char *path);
+    plfs_error_t optimize_access();
     plfs_error_t getxattr(void *value, const char *key, size_t len);
     plfs_error_t setxattr(const void *value, const char *key, size_t len);
 

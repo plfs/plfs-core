@@ -1029,45 +1029,16 @@ Container_fd::backing_path()
 }
 
 plfs_error_t 
-Container_fd::compress_metadata(const char *path)
+Container_fd::optimize_access()
 {
-    /*
-     * XXXCDC: what to do with this?  maybe some sort of "optimize"
-     * callback to index?  (compression means flatten for the ByteRange.
-     */
-#if 0
-    struct plfs_pathback container;
-    plfs_error_t ret = PLFS_SUCCESS;
-    Index *index;
-    bool newly_created = false;
+    plfs_error_t ret;
+    Container_OpenFile *cof;
 
-    container.bpath = fd->getPath();
-    container.back = fd->getCanBack();
+    /* the index handles this... */
+    cof = this->fd;
+    ret = cof->cof_index->index_optimize(cof);
 
-    if ( fd && fd->getIndex() ) {
-        index = fd->getIndex();
-    } else {
-        index = new Index(container.bpath, container.back);
-        newly_created = true;
-        // before we populate, need to blow away any old one
-        ret = Container::populateIndex(container.bpath, container.back,
-                index,false,false,0);
-        /* XXXCDC: why are we ignoring return value of populateIndex? */
-    }
-
-    if (Container::isContainer(&container, NULL)) {
-        ret = Container::flattenIndex(container.bpath, container.back,
-                                      index);
-    } else {
-        ret = PLFS_EBADF; // not sure here.  Maybe return SUCCESS?
-    }
-    if (newly_created) {
-        delete index;
-    }
     return(ret);
-
-#endif
-    return(PLFS_ENOTSUP);
 }
 
 plfs_error_t 

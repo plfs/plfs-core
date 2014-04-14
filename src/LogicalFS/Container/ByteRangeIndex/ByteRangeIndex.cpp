@@ -294,6 +294,42 @@ ByteRangeIndex::index_new_wdrop(Container_OpenFile *cof, string ts,
 }
 
 plfs_error_t
+ByteRangeIndex::index_optimize(Container_OpenFile *cof) {
+#if 0
+    struct plfs_pathback container;
+    plfs_error_t ret = PLFS_SUCCESS;
+    Index *index;
+    bool newly_created = false;
+
+    container.bpath = fd->getPath();
+    container.back = fd->getCanBack();
+
+    if ( fd && fd->getIndex() ) {
+        index = fd->getIndex();
+    } else {
+        index = new Index(container.bpath, container.back);
+        newly_created = true;
+        // before we populate, need to blow away any old one
+        ret = Container::populateIndex(container.bpath, container.back,
+                index,false,false,0);
+        /* XXXCDC: why are we ignoring return value of populateIndex? */
+    }
+
+    if (Container::isContainer(&container, NULL)) {
+        ret = Container::flattenIndex(container.bpath, container.back,
+                                      index);
+    } else {
+        ret = PLFS_EBADF; // not sure here.  Maybe return SUCCESS?
+    }
+    if (newly_created) {
+        delete index;
+    }
+    return(ret);
+#endif
+    return(PLFS_ENOTSUP);
+}
+
+plfs_error_t
 ByteRangeIndex::index_getattr_size(struct plfs_physpathinfo *ppip, 
                                    struct stat *stbuf, set<string> *openset,
                                    set<string> *metaset) {

@@ -150,7 +150,7 @@ Small_fd::is_good()
 }
 
 plfs_error_t
-Small_fd::compress_metadata(const char * /* path */)
+Small_fd::optimize_access()
 {
     return PLFS_SUCCESS;
 }

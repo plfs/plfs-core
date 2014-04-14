@@ -683,7 +683,7 @@ plfs_error_t
 plfs_flatten_index(Plfs_fd *fd, const char *logical)
 {
     debug_enter(__FUNCTION__,fd->backing_path());
-    plfs_error_t ret = fd->compress_metadata(logical); /* XXXCDC: logical? */
+    plfs_error_t ret = fd->optimize_access();
     debug_exit(__FUNCTION__,fd->backing_path(),ret);
     return ret;
 }

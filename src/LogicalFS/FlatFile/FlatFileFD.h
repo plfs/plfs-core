@@ -30,7 +30,7 @@ class Flat_fd : public Plfs_fd
                   bool *reopen);
         bool is_good();
 
-        plfs_error_t compress_metadata(const char * /* xpath */) {
+        plfs_error_t optimize_access() {
             return PLFS_SUCCESS;
         }
 
