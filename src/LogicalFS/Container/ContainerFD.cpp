@@ -928,57 +928,44 @@ Container_fd::trunc(off_t offset, struct plfs_physpathinfo *ppip)
 plfs_error_t 
 Container_fd::getattr(struct stat *stbuf, int sz_only)
 {
-#if 0
-    /*
-     * XXXCDC: might not be too bad
-     */
-      plfs_error_t ret = PLFS_SUCCESS;
-    string fdpath;
-    struct plfs_backend *backend;
-    WriteFile *wf;
-    int im_lazy;
+    plfs_error_t ret = PLFS_SUCCESS; 
+    Container_OpenFile *cof;
+    int writing, im_lazy;
 
+    cof = this->fd;
+    
     /* if this is an open file, then it has to be a container */
-    fdpath = this->fd->getPath();
-    backend = this->fd->getCanBack();
-    wf = this->fd->getWritefile();
+    writing = (cof->openflags != O_RDONLY);
 
-    im_lazy = (sz_only && wf && !this->fd->isReopen());
-
+    im_lazy = (sz_only && writing && !cof->reopen_mode);
     mlog(PLFS_DAPI, "%s on open file %s (lazy=%d)", __FUNCTION__,
-         fdpath.c_str(), im_lazy);
+         cof->pathcpy.canbpath.c_str(), im_lazy);
     memset(stbuf, 0, sizeof(*stbuf));   /* XXX: necessary? */
     
     if (im_lazy) {
         /* successfully skipped the heavyweight getattr call */
         ret = PLFS_SUCCESS;
     } else {
-        ret = Container::getattr(fdpath, backend, stbuf);
+        ret = Container::getattr(&cof->pathcpy, stbuf);
     }
     
-    if (ret == PLFS_SUCCESS && wf) {
-        off_t last_offset;
-        size_t total_bytes;
-        wf->getMeta(&last_offset, &total_bytes);
+    if (ret == PLFS_SUCCESS && writing) {
         mlog(PLFS_DCOMMON, "got meta from openfile: %lu last offset, "
-             "%ld total bytes", (unsigned long)last_offset,
-             (unsigned long)total_bytes);
-        if (last_offset > stbuf->st_size) {
-            stbuf->st_size = last_offset;
+             "%ld total bytes", (unsigned long)cof->last_offset,
+             (unsigned long)cof->total_bytes);
+        if (cof->last_offset > stbuf->st_size) {
+            stbuf->st_size = cof->last_offset;
         }
         if (im_lazy) {
-            stbuf->st_blocks = Container::bytesToBlocks(total_bytes);
+            stbuf->st_blocks = Container::bytesToBlocks(cof->total_bytes);
         }
     }
     
     mlog(PLFS_DAPI, "%s: getattr(%s) size=%ld, ret=%s", __FUNCTION__,
-         fdpath.c_str(), (unsigned long)stbuf->st_size,
+         cof->pathcpy.canbpath.c_str(), (unsigned long)stbuf->st_size,
          (ret == PLFS_SUCCESS) ? "AOK" : strplfserr(ret));
     
     return(ret);
- 
-#endif
-    return(PLFS_ENOTSUP);
 }
 
 plfs_error_t 
