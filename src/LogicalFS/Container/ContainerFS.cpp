@@ -277,10 +277,6 @@ file_operation(struct plfs_physpathinfo *ppip, FileOp& op)
  * that it is not possible to update in-memory data in all cases, e.g.
  * when another process has a file open.)
  *
- * note that "ppip" cannot be null (due to this code).  this is why
- * the "ppip" arg to LogicalFD::trunc() is required and has been
- * retained (XXX can we get rid of this requirement?)
- *
  * @param ppip container path (caller already verified it is container)
  * @param offset the offset we want
  * @param cur_st_size current size (only used if offset != 0)
