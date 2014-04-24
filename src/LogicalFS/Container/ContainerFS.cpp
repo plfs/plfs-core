@@ -352,10 +352,13 @@ containerfs_truncate_helper(struct plfs_physpathinfo *ppip,
  * you do not need to do a getattr/stat on it to determine its current
  * size, so this saves us from having to do that extra operation.
  *
- * note that this code only changes on-disk data.  changes for
- * in-memory data for open files is handled by Container_fd.  (note
- * that it is not possible to update in-memory data in all cases, e.g.
- * when another process has a file open.)
+ * if we are truncating a file we have open (i.e. being called from
+ * Container_fd), then we use the open file's index (passed in by the
+ * caller via opencof).  otherwise, we generate a temporary index to
+ * use for truncation.  note: we are likely to run into trouble if we
+ * have two independent processes that have the file open and one of
+ * them zeros the file --- in that case the other process will have
+ * in-memory data structures that are no longer up to date.
  *
  * also note that if the file is not open (by us), but is open by
  * someone else, then when TruncateOp unlinks the dropping files the
@@ -367,74 +370,114 @@ containerfs_truncate_helper(struct plfs_physpathinfo *ppip,
  * if open_file is true, then we truncate all the droppings.
  * if open_file is false, then we unlink all the droppings.
  *
- * @param ppip container path (caller already verified it is container)
+ * note that the caller provides either ppip or opencof, but not both.
+ * (if opencof is provided, we will use opencof->pathcpy for ppip.)
+ *
+ * open_file is true if we think someone (may not be us) currently has
+ * the file open (e.g. there is an open dropping in the meta dir).
+ * 
+ * @param ppip container path (NULL if opencof is provided)
  * @param open_file if true, we truncate droppings rather than unlink
+ * @param opencof open writeable COF (NULL if ppip is provided)
  * @return PLFS_SUCCESS or an error code
  */
 plfs_error_t
-containerfs_zero_helper(struct plfs_physpathinfo *ppip, int open_file)
+containerfs_zero_helper(struct plfs_physpathinfo *ppip, int open_file,
+                        Container_OpenFile *opencof)
 {
     plfs_error_t ret;
+    int got_ppip, got_cof;
     string access;
-    mlog(PLFS_DAPI, "%s called (canbpath=%s)", __FUNCTION__,
-         ppip->canbpath.c_str());
+
+    got_ppip = (ppip != NULL);
+    got_cof = (opencof != NULL);
+    
+    mlog(PLFS_DAPI, "%s called (ppip=%d,open=%d,cof=%d)", __FUNCTION__,
+         got_ppip, open_file, got_cof);
+
+    if ((got_ppip ^ got_cof) == 0) {  /* XOR */
+        mlog(PLFS_CRIT, "containerfs_zero_helper: usage error %d %d",
+             got_ppip, got_cof);
+        return(PLFS_EINVAL);
+    }
+
+    if (got_cof) {
+        ppip = &opencof->pathcpy;
+    }
+    mlog(PLFS_DAPI, "%s on %s", __FUNCTION__, ppip->canbpath.c_str());
 
     /*
-     * first check to make sure we are allowed to truncate this all
+     * first check to make sure we are allowed to truncate this.  all
      * the droppings are global so we can truncate them but the access
      * file has the correct permissions.
      */
     access = Container::getAccessFilePath(ppip->canbpath);
     ret = ppip->canback->store->Truncate(access.c_str(), 0);
     mlog(PLFS_DCOMMON, "Tested truncate of %s: %d",access.c_str(),ret);
-    if ( ret == PLFS_SUCCESS ) {
 
-        /*
-         * we need to signal to external indexes that we are zeroing.
-         * this can be a no-op for indexes that store their data in
-         * the container directories.
-         *
-         * XXX: would be nice to have a way to short circuit this for
-         * indexes that don't need it.)
-         *
-         * XXX: we've got two calling paths here: ftruncate and
-         * truncate.  if we are called from the ftruncate path then we
-         * already have a ContainerIndex allocated (the open file) but
-         * we allocate a temporary one here anyway.  on the other
-         * hand, if we are called from the truncate path then we do
-         * not have a ContainerIndex and we need to allocate a
-         * temporary one in order to be able to call the correct
-         * index_droppings_zero() routine.
-         */
+    if (ret != PLFS_SUCCESS) {
+        return(ret);             /* failed the access check */
+    }
+    
+    /*
+     * now get rid of all the droppings (except for the access file,
+     * meta files, and version files).  we ignore ENOENT since it is
+     * possible that the set of files can contain duplicates.
+     * duplicates are possible bec a backend can be defined in both
+     * shadow_backends and backends.  note that "open_file" is used
+     * here to control if the droppings are unlinked or truncated to
+     * zero.
+     *
+     * for the index, this should get droppings that are stored in the
+     * container alongside the data droppings (e.g. ByteRangeIndex).
+     * for external droppings, we have an upcoming index API call
+     * (after the file op).
+     */
+    TruncateOp op(open_file);
+    op.ignoreErrno(PLFS_ENOENT);
+    op.ignore(ACCESSFILE);
+    op.ignore(OPENPREFIX);
+    op.ignore(VERSIONPREFIX);
+    ret = file_operation(ppip, op);
+
+    if (ret != PLFS_SUCCESS) {
+        mlog(PLFS_DCOMMON, "%s: fileop failed: %s: %s", __FUNCTION__,
+             ppip->canbpath.c_str(), strplfserr(ret));
+        goto err_out;             /* fileop failed? */
+    }
+
+    /*
+     * we need to update our on-line data structures (if the file is
+     * open) and maybe update our index droppings (if they are stored
+     * externally).
+     */
+    if (opencof != NULL) {
+
+        /* updates in-memory data structures and droppings (if req'd) */
+        ret = opencof->cof_index->index_truncate(opencof, 0);
+            
+    } else {
+
+        /* need to allocate a tmp index to truncate droppings */
         ContainerIndex *ci;
         ci = container_index_alloc(ppip->mnt_pt);
         if (ci == NULL) {
             ret = PLFS_ENOMEM;
             goto err_out;
         }
+        /* callout for external index droppings */
         ret = ci->index_droppings_zero(ppip);
         delete ci;
         if (ret != PLFS_SUCCESS)  {
             goto err_out;
         }
-
-        /*
-         * now get rid of all the droppings (except for the access
-         * file, meta files, and version files).  we ignore ENOENT
-         * since it is possible that the set of files can contain
-         * duplicates.  duplicates are possible bec a backend can be
-         * defined in both shadow_backends and backends.
-         */
-        TruncateOp op(open_file);
-        op.ignoreErrno(PLFS_ENOENT);
-        op.ignore(ACCESSFILE);
-        op.ignore(OPENPREFIX);
-        op.ignore(VERSIONPREFIX);
-        ret = file_operation(ppip, op);
-        if (ret == PLFS_SUCCESS && open_file == 1) {
-            ret = Container::truncateMeta(ppip->canbpath, 0, ppip->canback);
-        }
     }
+
+    /* prune back metadata */
+    if (ret == PLFS_SUCCESS) {
+        ret = Container::truncateMeta(ppip->canbpath, 0, ppip->canback);
+    }
+
  err_out:
     return(ret);
 }
@@ -799,7 +842,7 @@ ContainerFileSystem::trunc(struct plfs_physpathinfo *ppip, off_t offset,
     
     if (offset == 0) {
         /* no need to getattr in this case */
-        ret = containerfs_zero_helper(ppip, open_file);
+        ret = containerfs_zero_helper(ppip, open_file, NULL);
     } else {
         stbuf.st_size = 0;
         /* sz_only isn't accurate in this case, hardwire to false */

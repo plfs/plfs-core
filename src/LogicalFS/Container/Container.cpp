@@ -385,7 +385,7 @@ createHelper(struct plfs_physpathinfo *ppip, const string& hostname,
     }
     //creat specifies that we truncate if the file exists
     if (existing_container && flags & O_TRUNC){
-        ret = containerfs_zero_helper(ppip, 0);
+        ret = containerfs_zero_helper(ppip, 0, NULL);
         if (ret != PLFS_SUCCESS) {
             mlog(CON_CRIT, "Failed to truncate file %s : %s",
                  ppip->canbpath.c_str(), strplfserr(ret));

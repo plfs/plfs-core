@@ -832,74 +832,78 @@ Container_fd::sync(pid_t pid)
 }
 
 plfs_error_t 
-Container_fd::trunc(off_t offset, struct plfs_physpathinfo *ppip) 
+Container_fd::trunc(off_t offset)
 {
-    /*
-     * XXXCDC: break out into cases, syncing with the FS version.
-     * must be open for writing.  for non-zero truncate, this is
-     * an index-only type operation, we don't truncate datalogs.
-     */
-#if 0
     plfs_error_t ret = PLFS_SUCCESS;
-    Container_OpenFile *myof;
-    WriteFile *wf;
+    Container_OpenFile *cof;
     struct stat stbuf;
+    int no_change;
+    off_t lost_bytes;
 
-    /* if we are doing an fstat, then the file must be open, right? */
-    myof = this->fd;
-    if (myof == NULL) {
-        mlog(PLFS_DRARE, "%s: on a non-open file?", __FUNCTION__);
-        return(PLFS_EINVAL);
+    cof = this->fd;
+    no_change = 0;
+
+    if (cof->openflags == O_RDONLY) {
+        return(PLFS_EBADF);      /* can't trunc a file not open for writing */
     }
-    wf = myof->getWritefile();  /* non-null only if open for writing */
-    if (!wf) {
-        return(PLFS_EBADF);     /* not open for writing */
-    }
-    
-    /* we know we have a plfs container file, since it is already open */
+
     if (offset == 0) {
-        /* no need to getattr in this case */
-        ret = containerfs_zero_helper(ppip, 1 /* open_file is true */);
+
+        ret = containerfs_zero_helper(NULL, 1 /* open_file */, cof);
+
     } else {
+
         stbuf.st_size = 0;
         /* sz_only isn't accurate in this case, wire false */
-        ret = this->getattr(&stbuf, false /* sz_only */); 
+        ret = this->getattr(&stbuf, false /* sz_only */);
+
         if (ret == PLFS_SUCCESS) {
+            if (stbuf.st_size == offset) {
 
-            if (stbuf.st_size < offset) {
-                /* optimization: use our open writeable handle to extend */
-                ret = wf->extend(offset);
+                no_change = 1;                       /* NO CHANGE */
+
+            } else if (stbuf.st_size < offset) {
+
+                ret = this->extend(offset);          /* GROW */
+
             } else {
-                ret = containerfs_truncate_helper(ppip, offset, stbuf.st_size,
-                                                  myof->getPid());
-            }
 
-        }   /* getattr success */
-    }       /* offset != 0 */
-
-    /* if we actually modified the container, update open file handle */
-    if (ret == PLFS_SUCCESS) {
-        mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
-
-        /* in the case that extend file, need not truncateHostIndex */
-        if (offset <= stbuf.st_size) {
-            ret = Container::truncateMeta(ppip->canbpath, offset,
-                                          ppip->canback);
-            if (ret == PLFS_SUCCESS) {
-                ret = wf->truncate( offset );
+                ret = cof->cof_index->index_truncate(cof, offset); /*SHRINK*/
+                if (ret == PLFS_SUCCESS) {
+                    ret = Container::truncateMeta(cof->pathcpy.canbpath,
+                                                  offset, cof->pathcpy.canback);
+                }
+                
             }
         }
 
-        myof->truncate( offset ); /* XXX: what if ret!=success? */
+    }    /* offset != 0 */
+    
+    /*
+     * if we updated the size, we need to update the cof metadata and
+     * restore the fds
+     */
+    if (ret == PLFS_SUCCESS && !no_change) {
+
+        /* XXXCDC: locking on cof->last_offset, cof->total_bytes  ?? */
+        lost_bytes = cof->last_offset - offset;
+        cof->last_offset = offset;
+        if (lost_bytes > 0 ) {
+            cof->total_bytes -= (size_t) lost_bytes;
+        }
+        if (offset == 0) {
+            /* something is weird here. make sure we at least get 0 right */
+            cof->total_bytes = 0;
+        }
 
         /*
-         * here's a problem, if the file is open for writing, we've
-         * already opened fds in there.  So the droppings are
-         * deleted/resized and our open handles are messed up
-         * it's just a little scary if this ever happens following
-         * a rename because the writefile will attemptto restore
-         * them at the old path...
+         * here's a problem: the file is open for writing, so we may
+         * have already opened fds in there.  So the droppings are
+         * deleted/resized and our open handles are messed up.  it's
+         * just a little scary if this ever happens following a rename
+         * because the paths may get mixed up?
          */
+#if 0
         if (ret == PLFS_SUCCESS) {
             bool droppings_were_truncd = (offset == 0);
             mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
@@ -910,19 +914,18 @@ Container_fd::trunc(off_t offset, struct plfs_physpathinfo *ppip)
                      __FUNCTION__, __LINE__, strplfserr(ret));
             }
         }
-        mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
-    }
+#endif
 
-    mlog(PLFS_DCOMMON, "%s %s to %u: %d",__FUNCTION__, ppip->canbpath.c_str(),
-         (uint)offset, ret);
+    }
+    
+    mlog(PLFS_DCOMMON, "%s %s to %u: %d",__FUNCTION__,
+         cof->pathcpy.canbpath.c_str(), (uint)offset, ret);
 
     if ( ret == PLFS_SUCCESS ) {    /* update the timestamp */
-        ret = Container::Utime(ppip->canbpath, ppip->canback, NULL );
+        ret = Container::Utime(cof->pathcpy.canbpath,
+                               cof->pathcpy.canback, NULL );
     }
     return(ret);
-
-#endif
-    return(PLFS_ENOTSUP);
 }
 
 plfs_error_t 

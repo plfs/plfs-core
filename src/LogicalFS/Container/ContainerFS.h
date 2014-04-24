@@ -5,6 +5,8 @@
 #include "LogicalFS.h"
 #include "LogicalFD.h"
 
+class Container_OpenFile;   /* forward decl. */
+
 class ContainerFileSystem : public LogicalFileSystem
 {
     public:
@@ -42,7 +44,8 @@ class ContainerFileSystem : public LogicalFileSystem
 
 /* truncate helper functions, shared with ContainerFD */
 plfs_error_t containerfs_zero_helper(struct plfs_physpathinfo *ppip,
-                                     int open_file);
+                                     int open_file, 
+                                     Container_OpenFile *opencof);
 plfs_error_t containerfs_truncate_helper(struct plfs_physpathinfo *ppip,
                                          off_t offset, off_t cur_st_size,
                                          pid_t pid);

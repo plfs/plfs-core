@@ -596,20 +596,8 @@ plfs_trunc(Plfs_fd *fd, const char *path, off_t offset, int open_file)
     stripped_path = skipPrefixPath(path);
 
     if (fd) {
-        /*
-         * XXX: need to work towards getting rid of ppi in the
-         * fd->trunc() API (requires some work on container fs
-         * version of truncate code).
-         */ 
-        struct plfs_physpathinfo ppi;
-        ret = plfs_resolvepath(stripped_path, &ppi);
-        if (ret == 0) {
-            ret = fd->trunc(offset, &ppi);
-        } else {
-            ret = PLFS_EINVAL;
-        }
-    }
-    else{
+        ret = fd->trunc(offset);
+    } else {
         struct plfs_physpathinfo ppi;
         ret = plfs_resolvepath(stripped_path, &ppi);
         if (ret == PLFS_SUCCESS) {
