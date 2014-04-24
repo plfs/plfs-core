@@ -2,6 +2,15 @@
 #define __CONTAINEROPENFILE_H_
 
 /*
+ * wrloghand: write log handle (need to pair the filehandle with the
+ * physical offset in the data dropping).
+ */
+struct wrloghand {
+    IOSHandle *fh;
+    off_t physoff;
+};
+
+/*
  * rdchunkhand: read chunk handle (for open data droppings we save the
  * backend and open file handle).
  */
@@ -53,7 +62,7 @@ class Container_OpenFile {
     char *hostname;                    /* cached value of Util::hostname() */
     /* the next three maps are protected with data_mux */
     map<pid_t, int> fhs_writers;       /* pid reference count */
-    map<pid_t, IOSHandle *> fhs;       /* may delay create until first write */
+    map<pid_t, wrloghand> fhs;         /* may delay create until first write */
     map<IOSHandle *, string> paths;    /* retain for restore operation */
     /*
      * XXXCDC: reuse index_mux above... Q: should we move the mux under

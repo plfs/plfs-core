@@ -89,7 +89,14 @@ static plfs_error_t try_openwritedropping(Container_OpenFile *cof,
     }
 
     if (rv == PLFS_SUCCESS) {   /* success!  remember it .. */
-        cof->fhs[pid] = fh;
+        cof->fhs[pid].fh = fh;
+        /*
+         * XXXCDC: check physoff.  is it ever the case that we can
+         * open a data dropping for write, close it, and then reopen
+         * it to write more at the end?   in that case physoff would
+         * be non-zero.
+         */
+        cof->fhs[pid].physoff = 0;
         cof->paths[fh] = drop_pathstream.str();
     }
 
@@ -106,8 +113,8 @@ static plfs_error_t try_openwritedropping(Container_OpenFile *cof,
 static plfs_error_t close_writedropping(Container_OpenFile *cof, pid_t pid) {
     plfs_error_t rv = PLFS_SUCCESS;
     plfs_error_t rvidx;
-    map<pid_t,IOSHandle *>::iterator pid_itr;
-    IOSHandle *ofh;
+    map<pid_t,wrloghand>::iterator pid_itr;
+    wrloghand ofh;
     ostringstream ts, drop_pathstream;
     map<IOSHandle *,string>::iterator path_itr;
 
@@ -131,13 +138,13 @@ static plfs_error_t close_writedropping(Container_OpenFile *cof, pid_t pid) {
         /* XXXCDC: should log any errors, but keep going */
 
         /* clear out any data in paths map */
-        path_itr = cof->paths.find(ofh);
+        path_itr = cof->paths.find(ofh.fh);
         if (path_itr != cof->paths.end()) {
-            cof->paths.erase(ofh);
+            cof->paths.erase(ofh.fh);
         }
 
         /* and finally close the dropping file */
-        rv = cof->subdirback->store->Close(ofh);
+        rv = cof->subdirback->store->Close(ofh.fh);
     }
 
     return(rv);
@@ -384,7 +391,8 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
         Container_OpenFile *cof = *pfd;
 
         if (rwflags == O_WRONLY || rwflags == O_RDWR) { /* writing? */
-            if (!get_plfs_conf()->lazy_droppings && cof->fhs[pid] == NULL) {
+            if (!get_plfs_conf()->lazy_droppings &&
+                cof->fhs.find(pid) == cof->fhs.end()) {
 
                 ret = this->establish_writedropping(pid);
                 if (ret != PLFS_SUCCESS) {
@@ -498,7 +506,8 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
             Container::getHostDirId(cof->hostname);
         cof->subdir_path = oss.str();
 
-        if (!get_plfs_conf()->lazy_droppings && cof->fhs[pid] == NULL) {
+        if (!get_plfs_conf()->lazy_droppings &&
+            cof->fhs.find(pid) == cof->fhs.end()) {
 
             ret = this->establish_writedropping(pid);
             if (ret != PLFS_SUCCESS) {
@@ -716,8 +725,8 @@ Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
 {
     plfs_error_t ret = PLFS_SUCCESS;    
     Container_OpenFile *cof = this->fd;
-    map<pid_t,IOSHandle *>::iterator pid_itr;
-    IOSHandle *wfh;
+    map<pid_t,wrloghand>::iterator pid_itr;
+    struct wrloghand wfh;
     ssize_t written;
     double begin, end;
 
@@ -727,15 +736,16 @@ Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
      * XXXCDC: do we need to lock this to read it?  YES!
      */
     pid_itr = cof->fhs.find(pid);  /* XXXCDC: LOCK */
-    wfh = (pid_itr == cof->fhs.end()) ? NULL : pid_itr->second; /*XXXCDC:LOCK*/
 
-    if (wfh == NULL) {
+    if (pid_itr != cof->fhs.end()) {
+        wfh = pid_itr->second;
+    } else {
         ret = this->establish_writedropping(pid);
         if (ret == PLFS_SUCCESS) {
             wfh = cof->fhs[pid];
         }
     }
-    
+
     if (ret != PLFS_SUCCESS) {
         goto done;
     }
@@ -743,11 +753,12 @@ Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
     begin = Util::getTime();
     written = 0;
     if (size != 0) {
-        ret = wfh->Write(buf, size, &written);
+        ret = wfh.fh->Write(buf, size, &written);
     }
     end = Util::getTime();
 
-    if (written) {
+    if (written > 0) {
+        cof->fhs[pid].physoff += written;
         cof->total_bytes += written;
         if (offset + (off_t) written > cof->last_offset) {
             cof->last_offset = offset + written;
@@ -760,7 +771,6 @@ Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
                                         pid, begin, end);
     }
 
-
  done:
     return(ret);
 }
@@ -770,7 +780,7 @@ Container_fd::sync()
 {
     plfs_error_t ret = PLFS_SUCCESS;  
     Container_OpenFile *cof;
-    map<pid_t,IOSHandle *>::iterator pid_itr;
+    map<pid_t,wrloghand>::iterator pid_itr;
     plfs_error_t firsterr, curerr;
 
     cof = this->fd;
@@ -782,7 +792,7 @@ Container_fd::sync()
         for (pid_itr = cof->fhs.begin(), firsterr = PLFS_SUCCESS ;
              pid_itr != cof->fhs.end() ; pid_itr++) {
 
-            curerr = pid_itr->second->Fsync();
+            curerr = pid_itr->second.fh->Fsync();
             if (curerr != PLFS_SUCCESS && firsterr == PLFS_SUCCESS) {
                 /* save first error, but keep trying to do the rest */
                 firsterr = curerr;
@@ -807,7 +817,7 @@ Container_fd::sync(pid_t pid)
 {
     plfs_error_t ret = PLFS_SUCCESS;  
     Container_OpenFile *cof; 
-    map<pid_t,IOSHandle *>::iterator pid_itr;
+    map<pid_t,wrloghand>::iterator pid_itr;
     plfs_error_t idxret;
 
     cof = this->fd;
@@ -817,7 +827,7 @@ Container_fd::sync(pid_t pid)
         Util::MutexLock(&cof->data_mux, __FUNCTION__);
         pid_itr = cof->fhs.find(pid);
         if (pid_itr != cof->fhs.end()) {
-            ret = pid_itr->second->Fsync();
+            ret = pid_itr->second.fh->Fsync();
         }
         Util::MutexUnlock(&cof->data_mux, __FUNCTION__);
 
