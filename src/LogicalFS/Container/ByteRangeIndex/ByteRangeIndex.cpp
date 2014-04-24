@@ -242,8 +242,8 @@ ByteRangeIndex::index_close(Container_OpenFile *cof, int open_flags,
 
 plfs_error_t
 ByteRangeIndex::index_add(Container_OpenFile *cof, size_t nbytes,
-                          off_t offset, pid_t pid, double begin,
-                          double end) {
+                          off_t offset, pid_t pid, off_t physoffset,
+                          double begin, double end) {
 #if 0
             write_count++;
             Util::MutexLock(   &index_mux , __FUNCTION__);

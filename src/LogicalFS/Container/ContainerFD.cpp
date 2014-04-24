@@ -767,8 +767,9 @@ Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
     }
 
     if (ret == PLFS_SUCCESS) {
+        /* note: wfh.physoff is copy of physoffset before we added written */
         ret = cof->cof_index->index_add(cof, written, offset,
-                                        pid, begin, end);
+                                        pid, wfh.physoff, begin, end);
     }
 
  done:
@@ -1116,7 +1117,12 @@ Container_fd::extend(off_t offset)
 
     } else {
         beginend = Util::getTime();
-        ret = cof->cof_index->index_add(cof, 0, offset, cof->pid,
+        /*
+         * since this is a zero length write, the physical offset
+         * doesn't matter.  so rather than looking it up, just set it
+         * to zero.
+         */
+        ret = cof->cof_index->index_add(cof, 0, offset, cof->pid, 0,
                                         beginend, beginend);
     }
         
