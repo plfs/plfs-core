@@ -22,7 +22,7 @@
  * is closed and removed.
  *
  * for writing, the index is notified when a new write data droping is
- * created (index_new_wdop) or close (index_closing_wdrop).  the write
+ * created (index_new_wdrop) or close (index_closing_wdrop).  the write
  * droppings are identified by pid number (note tha under MPI we
  * overload the pid with the MPI rank number instead).
  *
@@ -89,7 +89,9 @@ static plfs_error_t try_openwritedropping(Container_OpenFile *cof,
     }
 
     if (rv == PLFS_SUCCESS) {   /* success!  remember it .. */
-        cof->fhs[pid] = fh;
+        struct writefh w;
+        w.wfh = fh;
+        cof->fhs[pid] = w;
         /*
          * XXX: possible for a pid to open/close/reopen dropping.
          * reuse old physoffset[pid]... or should we be stat'ing
@@ -114,7 +116,7 @@ static plfs_error_t try_openwritedropping(Container_OpenFile *cof,
 static plfs_error_t close_writedropping(Container_OpenFile *cof, pid_t pid) {
     plfs_error_t rv = PLFS_SUCCESS;
     plfs_error_t rvidx;
-    map<pid_t,IOSHandle *>::iterator pid_itr;
+    map<pid_t,writefh>::iterator pid_itr;
     IOSHandle *ofh;
     ostringstream ts, drop_pathstream;
     map<IOSHandle *,string>::iterator path_itr;
@@ -124,7 +126,7 @@ static plfs_error_t close_writedropping(Container_OpenFile *cof, pid_t pid) {
     if (pid_itr != cof->fhs.end()) {         /* is dropping open? */
 
         /* extract IOSHandle and remove it from the map */
-        ofh = pid_itr->second;
+        ofh = pid_itr->second.wfh;
         cof->fhs.erase(pid);
 
         /* regenerate dropping pathname */
@@ -726,7 +728,7 @@ Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
 {
     plfs_error_t ret = PLFS_SUCCESS;    
     Container_OpenFile *cof = this->fd;
-    map<pid_t,IOSHandle *>::iterator pid_itr;
+    map<pid_t,writefh>::iterator pid_itr;
     IOSHandle *wfh;
     off_t oldphysoff;
     ssize_t written;
@@ -740,11 +742,11 @@ Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
     pid_itr = cof->fhs.find(pid);  /* XXXCDC: LOCK */
 
     if (pid_itr != cof->fhs.end()) {
-        wfh = pid_itr->second;
+        wfh = pid_itr->second.wfh;
     } else {
         ret = this->establish_writedropping(pid);
         if (ret == PLFS_SUCCESS) {
-            wfh = cof->fhs[pid];
+            wfh = cof->fhs[pid].wfh;
         }
     }
 
@@ -784,7 +786,7 @@ Container_fd::sync()
 {
     plfs_error_t ret = PLFS_SUCCESS;  
     Container_OpenFile *cof;
-    map<pid_t,IOSHandle *>::iterator pid_itr;
+    map<pid_t,writefh>::iterator pid_itr;
     plfs_error_t firsterr, curerr;
 
     cof = this->fd;
@@ -796,7 +798,7 @@ Container_fd::sync()
         for (pid_itr = cof->fhs.begin(), firsterr = PLFS_SUCCESS ;
              pid_itr != cof->fhs.end() ; pid_itr++) {
 
-            curerr = pid_itr->second->Fsync();
+            curerr = pid_itr->second.wfh->Fsync();
             if (curerr != PLFS_SUCCESS && firsterr == PLFS_SUCCESS) {
                 /* save first error, but keep trying to do the rest */
                 firsterr = curerr;
@@ -821,7 +823,7 @@ Container_fd::sync(pid_t pid)
 {
     plfs_error_t ret = PLFS_SUCCESS;  
     Container_OpenFile *cof; 
-    map<pid_t,IOSHandle *>::iterator pid_itr;
+    map<pid_t,writefh>::iterator pid_itr;
     plfs_error_t idxret;
 
     cof = this->fd;
@@ -831,7 +833,7 @@ Container_fd::sync(pid_t pid)
         Util::MutexLock(&cof->data_mux, __FUNCTION__);
         pid_itr = cof->fhs.find(pid);
         if (pid_itr != cof->fhs.end()) {
-            ret = pid_itr->second->Fsync();
+            ret = pid_itr->second.wfh->Fsync();
         }
         Util::MutexUnlock(&cof->data_mux, __FUNCTION__);
 
@@ -845,17 +847,75 @@ Container_fd::sync(pid_t pid)
     return(ret);
 }
 
+/*
+ * truncate_helper_restorefds: called when we have truncated an open
+ * file to zero.  in this case, we have truncated all the droppings
+ * so we need to reopen them and reset the physical offsets (because
+ * all the old data has been disposed of).   split out of
+ * Container_fd::trunc to keep it from getting too long....
+ *
+ * @param cof the open file we are clearing off
+ * @return PLFS_SUCCESS or error code
+ */
+static plfs_error_t
+truncate_helper_restorefds(Container_OpenFile *cof) {
+    plfs_error_t ret = PLFS_SUCCESS;
+    map<pid_t, writefh>::iterator pids_itr;
+    map<IOSHandle *,string>::iterator paths_itr;
+    string path;
+
+    /* walk all open write droppings */
+    for (pids_itr = cof->fhs.begin() ;
+         pids_itr != cof->fhs.end() ; pids_itr++) {
+
+        paths_itr = cof->paths.find(pids_itr->second.wfh);
+
+        if (paths_itr == cof->paths.end()) {
+            /* this should never happen */
+            ret = PLFS_ENOENT;
+            break;
+        }
+        path = paths_itr->second;
+
+        ret = cof->subdirback->store->Close(pids_itr->second.wfh);
+        if (ret != PLFS_SUCCESS)
+            break;
+
+        cof->paths.erase(pids_itr->second.wfh);
+        pids_itr->second.wfh = NULL;             /* old wfh is gone/closed */
+        cof->physoffsets[pids_itr->first] = 0;   /* reset to zero */
+                
+        ret = cof->subdirback->store->Open(path.c_str(),
+                                           O_WRONLY|O_APPEND|O_CREAT,
+                                           cof->mode,
+                                           &pids_itr->second.wfh);
+        /*
+         * how to recover if the reopen fails?  let's get rid of the
+         * rest of the open state and hope we can recreate it on the
+         * next write (i.e. put it into lazy dropping created mode).
+         */
+        if (ret != PLFS_SUCCESS) {
+            cof->fhs.erase(pids_itr->first);
+            break;
+        }
+        cof->paths[pids_itr->second.wfh] = path;
+    }
+
+    return(ret);
+}
+
 plfs_error_t 
 Container_fd::trunc(off_t offset)
 {
     plfs_error_t ret = PLFS_SUCCESS;
     Container_OpenFile *cof;
     struct stat stbuf;
-    int no_change;
+    int no_change, shrunk;
     off_t lost_bytes;
 
     cof = this->fd;
-    no_change = 0;
+    no_change = shrunk = 0;
+    
 
     if (cof->openflags == O_RDONLY) {
         return(PLFS_EBADF);      /* can't trunc a file not open for writing */
@@ -864,6 +924,18 @@ Container_fd::trunc(off_t offset)
     if (offset == 0) {
 
         ret = containerfs_zero_helper(NULL, 1 /* open_file */, cof);
+        if (ret == PLFS_SUCCESS) {
+            /*
+             * note: zero offset tell index_truncate the droppings were
+             * truncated (it may need to reopen them).
+             */
+            ret = cof->cof_index->index_truncate(cof, offset);
+
+            if (ret == PLFS_SUCCESS) {
+                ret = truncate_helper_restorefds(cof);
+            }
+        }
+        shrunk = 1;
 
     } else {
 
@@ -887,6 +959,7 @@ Container_fd::trunc(off_t offset)
                     ret = Container::truncateMeta(cof->pathcpy.canbpath,
                                                   offset, cof->pathcpy.canback);
                 }
+                shrunk = 1;
                 
             }
         }
@@ -911,25 +984,24 @@ Container_fd::trunc(off_t offset)
         }
 
         /*
-         * here's a problem: the file is open for writing, so we may
-         * have already opened fds in there.  So the droppings are
-         * deleted/resized and our open handles are messed up.  it's
-         * just a little scary if this ever happens following a rename
-         * because the paths may get mixed up?
+         * if we shrunk the file and we have read data droppings open,
+         * the open data droppings handles may no longer be useful.
+         * this could be because the data dropping was truncated to
+         * zero (offset==0 case), or the file was shrunk and the data
+         * is present but no longer reachable (offset != 0 case).
+         * we can discard currently open data droppings and reopen
+         * on demand.   (this is an optimization, we could skip it.)
          */
-#if 0
-        if (ret == PLFS_SUCCESS) {
-            bool droppings_were_truncd = (offset == 0);
-            mlog(PLFS_DCOMMON, "%s:%d ret is %d", __FUNCTION__, __LINE__, ret);
-            ret = wf->restoreFds(droppings_were_truncd);
+        if (shrunk) {
+            map<string,struct rdchunkhand>::iterator rdck_itr;
+            for (rdck_itr = cof->rdchunks.begin() ;
+                 rdck_itr != cof->rdchunks.end() ;
+                 rdck_itr = cof->rdchunks.begin()) {
 
-            if ( ret != PLFS_SUCCESS ) {
-                mlog(PLFS_DRARE, "%s:%d failed: %s",
-                     __FUNCTION__, __LINE__, strplfserr(ret));
+                rdck_itr->second.backend->store->Close(rdck_itr->second.fh);
+                cof->rdchunks.erase(rdck_itr->first);
             }
         }
-#endif
-
     }
     
     mlog(PLFS_DCOMMON, "%s %s to %u: %d",__FUNCTION__,

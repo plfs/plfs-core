@@ -2,6 +2,16 @@
 #define __CONTAINEROPENFILE_H_
 
 /*
+ * writefh: ioshandle to a pid's write log file.   we encapsulate
+ * the wfh in the writefh structure so we can change the wfh in the
+ * fhs map without having to do map insert/remove operations.
+ */
+struct writefh {
+    IOSHandle *wfh; 
+};       
+
+
+/*
  * rdchunkhand: read chunk handle (for open data droppings we save the
  * backend and open file handle).
  */
@@ -53,7 +63,7 @@ class Container_OpenFile {
     char *hostname;                    /* cached value of Util::hostname() */
     /* the next three maps are protected with data_mux */
     map<pid_t, int> fhs_writers;       /* pid reference count */
-    map<pid_t, IOSHandle *> fhs;       /* may delay create until first write */
+    map<pid_t, writefh> fhs;           /* may delay create until first write */
     map<pid_t, off_t> physoffsets;     /* track data dropping phys offsets */
     map<IOSHandle *, string> paths;    /* retain for restore operation */
     /*
