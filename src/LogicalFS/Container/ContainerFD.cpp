@@ -1163,18 +1163,42 @@ Container_fd::setxattr(const void *value, const char *key, size_t len)
 plfs_error_t 
 Container_fd::renamefd(struct plfs_physpathinfo *ppip_to)
 {
-    /*
-     * XXXCDC: check this
-     */
-#if 0
     plfs_error_t ret = PLFS_SUCCESS;
-    this->fd->setPath(ppip_to->canbpath, ppip_to->canback);
-    WriteFile *wf = this->fd->getWritefile();
-    if ( wf )
-        wf->setPhysPath(ppip_to); 
+    Container_OpenFile *cof = this->fd;
+
+    /*
+     * XXXCDC: this needs more work.   discussion:
+     *
+     * renamefd() is only called from FUSE when a file that is currently
+     * open is renamed.   the idea is that it should update all in-memory
+     * references to the old filename to point to the new filename.
+     *
+     * first problem is that we are changing pathcpy without locking
+     * anything.  need to think through the locking on pathcopy.  second
+     * problem is that we are not getting all the copies of the pathname.
+     * concerns: cof->cof_index (do we need an API call for this),
+     * cof->subdir_path, cof->paths, and cof->rdchunks.   third concern
+     * is for non-POSIX backends... if we rename a non-POSIX backend,
+     * could it invalidate open IOSHandles to dropping files?
+     *
+     * it is ok for posix, because if you have this:
+     *   int fd;
+     *   fd = open("/m/foo.txt", O_RDONLY);
+     *   rename("/m/foo.txt", "/m/bar.txt");
+     *
+     * after the rename the fd is still open and connected to the
+     * renamed file (the state for that is stored in the kernel).  for
+     * non-POSIX backends, it would depend on how the filesystem
+     * client library is put together.
+     *
+     * the previous code (before the ContainerIndex layer was
+     * introduced) had the same kinds of issues, though is it a
+     * bit different due to some of the API changes (e.g. index
+     * lookup in the old code returned an int index number, where
+     * the new code returns a dropping filename).
+     */
+    ret = plfs_copypathinfo(&cof->pathcpy, ppip_to); /*C++ does malloc/frees */
     return(ret);
-#endif
-    return(PLFS_ENOTSUP);
 }
 
 plfs_error_t
