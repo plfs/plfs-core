@@ -1,9 +1,11 @@
 #ifndef __LOGICALFD_H__
 #define __LOGICALFD_H__
 
-#include "plfs.h"
-#include <string>
 using namespace std;
+#include <list>
+#include <string>
+#include "plfs.h"
+#include "plfs_parallel_reader.h"
 
 class Plfs_fd
 {
@@ -43,6 +45,18 @@ class Plfs_fd
         // XXX: need this because we are caching paths in the Plfs_fd
         // for open files, so we need a way to update the paths
         virtual plfs_error_t renamefd(struct plfs_physpathinfo *ppip_to) = 0;
+
+        // read_taskgen/read_chunkfh: optional.
+        // for plfs_parallel_reader framework, override if used
+        virtual plfs_error_t read_taskgen(char *buf, size_t size, off_t offset,
+                                          list<ParallelReadTask> *tasks) {
+            return(PLFS_ENOTSUP);
+        }
+        virtual plfs_error_t read_chunkfh(string bpath, 
+                                          struct plfs_backend *backend,
+                                          IOSHandle **fhp) {
+            return(PLFS_ENOTSUP);
+        }
 };
 
 inline Plfs_fd::~Plfs_fd() {};

@@ -3,6 +3,7 @@
  */
 
 #include "plfs_private.h"
+#include "plfs_parallel_reader.h"
 #include "XAttrs.h"
 #include "Container.h"
 #include "ContainerIndex.h"
@@ -719,7 +720,17 @@ Container_fd::close(pid_t pid, uid_t uid, int open_flags,
 plfs_error_t 
 Container_fd::read(char *buf, size_t size, off_t offset, ssize_t *bytes_read)
 {
-    return(PLFS_ENOTSUP);
+    plfs_error_t ret = PLFS_SUCCESS;
+    Container_OpenFile *cof = this->fd;
+
+    if (cof->openflags == O_WRONLY) {
+        ret = PLFS_EBADF;
+    } else {
+        /* we'll want to use the parallel reader framework for this */
+        ret = plfs_parallel_reader(this, buf, size, offset, bytes_read);
+    }
+
+    return(ret);
 }
 
 plfs_error_t 
@@ -734,6 +745,10 @@ Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
     ssize_t written;
     double begin, end;
 
+    if (cof->openflags == O_RDONLY) {
+        return(PLFS_EBADF);
+    }
+    
     /*
      * get filehandle for data dropping.  it may not be open yet, if
      * we delayed the opening to the first write operation.
