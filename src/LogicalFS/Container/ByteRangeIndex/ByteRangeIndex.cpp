@@ -271,7 +271,7 @@ ByteRangeIndex::index_sync(Container_OpenFile *cof) {
 plfs_error_t
 ByteRangeIndex::index_query(Container_OpenFile *cof, off_t input_offset,
                              size_t input_length, 
-                            vector<index_record> &result) {
+                            list<index_record> &result) {
     return(PLFS_ENOTSUP);
 }
 

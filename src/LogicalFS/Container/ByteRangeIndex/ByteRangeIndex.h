@@ -19,7 +19,7 @@ public:
     plfs_error_t index_sync(Container_OpenFile *cof);
     plfs_error_t index_query(Container_OpenFile *cof, off_t input_offset,
                              size_t input_length, 
-                             vector<index_record> &result);
+                             list<index_record> &result);
     plfs_error_t index_truncate(Container_OpenFile *cof, off_t offset);
     plfs_error_t index_closing_wdrop(Container_OpenFile *cof,
                                      string ts, pid_t pid, const char *fn);

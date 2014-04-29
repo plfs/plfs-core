@@ -45,7 +45,7 @@ class ContainerIndex {
     virtual plfs_error_t index_query(Container_OpenFile *cof,
                                      off_t input_offset,
                                      size_t input_length, 
-                                     vector<index_record> &result) = 0;
+                                     list<index_record> &result) = 0;
     virtual plfs_error_t index_truncate(Container_OpenFile *cof,
                                         off_t offset) = 0;
     virtual plfs_error_t index_closing_wdrop(Container_OpenFile *cof,

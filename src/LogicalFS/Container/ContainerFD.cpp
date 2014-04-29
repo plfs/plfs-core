@@ -4,6 +4,7 @@
 
 #include "plfs_private.h"
 #include "plfs_parallel_reader.h"
+#include "mlog_oss.h"
 #include "XAttrs.h"
 #include "Container.h"
 #include "ContainerIndex.h"
@@ -1215,6 +1216,166 @@ Container_fd::renamefd(struct plfs_physpathinfo *ppip_to)
     ret = plfs_copypathinfo(&cof->pathcpy, ppip_to); /*C++ does malloc/frees */
     return(ret);
 }
+
+plfs_error_t
+Container_fd::read_taskgen(char *buf, size_t size, off_t offset,
+                           list<ParallelReadTask> *tasks) {
+    plfs_error_t ret = PLFS_SUCCESS;
+    Container_OpenFile *cof = this->fd;
+    size_t bytes_remaining = size;
+    size_t bytes_traversed = 0;
+    int chunk = 0;
+    list<index_record> irecs;
+    index_record ir;
+    ParallelReadTask task;
+    bool at_eof;
+    
+    at_eof = false;
+
+    while (bytes_remaining > 0) {
+
+        /* attempt to fill irecs if empty and not at EOF */
+        if (!at_eof && irecs.empty()) {
+            ret = cof->cof_index->index_query(cof, offset+bytes_traversed,
+                                              bytes_remaining, irecs);
+            if (ret != PLFS_SUCCESS) {
+                break;    /* query error halts us dead in our tracks */
+            }
+            at_eof = irecs.empty();
+            if (at_eof) {
+                break;    /* no more records */
+            }
+        }
+
+        /* pull first one off list and update at_eof */
+        ir = irecs.front();
+        irecs.pop_front();
+        at_eof = ir.lastrecord;
+        
+        /*
+         * now convert it to a task.  XXX: the input_record and the
+         * ParallelReadTask structures are close.  could we merge?
+         * just keep it as-is for now...
+         */
+        task.length = min(bytes_remaining, ir.length);
+        task.chunk_offset = ir.chunk_offset;
+        task.logical_offset = offset + bytes_traversed;
+        task.buf = &(buf[bytes_traversed]);
+        task.bpath = ir.datapath;
+        task.backend = ir.databack;
+        task.hole = ir.hole;
+        
+        bytes_remaining -= task.length;
+        bytes_traversed += task.length;
+
+        /* if there is anything to it, add it to the queue */
+        /* ret should already be PLFS_SUCCESS here ... */
+        if (task.length > 0) {
+            mss::mlog_oss oss(INT_DCOMMON);
+            oss << chunk << ".1) Found index entry offset "
+                << task.chunk_offset << " len "
+                << task.length << " path " << task.bpath << endl;
+
+            /*
+             * we have the option of combining small sequential reads
+             * into larger reads... let's do that if possible...
+             */
+            if (!tasks->empty()) {
+                ParallelReadTask lasttask = tasks->back();
+
+                if (task.backend == lasttask.backend &&
+                    task.hole == lasttask.hole &&
+                    task.chunk_offset == (lasttask.chunk_offset +
+                                          (off_t)lasttask.length) &&
+                    task.logical_offset == (lasttask.logical_offset +
+                                            (off_t)lasttask.length) &&
+                    strcmp(task.bpath.c_str(), lasttask.bpath.c_str()) == 0) {
+
+                    /* merge it! */
+                    oss << chunk++ << ".1) Merge with last index entry offset "
+                        << lasttask.chunk_offset << " len "
+                        << lasttask.length << endl;
+                    task.chunk_offset = lasttask.chunk_offset;
+                    task.length += lasttask.length;
+                    task.buf = lasttask.buf;
+                    tasks->pop_back();  /* discard lasttask */
+                }  /* merge? */
+
+            }
+
+            /* log task and push it on the work list */
+            oss.commit();
+            tasks->push_back(task);
+        }
+
+    }
+
+    return(ret);
+}
+
+plfs_error_t
+Container_fd::read_chunkfh(string bpath, struct plfs_backend *backend,
+                           IOSHandle **fhp) {
+    plfs_error_t ret = PLFS_SUCCESS;
+    Container_OpenFile *cof = this->fd;
+    string key;
+    map<string,struct rdchunkhand>::iterator rcki;
+    IOSHandle *closeme;
+
+    key = backend->prefix + bpath;
+    Util::MutexLock(&cof->data_mux, __FUNCTION__);
+    rcki = cof->rdchunks.find(key);
+    Util::MutexUnlock(&cof->data_mux, __FUNCTION__);
+    
+    /* found it! */
+    if (rcki != cof->rdchunks.end()) {
+        *fhp = rcki->second.fh;
+        return(PLFS_SUCCESS);
+    }
+    
+    /*
+     * not currently open, so we must open it.  we do the open with
+     * the lock dropped so that open I/O does not delay other processing.
+     *
+     * NOTE: we asssume Metalinks are already resolved!
+     */
+    ret = backend->store->Open(bpath.c_str(), O_RDONLY, fhp);
+    if ( ret != PLFS_SUCCESS ) {
+        mlog(INT_ERR, "WTF? Open of %s: %s",
+             bpath.c_str(), strplfserr(ret) );
+        *fhp = NULL;
+        return(ret);
+    }
+
+    /*
+     * check to see if we won the race or not.  if we lost, discard
+     * our file handle and use the winners...
+     */
+    Util::MutexLock(&cof->data_mux, __FUNCTION__);
+    rcki = cof->rdchunks.find(key);
+    if (rcki != cof->rdchunks.end()) {   /* lost race! */
+        closeme = *fhp;
+        *fhp = rcki->second.fh;           /* use theirs */
+    } else {
+        struct rdchunkhand rdc;
+        closeme = NULL;
+        rdc.backend = backend;
+        rdc.fh = *fhp;
+        cof->rdchunks[key] = rdc;
+    }
+    Util::MutexUnlock(&cof->data_mux, __FUNCTION__);
+
+    if (closeme != NULL) {
+        backend->store->Close(closeme);  /* close outside of lock */
+    }
+
+    mlog(INT_DCOMMON, "Opened fh %p for %s and %s stash it",
+         *fhp, bpath.c_str(),
+         (closeme == NULL)  ? "did" : "did not");
+
+    return(ret);
+}
+
 
 plfs_error_t
 Container_fd::extend(off_t offset)

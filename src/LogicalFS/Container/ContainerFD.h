@@ -36,6 +36,12 @@ class Container_fd : public Plfs_fd
     plfs_error_t setxattr(const void *value, const char *key, size_t len);
 
     plfs_error_t renamefd(struct plfs_physpathinfo *ppip_to);
+
+    plfs_error_t read_taskgen(char *buf, size_t size, off_t offset,
+                              list<ParallelReadTask> *tasks);
+    plfs_error_t read_chunkfh(string bpath, struct plfs_backend *backend,
+                              IOSHandle **fhp);
+    
     /* ... end of LogicalFD API functions */
 
     /* the rest is ContainerFS/FD specific */
