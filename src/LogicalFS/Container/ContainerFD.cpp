@@ -939,17 +939,12 @@ Container_fd::trunc(off_t offset)
 
     if (offset == 0) {
 
+        /* zero_helper calls index_truncate on cof to handle index */
         ret = containerfs_zero_helper(NULL, 1 /* open_file */, cof);
         if (ret == PLFS_SUCCESS) {
-            /*
-             * note: zero offset tell index_truncate the droppings were
-             * truncated (it may need to reopen them).
-             */
-            ret = cof->cof_index->index_truncate(cof, offset);
 
-            if (ret == PLFS_SUCCESS) {
-                ret = truncate_helper_restorefds(cof);
-            }
+            /* need to resync our fds after truncate */
+            ret = truncate_helper_restorefds(cof);
         }
         shrunk = 1;
 
