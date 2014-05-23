@@ -5,6 +5,7 @@
 #ifndef __CONTAINER_H__
 #define __CONTAINER_H__
 
+class Container_OpenFile;    /* forward decl. */
 
 /* mode for a dropping/containers */
 #define DROPPING_MODE  (S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH)
@@ -67,7 +68,8 @@ class Container
     static string getHostDirPath(const string&,
                                  const string&, subdir_type );
     static string getMetaDirPath( const string& );
-    static plfs_error_t getattr(struct plfs_physpathinfo *, struct stat *);
+    static plfs_error_t getattr(struct plfs_physpathinfo *, struct stat *,
+                                Container_OpenFile *);
     static mode_t getmode(const string&, struct plfs_backend *);
     static bool isContainer(const struct plfs_pathback *physical_path,
                             mode_t *);

@@ -811,7 +811,7 @@ ContainerFileSystem::getattr(struct plfs_physpathinfo *ppip, struct stat *stbuf,
     
     } else {
     
-        ret = Container::getattr(ppip, stbuf);
+        ret = Container::getattr(ppip, stbuf, NULL);
         mode = S_IFREG;
 
     }

@@ -1046,7 +1046,7 @@ Container_fd::getattr(struct stat *stbuf, int sz_only)
         /* successfully skipped the heavyweight getattr call */
         ret = PLFS_SUCCESS;
     } else {
-        ret = Container::getattr(&cof->pathcpy, stbuf);
+        ret = Container::getattr(&cof->pathcpy, stbuf, cof);
     }
     
     if (ret == PLFS_SUCCESS && writing) {

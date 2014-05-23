@@ -7,6 +7,7 @@
 #include "Container.h"
 #include "ContainerFS.h"
 #include "ContainerIndex.h"
+#include "ContainerOpenFile.h"
 
 /*
  * local prototypes
@@ -906,10 +907,12 @@ discover_openhosts(set<string> &entries, set<string> &openhosts)
  *
  * @param ppip pathinfo for container of interest
  * @param stbuf where to place the results
+ * @param opencof index of this file, if open --- otherwise set to NULL
  * @return PLFS_SUCCESS or PLFS_E*
  */
 plfs_error_t
-Container::getattr(struct plfs_physpathinfo *ppip, struct stat *stbuf)
+Container::getattr(struct plfs_physpathinfo *ppip, struct stat *stbuf,
+                   Container_OpenFile *opencof)
 {
     plfs_error_t ret = PLFS_SUCCESS;
     plfs_error_t rv;
@@ -1011,13 +1014,23 @@ Container::getattr(struct plfs_physpathinfo *ppip, struct stat *stbuf)
     if ( openHosts.size() > 0 ) {
 
         ContainerIndex *ci;
-        ci = container_index_alloc(ppip->mnt_pt);
+
+        /* note: it could be open, but not by us (so we need an index) */
+        if (opencof) {
+            ci = opencof->cof_index;
+        } else { 
+            ci = container_index_alloc(ppip->mnt_pt);
+        }
+        
         if (ci == NULL) {
             ret = PLFS_ENOMEM;
         } else {
             ret = ci->index_getattr_size(ppip, stbuf, &openHosts, &validMeta);
-            delete ci;
         }
+
+        if (!opencof && ci) {
+            delete ci;             /* if we just allocated it */
+        }            
 
     }
 
