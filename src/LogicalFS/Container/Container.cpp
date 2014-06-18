@@ -1556,3 +1556,106 @@ Container::Utime(const string& path, struct plfs_backend *back,
     return(back->store->Utime(accessfile.c_str(),ut));
 }
 
+/**
+ * Container::collectContents: collect all droppings from a container
+ * 
+ * we makes two assumptions about how containers are structured:
+ * 1) it knows how to deal with metalinks
+ * 2) containers are only one directory level deep
+ * it'd be nice if the only place that container structure was understood
+ * was in this class.  but I don't think that's quite true.
+ * That's our goal though!
+ *
+ * @param physical physical path of where to collect from
+ * @param back backend that physical path lives on
+ * @param files list of files we encounter put here
+ * @param dirs list of directories we encounter put here (if !NULL)
+ * @param mlinks list of metalinks we encounter put here (if !NULL)
+ * @param filters filename filters for readdir
+ * @param full_path expand path (for ReaddirOp)
+ * @return PLFS_SUCCESS or error code
+ */
+plfs_error_t
+Container::collectContents(const string& physical,
+                           struct plfs_backend *back,
+                           vector<plfs_pathback> &files,
+                           vector<plfs_pathback> *dirs,
+                           vector<string> *mlinks,
+                           vector<string> &filters,
+                           bool full_path)
+{
+    plfs_error_t ret = PLFS_SUCCESS;
+    map<string,unsigned char> entries;
+    map<string,unsigned char>::iterator e_itr;
+    vector<string>::iterator f_itr;
+    ReaddirOp rop(&entries, NULL, full_path, true);
+
+    if (dirs) {  /* first, add current dir to list if requested */
+        struct plfs_pathback pb;
+        pb.bpath = physical;
+        pb.back = back;
+        dirs->push_back(pb);
+    }
+
+    /* register any filename filters with ReaddirOp before reading dir */
+    for(f_itr = filters.begin(); f_itr != filters.end(); f_itr++) {
+        rop.filter(*f_itr);
+    }
+    mlog(CON_DAPI, "%s on %s", __FUNCTION__, physical.c_str());
+
+    /* now read top-level directory! */
+    ret = rop.op(physical.c_str(), DT_DIR, back->store);
+
+    /* now walk through results of readdir */
+    for(e_itr = entries.begin();
+        ret == PLFS_SUCCESS && e_itr != entries.end() ; e_itr++) {
+
+        /* switch on entry type */
+        if(e_itr->second == DT_DIR) {
+
+            /* directory: recurse down */
+            ret = Container::collectContents(e_itr->first, back, files,
+                                             dirs, mlinks, filters, true);
+
+        } else if (e_itr->second==DT_LNK) {
+
+            string resolved;
+            struct plfs_backend *metaback;
+            /* XXX: would be nice to have the mountpoint too... */
+
+            ret = Container::resolveMetalink(e_itr->first, back, NULL,
+                                             resolved, &metaback);
+            if (mlinks) {
+                mlinks->push_back(e_itr->first);
+            }
+            if (ret==PLFS_SUCCESS) {
+
+                /* recurse to metadir */
+                ret = collectContents(resolved, metaback, files, dirs,
+                                      mlinks, filters, true);
+
+                if (ret == PLFS_ENOENT) {
+                    // maybe this is some other node's shadow that we can't see
+                    plfs_debug("%s Unable to access %s.  "
+                               "Asssuming remote shadow.\n",
+                               __FUNCTION__, resolved.c_str());
+                    ret = PLFS_SUCCESS;
+                }
+            }
+
+        } else if (e_itr->second==DT_REG) {
+
+            /* plain file, just add it to the list */
+            struct plfs_pathback pb;
+            pb.bpath = e_itr->first;
+            pb.back = back;
+            files.push_back(pb);
+
+        } else {
+
+            assert(0);  /* shouldn't happen */
+            
+        }
+    }
+    return ret;
+}

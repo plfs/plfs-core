@@ -1,14 +1,233 @@
+/*
+ * ByteRangeIndex.cpp  byte-range index code
+ */
+
 #include "plfs_private.h"
 #include "ContainerIndex.h"
 #include "ByteRangeIndex.h"
 
-ByteRangeIndex::ByteRangeIndex(PlfsMount *) { } ;    /* constructor */
+/*
+ * helper objects that are specific to ByteRangeIndex
+ */
+
+/***************************************************************************/
+/*
+ * HostEntry: on-disk format for index dropping file
+ */
+
+HostEntry::HostEntry()
+{
+    /*
+     * valgrind complains about unitialized bytes in this thing this
+     * is because there is padding in this object so let's initialize
+     * our entire self.
+     *
+     * XXX: the padding is in the pid_t at the end.
+     *
+     * XXX: this is ok as long as there are no items in here that get
+     * init'd to something non-zero (e.g. some C++ STL structures put
+     * non-zero pointers in as part of their constructors, so we
+     * wouldn't want to zero those).
+     */
+    memset(this, 0, sizeof(*this));
+}
+
+HostEntry::HostEntry(off_t o, size_t s, pid_t p)
+{
+    logical_offset = o;
+    length = s;
+    id = p;
+}
+
+HostEntry::HostEntry(const HostEntry& copy)
+{
+    /*
+     * similar to standard constructor, this is used when we do things
+     * like push a HostEntry onto a vector.  We can't rely on default
+     * constructor bec on the same valgrind complaint as mentioned in
+     * the first constructor.
+     */
+    memset(this,0,sizeof(*this));
+    memcpy(this,&copy,sizeof(*this));
+}
+
+bool
+HostEntry::contains(off_t offset) const
+{
+    return(offset >= this->logical_offset &&
+           offset < this->logical_offset + (off_t)this->length);
+}
+
+/*
+ * subtly different from contains: excludes the logical offset
+ * ( i.e. > instead of >= )
+ */
+bool
+HostEntry::splittable(off_t offset) const
+{
+    return(offset > this->logical_offset &&
+           offset < this->logical_offset + (off_t)this->length);
+}
+
+bool
+HostEntry::overlap(const HostEntry& other)
+{
+    return(this->contains(other.logical_offset) ||
+           other.contains(this->logical_offset));
+}
+
+/* does "this" follow directly after "other" ? */
+bool
+HostEntry::follows( const HostEntry& other )
+{
+    return(other.logical_offset + other.length ==
+                                   (unsigned int)this->logical_offset && 
+           other.physical_offset + other.length ==
+                                   (unsigned int)this->physical_offset &&
+           other.id == this->id);
+}
+
+/* does "this" preceed directly before "other" ? */
+bool
+HostEntry::preceeds( const HostEntry& other )
+{
+    return(this->logical_offset + this->length ==
+                                   (unsigned int)other.logical_offset &&
+           this->physical_offset + this->length ==
+                                    (unsigned int)other.physical_offset &&
+           this->id == other.id);
+}
+
+/* is "this" either directly before or after "other"? */
+bool
+HostEntry::abut( const HostEntry& other )
+{
+    return(this->follows(other) || this->preceeds(other));
+}
+
+off_t
+HostEntry::logical_tail() const
+{
+    return(this->logical_offset + (off_t)this->length - 1);
+}
+
+/***************************************************************************/
+/*
+ * ContainerEntry: in-memory data structure for container index
+ */
+
+/*
+ * for dealing with partial overwrites, we split entries in half on
+ * split points.  copy *this into new entry and adjust new entry and
+ * *this accordingly.  new entry gets the front part, and this is the
+ * back.  return new entry.
+ */
+ContainerEntry
+ContainerEntry::split(off_t offset)
+{
+    assert(this->contains(offset));   /* the caller should ensure this */
+    ContainerEntry front = *this;     /* new entry! */
+    off_t split_offset;               /* the lenght of the front chunk */
+
+    split_offset = offset - this->logical_offset;
+    front.length = split_offset;      /* truncate front chunk */
+    this->length -= split_offset;     /* now reduce back */
+    this->logical_offset += split_offset;
+    this->physical_offset += split_offset;
+    return(front);
+}
+
+bool
+ContainerEntry::preceeds(const ContainerEntry& other)
+{
+    if (!HostEntry::preceeds(other)) {
+        return false;
+    }
+    /* XXX: doesn't HostEntry::preceeds already check this? */
+    return (this->physical_offset + (off_t)this->length ==
+                                                 other.physical_offset);
+}
+
+bool
+ContainerEntry::follows(const ContainerEntry& other)
+{
+    if (!HostEntry::follows(other)) {
+        return false;
+    }
+    /* XXX: doesn't HostEntry::follows already check this? */
+    return (other.physical_offset + (off_t)other.length ==
+                                                   this->physical_offset);
+}
+
+bool
+ContainerEntry::abut(const ContainerEntry& other)
+{
+    return(this->preceeds(other) || this->follows(other));
+}
+
+bool
+ContainerEntry::mergable(const ContainerEntry& other)
+{
+    return (this->id == other.id && this->abut(other));
+}
+
+ostream& operator <<(ostream& os,const ContainerEntry& entry)
+{
+    double begin_timestamp = 0, end_timestamp = 0;
+    begin_timestamp = entry.begin_timestamp;
+    end_timestamp  = entry.end_timestamp;
+    os  << setw(5)
+        << entry.id             << " w "
+        << setw(16)
+        << entry.logical_offset << " "
+        << setw(8) << entry.length << " "
+        << setw(16) << fixed << setprecision(16)
+        << begin_timestamp << " "
+        << setw(16) << fixed << setprecision(16)
+        << end_timestamp   << " "
+        << setw(16)
+        << entry.logical_tail() << " "
+        << " [" << entry.id << "." << setw(10) << entry.physical_offset << "]";
+    return os;
+}
+
+
+/***************************************************************************/
+
+/**
+ * ByteRangeIndex::ByteRangeIndex: constructor
+ */
+ByteRangeIndex::ByteRangeIndex(PlfsMount *) {
+    /* MUST INIT STATE HERE */
+}
+
 ByteRangeIndex::~ByteRangeIndex() {  };              /* destructor */
 
+/**
+ * ByteRangeIndex::index_open: establish an open index for open file
+ *
+ * @param cof state for the open file
+ * @param open_flags the mode (RDONLY, WRONLY, or RDWR)
+ * @param open_opt open options (e.g. for MPI opts)
+ * @return PLFS_SUCCESS or error code
+ */
 plfs_error_t
 ByteRangeIndex::index_open(Container_OpenFile *cof,
                                         int open_flags, 
                                         Plfs_open_opt *open_opt) {
+    /*
+     * if opening for writing, XXX
+
+          if open for write, we setup in-memory buffering for new index
+       records if open for read, we load the index into RAM in
+       parallel using threads index must handle RDWR case too
+       (i.e. don't cache index in memory).  will need to be able to
+       use open_opt for flattened index.  The ByteRangeIndex will
+       reuse the HostEntry/ContainerEntry data structures from the old
+       index code.
+
+
+     */
 #if 0
     // this next chunk of code works similarly for writes and reads
     // for writes, create a writefile if needed, otherwise add a new writer
@@ -265,6 +484,10 @@ ByteRangeIndex::index_add(Container_OpenFile *cof, size_t nbytes,
 
 plfs_error_t
 ByteRangeIndex::index_sync(Container_OpenFile *cof) {
+    /*
+     * XXXCDC: this should flush out all buffered unwritten write index
+     * records to disk and then sync all the write fds.
+     */
     return(PLFS_ENOTSUP);
 }
 
@@ -272,17 +495,45 @@ plfs_error_t
 ByteRangeIndex::index_query(Container_OpenFile *cof, off_t input_offset,
                              size_t input_length, 
                             list<index_record> &result) {
+    /* XXXCDC:
+     *  if (RDWR mode)
+     *      load temp index into RAM
+     *  search index for requested data
+     *  if (RDWR mode)
+     *      discard temp index
+     */
     return(PLFS_ENOTSUP);
 }
 
 plfs_error_t
 ByteRangeIndex::index_truncate(Container_OpenFile *cof, off_t offset) {
+    /*
+     * This is a two step operation: first we apply the operation to
+     * all our index dropping files, then we update our in-memory data
+     * structures (throwing out index record references that are
+     * beyond the new offset).  The index should be open for writing
+     * already.  IF we are zeroing (called from zero helper), then the
+     * generic code has already truncated all our dropping files.  If
+     * we are shrinking a file to a non-zero file, then we need to go
+     * through each index dropping file and filter out any records
+     * that have data past our new offset.  Once we have updated the
+     * dropping files, then we need to walk through our in-memory
+     * records and discard the ones past the new offset and reduce the
+     * size of any that span the new EOF offset.
+     */
     return(PLFS_ENOTSUP);
 }
 
 plfs_error_t
 ByteRangeIndex::index_closing_wdrop(Container_OpenFile *cof, string ts,
                                     pid_t pid, const char *filename) {
+    /*
+     * We use the PID to lookup the index dropping that matches the
+     * data dropping that we are closing.  We release any resources
+     * associated with that pid.  We close the index dropping if we
+     * are no longer using it (have to watch out for the case where we
+     * share the index dropping across multiple data dropping files).
+     */
     return(PLFS_ENOTSUP);
 }
 
@@ -290,6 +541,7 @@ plfs_error_t
 ByteRangeIndex::index_new_wdrop(Container_OpenFile *cof, string ts,
                                 pid_t pid, const char *filename) {
     /* XXXCDC: open pid's index dropping for writing here, save FH */
+    /* open/create a new index dropping for writing if need */
     return(PLFS_ENOTSUP);
 }
 
@@ -333,6 +585,7 @@ plfs_error_t
 ByteRangeIndex::index_getattr_size(struct plfs_physpathinfo *ppip, 
                                    struct stat *stbuf, set<string> *openset,
                                    set<string> *metaset) {
+    /* XXX: load into memory (if not), get size, release if loaded. */
     return(PLFS_ENOTSUP);
 }
 

@@ -51,6 +51,13 @@ class Container
                                          const char *, pid_t );
 
     static blkcnt_t bytesToBlocks( size_t total_bytes );
+    static plfs_error_t collectContents(const string& physical,
+                                        struct plfs_backend *back,
+                                        vector<plfs_pathback> &files,
+                                        vector<plfs_pathback> *dirs,
+                                        vector<string> *mlinks,
+                                        vector<string> &filters,
+                                        bool full_path);
     static plfs_error_t create(struct plfs_physpathinfo *,
                                const string&, mode_t mode, int flags, 
                                int *extra_attempts,pid_t, bool lazy_subdir );
