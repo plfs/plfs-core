@@ -211,71 +211,73 @@ ByteRangeIndex::insert_overlapped(map<off_t,ContainerEntry>& idxout,
     /*
      * now walk down all the overlapping entries and split them on
      * all the split points we found and saved in the "splits" set.
+     * result goes in "chunks"...
      */
     for (cur = overlaps.begin() ; cur != overlaps.end() ; cur++) {
-        // splitEntry(&cur->second,splits,chunks);
-    }
-    
+        ContainerEntry *myentry;
+        set<off_t>::iterator itr;
 
-    return(PLFS_SUCCESS);
-}
+        myentry = &cur->second;
+        for (itr = splits.begin() ; itr != splits.end() ; itr++) {
 
+            /* break it up as needed, insert every broken off piece */
+            if (myentry->splittable(*itr)) {
+                ContainerEntry trimmed = myentry->split(*itr);
+                chunks.insert(make_pair(trimmed.logical_offset, trimmed));
+            }
 
-#if 0
-void Index::splitEntry( ContainerEntry *entry,
-                          set<off_t> &splits,
-                          multimap<off_t,ContainerEntry> &entries)
-{
-    set<off_t>::iterator itr;
-    for(itr=splits.begin(); itr!=splits.end(); itr++) {
-        // break it up as needed, and insert every broken off piece
-        if ( entry->splittable(*itr) ) {
-            ContainerEntry trimmed = entry->split(*itr);
-            entries.insert(make_pair(trimmed.logical_offset,trimmed));
         }
+        /* insert whatever is left */
+        chunks.insert(make_pair(myentry->logical_offset, *myentry));
     }
-    // insert whatever is left
-    entries.insert(make_pair(entry->logical_offset,*entry));
-    return;
-}
 
-plfs_error_t Index::handleOverlap(ContainerEntry& incoming,
-                         pair<map<off_t,ContainerEntry>::iterator, bool>
-                         &insert_ret )
-{
-    mss::mlog_oss oss(IDX_DCOMMON);
-    
-
-    // now iterate over chunks and insert into 3rd temporary container, winners
-    // on collision, possibly swap depending on timestamps
+    /*
+     * now "chunks" contains all entries nicely split so they are
+     * either unique or perfectly overlap with other entries.  sort
+     * through the "chunks" pulling out the unique entries and the
+     * most recent entry of the ones that perfectly overlap (we use
+     * the timestamp to choose).
+     */
     multimap<off_t,ContainerEntry>::iterator chunks_itr;
     pair<map<off_t,ContainerEntry>::iterator,bool> ret;
-    oss << "Entries have now been split:" << endl;
-    for(chunks_itr=chunks.begin(); chunks_itr!=chunks.end(); chunks_itr++) {
-        oss << chunks_itr->second << endl;
-        // insert all of them optimistically
-        ret = winners.insert(make_pair(chunks_itr->first,chunks_itr->second));
-        if ( ! ret.second ) { // collision
-            // check timestamps, if one already inserted
-            // is older, remove it and insert this one
-            if ( ret.first->second.end_timestamp
-                    < chunks_itr->second.end_timestamp ) {
-                winners.erase(ret.first);
-                winners.insert(make_pair(chunks_itr->first,chunks_itr->second));
+    for(chunks_itr = chunks.begin(); chunks_itr != chunks.end(); chunks_itr++) {
+        
+        ret = winners.insert(make_pair(chunks_itr->first, chunks_itr->second));
+
+        /* resolve offset key collision using timestamps */
+        if (!ret.second) {     /* if (collision) */
+
+            /*
+             * XXX: gag, C++ first/second makes for unreadable code.
+             *
+             * translation: if ( (timestamp of entry in winners map) <
+             *                   (timestamp of current entry) ) {
+             *                         replace former with the latter
+             *               }
+             */
+            if (ret.first->second.end_timestamp <
+                chunks_itr->second.end_timestamp) {
+
+                winners.erase(ret.first);   /* remove older entry */
+                winners.insert(make_pair(chunks_itr->first,
+                                         chunks_itr->second)); /* add new */
             }
         }
     }
-    oss << "Entries have now been trimmed:" << endl;
-    for(cur=winners.begin(); cur!=winners.end(); cur++) {
-        oss << cur->second;
-    }
-    oss.commit();
-    // I've seen weird cases where when a file is continuously overwritten
-    // slightly (like config.log), that it makes a huge mess of small little
-    // chunks.  It'd be nice to compress winners before inserting into global
-    // now put the winners back into the global index
-    global_index.insert(winners.begin(),winners.end());
-    return PLFS_SUCCESS;
-}
 
-#endif
+    /*
+     * I've seen weird cases where when a file is continuously
+     * overwritten slightly (like config.log), that it makes a huge
+     * mess of small little chunks.  It'd be nice to compress winners
+     * before inserting into global now put the winners back into the
+     * global index
+     */
+
+    /*
+     * done!   install the result ("winners") back into the main index.
+     * C++ destructors will free all the memory malloc'd in all this.
+     */
+    idxout.insert(winners.begin(), winners.end());
+    
+    return(PLFS_SUCCESS);
+}
