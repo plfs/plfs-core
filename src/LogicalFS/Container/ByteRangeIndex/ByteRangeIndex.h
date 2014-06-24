@@ -90,6 +90,28 @@ typedef struct {
     IOSHandle *fh;           /* NULL if not currently open */
 } ChunkFile;
 
+/*
+ * IndexFileInfo: info on one index dropping file in a container hostdir
+ *
+ * this is used to generate a list of index dropping files in a 
+ * specific hostdir.  so if you know /m/plfs/dir1/dir2/file has a 
+ * hostdir "hostdir.5" on backend /mnt/panfs0, then you know this path:
+ *   /mnt/panfs0/dir1/dir2/file/hostdir.5/
+ * on the backend and you want to know all the index dropping files 
+ * in there you can just return a list of <timestamp,hostname,id> records,
+ * one per index dropping file and that can be appended to the above
+ * path to get the full path.
+ * 
+ * appears to be used for MPI only when doing the MPI parallel index
+ * read across all the nodes.
+ */
+class IndexFileInfo
+{
+        double timestamp;
+        string hostname;
+        pid_t  id;
+};
+
 /**
  * ByteRangeIndex: ByteRange instance of PLFS container index
  */
@@ -131,15 +153,33 @@ public:
     plfs_error_t index_droppings_zero(struct plfs_physpathinfo *ppip);
 
  private:
+    static plfs_error_t insert_entry(map<off_t,ContainerEntry> &idxout,
+                                     ContainerEntry *add);
+    static plfs_error_t insert_overlapped(map<off_t,ContainerEntry> &idxout,
+                                          ContainerEntry& g_entry,
+                                    pair< map<off_t,ContainerEntry>::iterator, 
+                                    bool > &insert_ret );
+    static plfs_error_t merge_dropping(map<off_t,ContainerEntry> &idxout,
+                                       vector<ChunkFile> &cmapout,
+                                       int &chunk_id,
+                                       string dropbpath,
+                                       struct plfs_backend *dropback);
+    static plfs_error_t merge_idx(map<off_t,ContainerEntry> &idxout,
+                                  vector<ChunkFile> &cmapout, int &chunk_id,
+                                  map<off_t,ContainerEntry> &idxin,
+                                  vector<ChunkFile> &cmapin);
+ 
     pthread_mutex_t bri_mutex;       /* to lock this data structure */
 
     /* data structures for the write side */
     vector<HostEntry> writebuf;      /* buffer write records here */
-    bool buffering;
-    bool buffer_filled;
     int write_count;
-    size_t index_buffer_mbs;
+    IOSHandle *iwritefh;
+    struct plfs_backend *iwriteback;
 
-    
+    /* data structures for the read side */
+    map<off_t,ContainerEntry> idx;   /* global index (aggregated) */
+    vector<ChunkFile> chunk_map;     /* filenames for idx */
+    int nchunks;                     /* #chunks in chunk_map (for chunk_id) */
 };
 

@@ -76,6 +76,8 @@ class Container_OpenFile {
      * way to pass it in via the API?
      *
      * XXXCDC: move write_count behind ContainerIndex too.
+     *
+     * XXXCDC: populated note used, remove.
      */
     double createtime;                 /* used in dropping filenames */
     size_t max_writers;                /* XXXCDC: incompletely used */
