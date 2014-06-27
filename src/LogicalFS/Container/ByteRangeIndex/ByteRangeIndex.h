@@ -71,6 +71,7 @@ class ContainerEntry : HostEntry
     bool follows(const ContainerEntry&);
     bool abut(const ContainerEntry&);
     bool mergable(const ContainerEntry&);
+    bool older_than(const ContainerEntry&);
     
  protected:
     /* track orig chunk for rewriting index (e.g. truncate op) */

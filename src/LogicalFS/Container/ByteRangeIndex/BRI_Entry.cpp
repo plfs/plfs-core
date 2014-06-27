@@ -167,6 +167,24 @@ ContainerEntry::mergable(const ContainerEntry& other)
     return (this->id == other.id && this->abut(other));
 }
 
+bool
+ContainerEntry::older_than(const ContainerEntry &other)
+{
+    if (this->end_timestamp < other.end_timestamp)
+        return(true);
+    if (this->end_timestamp > other.end_timestamp)
+        return(false);
+   
+    /* a tie!   try the begin timestamps */
+    if (this->begin_timestamp < other.begin_timestamp)
+        return(true);
+    if (this->begin_timestamp > other.begin_timestamp)
+        return(false);
+
+   /* a tie, again!   final tie break is the pid (orig_chunk) */
+   return(this->original_chunk < other.original_chunk);
+}
+
 ostream& operator <<(ostream& os,const ContainerEntry& entry)
 {
     double begin_timestamp = 0, end_timestamp = 0;

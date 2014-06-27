@@ -38,12 +38,18 @@ ByteRangeIndex::insert_entry(map<off_t,ContainerEntry> &idxout,
     total_bytes += add->length;
 #endif
 
-    /* ret.first is either us, or a prev defined dup key */
+    /* 
+     * ret.first is either us, or a prev defined dup key.
+     * ret.first can be idxout.begin() if it is the first entry (but
+     * it cannot be idxout.end(), since end is never a valid entry).
+     */
     ret = idxout.insert(pair<off_t,ContainerEntry>(add->logical_offset, *add));
     next = ret.first;
     next++;
     prev = ret.first;
-    prev--;
+    if (prev != idxout.begin()) {  /* don't backup if already at begin */
+        prev--;
+    }
 
     if (ret.second == false) {   /* duplicate key! */
 
@@ -70,10 +76,13 @@ ByteRangeIndex::insert_entry(map<off_t,ContainerEntry> &idxout,
      * if we have an overlap we need to fix it now.
      */
     if (overlap) {
-        /*
-         * XXX: insert_overlapped with entry length 0 is broken, not sure why?
-         */
-        if (add->length != 0) {
+
+        /* if new entry is zero length, we can just discard it now */
+        if (add->length == 0) {
+            if (ret.second) {   /* if it got inserted, remove it */
+                idxout.erase(ret.first);
+            }
+        } else {
             /* XXX: has a return value we ignore */
             ByteRangeIndex::insert_overlapped(idxout, *add, ret);
         }
@@ -167,7 +176,7 @@ ByteRangeIndex::insert_overlapped(map<off_t,ContainerEntry>& idxout,
      * that it's not, so move backwards while we find overlaps, and
      * then forwards the same.
      */
-    for (first = insert_ret.first ; first != idxout.begin() ; first--) {
+    while (1) {
 
         if (!first->second.overlap(incoming)) { /* too far */
             mlog(IDX_DCOMMON, "Moving first %lu forward, "
@@ -180,6 +189,11 @@ ByteRangeIndex::insert_overlapped(map<off_t,ContainerEntry>& idxout,
         /* ContainerEntry first->second overlaps! */
         splits.insert(first->second.logical_offset);
         splits.insert(first->second.logical_offset+first->second.length);
+
+        if (first == idxout.begin()) {
+            break;
+        }
+        first--;
     }
 
     /* now look at the other end (last) */
@@ -248,15 +262,14 @@ ByteRangeIndex::insert_overlapped(map<off_t,ContainerEntry>& idxout,
         if (!ret.second) {     /* if (collision) */
 
             /*
-             * XXX: gag, C++ first/second makes for unreadable code.
+             * ret.first->second  == ContainerEntry currently in winners
+             * chunks_itr->second == ContainerEntry under consideration
              *
-             * translation: if ( (timestamp of entry in winners map) <
-             *                   (timestamp of current entry) ) {
-             *                         replace former with the latter
-             *               }
+             * if (winner older_than consideration) {
+             *    replace winner with cosideration
+             * }
              */
-            if (ret.first->second.end_timestamp <
-                chunks_itr->second.end_timestamp) {
+            if (ret.first->second.older_than(chunks_itr->second)) {
 
                 winners.erase(ret.first);   /* remove older entry */
                 winners.insert(make_pair(chunks_itr->first,
