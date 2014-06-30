@@ -3,6 +3,8 @@
  */
 class ByteRangeIndex;   /* forward decl the main class */
 
+#include <deque>        /* used for index read tasks */
+
 /*
  * HostEntry: this is the on-disk format for an index dropping file
  *
@@ -169,6 +171,9 @@ public:
                                   vector<ChunkFile> &cmapout, int &chunk_id,
                                   map<off_t,ContainerEntry> &idxin,
                                   vector<ChunkFile> &cmapin);
+    static plfs_error_t reader(deque<struct plfs_pathback> &idrops,
+                               ByteRangeIndex *idx, int rank);
+    static void *reader_indexer_thread(void *va);
  
     pthread_mutex_t bri_mutex;       /* to lock this data structure */
 
@@ -182,5 +187,6 @@ public:
     map<off_t,ContainerEntry> idx;   /* global index (aggregated) */
     vector<ChunkFile> chunk_map;     /* filenames for idx */
     int nchunks;                     /* #chunks in chunk_map (for chunk_id) */
+    /* XXX: nchunks not necessary?  use chunk_map.size() ? */
 };
 

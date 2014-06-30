@@ -197,6 +197,7 @@ ByteRangeIndex::merge_idx(map<off_t,ContainerEntry> &idxout,
     for (itr = cmapin.begin() ; itr != cmapin.end() ; itr++) {
         cmapout.push_back(*itr);
     }
+    chunk_id += cmapin.size();
     
     /*
      * now merge in all the idxin records, adjusting the chunk map
