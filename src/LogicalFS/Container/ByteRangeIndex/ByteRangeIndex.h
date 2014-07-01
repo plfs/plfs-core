@@ -190,6 +190,9 @@ public:
                                       pid_t uniform_rank);
 
     plfs_error_t global_from_stream(void *addr);
+    plfs_error_t global_to_stream(void **buffer, size_t *length);
+    plfs_error_t global_to_file(IOSHandle *fh, struct plfs_backend *canback);
+
 
     pthread_mutex_t bri_mutex;       /* to lock this data structure */
 
