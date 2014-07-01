@@ -201,7 +201,7 @@ ByteRangeIndex::global_to_file(IOSHandle *xfh,
 {
     void *buffer;
     size_t length;
-    plfs_error_t ret = global_to_stream(&buffer,&length);
+    plfs_error_t ret = this->global_to_stream(&buffer,&length);
 
     if (ret == PLFS_SUCCESS) {
         ssize_t bytes;
