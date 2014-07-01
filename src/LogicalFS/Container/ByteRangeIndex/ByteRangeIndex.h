@@ -174,7 +174,23 @@ public:
     static plfs_error_t reader(deque<struct plfs_pathback> &idrops,
                                ByteRangeIndex *idx, int rank);
     static void *reader_indexer_thread(void *va);
- 
+    static plfs_error_t collectIndices(const string& phys,
+                                       struct plfs_backend *back,
+                                       vector<plfs_pathback> &indices,
+                                       bool full_path);
+    static plfs_error_t aggregateIndices(const string& path,
+                                         struct plfs_backend *canback,
+                                         ByteRangeIndex *bri,
+                                         bool uniform_restart,
+                                         pid_t uniform_rank);
+    static plfs_error_t populateIndex(const string& path,
+                                      struct plfs_backend *canback,
+                                      ByteRangeIndex *bri, bool use_global,
+                                      bool uniform_restart,
+                                      pid_t uniform_rank);
+
+    plfs_error_t global_from_stream(void *addr);
+
     pthread_mutex_t bri_mutex;       /* to lock this data structure */
 
     /* data structures for the write side */
