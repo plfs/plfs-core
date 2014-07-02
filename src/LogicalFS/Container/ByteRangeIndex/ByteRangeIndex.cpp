@@ -13,10 +13,15 @@
  */
 ByteRangeIndex::ByteRangeIndex(PlfsMount *) {
     pthread_mutex_init(&this->bri_mutex, NULL);
+    this->isopen = false;
+    this->brimode = -1;          /* an invalid value */
+    this->eof_tracker = 0;
     this->write_count = 0;
+    this->write_bytes = 0;
     this->iwritefh = NULL;
     this->iwriteback = NULL;
     this->nchunks = 0;
+    this->backing_bytes = 0;
     /* init'd by C++: writebuf, idx, chunk_map */
 }
 

@@ -157,6 +157,7 @@ public:
 
  private:
     static plfs_error_t insert_entry(map<off_t,ContainerEntry> &idxout,
+                                     off_t *eof_trk, off_t *bbytes,
                                      ContainerEntry *add);
     static plfs_error_t insert_overlapped(map<off_t,ContainerEntry> &idxout,
                                           ContainerEntry& g_entry,
@@ -165,14 +166,16 @@ public:
     static plfs_error_t merge_dropping(map<off_t,ContainerEntry> &idxout,
                                        vector<ChunkFile> &cmapout,
                                        int &chunk_id,
+                                       off_t *eof_trk, off_t *bbytes,
                                        string dropbpath,
                                        struct plfs_backend *dropback);
     static plfs_error_t merge_idx(map<off_t,ContainerEntry> &idxout,
                                   vector<ChunkFile> &cmapout, int &chunk_id,
+                                  off_t *eof_trk, off_t *bbytes,
                                   map<off_t,ContainerEntry> &idxin,
                                   vector<ChunkFile> &cmapin);
     static plfs_error_t reader(deque<struct plfs_pathback> &idrops,
-                               ByteRangeIndex *idx, int rank);
+                               ByteRangeIndex *bri, int rank);
     static void *reader_indexer_thread(void *va);
     static plfs_error_t collectIndices(const string& phys,
                                        struct plfs_backend *back,
@@ -195,17 +198,23 @@ public:
 
 
     pthread_mutex_t bri_mutex;       /* to lock this data structure */
+    bool isopen;                     /* true if index is open */
+    int brimode;                     /* isopen: O_RDONLY, O_WRONLY, O_RDWR */
+    off_t eof_tracker;               /* RD/RDWR: the actual EOF */
+                                     /* WR: max ending offset of our writes */
 
     /* data structures for the write side */
     vector<HostEntry> writebuf;      /* buffer write records here */
-    int write_count;
-    IOSHandle *iwritefh;
-    struct plfs_backend *iwriteback;
+    int write_count;                 /* #write ops for this open */
+    off_t write_bytes;               /* #bytes written for this open */
+    IOSHandle *iwritefh;             /* where to write index to */
+    struct plfs_backend *iwriteback; /* backend index is on */
 
     /* data structures for the read side */
     map<off_t,ContainerEntry> idx;   /* global index (aggregated) */
     vector<ChunkFile> chunk_map;     /* filenames for idx */
     int nchunks;                     /* #chunks in chunk_map (for chunk_id) */
     /* XXX: nchunks not necessary?  use chunk_map.size() ? */
+    off_t backing_bytes;             /* includes overwrites */
 };
 

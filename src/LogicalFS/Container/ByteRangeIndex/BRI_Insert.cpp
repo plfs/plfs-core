@@ -23,6 +23,7 @@
  */
 plfs_error_t
 ByteRangeIndex::insert_entry(map<off_t,ContainerEntry> &idxout,
+                             off_t *eof_trk, off_t *bbytes,
                              ContainerEntry *add) {
 
     pair<map<off_t,ContainerEntry>::iterator,bool> ret;  /* for map insert */
@@ -32,11 +33,11 @@ ByteRangeIndex::insert_entry(map<off_t,ContainerEntry> &idxout,
     mlog(IDX_DAPI, "insert_entry: offset %ld into %p", add->logical_offset,
          &idxout);
 
-#if 0
-    /* XXXCDC: tracking last_offset and total_bytes */
-    last_offset = max(add->logical_offset+add->length, last_offset);
-    total_bytes += add->length;
-#endif
+    /* track metadata as we merge it in */
+    if (add->logical_offset + (off_t)add->length > *eof_trk) {
+        *eof_trk = add->logical_offset + add->length;
+    }
+    *bbytes += add->length;
 
     /* 
      * ret.first is either us, or a prev defined dup key.

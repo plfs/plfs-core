@@ -41,7 +41,8 @@ plfs_error_t ByteRangeIndex::global_from_stream(void *addr) {
         ContainerEntry e = entries[i];
 
         /* XXX: ignore retval, but can it ever fail? */
-        ByteRangeIndex::insert_entry(this->idx, &e);
+        ByteRangeIndex::insert_entry(this->idx, &this->eof_tracker,
+                                     &this->backing_bytes, &e);
     }
 
     /* skip past entries to chunk info */

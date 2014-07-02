@@ -74,6 +74,7 @@ indexpath2chunkpath(const string &ipath, pid_t pid, string &dpath) {
 plfs_error_t
 ByteRangeIndex::merge_dropping(map<off_t,ContainerEntry> &idxout,
                                vector<ChunkFile> &cmapout, int &chunk_id,
+                               off_t *eof_trk, off_t *bbytes,
                                string dropbpath,
                                struct plfs_backend *dropback) {
 
@@ -143,7 +144,7 @@ ByteRangeIndex::merge_dropping(map<off_t,ContainerEntry> &idxout,
         c_entry.end_timestamp     = h_entry.end_timestamp;
 
         /* now add it! */
-        rv = ByteRangeIndex::insert_entry(idxout, &c_entry);
+        rv = ByteRangeIndex::insert_entry(idxout, eof_trk, bbytes, &c_entry);
         if (rv != PLFS_SUCCESS) {
             mlog(IDX_DRARE, "Inserting chunk failed: %s", strplfserr(rv));
         }
@@ -187,6 +188,7 @@ ByteRangeIndex::merge_dropping(map<off_t,ContainerEntry> &idxout,
 plfs_error_t
 ByteRangeIndex::merge_idx(map<off_t,ContainerEntry> &idxout,
                           vector<ChunkFile> &cmapout, int &chunk_id,
+                          off_t *eof_trk, off_t *bbytes,
                           map<off_t,ContainerEntry> &idxin,
                           vector<ChunkFile> &cmapin) {
 
@@ -209,7 +211,7 @@ ByteRangeIndex::merge_idx(map<off_t,ContainerEntry> &idxout,
 
         entry.id += chunk_map_shift;
         /* XXX: return value ignored */
-        (void) ByteRangeIndex::insert_entry(idxout, &entry);
+        (void) ByteRangeIndex::insert_entry(idxout, eof_trk, bbytes, &entry);
     }
 
     return(PLFS_SUCCESS);

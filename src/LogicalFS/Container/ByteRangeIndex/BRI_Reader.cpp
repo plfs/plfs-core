@@ -60,13 +60,13 @@ typedef struct {
  * index in a bad state (e.g. with the index partially read in).
  *
  * @param idrops list of droppings to read
- * @param idx the index receiving the droppings
+ * @param bri the index receiving the droppings
  * @param rank rank (used to help seed random number generator)
  * @return PLFS_SUCCESS or error code
  */
 plfs_error_t
 ByteRangeIndex::reader(deque<struct plfs_pathback> &idrops,
-                       ByteRangeIndex *idx, int rank)
+                       ByteRangeIndex *bri, int rank)
 {
     plfs_error_t ret = PLFS_SUCCESS;
     rand_x safe_rand = rand_x(rank);
@@ -74,7 +74,7 @@ ByteRangeIndex::reader(deque<struct plfs_pathback> &idrops,
     reader_args args;
 
     if (idrops.empty()) {
-        mlog(IDX_DINTAPI, "BRI::reader no droppings %p",idx);
+        mlog(IDX_DINTAPI, "BRI::reader no droppings %p", bri);
         goto done;
     }
     
@@ -88,19 +88,21 @@ ByteRangeIndex::reader(deque<struct plfs_pathback> &idrops,
     /* should we do a serial read? */
     if (idrops.size() == 1 || pconf->threadpool_size <= 1) {
 
-        Util::MutexLock(&idx->bri_mutex, __FUNCTION__);
+        Util::MutexLock(&bri->bri_mutex, __FUNCTION__);
         while(!idrops.empty()) {
             struct plfs_pathback task;
             task = idrops.front();
             idrops.pop_front();
-            ret = ByteRangeIndex::merge_dropping(idx->idx, idx->chunk_map,
-                                                 idx->nchunks,
+            ret = ByteRangeIndex::merge_dropping(bri->idx, bri->chunk_map,
+                                                 bri->nchunks,
+                                                 &bri->eof_tracker,
+                                                 &bri->backing_bytes,
                                                  task.bpath, task.back);
             if ( ret != PLFS_SUCCESS ) {
                 break;
             }
         }
-        Util::MutexUnlock(&idx->bri_mutex, __FUNCTION__);
+        Util::MutexUnlock(&bri->bri_mutex, __FUNCTION__);
         goto done;
     }
     
@@ -109,14 +111,14 @@ ByteRangeIndex::reader(deque<struct plfs_pathback> &idrops,
      */
     pthread_mutex_init(&args.mux, NULL);  /* XXX: ignores retval */
     args.tasks = &idrops;
-    args.bri = idx;
+    args.bri = bri;
 
     {   /* limit the scope of the locals count and threadpool */
         size_t count = min((size_t)pconf->threadpool_size, idrops.size());
         ThreadPool threadpool(count, ByteRangeIndex::reader_indexer_thread,
                               (void *)&args);
         mlog(IDX_DAPI, "%lu THREADS to create index of %p",
-             (unsigned long)count, idx);
+             (unsigned long)count, bri);
 
         ret = threadpool.threadError();
 
@@ -175,9 +177,12 @@ ByteRangeIndex::reader_indexer_thread( void *va ) {
         map<off_t,ContainerEntry> subidx;
         vector<ChunkFile> subchunk;
         int subnchunk;
+        off_t eoft, bbyts;
 
-        subnchunk = 0;
+        subnchunk = 0;         /* not used ... */
+        eoft = bbyts = 0;      /* ... recomputed in merge_idx, below */
         ret = ByteRangeIndex::merge_dropping(subidx, subchunk, subnchunk,
+                                             &eoft, &bbyts,
                                              task.bpath, task.back);
         if (ret != PLFS_SUCCESS) {
             break;
@@ -187,7 +192,10 @@ ByteRangeIndex::reader_indexer_thread( void *va ) {
         Util::MutexLock(&args->bri->bri_mutex, __FUNCTION__);
 
         ret = ByteRangeIndex::merge_idx(args->bri->idx, args->bri->chunk_map,
-                                        args->bri->nchunks, subidx, subchunk);
+                                        args->bri->nchunks,
+                                        &args->bri->eof_tracker,
+                                        &args->bri->backing_bytes,
+                                        subidx, subchunk);
 
         Util::MutexUnlock(&args->bri->bri_mutex, __FUNCTION__);
         mlog(IDX_DCOMMON, "THREAD MERGE %s into main index %p",
