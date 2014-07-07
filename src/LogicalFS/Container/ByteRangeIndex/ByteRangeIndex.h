@@ -88,9 +88,9 @@ class ContainerEntry : HostEntry
  * we only need an int in the aggregated index (saves space).
  */
 typedef struct {
-    string bpath;
-    struct plfs_backend *backend;
-    IOSHandle *fh;           /* NULL if not currently open */
+    string bpath;                 /* bpath to data dropping */
+    struct plfs_backend *backend; /* backend data dropping lives on */
+    IOSHandle *fh;                /* NULL if not currently open */
 } ChunkFile;
 
 /*
@@ -196,6 +196,15 @@ public:
     plfs_error_t global_to_stream(void **buffer, size_t *length);
     plfs_error_t global_to_file(IOSHandle *fh, struct plfs_backend *canback);
 
+    plfs_error_t query_helper(Container_OpenFile *cof, off_t input_offset,
+                              size_t input_length, 
+                              list<index_record> &result);
+    plfs_error_t query_helper_getrec(Container_OpenFile *cof, off_t ptr,
+                                     size_t len, index_record *irp);
+    void query_helper_load_irec(off_t ptr, index_record *irp,
+                                map<off_t,ContainerEntry>::iterator qitr,
+                                bool at_end);
+    
 
     pthread_mutex_t bri_mutex;       /* to lock this data structure */
     bool isopen;                     /* true if index is open */

@@ -4,6 +4,7 @@
 
 #include "plfs_private.h"
 #include "ContainerIndex.h"
+#include "ContainerOpenFile.h"
 #include "ByteRangeIndex.h"
 
 /* public ContainerIndex API functions */
@@ -315,18 +316,60 @@ ByteRangeIndex::index_sync(Container_OpenFile *cof) {
     return(PLFS_ENOTSUP);
 }
 
+/*
+ * ByteRangeIndex::index_query - query index for index records
+ *
+ * index should be open in either RDONLY or RDWR (callers shold have
+ * checked all this already).
+ */
 plfs_error_t
 ByteRangeIndex::index_query(Container_OpenFile *cof, off_t input_offset,
                              size_t input_length, 
                             list<index_record> &result) {
-    /* XXXCDC:
-     *  if (RDWR mode)
-     *      load temp index into RAM
-     *  search index for requested data
-     *  if (RDWR mode)
-     *      discard temp index
+
+    plfs_error_t ret = PLFS_SUCCESS;
+    ByteRangeIndex *target = NULL;
+
+    /* these should never fire... */
+    assert(cof->openflags != O_WRONLY);
+    assert(this->isopen);
+
+    /*
+     * for RDWR we have to generate a temporary read index for the
+     * read operation (this is one reason why PLFS container RDWR
+     * performance isn't very good).
      */
-    return(PLFS_ENOTSUP);
+    if (cof->openflags == O_RDWR) {
+
+        target = new ByteRangeIndex(cof->pathcpy.mnt_pt);
+        ret = target->index_open(cof, O_RDONLY, NULL);
+        if (ret != PLFS_SUCCESS) {
+            delete target;
+            return(ret);
+        }
+
+    } else {
+
+        target = this;   /* RDONLY, should already be in memory */
+
+    }
+    
+    Util::MutexLock(&target->bri_mutex, __FUNCTION__);
+
+    ret = target->query_helper(cof, input_offset, input_length, result);
+
+    Util::MutexUnlock(&target->bri_mutex, __FUNCTION__);
+
+    /*
+     * discard tmp index if we created one
+     */
+    if (cof->openflags == O_RDWR) {
+        /* ignore return value here */
+        target->index_close(cof, O_RDONLY, NULL);
+        delete target;
+    }
+        
+    return(ret);
 }
 
 plfs_error_t
