@@ -204,7 +204,7 @@ public:
     void query_helper_load_irec(off_t ptr, index_record *irp,
                                 map<off_t,ContainerEntry>::iterator qitr,
                                 bool at_end);
-    
+    plfs_error_t flush_writebuf(void);
 
     pthread_mutex_t bri_mutex;       /* to lock this data structure */
     bool isopen;                     /* true if index is open */

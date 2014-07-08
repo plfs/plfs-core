@@ -7,6 +7,45 @@
 #include "ContainerOpenFile.h"
 #include "ByteRangeIndex.h"
 
+/*
+ * small private ByteRangeIndex API functions (longer fns get farmed
+ * out to their own files).
+ */
+
+/**
+ * ByteRangeIndex::flush_writebuf: flush out the write buffer to the
+ * backing dropping.   the BRI should already be locked by the caller.
+ *
+ * @return PLFS_SUCCESS or an error code
+ */
+plfs_error_t
+ByteRangeIndex::flush_writebuf() {
+    plfs_error_t ret = PLFS_SUCCESS;
+    size_t len;
+    void *start;
+    ssize_t bytes;
+
+    len = this->writebuf.size();
+
+    /* iwritefh check is just for sanity, should be non-null */
+    if (len && this->iwritefh != NULL) {
+        /* note: c++ vectors are guaranteed to be contiguous */
+        len = len * sizeof(HostEntry);
+        start = &(this->writebuf.front());
+
+        ret = Util::Writen(start, len, this->iwritefh, &bytes);
+        if (ret != PLFS_SUCCESS) {
+            mlog(IDX_DRARE, "%s: failed to write fh %p: %s",
+                 __FUNCTION__, this->iwritefh, strplfserr(ret));
+        }
+
+        this->writebuf.clear();   /* clear buffer */
+    }
+
+    return(ret);
+}
+
+
 /* public ContainerIndex API functions */
 
 /**
@@ -288,32 +327,44 @@ plfs_error_t
 ByteRangeIndex::index_add(Container_OpenFile *cof, size_t nbytes,
                           off_t offset, pid_t pid, off_t physoffset,
                           double begin, double end) {
-#if 0
-            write_count++;
-            Util::MutexLock(   &index_mux , __FUNCTION__);
-            index->addWrite( offset, written, pid, begin, end );
-            // TODO: why is 1024 a magic number?
-            int flush_count = 1024;
-            if (write_count%flush_count==0) {
-                ret = index->flush();
-                // Check if the index has grown too large stop buffering
-                if(index->memoryFootprintMBs() > index_buffer_mbs) {
-                    index->stopBuffering();
-                    mlog(WF_DCOMMON, "The index grew too large, "
-                         "no longer buffering");
-                }
-            }
-#endif
-    return(PLFS_ENOTSUP);
+
+    plfs_error_t ret = PLFS_SUCCESS;
+    HostEntry newent;
+
+    newent.logical_offset = offset;
+    newent.physical_offset = physoffset;
+    newent.length = nbytes;
+    newent.begin_timestamp = begin;
+    newent.end_timestamp = end;
+    newent.id = pid;
+
+    Util::MutexLock(&this->bri_mutex, __FUNCTION__);
+    this->writebuf.push_back(newent);
+    this->write_count++;
+    this->write_bytes += nbytes;
+
+    /* XXX: carried over hardwired 1024 from old code */
+    if ((this->write_count % 1024) == 0) {
+        ret = this->flush_writebuf();
+    }
+    
+    Util::MutexUnlock(&this->bri_mutex, __FUNCTION__);
+
+    return(ret);
 }
 
 plfs_error_t
 ByteRangeIndex::index_sync(Container_OpenFile *cof) {
-    /*
-     * XXXCDC: this should flush out all buffered unwritten write index
-     * records to disk and then sync all the write fds.
-     */
-    return(PLFS_ENOTSUP);
+
+    plfs_error_t ret;
+
+    Util::MutexLock(&this->bri_mutex, __FUNCTION__);
+
+    ret = this->flush_writebuf();
+    
+    Util::MutexUnlock(&this->bri_mutex, __FUNCTION__);
+
+    return(ret);
 }
 
 /*
