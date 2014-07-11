@@ -144,6 +144,8 @@ ByteRangeIndex::reader(deque<struct plfs_pathback> &idrops,
 
     }
 
+    pthread_mutex_destroy(&args.mux);
+
  done:
     return ret;
 }

@@ -65,7 +65,9 @@ ByteRangeIndex::ByteRangeIndex(PlfsMount *) {
     /* init'd by C++: writebuf, idx, chunk_map */
 }
 
-ByteRangeIndex::~ByteRangeIndex() {  };              /* destructor */
+ByteRangeIndex::~ByteRangeIndex() {                  /* destructor */
+    pthread_mutex_destroy(&this->bri_mutex);
+};
 
 /**
  * ByteRangeIndex::index_open: establish an open index for open file
