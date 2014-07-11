@@ -8,6 +8,12 @@
 
 #include "ThreadPool.h"
 
+/*
+ * locking of the BRI is assumed to be handled at a higher level, so 
+ * we assume we are safe, but we still have to protect ourselves from
+ * any threads we create (e.g. for parallel reads).
+ */
+
 /***************************************************************************/
 
 /*
@@ -88,7 +94,6 @@ ByteRangeIndex::reader(deque<struct plfs_pathback> &idrops,
     /* should we do a serial read? */
     if (idrops.size() == 1 || pconf->threadpool_size <= 1) {
 
-        Util::MutexLock(&bri->bri_mutex, __FUNCTION__);
         while(!idrops.empty()) {
             struct plfs_pathback task;
             task = idrops.front();
@@ -102,7 +107,6 @@ ByteRangeIndex::reader(deque<struct plfs_pathback> &idrops,
                 break;
             }
         }
-        Util::MutexUnlock(&bri->bri_mutex, __FUNCTION__);
         goto done;
     }
     
@@ -188,8 +192,13 @@ ByteRangeIndex::reader_indexer_thread( void *va ) {
             break;
         }
 
-        /* now merge the subindex into the main index */
-        Util::MutexLock(&args->bri->bri_mutex, __FUNCTION__);
+        /* 
+         * now merge the subindex into the main index.  lock out 
+         * other threads while doing the merge (this in an in-memory
+         * operation, so it should be pretty fast relative to operations
+         * that require file I/O).
+         */
+        Util::MutexLock(&(args->mux),__FUNCTION__);
 
         ret = ByteRangeIndex::merge_idx(args->bri->idx, args->bri->chunk_map,
                                         args->bri->nchunks,
@@ -197,7 +206,7 @@ ByteRangeIndex::reader_indexer_thread( void *va ) {
                                         &args->bri->backing_bytes,
                                         subidx, subchunk);
 
-        Util::MutexUnlock(&args->bri->bri_mutex, __FUNCTION__);
+        Util::MutexUnlock(&(args->mux),__FUNCTION__);
         mlog(IDX_DCOMMON, "THREAD MERGE %s into main index %p",
              task.bpath.c_str(), args->bri);
     }

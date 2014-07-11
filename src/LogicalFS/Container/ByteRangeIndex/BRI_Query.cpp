@@ -7,6 +7,11 @@
 #include "ByteRangeIndex.h"
 
 /*
+ * locking is assumed to be handled at a higher level, so we assume we
+ * are safe.
+ */
+
+/*
  * by the time we reach this code, the index has been loaded into
  * memory in the this->idx map and this->chunk_map[] vector.  the
  * entries in this->idx cannot overlap (because we remove overlaps

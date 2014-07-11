@@ -6,6 +6,11 @@
 #include "ContainerIndex.h"
 #include "ByteRangeIndex.h"
 
+/*
+ * locking is assumed to be handled at a higher level, so we assume we
+ * are safe.
+ */
+
 /**
  * ByteRangeIndex::global_from_stream: read in a global index from
  * a "stream" (i.e. a chunk of memory).
@@ -33,9 +38,7 @@ plfs_error_t ByteRangeIndex::global_from_stream(void *addr) {
     /* then skip past the header */
     addr = (void *)&(sarray[1]);
 
-    /* lock map and start inserting the data, starting with the entries */
-    Util::MutexLock(&this->bri_mutex, __FUNCTION__);
-
+    /* start inserting the data, starting with the entries */
     ContainerEntry *entries = (ContainerEntry *)addr;
     for(size_t i = 0; i < quant; i++) {
         ContainerEntry e = entries[i];
@@ -99,8 +102,6 @@ plfs_error_t ByteRangeIndex::global_from_stream(void *addr) {
         this->chunk_map.push_back(cf);
     }
 
-    Util::MutexUnlock(&this->bri_mutex, __FUNCTION__);
-
     return(ret);
 }
 
@@ -132,7 +133,6 @@ ByteRangeIndex::global_to_stream(void **buffer, size_t *length)
     char *ptr;
     map<off_t,ContainerEntry>::iterator itr;
     
-    Util::MutexLock(&this->bri_mutex, __FUNCTION__);
     quant = this->idx.size();
 
     /*
@@ -184,7 +184,6 @@ ByteRangeIndex::global_to_stream(void **buffer, size_t *length)
         assert(ptr == (char *)*buffer+*length);
     }
 
-    Util::MutexUnlock(&this->bri_mutex, __FUNCTION__);
     return(ret);
 }
 

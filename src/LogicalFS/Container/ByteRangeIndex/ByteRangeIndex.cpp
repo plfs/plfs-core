@@ -101,7 +101,6 @@ ByteRangeIndex::index_open(Container_OpenFile *cof, int open_flags,
 
         if (open_opt && open_opt->index_stream != NULL) {
 
-            /* XXXCDC: CHECK LOCKING - GLOBAL LCOSK BAD ALREADY LOCKED */
             ret = this->global_from_stream(open_opt->index_stream);
 
         } else {

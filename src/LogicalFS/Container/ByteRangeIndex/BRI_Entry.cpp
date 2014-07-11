@@ -6,6 +6,11 @@
 #include "ContainerIndex.h"
 #include "ByteRangeIndex.h"
 
+/*
+ * locking is assumed to be handled at a higher level, so we assume we
+ * are safe.
+ */
+
 /***************************************************************************/
 /*
  * HostEntry: on-disk format for index dropping file

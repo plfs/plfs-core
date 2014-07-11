@@ -11,6 +11,8 @@
 /*
  * top-level code that popluates an index from either the global index
  * or from dropping files.   the main entry point is populateIndex().
+ * locking is assumed to be handled at a higher level, so we assume we
+ * are safe.
  */
 
 /**
