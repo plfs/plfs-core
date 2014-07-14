@@ -127,8 +127,8 @@ public:
 
     plfs_error_t index_open(Container_OpenFile *cof, int open_flags, 
                             Plfs_open_opt *open_opt);
-    plfs_error_t index_close(Container_OpenFile *cof, int open_flags,
-                             Plfs_close_opt *close_opt);
+    plfs_error_t index_close(Container_OpenFile *cof, off_t *lastoffp,
+                             size_t *tbytesp, Plfs_close_opt *close_opt);
     plfs_error_t index_add(Container_OpenFile *cof, size_t nbytes,
                            off_t offset, pid_t pid, off_t physoff,
                            double begin, double end);

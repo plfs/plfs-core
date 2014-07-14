@@ -148,13 +148,14 @@ ByteRangeIndex::index_open(Container_OpenFile *cof, int open_flags,
  * ByteRangeIndex::index_close: close off an open index
  *
  * @param cof the open file we belong to
- * @param open_flags the mode (RDONLY, WRONLY, or RDWR)
+ * @param lastoffp where to put last offset for metadata dropping (NULL ok)
+ * @param tbytesp where to put total bytes for metadata dropping (NULL ok)
  * @param close_opt close options (e.g. for MPI opts)
  * @return PLFS_SUCCESS or error code
  */
 plfs_error_t
-ByteRangeIndex::index_close(Container_OpenFile *cof, int open_flags,
-                            Plfs_close_opt *close_opt) {
+ByteRangeIndex::index_close(Container_OpenFile *cof, off_t *lastoffp,
+                            size_t *tbytesp, Plfs_close_opt *close_opt) {
 
     plfs_error_t ret = PLFS_SUCCESS;
     plfs_error_t rv;
@@ -165,8 +166,25 @@ ByteRangeIndex::index_close(Container_OpenFile *cof, int open_flags,
         goto done;
     }
 
+    /*
+     * lastoffp and tbytep return values only used when closing a
+     * writeable container (to do the meta dropping), but go ahead and
+     * return something meaningful on a O_RDONLY container just to be
+     * safe.  for total bytes, we give back backing_bytes when
+     * O_RDONLY since write_bytes will always be zero.  that RDONLY
+     * wreturn value isn't used (though we could log it for debugging
+     * info).
+     */
+    if (lastoffp != NULL) {
+        *lastoffp = this->eof_tracker;
+    }
+    if (tbytesp != NULL) {
+        *tbytesp = (this->brimode != O_RDONLY) ? this->write_bytes
+             : this->backing_bytes;
+    }
+    
     /* flush out any cached write index records and shutdown write side */
-    if (this->brimode != O_RDONLY) {
+    if (this->brimode != O_RDONLY) {   /* writeable? */
         ret = this->flush_writebuf();  /* clears this->writebuf */
         this->write_count = 0;
         this->write_bytes = 0;
@@ -177,11 +195,6 @@ ByteRangeIndex::index_close(Container_OpenFile *cof, int open_flags,
             }
         }
         this->iwriteback = NULL;
-        /*
-         * XXXCDC: WHAT ABOUT THE META INFO? -- done at a higher
-         * level, but maybe we should dump open_flags and pass the
-         * info up for the higher level?
-         */
     }
 
     /* free read-side memory */
@@ -199,60 +212,6 @@ ByteRangeIndex::index_close(Container_OpenFile *cof, int open_flags,
 
  done:
     return(ret);
-#if 0
-    if ( isWriter(open_flags) ) {
-        if ( writers == 0 ) { // in ContainerFD
-            off_t  last_offset;
-            size_t total_bytes;
-            bool drop_meta = true; // in ADIO, only 0; else, everyone
-            if(close_opt && close_opt->pinter==PLFS_MPIIO) {
-                if (pid==0) {
-                    if(close_opt->valid_meta) {
-                        mlog(PLFS_DCOMMON, "Grab meta from ADIO gathered info");
-                        last_offset=close_opt->last_offset;
-                        total_bytes=close_opt->total_bytes;
-                    } else {
-                        mlog(PLFS_DCOMMON, "Grab info from glob merged idx");
-                        last_offset=index->lastOffset();
-                        total_bytes=index->totalBytes();
-                    }
-                } else {
-                    drop_meta = false;
-                }
-            } else {
-                wf->getMeta( &last_offset, &total_bytes );
-            }
-            if ( drop_meta ) {
-                size_t max_writers = wf->maxWriters();
-                if (close_opt && close_opt->num_procs > max_writers) {
-                    max_writers = close_opt->num_procs;
-                }
-                char *hostname;
-                Util::hostname(&hostname);
-                Container::addMeta(last_offset, total_bytes,
-                                   this->fd->getPath(),
-                                   this->fd->getCanBack(),
-                                   hostname,uid,wf->createTime(),
-                                   close_opt?close_opt->pinter:-1,
-                                   max_writers);
-                Container::removeOpenrecord( this->fd->getPath(),
-                                             this->fd->getCanBack(),
-                                             hostname,
-                                             this->fd->getPid());
-            }
-            // END in containerFD
-            // the pfd remembers the first pid added which happens to be the
-            // one we used to create the open-record
-            delete wf;
-            wf = NULL;
-            this->fd->setWritefile(NULL);
-        } else {
-            ret = PLFS_SUCCESS;
-        }
-        ref_count = this->fd->incrementOpens(-1);
-        // Clean up reads moved fd reference count updates
-    }
-#endif
 }
 
 
@@ -349,7 +308,7 @@ ByteRangeIndex::index_query(Container_OpenFile *cof, off_t input_offset,
      */
     if (cof->openflags == O_RDWR) {
         /* ignore return value here */
-        target->index_close(cof, O_RDONLY, NULL);
+        target->index_close(cof, NULL, NULL, NULL);
         delete target;
     }
         

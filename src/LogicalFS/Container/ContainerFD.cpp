@@ -516,7 +516,7 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
 
             ret = this->establish_writedropping(pid);
             if (ret != PLFS_SUCCESS) {
-                cof->cof_index->index_close(cof, rwflags, NULL);
+                cof->cof_index->index_close(cof, NULL, NULL, NULL);
                 goto done;
             }
         }
@@ -575,6 +575,8 @@ Container_fd::close(pid_t pid, uid_t uid, int open_flags,
     plfs_error_t ret = PLFS_SUCCESS;
     Container_OpenFile *cof;
     int left;
+    off_t m_lastoffset;
+    size_t m_totalbytes;
 
     cof = this->fd;
     if (cof == NULL) {
@@ -624,7 +626,7 @@ Container_fd::close(pid_t pid, uid_t uid, int open_flags,
      * need to dispose of it.   first dispose of the index.
      * XXX: look at return values and log errors
      */
-    cof->cof_index->index_close(cof, open_flags, close_opt);
+    cof->cof_index->index_close(cof, &m_lastoffset, &m_totalbytes, close_opt);
     container_index_free(cof->cof_index);
     cof->cof_index = NULL;
 
@@ -659,11 +661,12 @@ Container_fd::close(pid_t pid, uid_t uid, int open_flags,
     }
 
     /*
-     * for writeable fds, we need to update the metadata
+     * for writeable fds, we need to update the metadata.  the
+     * m_lastoffset and m_totalbytes currently are what we have
+     * from index_close().   if we are using MPI we may override
+     * them with info we get from the MPI close operation.
      */
     if (cof->openflags != O_RDONLY) {  /* writeable? */
-        off_t m_lastoffset;
-        size_t m_totalbytes;
         bool drop_meta = true;  /* only false if ADIO and !rank 0 */
 
         if (close_opt && close_opt->pinter == PLFS_MPIIO) {
@@ -673,16 +676,11 @@ Container_fd::close(pid_t pid, uid_t uid, int open_flags,
                     m_lastoffset = close_opt->last_offset;
                     m_totalbytes = close_opt->total_bytes;
                 } else {
-                    mlog(PLFS_DCOMMON, "Grab info from glob merged idx");
-                    m_lastoffset = cof->last_offset;
-                    m_totalbytes = cof->total_bytes;
+                    mlog(PLFS_DCOMMON, "Use info from index_close op");
                 }
             } else {
                 drop_meta = false;    /* not rank 0, don't drop */
             }
-        } else {
-            m_lastoffset = cof->last_offset;
-            m_totalbytes = cof->total_bytes;
         }
 
         if ( drop_meta ) {
