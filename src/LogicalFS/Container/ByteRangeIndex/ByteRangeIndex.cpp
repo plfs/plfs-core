@@ -65,7 +65,10 @@ ByteRangeIndex::ByteRangeIndex(PlfsMount *) {
     /* init'd by C++: writebuf, idx, chunk_map */
 }
 
-ByteRangeIndex::~ByteRangeIndex() {                  /* destructor */
+/**
+ * ByteRangeIndex::ByteRangeIndex: destructor
+ */
+ByteRangeIndex::~ByteRangeIndex() {
     pthread_mutex_destroy(&this->bri_mutex);
 };
 
@@ -141,24 +144,64 @@ ByteRangeIndex::index_open(Container_OpenFile *cof, int open_flags,
     return(ret);
 }
 
+/**
+ * ByteRangeIndex::index_close: close off an open index
+ *
+ * @param cof the open file we belong to
+ * @param open_flags the mode (RDONLY, WRONLY, or RDWR)
+ * @param close_opt close options (e.g. for MPI opts)
+ * @return PLFS_SUCCESS or error code
+ */
 plfs_error_t
 ByteRangeIndex::index_close(Container_OpenFile *cof, int open_flags,
                             Plfs_close_opt *close_opt) {
-#if 0
+
     plfs_error_t ret = PLFS_SUCCESS;
-    WriteFile *wf    = this->fd->getWritefile();
-    Index     *index = this->fd->getIndex();
-    size_t writers = 0, readers = 0, ref_count = 0;
-    // be careful.  We might enter here when we have both writers and readers
-    // make sure to remove the appropriate open handle for this thread by
-    // using the original open_flags
-    // clean up after writes
+    plfs_error_t rv;
+
+    Util::MutexLock(&this->bri_mutex, __FUNCTION__);
+
+    if (!this->isopen) {    /* already closed, nothing to do */
+        goto done;
+    }
+
+    /* flush out any cached write index records and shutdown write side */
+    if (this->brimode != O_RDONLY) {
+        ret = this->flush_writebuf();  /* clears this->writebuf */
+        this->write_count = 0;
+        this->write_bytes = 0;
+        if (this->iwritefh != NULL) {
+            rv = this->iwriteback->store->Close(this->iwritefh);
+            if (ret == PLFS_SUCCESS && rv != PLFS_SUCCESS) {
+                ret = rv;   /* bubble this error up */
+            }
+        }
+        this->iwriteback = NULL;
+        /*
+         * XXXCDC: WHAT ABOUT THE META INFO? -- done at a higher
+         * level, but maybe we should dump open_flags and pass the
+         * info up for the higher level?
+         */
+    }
+
+    /* free read-side memory */
+    if (this->brimode != O_WRONLY) {
+        this->idx.clear();
+        this->chunk_map.clear();
+        this->nchunks = 0;
+        this->backing_bytes = 0;
+    }
+
+    /* let the eof_tracker persist for now */
+    this->brimode = -1;
+    this->isopen = false;
+    Util::MutexUnlock(&this->bri_mutex, __FUNCTION__);
+
+ done:
+    return(ret);
+#if 0
     if ( isWriter(open_flags) ) {
-        assert(wf);
-        int tmp_writers;
-        wf->removeWriter( pid, &tmp_writers );
-        writers = tmp_writers;
-        if ( writers == 0 ) {
+        if ( writers == 0 ) { // in ContainerFD
             off_t  last_offset;
             size_t total_bytes;
             bool drop_meta = true; // in ADIO, only 0; else, everyone
@@ -197,6 +240,7 @@ ByteRangeIndex::index_close(Container_OpenFile *cof, int open_flags,
                                              hostname,
                                              this->fd->getPid());
             }
+            // END in containerFD
             // the pfd remembers the first pid added which happens to be the
             // one we used to create the open-record
             delete wf;
@@ -208,32 +252,7 @@ ByteRangeIndex::index_close(Container_OpenFile *cof, int open_flags,
         ref_count = this->fd->incrementOpens(-1);
         // Clean up reads moved fd reference count updates
     }
-    if (isReader(open_flags) && index) {
-        assert( index );
-        readers = index->incrementOpens(-1);
-        if ( readers == 0 ) {
-            delete index;
-            index = NULL;
-            this->fd->setIndex(NULL);
-        }
-        ref_count = this->fd->incrementOpens(-1);
-    }
-    mlog(PLFS_DCOMMON, "%s %s: %d readers, %d writers, %d refs remaining",
-         __FUNCTION__, this->fd->getPath(), (int)readers, (int)writers,
-         (int)ref_count);
-    // make sure the reference counting is correct
-    plfs_reference_count(this->fd);
-    if ( ret == PLFS_SUCCESS && ref_count == 0 ) {
-        mss::mlog_oss oss(PLFS_DCOMMON);
-        oss << __FUNCTION__ << " removing OpenFile " << this->fd;
-        oss.commit();
-        delete this->fd;
-        this->fd = NULL;
-    }
-    *num_ref = ref_count;
-    return ret;
 #endif
-    return(PLFS_ENOTSUP);
 }
 
 
