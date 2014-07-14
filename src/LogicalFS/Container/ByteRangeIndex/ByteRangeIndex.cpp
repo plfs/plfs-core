@@ -214,7 +214,18 @@ ByteRangeIndex::index_close(Container_OpenFile *cof, off_t *lastoffp,
     return(ret);
 }
 
-
+/**
+ * ByteRangeIndex::index_add: add an index record to a writeable index
+ *
+ * @param cof the open file
+ * @param nbytes number of bytes we wrote
+ * @param offset the logical offset of the record
+ * @param pid the pid doing the writing
+ * @param physoffset the physical offset in the data dropping of the data
+ * @param begin the start timestamp
+ * @param end the end timestamp
+ * @return PLFS_SUCCESS or error code
+ */
 plfs_error_t
 ByteRangeIndex::index_add(Container_OpenFile *cof, size_t nbytes,
                           off_t offset, pid_t pid, off_t physoffset,
@@ -245,6 +256,12 @@ ByteRangeIndex::index_add(Container_OpenFile *cof, size_t nbytes,
     return(ret);
 }
 
+/**
+ * ByteRangeIndex::index_sync push unwritten records to backing iostore
+ *
+ * @param cof the open file
+ * @return PLFS_SUCCESS or error code
+ */
 plfs_error_t
 ByteRangeIndex::index_sync(Container_OpenFile *cof) {
 
@@ -264,6 +281,12 @@ ByteRangeIndex::index_sync(Container_OpenFile *cof) {
  *
  * index should be open in either RDONLY or RDWR (callers shold have
  * checked all this already).
+ *
+ * @param cof the open file
+ * @param input_offset the starting offset
+ * @param input_length the length we are interested in
+ * @param result the resulting records go here
+ * @return PLFS_SUCCESS or error code
  */
 plfs_error_t
 ByteRangeIndex::index_query(Container_OpenFile *cof, off_t input_offset,
@@ -334,17 +357,29 @@ ByteRangeIndex::index_truncate(Container_OpenFile *cof, off_t offset) {
     return(PLFS_ENOTSUP);
 }
 
+/**
+ * ByteRangeIndex::index_closing_wdrop we are closing a write dropping
+ *
+ * @param cof the open file
+ * @param ts timestamp string
+ * @param pid the process id closing
+ * @param filename the dropping being closed
+ * @return PLFS_SUCCESS or error code
+ */
 plfs_error_t
 ByteRangeIndex::index_closing_wdrop(Container_OpenFile *cof, string ts,
                                     pid_t pid, const char *filename) {
+
     /*
-     * We use the PID to lookup the index dropping that matches the
-     * data dropping that we are closing.  We release any resources
-     * associated with that pid.  We close the index dropping if we
-     * are no longer using it (have to watch out for the case where we
-     * share the index dropping across multiple data dropping files).
+     * if we were doing a one-to-one mapping between a PID's data
+     * dropping file and an index dropping file, we'd close the index
+     * dropping file here.  however, we currently have one shared
+     * index for all writing PIDs, so there is nothing for us to do
+     * here.  the shared index is closed by index_close when the final
+     * reference to the container is closed.
      */
-    return(PLFS_ENOTSUP);
+
+    return(PLFS_SUCCESS);
 }
 
 plfs_error_t
@@ -506,6 +541,13 @@ ByteRangeIndex::index_droppings_trunc(struct plfs_physpathinfo *ppip,
     return(PLFS_ENOTSUP);
 }
 
+/**
+ * ByteRangeIndex::index_droppings_unlink unlink index droppings as
+ * part of an unlink operation.
+ *
+ * @param ppip the path we are unlinking
+ * @return PLFS_SUCCESS or error code
+ */
 plfs_error_t
 ByteRangeIndex::index_droppings_unlink(struct plfs_physpathinfo *ppip) {
     /*
@@ -515,6 +557,13 @@ ByteRangeIndex::index_droppings_unlink(struct plfs_physpathinfo *ppip) {
     return(PLFS_SUCCESS);
 }
 
+/**
+ * ByteRangeIndex::index_droppings_zero called when truncating a file
+ * to zero when we want to zero all index records
+ *
+ * @param ppip the index getting zeroed
+ * @return PLFS_SUCCESS or error code
+ */
 plfs_error_t
 ByteRangeIndex::index_droppings_zero(struct plfs_physpathinfo *ppip) {
     /*
@@ -526,6 +575,11 @@ ByteRangeIndex::index_droppings_zero(struct plfs_physpathinfo *ppip) {
 
 
 #if 0
+/*
+ * XXXCDC: this commented out section of old code is just here for
+ * reference and will be removed in the final version of the file.
+ */
+
 /* XXXCDC:
  *
  *  we need the 'if ( openHosts.size() > 0 )' for index_getattr_size operation
