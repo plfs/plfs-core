@@ -3,6 +3,7 @@
  */
 
 #include "plfs_private.h"
+#include "Container.h"
 #include "ContainerIndex.h"
 #include "ContainerOpenFile.h"
 #include "ByteRangeIndex.h"
@@ -382,25 +383,51 @@ ByteRangeIndex::index_closing_wdrop(Container_OpenFile *cof, string ts,
     return(PLFS_SUCCESS);
 }
 
+/**
+ * ByteRangeIndex::index_new_wdrop: opening a new write dropping
+ *
+ * @param cof the open file
+ * @param ts the timestamp string
+ * @param pid the pid/rank that is making the dropping
+ * @param filename filename of data dropping
+ * @return PLFS_SUCCESS or error code
+ */
 plfs_error_t
 ByteRangeIndex::index_new_wdrop(Container_OpenFile *cof, string ts,
                                 pid_t pid, const char *filename) {
-    /* XXXCDC: open pid's index dropping for writing here, save FH */
-    /* open/create a new index dropping for writing if need */
-#if 0
+
+    plfs_error_t ret = PLFS_SUCCESS;
+    ostringstream idrop_pathstream;
+    mode_t old_mode;
+
+    if (this->iwritefh != NULL)     /* quick short circuit check... */
+        return(ret);
+
+    Util::MutexLock(&this->bri_mutex, __FUNCTION__);
+    if (this->iwritefh == NULL) {   /* recheck, in case we lost a race */
+
         /*
-         * XXX: should be good.  create new dropping here if req'd.
-         *
-         * ISSUE: DO WE KNOW WHERE TO PUT INDEX DROPPING YET?
-         * establish helper... move the index open after dropping
-         * open?  no, might be ok, as we'll catch it later in the
-         * index_new_wdrop callback!
+         * use cof->pid rather than pid (the args) so that the index
+         * filename matches the open file meta dropping.  they will be
+         * the same most of the time (exception can be when we've got
+         * multiple pids sharing the fd for writing).
          */
-        ret = wf->addPrepareWriter(pid, mode, true, defer_open, ppip->bnode,
-                                   ppip->mnt_pt, ppip->canbpath,
-                                   ppip->canback, &num_writers);
-#endif
-    return(PLFS_ENOTSUP);
+        idrop_pathstream << cof->subdir_path << "/" << INDEXPREFIX <<
+            ts << "." << cof->hostname << "." << cof->pid;
+        
+        old_mode = umask(0);
+        ret = cof->subdirback->store->Open(idrop_pathstream.str().c_str(),
+                                           O_WRONLY|O_APPEND|O_CREAT,
+                                           DROPPING_MODE, &this->iwritefh);
+        umask(old_mode);
+
+        if (ret == PLFS_SUCCESS) {
+            this->iwriteback = cof->subdirback;
+        }
+    }
+    Util::MutexUnlock(&this->bri_mutex, __FUNCTION__);
+    
+    return(ret);
 }
 
 plfs_error_t
