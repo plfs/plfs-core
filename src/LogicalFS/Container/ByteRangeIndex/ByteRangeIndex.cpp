@@ -430,40 +430,85 @@ ByteRangeIndex::index_new_wdrop(Container_OpenFile *cof, string ts,
     return(ret);
 }
 
+/**
+ * ByteRangeIndex::index_optimize: flatten an index
+ *
+ * @param cof open file info for the file we are flattening
+ * @return PLFS_SUCESS or error code
+ */
 plfs_error_t
 ByteRangeIndex::index_optimize(Container_OpenFile *cof) {
-#if 0
-    struct plfs_pathback container;
     plfs_error_t ret = PLFS_SUCCESS;
-    Index *index;
-    bool newly_created = false;
+    char *host;
+    ByteRangeIndex *target = NULL;
+    ostringstream destname, tmpname;
+    plfs_backend *canback;
+    IOSHandle *index_fh;
+    plfs_error_t rv;
 
-    container.bpath = fd->getPath();
-    container.back = fd->getCanBack();
+    /* get hostname, this should never fail */
+    ret = Util::hostname(&host);
+    if (ret != PLFS_SUCCESS) {
+        return(ret);
+    }
+        
+    /*
+     * if we are read-only we already have the index in memory.
+     * otherwise we need to load a tmp copy of the index.
+     */
+    if (cof->openflags == O_RDONLY) {
 
-    if ( fd && fd->getIndex() ) {
-        index = fd->getIndex();
+        target = this;     /* use in-memory copy */
+
     } else {
-        index = new Index(container.bpath, container.back);
-        newly_created = true;
-        // before we populate, need to blow away any old one
-        ret = Container::populateIndex(container.bpath, container.back,
-                index,false,false,0);
-        /* XXXCDC: why are we ignoring return value of populateIndex? */
+
+        target = new ByteRangeIndex(cof->pathcpy.mnt_pt); /* temp index */
+        ret = target->index_open(cof, O_RDONLY, NULL);
+        if (ret != PLFS_SUCCESS) {
+            delete target;
+            return(ret);
+        }
     }
 
-    if (Container::isContainer(&container, NULL)) {
-        ret = Container::flattenIndex(container.bpath, container.back,
-                                      index);
-    } else {
-        ret = PLFS_EBADF; // not sure here.  Maybe return SUCCESS?
+    Util::MutexLock(&target->bri_mutex, __FUNCTION__);
+
+    /* generate paths */
+    destname << cof->pathcpy.canbpath << "/" << GLOBALINDEX;
+    tmpname.setf(ios::fixed,ios::floatfield);
+    tmpname << cof->pathcpy.canbpath << "." << host << "."
+            << getpid() << "." << Util::getTime();
+
+    canback = cof->pathcpy.canback;   /* shorthand name */
+    index_fh = NULL;
+    ret = canback->store->Open(tmpname.str().c_str(), O_WRONLY|O_CREAT|O_EXCL,
+                               DROPPING_MODE, &index_fh);
+
+    if (ret == PLFS_SUCCESS) {
+        ret = this->global_to_file(index_fh, canback); /* write to tmp */
+
+        rv = canback->store->Close(index_fh);          /* close tmp */
+        if (rv != PLFS_SUCCESS && ret == PLFS_SUCCESS) {
+            ret = rv;   /* pass the close error up */
+        }
+
+        if (ret == PLFS_SUCCESS) {                     /* rename to final */
+            ret = canback->store->Rename(tmpname.str().c_str(),
+                                         destname.str().c_str());
+        }
+
+        if (ret != PLFS_SUCCESS) {                     /* clear on error */
+            canback->store->Unlink(tmpname.str().c_str());
+        }
     }
-    if (newly_created) {
-        delete index;
+    
+    Util::MutexUnlock(&target->bri_mutex, __FUNCTION__);
+
+    if (cof->openflags != O_RDONLY) {   /* dispose of temp index */
+        target->index_close(cof, NULL, NULL, NULL);
+        delete target;
     }
+
     return(ret);
-#endif
-    return(PLFS_ENOTSUP);
 }
 
 plfs_error_t
