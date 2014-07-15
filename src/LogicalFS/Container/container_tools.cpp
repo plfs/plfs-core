@@ -68,43 +68,6 @@ container_file_version(const char *logicalpath, const char **version)
 }
 
 /**
- * container_flatten_index: flatten a container's index
- *
- * XXX: this is a top-level function that bypasses the LogicalFS layer
- * (a hook for tools/plfs_flatten_index.cpp)
- *
- * XXX: redundant code here --- we've got this version and then
- * the plfs_flatten_index() API that maps down to ContainerFD
- * compress index.   what's the difference?  which is better? 
- * you have to open  (in RDONLY?) with the other API?   not sure.
- *
- * @param ppip container to flatten
- * @return PLFS_SUCCESS or error code
- */
-plfs_error_t container_flatten_index(struct plfs_physpathinfo *ppip) {
-#if 0 /* XXXIDX */
-    plfs_error_t perr;
-    Index *index;
-
-    /*
-     * XXXCDC: clearly we assume containerfs here and we totally
-     * bypass the logicalfs layer.  maybe "compress_metadata" should
-     * be a logicalfs operation?
-     */
-    index = new Index(ppip->canbpath, ppip->canback);
-    perr = Container::populateIndex(ppip->canbpath, ppip->canback, 
-                                    index, false, false, 0);
-    if (perr == PLFS_SUCCESS) {
-    perr = Container::flattenIndex(ppip->canbpath, ppip->canback, index);
-    }
-    delete index;
-    returun(perr);
-#else
-    return(PLFS_ENOTSUP);
-#endif
-}
-
-/**
  * container_dump_index: print out information about a file's index to
  * the given stdio file pointer.
  *
