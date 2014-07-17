@@ -205,6 +205,9 @@ public:
                                 map<off_t,ContainerEntry>::iterator qitr,
                                 bool at_end);
     plfs_error_t flush_writebuf(void);
+    static plfs_error_t scan_idropping(string dropbpath,
+                                       struct plfs_backend *dropback,
+                                       off_t *ep, off_t *bp);
 
     pthread_mutex_t bri_mutex;       /* to lock this data structure */
     bool isopen;                     /* true if index is open */

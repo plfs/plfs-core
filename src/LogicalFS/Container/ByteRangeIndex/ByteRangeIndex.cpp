@@ -14,6 +14,30 @@
  */
 
 /**
+ * scan_idropping: scan one index dropping to get bytes/eof offset.
+ *
+ * @param dropbpath dropping bpath
+ * @param dropback the backend the dropping lives on
+ * @param eofp end of file returned here
+ * @param bytesp byte count returned here
+ * @return PLFS_SUCCESS or error
+ */
+plfs_error_t
+ByteRangeIndex::scan_idropping(string dropbpath, struct plfs_backend *dropback,
+                               off_t *eofp, off_t *bytesp) {
+    plfs_error_t ret;
+    map<off_t,ContainerEntry> tmpidx;   /* discarded on return */
+    vector<ChunkFile> tmpcnk;           /* discarded on return */
+    int tmpid;
+
+    tmpid = 0;
+    *eofp = *bytesp = 0;
+    ret = ByteRangeIndex::merge_dropping(tmpidx, tmpcnk, tmpid,
+                                         eofp, bytesp, dropbpath, dropback);
+    return(ret);
+}
+    
+/**
  * ByteRangeIndex::flush_writebuf: flush out the write buffer to the
  * backing dropping.   the BRI should already be locked by the caller.
  *
@@ -511,12 +535,91 @@ ByteRangeIndex::index_optimize(Container_OpenFile *cof) {
     return(ret);
 }
 
+/**
+ * ByteRangeIndex::index_getattr_size: the file is open and we want to
+ * get the best version of the size that we can.  our index may or may
+ * not be the one that is open.  we've already pull some info out of
+ * meta directory and we want to see if we can improve it.
+ *
+ * @param ppip path info for the file we are getting the size of
+ * @param stbuf where save the result
+ * @param openset list of hosts with the file open (from metadir)
+ * @param metaset list of hosts we got metadir info on (from metadir)
+ * @return PLFS_SUCCESS or error code
+ */
 plfs_error_t
 ByteRangeIndex::index_getattr_size(struct plfs_physpathinfo *ppip, 
                                    struct stat *stbuf, set<string> *openset,
                                    set<string> *metaset) {
-    /* XXX: load into memory (if not), get size, release if loaded. */
-    return(PLFS_ENOTSUP);
+    plfs_error_t ret = PLFS_SUCCESS;
+    vector<plfs_pathback> indices;
+    vector<plfs_pathback>::iterator pitr;
+
+    /* generate a list of all index droppings in container */
+    ret = this->collectIndices(ppip->canbpath, ppip->canback, indices, true);
+
+    /* walk the list and read the ones we think are useful */
+    for (pitr = indices.begin() ;
+         ret == PLFS_SUCCESS && pitr != indices.end() ; pitr++) {
+        plfs_pathback mydrop;
+        size_t pt;
+        string host;
+        struct stat dropping_st;
+        off_t drop_eof, drop_bytes;
+
+        /* extract hostname from dropping filename */
+        mydrop = *pitr;
+        pt = mydrop.bpath.rfind("/");
+        if (pt == string::npos) continue;   /* shouldn't happen */
+        pt = mydrop.bpath.find(INDEXPREFIX, pt);
+        if (pt == string::npos) continue;   /* shouldn't happen */
+        host = mydrop.bpath.substr(pt+sizeof(INDEXPREFIX)-1, string::npos);
+        pt = host.find(".");
+        if (pt == string::npos) continue;   /* shouldn't happen */
+        host.erase(0, pt + 1);              /* remove 'SEC.' */
+        pt = host.find(".");
+        if (pt == string::npos) continue;   /* shouldn't happen */
+        host.erase(0, pt + 1);              /* remove 'USEC.' */
+        pt = host.rfind(".");
+        if (pt == string::npos) continue;   /* shouldn't happen */
+        host.erase(pt, host.size());        /* remove '.PID' */
+
+        /*
+         * we can skip the dropping if the host doesn't have the file
+         * open and we've already found valid metadata from that host.
+         * otherwise, the dropping may have more recent info than the
+         * metadata so we read it in.
+         */
+        if (openset->find(host) == openset->end() &&
+            metaset->find(host) != metaset->end()) {
+            continue;
+        }
+            
+        /*
+         * stat dropping to get timestamps and if they are more recent
+         * than what we've currently got in stbuf, update our copy.
+         */
+        if (mydrop.back->store->Lstat(mydrop.bpath.c_str(),
+                                      &dropping_st) != PLFS_SUCCESS) {
+            continue;  /* went away before we could stat it */
+        }
+        stbuf->st_ctime = max(dropping_st.st_ctime, stbuf->st_ctime);
+        stbuf->st_atime = max(dropping_st.st_atime, stbuf->st_atime);
+        stbuf->st_mtime = max(dropping_st.st_mtime, stbuf->st_mtime);
+
+        /*
+         * now read the dropping itself to update our offset/size info
+         */
+        ret = ByteRangeIndex::scan_idropping(mydrop.bpath, mydrop.back,
+                                             &drop_eof, &drop_bytes);
+        if (ret == PLFS_SUCCESS) {
+            stbuf->st_blocks += Container::bytesToBlocks(drop_bytes);
+            stbuf->st_size = max(stbuf->st_size, drop_eof);
+        }
+    }
+    
+    
+    return(ret);
 }
 
 /**
