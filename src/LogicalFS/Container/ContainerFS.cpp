@@ -829,6 +829,7 @@ ContainerFileSystem::trunc(struct plfs_physpathinfo *ppip, off_t offset,
     mode_t mode = 0;
     struct stat stbuf;
 
+    /* XXX: do some sort of access check here? */
     if (!is_container_file(ppip, &mode)) { /* path not a container file */
         if (mode == 0) {
             ret = PLFS_ENOENT;  /* is_container_file rets mode 0 for this */
