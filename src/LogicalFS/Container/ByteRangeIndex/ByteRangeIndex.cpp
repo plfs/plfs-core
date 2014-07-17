@@ -363,6 +363,13 @@ ByteRangeIndex::index_query(Container_OpenFile *cof, off_t input_offset,
     return(ret);
 }
 
+/**
+ * ByteRangeIndex::index_truncate: truncate a container w/open index
+ *
+ * @param cof the open file
+ * @param offset the offset to truncate to
+ * @return PLFS_SUCCESS or error code
+ */
 plfs_error_t
 ByteRangeIndex::index_truncate(Container_OpenFile *cof, off_t offset) {
     /*
