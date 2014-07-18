@@ -310,9 +310,9 @@ ByteRangeIndex::trunc_edit_nz(struct plfs_physpathinfo *ppip, off_t nzo) {
                      indexfile.c_str(), strplfserr( ret ));
                 return(ret);
             }
-#if 0
-            ret = index.rewriteIndex(fh);
-#endif
+
+            ret = ByteRangeIndex::trunc_writemap(tmpidx, fh);
+
             /* XXX: do we care about return value from Close? */
             indexback->store->Close(fh);
         }
