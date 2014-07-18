@@ -660,67 +660,18 @@ plfs_error_t ByteRangeIndex::index_droppings_rename(
 plfs_error_t
 ByteRangeIndex::index_droppings_trunc(struct plfs_physpathinfo *ppip,
                                       off_t offset) {
-#if 0
-    /*
-     * XXXIDX: this is the old Container::Truncate() code -- needs
-     * to be updated for the new index structure.
-     */
-    plfs_error_t ret = PLFS_SUCCESS;
-    string indexfile;
-    struct plfs_backend *indexback;
-    mlog(CON_DAPI, "%s on %s to %ld", __FUNCTION__, path.c_str(),
-         (unsigned long)offset);
-    // this code here goes through each index dropping and rewrites it
-    // preserving only entries that contain data prior to truncate offset
-    IOSDirHandle *candir, *subdir;
-    string hostdirpath;
-    candir = subdir = NULL;
+    plfs_error_t ret;
+    Util::MutexLock(&this->bri_mutex, __FUNCTION__);
 
-    int dropping;
-    while ((ret = nextdropping(path, canback, &indexfile, &indexback,
-                               INDEXPREFIX, &candir, &subdir,
-                               &hostdirpath, &dropping)) == PLFS_SUCCESS) {
-        if (dropping != 1) {
-            break;
-        }
-        Index index( indexfile, indexback, NULL );
-        mlog(CON_DCOMMON, "%s new idx %p %s", __FUNCTION__,
-             &index,indexfile.c_str());
-        ret = index.readIndex(indexfile, indexback);
-        if ( ret == PLFS_SUCCESS ) {
-            if ( index.lastOffset() > offset ) {
-                mlog(CON_DCOMMON, "%s %p at %ld",__FUNCTION__,&index,
-                     (unsigned long)offset);
-                index.truncate(offset);
-                IOSHandle *fh;
-                ret = indexback->store->Open(indexfile.c_str(),
-                                             O_TRUNC|O_WRONLY, &fh);
-                if ( ret != PLFS_SUCCESS ) {
-                    mlog(CON_CRIT, "Couldn't overwrite index file %s: %s",
-                         indexfile.c_str(), strplfserr( ret ));
-                    return ret;
-                }
-                /* note: index obj already contains indexback */
-                ret = index.rewriteIndex(fh);
-                indexback->store->Close(fh);
-                if ( ret != PLFS_SUCCESS ) {
-                    break;
-                }
-            }
-        } else {
-            mlog(CON_CRIT, "Failed to read index file %s: %s",
-                 indexfile.c_str(), strplfserr( ret ));
-            break;
-        }
-    }
-    if ( ret == PLFS_SUCCESS ) {
-        ret = truncateMeta(path,offset,canback);
-    }
-    mlog(CON_DAPI, "%s on %s to %ld ret: %d",
-         __FUNCTION__, path.c_str(), (long)offset, ret);
-    return ret;
-#endif
-    return(PLFS_ENOTSUP);
+    /*
+     * farm this out to another file since it has its own set of
+     * helper functions.   locking may not be needed, since we are
+     * not hitting on any in-memory shared data.
+     */
+    ret = this->trunc_edit_nz(ppip, offset);
+    
+    Util::MutexUnlock(&this->bri_mutex, __FUNCTION__);
+    return(ret);
 }
 
 /**

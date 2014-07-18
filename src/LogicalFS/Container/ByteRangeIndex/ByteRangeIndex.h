@@ -208,6 +208,10 @@ public:
     static plfs_error_t scan_idropping(string dropbpath,
                                        struct plfs_backend *dropback,
                                        off_t *ep, off_t *bp);
+    plfs_error_t trunc_edit_nz(struct plfs_physpathinfo *ppip, off_t nzo);
+    static void trunc_map(map<off_t,ContainerEntry> &mymap, off_t nzo);
+    static plfs_error_t trunc_writemap(map<off_t,ContainerEntry> &mymap,
+                                       IOSHandle *fh);
 
     pthread_mutex_t bri_mutex;       /* to lock this data structure */
     bool isopen;                     /* true if index is open */
