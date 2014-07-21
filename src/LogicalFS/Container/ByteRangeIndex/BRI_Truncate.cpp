@@ -14,6 +14,32 @@
  */
 
 /**
+ * filematch: filename matching (remove directory component)
+ *
+ * @param fullpath full path name of file we are looking at
+ * @param filename the filename we are looking for
+ * @return 1 if it matches, zero otherwise
+ */
+static int
+filematch(string fullpath, string filename) {
+    size_t lastslash;
+
+    lastslash = fullpath.rfind("/");
+    if (lastslash == string::npos) {
+        lastslash = 0;
+    } else {
+        lastslash++;
+    }
+
+    if (fullpath.size() - lastslash == filename.size() &&
+        fullpath.find(filename, lastslash) != string::npos) {
+        return(1);
+    }
+    
+    return(0);
+}
+
+/**
  * getnextent: find next file in dir using a filter (nextdropping helper fn)
  *
  * @param dir an open directory
@@ -243,16 +269,21 @@ ByteRangeIndex::trunc_writemap(map<off_t,ContainerEntry> &mymap,
 
 /**
  * ByteRangeIndex::trunc_edit_nz: edit droppings to shrink container
- * to a non-zero size
+ * to a non-zero size.  if we are truncating an open file and we
+ * edit the current index dropping, then update the filehandle for
+ * it since the offsets may have changed.
  *
  * @param ppip pathinfo for container
  * @param nzo the non-zero offset
+ * @param openidrop filename of currently open index dropping
  * @return PLFS_SUCCESS or error code
  */
 plfs_error_t
-ByteRangeIndex::trunc_edit_nz(struct plfs_physpathinfo *ppip, off_t nzo) {
+ByteRangeIndex::trunc_edit_nz(struct plfs_physpathinfo *ppip, off_t nzo,
+                              string openidrop) {
     plfs_error_t ret = PLFS_SUCCESS;
-    string indexfile;
+    size_t slashoff;
+    string openifn, indexfile;
     struct plfs_backend *indexback;
     IOSDirHandle *candir, *subdir;
     string hostdirpath;
@@ -261,6 +292,24 @@ ByteRangeIndex::trunc_edit_nz(struct plfs_physpathinfo *ppip, off_t nzo) {
     mlog(IDX_DAPI, "%s on %s to %ld", __FUNCTION__, ppip->canbpath.c_str(),
          (unsigned long)nzo);
  
+    /*
+     * isolate the filename in openidrop.  in theory we should be
+     * able to just compare the whole thing, but PLFS sometimes
+     * puts in extra "/" chars in filenames and that could mess
+     * us up: e.g.  /m/plfs/dir/file  vs /m/plfs/dir//file
+     * should be the same, but the "//" will fool strcmps.
+     */
+    if (openidrop.size() == 0) {
+        openifn = "";
+    } else {
+        slashoff = openidrop.rfind("/");
+        if (slashoff == string::npos) {
+            openifn = openidrop;
+        } else {
+            openifn = openidrop.substr(slashoff + 1, string::npos);
+        }
+    }
+
     /*
      * this code goes through each index dropping and rewrites it
      * preserving only entries that contain data prior to truncate
@@ -312,6 +361,22 @@ ByteRangeIndex::trunc_edit_nz(struct plfs_physpathinfo *ppip, off_t nzo) {
             }
 
             ret = ByteRangeIndex::trunc_writemap(tmpidx, fh);
+
+            /*
+             * if we just rewrote our currently open index, swap our
+             * iwritefh to be the rewritten fh and let the old one get
+             * closed off (below).  we do this because we've edited
+             * the open write index dropping (made it smaller) and
+             * the old filehandle is now pointing to a bad spot in
+             * the file.
+             */
+            if (openifn.size() > 0 && indexback == this->iwriteback &&
+                filematch(indexfile, openifn)) {
+                IOSHandle *tmp;
+                tmp = this->iwritefh;
+                this->iwritefh = fh;
+                fh = tmp;
+            }
 
             /* XXX: do we care about return value from Close? */
             indexback->store->Close(fh);

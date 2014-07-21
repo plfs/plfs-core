@@ -364,7 +364,8 @@ ByteRangeIndex::index_query(Container_OpenFile *cof, off_t input_offset,
 }
 
 /**
- * ByteRangeIndex::index_truncate: truncate a container w/open index
+ * ByteRangeIndex::index_truncate: truncate a container w/open index.
+ * higher-level code has already checked that cof is open and writeable.
  *
  * @param cof the open file
  * @param offset the offset to truncate to
@@ -372,21 +373,83 @@ ByteRangeIndex::index_query(Container_OpenFile *cof, off_t input_offset,
  */
 plfs_error_t
 ByteRangeIndex::index_truncate(Container_OpenFile *cof, off_t offset) {
+    plfs_error_t ret = PLFS_SUCCESS;
+    ostringstream ts, idrop_pathstream;
+    mode_t old_mode;
+    vector<HostEntry> new_wbuf;
+    vector<HostEntry>::iterator itr;
+
+    /* regenerate index dropping filename from cof, needed in all cases */
+    ts.setf(ios::fixed,ios::floatfield);
+    ts << cof->createtime;
+            
+    idrop_pathstream << cof->subdir_path << "/" << INDEXPREFIX <<
+        ts.str() << "." << cof->hostname << "." << cof->pid;
+
     /*
-     * This is a two step operation: first we apply the operation to
-     * all our index dropping files, then we update our in-memory data
-     * structures (throwing out index record references that are
-     * beyond the new offset).  The index should be open for writing
-     * already.  IF we are zeroing (called from zero helper), then the
-     * generic code has already truncated all our dropping files.  If
-     * we are shrinking a file to a non-zero file, then we need to go
-     * through each index dropping file and filter out any records
-     * that have data past our new offset.  Once we have updated the
-     * dropping files, then we need to walk through our in-memory
-     * records and discard the ones past the new offset and reduce the
-     * size of any that span the new EOF offset.
+     * handle zeroing vs. non-zero truncation as different cases
      */
-    return(PLFS_ENOTSUP);
+    if (offset == 0) {
+        /*
+         * higher-level code has already truncated all our droppings
+         * to zero.  we just need to zero our counters and discard any
+         * records we are caching and reopen the index file.  no
+         * need to worry about the read side fields (idx, chunk_map)
+         * since we don't cache them if we are writeable.
+         */
+        Util::MutexLock(&this->bri_mutex, __FUNCTION__);
+        this->eof_tracker = 0;
+        this->writebuf.clear();
+        this->write_count = 0;
+        this->write_bytes = 0;
+        this->backing_bytes = 0;        /* just in case */
+        if (this->iwritefh != NULL) {   /* might not be open yet, so check */
+            /* XXX: return from close?  do we care? */
+            this->iwriteback->store->Close(this->iwritefh);
+            this->iwritefh = NULL;
+
+            old_mode = umask(0);
+            ret = this->iwriteback->store->Open(idrop_pathstream.str().c_str(),
+                                                O_WRONLY|O_APPEND|O_CREAT,
+                                                DROPPING_MODE,
+                                                &this->iwritefh);
+            umask(old_mode);
+            if (ret != PLFS_SUCCESS) {
+                this->iwriteback = NULL;
+            }
+        }
+        Util::MutexUnlock(&this->bri_mutex, __FUNCTION__);
+
+        return(ret);
+    }
+    
+    Util::MutexLock(&this->bri_mutex, __FUNCTION__);
+    /*
+     * non-zeroing truncate.   first clean out any in-memory records
+     * that are now out of range.
+     */
+    for (itr = this->writebuf.begin() ; itr != this->writebuf.end() ; itr++) {
+        HostEntry ent = *itr;
+        if (ent.logical_offset < offset) {
+            if ((off_t)(ent.logical_offset + ent.length) > offset) {
+                ent.length = offset - ent.logical_offset + 1;
+            }
+            new_wbuf.push_back(ent);
+        }   /* otherwise we discard it, since it is totally out of range */
+    }
+    this->writebuf = new_wbuf;   /* replace old wbuf with new edited one */
+    this->eof_tracker = offset;  /* move EOF back */
+
+    ret = this->trunc_edit_nz(&cof->pathcpy, offset, idrop_pathstream.str());
+    
+    Util::MutexUnlock(&this->bri_mutex, __FUNCTION__);
+
+    return(ret);
+
+#if 0
+    IOSHandle *iwritefh;             /* where to write index to */
+    struct plfs_backend *iwriteback; /* backend index is on */
+#endif
 }
 
 /**
@@ -668,7 +731,7 @@ ByteRangeIndex::index_droppings_trunc(struct plfs_physpathinfo *ppip,
      * helper functions.   locking may not be needed, since we are
      * not hitting on any in-memory shared data.
      */
-    ret = this->trunc_edit_nz(ppip, offset);
+    ret = this->trunc_edit_nz(ppip, offset, "");
     
     Util::MutexUnlock(&this->bri_mutex, __FUNCTION__);
     return(ret);
