@@ -263,6 +263,14 @@ plfs_filetype plfs_get_filetype(const char *path)
     return -1; /* never gets here */
 }
 
+plfs_filetype plfs_get_fileinfo(const char *, int *)
+     __attribute__ ((weak));
+plfs_filetype plfs_get_fileinfo(const char *path, int *ixtypep)
+{
+    no_link_abort();
+    return -1; /* never gets here */
+}
+
 plfs_error_t container_num_host_dirs(int *, char *, void *, char *)
     __attribute__ ((weak));
 plfs_error_t container_num_host_dirs(int *hostdir_count, char *target, void *vback, 

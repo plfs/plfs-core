@@ -75,10 +75,17 @@ class ContainerIndex {
 /*
  * allocation/management support
  */
+#if 0
+/*
+ * XXXCDC: these should go here, but instead they are in plfs.h.in
+ * (see comment in that file for more info...).   we've commented
+ * them out here.
+ */
 #define CI_UNKNOWN   0
 #define CI_BYTERANGE 1
 #define CI_PATTERN   2
 #define CI_MDHIM     3
+#endif
 
 int container_index_id(char *spec);
 class ContainerIndex *container_index_alloc(PlfsMount *pmnt);

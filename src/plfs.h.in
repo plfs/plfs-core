@@ -36,6 +36,23 @@ typedef void *Plfs_dirp;
         CONTAINER, FLAT_FILE, SMALL_FILE, PFT_UNKNOWN
     } plfs_filetype;
 
+/*
+ * plfs_filetype CONTAINER index types 
+ *
+ * XXX: these should be private to the Container LogicalFS... but,
+ * the MPI container optimizations break layering and run before
+ * the ContainerIndex does.   e.g. we may precompute an index before
+ * we even call plfs open (passing the precomputed index in as an
+ * arg to open).   we can only precompute BYTERANGE indexes, so we 
+ * need to know if that is what we have or not before the index 
+ * even runs.   so the MPI code will call plfs_get_fileinfo to get
+ * the filetype and the index type.
+ */
+#define CI_UNKNOWN   0
+#define CI_BYTERANGE 1
+#define CI_PATTERN   2
+#define CI_MDHIM     3
+
     typedef struct {
         char *index_stream; /* Index stream passed in from another proc */
         int  buffer_index;  /* Buffer index yes/no                      */
@@ -189,6 +206,7 @@ typedef void *Plfs_dirp;
     // something needed for MPI-IO to know to avoid optimizations unless
     // in container mode
     plfs_filetype plfs_get_filetype(const char *path);
+    plfs_filetype plfs_get_fileinfo(const char *path, int *ixtypep);
 
     // expose a few internals that we use for optimization
     plfs_error_t plfs_expand_path(const char *logical,char **physical, void **pmountp, void **pbackp);

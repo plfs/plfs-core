@@ -47,6 +47,33 @@ plfs_get_filetype(const char *path)
     return(ret);
 }
 
+/**
+ * plfs_get_fileinfo: get file type and index type information this is
+ * a superset of plfe_get_filetype that also includes indexing info
+ * for the MPI code so it can decide what optimizations to use.
+ *
+ * @param path the logical path to the file we want info for
+ * @param ixtypep pointer to where to put the index type info
+ * @return the filetype
+ */
+plfs_filetype
+plfs_get_fileinfo(const char *path, int *ixtypep)
+{
+    plfs_filetype ret = PFT_UNKNOWN;
+    struct plfs_physpathinfo ppi;
+
+    if (plfs_resolvepath(path, &ppi) == PLFS_SUCCESS) {
+        ret = ppi.mnt_pt->file_type;
+
+        if (ixtypep) {
+            /* XXXCDC: HACK!!  UNTIL WE GET THE MOUNT INFO UPDATED */
+            *ixtypep = (ret == CONTAINER) ? CI_BYTERANGE : 0;
+        }
+    }
+
+    return(ret);
+}
+
 bool
 plfs_is_mnt_ancestor(const char *path){
     // this might be the weird thing where user has path /mnt/plfs/file
