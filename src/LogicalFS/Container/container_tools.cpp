@@ -5,26 +5,27 @@
 #include "plfs.h"
 #include "plfs_private.h"
 
+#include "Container.h"
+#include "ContainerIndex.h"
+#include "ByteRangeIndex.h"
+
 #include "container_tools.h"
 
 using namespace std;
 
 /**
- * container_dump_index_size: print and return sizeof a ContainerEntry.
- * currently not used by any tool programs (maybe by non-tree tools).
+ * container_dump_index_size: print and return sizeof a ContainerEntry
+ * from the ByteRangeIndex.  currently not used by any tool programs
+ * (maybe by non-tree tools).
  *
  * @return sizeof(ContainerEntry)
  */
 int
 container_dump_index_size()
 {
-#if 0 /* XXXIDX */
     ContainerEntry e;
-    cout << "An index entry is size " << sizeof(e) << endl;
+    cout << "A ByteRangeIndex ContainerEntry is size " << sizeof(e) << endl;
     return (int)sizeof(e);
-#else
-    return(PLFS_ENOTSUP);
-#endif
 }
 
 /**
@@ -43,7 +44,6 @@ container_dump_index_size()
 plfs_error_t
 container_file_version(const char *logicalpath, const char **version)
 {
-#if 0 /* XXXIDX */
     plfs_error_t ret = PLFS_SUCCESS;
     struct plfs_physpathinfo ppi;
     struct plfs_pathback pb;
@@ -62,9 +62,7 @@ container_file_version(const char *logicalpath, const char **version)
     }
     *version = Container::version(&pb);
     return (*version ? PLFS_SUCCESS : PLFS_ENOENT);
-#else
-    return(PLFS_ENOTSUP);
-#endif
+
 }
 
 /**

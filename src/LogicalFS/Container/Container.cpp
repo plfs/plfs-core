@@ -425,6 +425,44 @@ get_openrecord( const string& path, const char *host, pid_t pid)
 }
 
 /**
+ * Container::version: a function to query the version that a file was
+ * created under.  it assumes that if it finds a directory of the name
+ * VERSIONPREFIX that it is version 1.9 since that's how we did
+ * version then with a VERSIONPREFIX directory.  If nothing is found,
+ * then it assumes 0.1.6.  Otherwise, it parses the version out of the
+ * VERSIONPREFIX file.
+ *
+ * @param pb the file being examined
+ * @return the version string
+ */
+#define VERSION_LEN 1024
+const char *
+Container::version(const struct plfs_pathback *pb)
+{
+    mlog(CON_DAPI, "%s checking %s", __FUNCTION__, pb->bpath.c_str());
+
+    /* first look for the version file idea that we started in 2.0.1 */
+    map<string,unsigned char> entries;
+    map<string,unsigned char>::iterator itr;
+    ReaddirOp op(&entries,NULL,false,true);
+    op.filter(VERSIONPREFIX);
+    if(op.op(pb->bpath.c_str(),DT_DIR,pb->back->store)!=PLFS_SUCCESS) {
+        return NULL;
+    }
+    for(itr=entries.begin(); itr!=entries.end(); itr++) {
+        if(itr->second==DT_DIR) {
+            return "1.9";
+        } else {
+            static char version[VERSION_LEN];
+            size_t verlen = strlen(VERSIONPREFIX);
+            itr->first.copy(version,itr->first.size()-verlen,verlen+1);
+            return version;
+        }
+    }
+    return "0.1.6";  /* no version file or dir found */
+}
+
+/**
  * Container::addMeta: this function drops a file in the metadir that
  * contains stat info so we can later satisfy stats using just readdir
  *

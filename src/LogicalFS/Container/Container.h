@@ -42,6 +42,7 @@ typedef struct {
 class Container
 {
  public:
+    static const char *version(const struct plfs_pathback *path);
     static plfs_error_t addMeta(off_t, size_t, const string&,
                                 struct plfs_backend *,
                                 const string&,uid_t,double,int,size_t);
