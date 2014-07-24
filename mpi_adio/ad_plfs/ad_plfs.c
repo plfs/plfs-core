@@ -101,13 +101,6 @@ plfs_error_t plfs_expand_path(const char *logical,char **physical, void **pmount
     return PLFS_ENOSYS; /* never gets here */
 }
 
-plfs_error_t plfs_flatten_index( Plfs_fd *, const char *path )  __attribute__ ((weak));
-plfs_error_t plfs_flatten_index( Plfs_fd *fd, const char *path )
-{
-    no_link_abort();
-    return PLFS_ENOSYS; /* never gets here */
-}
-
 plfs_error_t plfs_getattr(Plfs_fd *, const char *path, struct stat *st, int size_only)  __attribute__ ((weak));
 plfs_error_t plfs_getattr(Plfs_fd *fd, const char *path, struct stat *st, int size_only)
 {
@@ -151,15 +144,6 @@ plfs_error_t container_hostdir_zero_rddir(void **entries,const char* path,int ra
 
 plfs_error_t container_index_stream(Plfs_fd **pfd, char ** buffer, int *res_index_sz)  __attribute__ ((weak));
 plfs_error_t container_index_stream(Plfs_fd **pfd, char ** buffer, int *res_index_sz)
-{
-    no_link_abort();
-    return PLFS_ENOSYS; /* never gets here */
-}
-
-plfs_error_t container_merge_indexes(Plfs_fd **pfd, char *index_streams,
-                        int *index_sizes, int procs)  __attribute__ ((weak));
-plfs_error_t container_merge_indexes(Plfs_fd **pfd, char *index_streams,
-                        int *index_sizes, int procs)
 {
     no_link_abort();
     return PLFS_ENOSYS; /* never gets here */

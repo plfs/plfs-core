@@ -108,11 +108,15 @@ typedef struct {
  * appears to be used for MPI only when doing the MPI parallel index
  * read across all the nodes.
  */
-class IndexFileInfo
-{
-        double timestamp;
-        string hostname;
-        pid_t  id;
+class IndexFileInfo {
+ public:
+    plfs_error_t listToStream(vector<IndexFileInfo> &list, int *bytes,
+                              void **ret_buf);
+    vector<IndexFileInfo> streamToList(void *addr);
+
+    double timestamp;
+    string hostname;
+    pid_t  id;
 };
 
 /**
@@ -154,6 +158,27 @@ public:
                                        off_t offset);
     plfs_error_t index_droppings_unlink(struct plfs_physpathinfo *ppip);
     plfs_error_t index_droppings_zero(struct plfs_physpathinfo *ppip);
+
+    /*
+     * XXX: MPI hook in public functions...
+     */
+    static plfs_error_t hostdir_rddir(void **index_stream, char *targets,
+                                      int rank, char *top_level,
+                                      PlfsMount *mnt,
+                                      struct plfs_backend *canback,
+                                      int *index_sz);
+    static plfs_error_t hostdir_zero_rddir(void **entries, const char *path,
+                                           int /* rank */, PlfsMount *mnt,
+                                           struct plfs_backend *canback,
+                                           int *ret_size);
+    static plfs_error_t parindex_read(int rank, int ranks_per_comm,
+                                      void *index_files, void **index_stream,
+                                      char *top_level, int *ret_index_size);
+    static int parindexread_merge(const char *path, char *index_streams,
+                                  int *index_sizes, int procs,
+                                  void **index_stream);
+    static plfs_error_t index_stream(Container_OpenFile **pfd, char **buffer,
+                                     int *ret_index_sz); 
 
  private:
     static plfs_error_t insert_entry(map<off_t,ContainerEntry> &idxout,
@@ -213,6 +238,16 @@ public:
     static void trunc_map(map<off_t,ContainerEntry> &mymap, off_t nzo);
     static plfs_error_t trunc_writemap(map<off_t,ContainerEntry> &mymap,
                                        IOSHandle *fh);
+
+    static plfs_error_t indices_from_subdir(string path, PlfsMount *cmnt,
+                                            struct plfs_backend *canback,
+                                            struct plfs_backend **ibackp,
+                                            vector<IndexFileInfo> &indices);
+    static ByteRangeIndex parAggregateIndices(vector<IndexFileInfo>& indexlist,
+                                              int rank, int ranks_per_comm,
+                                              string path,
+                                              struct plfs_backend *backend);
+
 
     pthread_mutex_t bri_mutex;       /* to lock this data structure */
     bool isopen;                     /* true if index is open */

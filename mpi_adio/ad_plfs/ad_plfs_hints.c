@@ -47,7 +47,6 @@ void ADIOI_PLFS_SetInfo(ADIO_File fd, MPI_Info users_info, int *error_code)
     if (users_info != MPI_INFO_NULL) {
         static const char *phints[] = { 
             "plfs_disable_broadcast",   /* don't have 0 broadcast to all */ 
-            "plfs_flatten_close",       /* create flattened index on close */
             "plfs_disable_paropen",     /* don't do par_index_read */
             "plfs_uniform_restart",     /* only read one index file each */ 
             NULL    /* last must be NULL */

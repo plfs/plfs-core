@@ -626,7 +626,8 @@ ByteRangeIndex::index_getattr_size(struct plfs_physpathinfo *ppip,
     vector<plfs_pathback>::iterator pitr;
 
     /* generate a list of all index droppings in container */
-    ret = this->collectIndices(ppip->canbpath, ppip->canback, indices, true);
+    ret = ByteRangeIndex::collectIndices(ppip->canbpath, ppip->canback,
+                                         indices, true);
 
     /* walk the list and read the ones we think are useful */
     for (pitr = indices.begin() ;

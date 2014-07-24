@@ -214,6 +214,8 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
     int err,perm, amode, old_mask,rank,ret;
     plfs_error_t plfs_err = PLFS_SUCCESS;
     int num_open_handles;
+    plfs_filetype myfiletype;
+    int myixtype;
     MPI_Comm_rank( fd->comm, &rank );
     static char myname[] = "ADIOI_PLFS_OPEN";
     perm = adplfs_getPerm(fd);
@@ -267,7 +269,8 @@ void ADIOI_PLFS_Open(ADIO_File fd, int *error_code)
 
     // if we make it here, we're doing RDONLY, WRONLY, or RDWR
     // at this point, we want to do different for container/flat_file mode
-    if (plfs_get_filetype(fd->filename) != CONTAINER) {
+    myfiletype = plfs_get_fileinfo(fd->filename, &myixtype);
+    if (myfiletype != CONTAINER || myixtype != CI_BYTERANGE) {
         plfs_err = plfs_open(&pfd,fd->filename,amode,rank,perm,NULL);
         if ( plfs_err != PLFS_SUCCESS ) {
             *error_code = MPIO_Err_create_code(MPI_SUCCESS,
