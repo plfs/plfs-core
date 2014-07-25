@@ -201,7 +201,6 @@ container_locate(const char *logicalpath, void *files_ptr,
     return(ret);
 }
 
-#if 0 /* XXXIDX */
 /**
  * recover_directory: helper function for container_recover.
  * restores a lost directory hierarch.
@@ -221,13 +220,11 @@ recover_directory(struct plfs_physpathinfo *ppip, bool parent_only)
     for(vector<plfs_pathback>::iterator itr = exps.begin();
             itr != exps.end();
             itr++ ) {
-        ret = mkdir_dash_p(itr->bpath,parent_only,itr->back->store);
+        ret = mkdir_dash_p(itr->bpath, CONTAINER_MODE, parent_only,
+                           itr->back->store);
     }
     return ret;
-    return(PLFS_ENOTSUP);
 }
-#endif
-
 
 /**
  * container_recover: recover a lost plfs file (may happen if plfsrc
@@ -256,7 +253,6 @@ recover_directory(struct plfs_physpathinfo *ppip, bool parent_only)
 plfs_error_t
 container_recover(const char *logicalpath)
 {
-#if 0 /* XXXIDX */
     plfs_error_t ret = PLFS_SUCCESS;
     struct plfs_physpathinfo ppi;
 
@@ -329,7 +325,8 @@ container_recover(const char *logicalpath)
     if ((ret = recover_directory(&ppi,true)) != PLFS_SUCCESS) {
         return(ret);
     }
-    ret = mkdir_dash_p(canonical,false,canonical_pb.back->store);
+    ret = mkdir_dash_p(canonical, CONTAINER_MODE, false,
+                       canonical_pb.back->store);
     if (ret != PLFS_SUCCESS && ret != PLFS_EEXIST) {
         return(ret);    // some bad error
     }
@@ -344,7 +341,4 @@ container_recover(const char *logicalpath)
                canonical_pb.bpath.c_str());
     }
     return(ret);
-#else
-    return(PLFS_ENOTSUP);
-#endif
 }
