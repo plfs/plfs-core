@@ -148,7 +148,6 @@ plfs_error_t
 container_locate(const char *logicalpath, void *files_ptr,
                  void *dirs_ptr, void *metalinks_ptr)
 {
-#if 0 /* XXXIDX */
     plfs_error_t ret = PLFS_SUCCESS;
     struct plfs_physpathinfo ppi;
     ret = plfs_resolvepath(logicalpath, &ppi);
@@ -200,9 +199,6 @@ container_locate(const char *logicalpath, void *files_ptr,
     }
     //*target = path;
     return(ret);
-#else
-    return(PLFS_ENOTSUP);
-#endif
 }
 
 #if 0 /* XXXIDX */
