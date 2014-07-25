@@ -9,6 +9,33 @@
 #include "ByteRangeIndex.h"
 
 /*
+ * ostream function to print out an index.  only used by plfs_map tool
+ * via container_dump_index() so no need to worry about lockings.
+ */
+ostream& operator <<(ostream& os, const ByteRangeIndex& bri) {
+    os << "# Index dump" << endl;
+    os << "# brimode=" << bri.brimode <<
+        "  eof_tracker=" << bri.eof_tracker <<
+        "  backing_bytes=" << bri.backing_bytes << endl;
+    os << "# Data Droppings" << endl;
+    for(unsigned i = 0; i < bri.chunk_map.size(); i++ ) {
+        /* XXX: maybe print backend prefix too? */
+        os << "# " << i << " " << bri.chunk_map[i].backend->prefix <<
+            bri.chunk_map[i].bpath << endl;
+    }
+
+    map<off_t,ContainerEntry>::const_iterator itr;
+    os << "# Entry Count: " << bri.idx.size() << endl;
+    os << "# ID Logical_offset Length Begin_timestamp End_timestamp "
+       << " Logical_tail ID.Chunk_offset " << endl;
+    for(itr = bri.idx.begin(); itr != bri.idx.end(); itr++) {
+        os << itr->second << endl;
+    }
+
+    return os;
+}
+
+/*
  * small private ByteRangeIndex API functions (longer fns get farmed
  * out to their own files).
  */

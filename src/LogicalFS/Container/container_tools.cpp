@@ -8,6 +8,8 @@
 #include "Container.h"
 #include "ContainerIndex.h"
 #include "ByteRangeIndex.h"
+#include "ContainerFS.h"
+#include "ContainerFD.h"
 
 #include "container_tools.h"
 
@@ -71,13 +73,11 @@ container_file_version(const char *logicalpath, const char **version)
  *
  * XXX: this is a top-level function that bypasses the LogicalFS layer
  * 
- * note: Index::compress() doesn't do anything, see comment in Index.cpp
- *
  * only used by the plfs_map tool
  * 
  * @param fp the FILE to print the information on
  * @param path the logical path of the file whose index we dump
- * @param compress true if we should Index::compress() the index
+ * @param compress true if we should Index::compress() [OBSOLETE,IGNORED]
  * @param uniform_restart whether to only construct partial index
  * @param uniform_rank if uniform restart, which index file to use
  * @return PLFS_SUCCESS or an error code
@@ -86,30 +86,47 @@ plfs_error_t
 container_dump_index(FILE *fp, const char *logicalpath, int compress, 
         int uniform_restart, pid_t uniform_restart_rank)
 {
-#if 0 /* XXXIDX */
     plfs_error_t ret = PLFS_SUCCESS;
     struct plfs_physpathinfo ppi;
+    Plfs_open_opt oo;
+    Plfs_fd *pfd;
+    Container_fd *cfd;
+    ostringstream oss;
+    int refone;
+
     ret = plfs_resolvepath(logicalpath, &ppi);
-    if (ret) {
+    if (ret != PLFS_SUCCESS) {
+        fprintf(fp, "%s: resolvepath failed\n", logicalpath);
         return(ret);
     }
-        
-    Index index(ppi.canbpath, ppi.canback);
-    ret = Container::populateIndex(
-            ppi.canbpath,ppi.canback,&index,true,uniform_restart,
-            uniform_restart_rank);
-    if ( ret == PLFS_SUCCESS ) {
-        if (compress) {
-            index.compress();
-        }
-        ostringstream oss;
-        oss << index;
-        fprintf(fp,"%s",oss.str().c_str());
+
+    if (ppi.mnt_pt->fs_ptr != &containerfs) {
+        fprintf(fp, "%s: not on a containerfs\n", logicalpath);
+        return(PLFS_EINVAL);
     }
-    return(ret);
-#else
-    return(PLFS_ENOTSUP);
-#endif
+    
+    oo.index_stream = NULL; /* we need oo to pass in uniform_restart info */
+    oo.buffer_index = 0;
+    oo.pinter = PLFS_API;
+    oo.reopen = 0;
+    oo.uniform_restart_enable = uniform_restart;
+    oo.uniform_restart_rank = uniform_restart_rank;
+    pfd = NULL;
+    ret = ppi.mnt_pt->fs_ptr->open(&pfd, &ppi, O_RDONLY, 0, 0777, &oo);
+
+    if (ret != PLFS_SUCCESS) {
+        fprintf(fp, "%s: open failed (%s)\n", logicalpath, strplfserr(ret));
+        return(PLFS_EIO);
+    }
+
+    cfd = (Container_fd *) pfd;   /* checked containerfs above, so ok */
+    oss << cfd->get_cof()->cof_index;
+    fprintf(fp,"%s",oss.str().c_str());
+
+    refone = 1;
+    plfs_close(pfd, 0, 0, O_RDONLY, NULL, &refone);
+
+    return(PLFS_SUCCESS);
 }
 
 /**

@@ -180,6 +180,8 @@ public:
     static plfs_error_t index_stream(Container_OpenFile **pfd, char **buffer,
                                      int *ret_index_sz); 
 
+    friend ostream& operator <<(ostream&, const ByteRangeIndex&);
+
  private:
     static plfs_error_t insert_entry(map<off_t,ContainerEntry> &idxout,
                                      off_t *eof_trk, off_t *bbytes,

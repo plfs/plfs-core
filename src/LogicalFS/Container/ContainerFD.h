@@ -48,6 +48,9 @@ class Container_fd : public Plfs_fd
 
     /* this is for truncate/grow case */
     plfs_error_t extend(off_t offset);
+
+    /* this is for container_dump_index (only) */
+    Container_OpenFile *get_cof() { return(this->fd); }
         
  private:
     plfs_error_t establish_helper(struct plfs_physpathinfo *ppip, int flags,
