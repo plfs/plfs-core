@@ -6,6 +6,16 @@ class ByteRangeIndex;   /* forward decl the main class */
 #include <deque>        /* used for index read tasks */
 
 /*
+ * locking: we try and keep all the locking at the entry point
+ * functions in ByteRangeIndex.cpp (the one exception is
+ * index_stream in BRI_ADIO.cpp).  there is also some internal
+ * locking in BRI_Reader for the parallel index read.
+ *
+ * byte-order/structure padding: all native, so may not be
+ * portable across architecture platforms.
+ */
+
+/*
  * HostEntry: this is the on-disk format for an index dropping file
  *
  * index dropping files are named: 
@@ -61,8 +71,8 @@ class HostEntry
  *   <ContainerEntry1> <ContainerEntry2> ... <ContainerEntryN>
  *   <chunk path 1>\n <chunk path 2>\n ... <chunk path M>\n
  * 
- * the chunk paths need to be full physical path specs, though
- * we allows paths that start with "/" to stand in for "posix:"
+ * the chunk paths need to be full physical path specs, though we
+ * allow paths that start with "/" to stand in for "posix:"
  */
 class ContainerEntry : HostEntry
 {
