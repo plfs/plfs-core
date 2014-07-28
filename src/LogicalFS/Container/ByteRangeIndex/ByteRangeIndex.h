@@ -170,7 +170,9 @@ public:
     plfs_error_t index_droppings_zero(struct plfs_physpathinfo *ppip);
 
     /*
-     * XXX: MPI hook in public functions...
+     * XXX: this public functions are for the MPI optimizations.
+     * they get directly called from container_adio.cpp, so they
+     * need to be public.
      */
     static plfs_error_t hostdir_rddir(void **index_stream, char *targets,
                                       int rank, char *top_level,
