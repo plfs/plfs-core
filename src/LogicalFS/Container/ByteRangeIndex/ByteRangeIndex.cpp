@@ -158,6 +158,11 @@ ByteRangeIndex::index_open(Container_OpenFile *cof, int open_flags,
 
         if (open_opt && open_opt->index_stream != NULL) {
 
+            /*
+             * trust that the buffer in open_opt->index_stream from
+             * MPI is ok.  load it in with global_from_stream and use
+             * it.
+             */
             ret = this->global_from_stream(open_opt->index_stream);
 
         } else {
@@ -176,9 +181,11 @@ ByteRangeIndex::index_open(Container_OpenFile *cof, int open_flags,
         }
             
         /*
-         * we don't keep index in memory for RDWR.  instead, we reread
-         * the index on each read operation.  this makes PLFS slow but
-         * more correct in the RDWR case...
+         * we don't keep index in memory for RDWR (loading above just
+         * validates it and gets us a good value for the eof tracker).
+         * instead, for RDWR we reread the index on each read
+         * operation.  this makes PLFS slow but more correct in the
+         * RDWR case...
          */
         if (ret == PLFS_SUCCESS && open_flags == O_RDWR) {
             this->idx.clear();
@@ -224,7 +231,7 @@ ByteRangeIndex::index_close(Container_OpenFile *cof, off_t *lastoffp,
      * return something meaningful on a O_RDONLY container just to be
      * safe.  for total bytes, we give back backing_bytes when
      * O_RDONLY since write_bytes will always be zero.  that RDONLY
-     * wreturn value isn't used (though we could log it for debugging
+     * return value isn't used (though we could log it for debugging
      * info).
      */
     if (lastoffp != NULL) {
@@ -472,11 +479,6 @@ ByteRangeIndex::index_truncate(Container_OpenFile *cof, off_t offset) {
     Util::MutexUnlock(&this->bri_mutex, __FUNCTION__);
 
     return(ret);
-
-#if 0
-    IOSHandle *iwritefh;             /* where to write index to */
-    struct plfs_backend *iwriteback; /* backend index is on */
-#endif
 }
 
 /**
