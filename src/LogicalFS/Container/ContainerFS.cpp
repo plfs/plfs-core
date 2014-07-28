@@ -257,15 +257,10 @@ file_operation(struct plfs_physpathinfo *ppip, FileOp& op)
 
 /**
  * containerfs_truncate_helper: helper function for
- * ContainterFileSystem and Container_fd truncate routines.   3 cases
- * are possible: no file size change, shrink file, grow file.   we
- * assume the offset==0 case has already be handled (to avoid having
- * to do a getattr operation).
+ * ContainterFileSystem routine.  3 cases are possible: no file size
+ * change, shrink file, grow file.  we assume the offset==0 case has
+ * already be handled (to avoid having to do a getattr operation).
  *
- * note that Container::Truncate() only handles the "shrink a file"
- * case, so we have to layer the other cases on top of it........
- * (XXX: might restructure at some point?)
- * 
  * note that this code only changes on-disk data.  changes for
  * in-memory data for open files is handled by Container_fd.  (note
  * that it is not possible to update in-memory data in all cases, e.g.
@@ -293,14 +288,8 @@ containerfs_truncate_helper(struct plfs_physpathinfo *ppip,
     } else if (cur_st_size > offset) {  /* case 2: shrink file */
 
         /*
-         * XXX: we've got two calling paths here: ftruncate and
-         * truncate.  if we are called from the ftruncate path then we
-         * already have a ContainerIndex allocated (the open file) but
-         * we allocate a temporary one here anyway.  on the other
-         * hand, if we are called from the truncate path then we do
-         * not have a ContainerIndex and we need to allocate a
-         * temporary one in order to be able to call the correct
-         * index_droppings_trunc() routine.
+         * we need a ContainerIndex to truncate.  allocate a temporary
+         * one in order to be able to call index_droppings_trunc().
          */
         ContainerIndex *ci;
         ci = container_index_alloc(ppip->mnt_pt);
@@ -310,6 +299,12 @@ containerfs_truncate_helper(struct plfs_physpathinfo *ppip,
             ret = ci->index_droppings_trunc(ppip, offset);
             delete ci;
         }
+
+        if (ret == PLFS_SUCCESS) {
+            ret = Container::truncateMeta(ppip->canbpath, offset,
+                                          ppip->canback);
+        }
+
         mlog(PLFS_DCOMMON, "%s: shrink ret %d", __FUNCTION__, ret);
 
     } else {                            /* case 3: grow file */
