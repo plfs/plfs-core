@@ -255,12 +255,6 @@ file_operation(struct plfs_physpathinfo *ppip, FileOp& op)
     return(ret);
 }
 
-/***********************************************************************/
-
-/*
- * exported helper functions (shared with ContainerFD)
- */
-
 /**
  * containerfs_truncate_helper: helper function for
  * ContainterFileSystem and Container_fd truncate routines.   3 cases
@@ -283,7 +277,7 @@ file_operation(struct plfs_physpathinfo *ppip, FileOp& op)
  * @param pid the pid to use if we need to open to extend
  * @return PLFS_SUCCESS or an error code
  */
-plfs_error_t
+static plfs_error_t
 containerfs_truncate_helper(struct plfs_physpathinfo *ppip,
                             off_t offset, off_t cur_st_size, pid_t pid)
 {
@@ -343,6 +337,12 @@ containerfs_truncate_helper(struct plfs_physpathinfo *ppip,
 
     return(ret);
 }
+
+/***********************************************************************/
+
+/*
+ * exported helper function (shared with ContainerFD)
+ */
 
 /**
  * containerfs_zero_helper: helper function for ContainterFileSystem
