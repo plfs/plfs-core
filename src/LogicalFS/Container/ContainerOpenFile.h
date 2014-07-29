@@ -38,7 +38,6 @@ class Container_OpenFile {
     /* Metadata */
     off_t last_offset; /* XXX: NEEDED? */
     size_t total_bytes;/* XXX: NEEDED? */
-    bool synced;       /* XXX: NEEDED? */
 
     /*
      * cof_index is the index for the container.  it has its own lock.

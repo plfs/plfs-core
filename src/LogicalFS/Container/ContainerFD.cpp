@@ -472,7 +472,6 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
     /* old: ctime, not used? */
     cof->last_offset = 0;
     cof->total_bytes = 0;
-    cof->synced = true;
 
     /* allocate an index */
     cof->cof_index = container_index_alloc(ppip->mnt_pt);
@@ -780,7 +779,6 @@ Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
         if (offset + (off_t) written > cof->last_offset) {
             cof->last_offset = offset + written;
         }
-        cof->synced = false;
     }
 
     if (ret == PLFS_SUCCESS) {
