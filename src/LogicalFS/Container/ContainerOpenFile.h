@@ -27,31 +27,25 @@ struct rdchunkhand {
 
 class Container_OpenFile {
  public:
-    int refcnt;           
-    struct plfs_physpathinfo pathcpy;
+    pthread_mutex_t cof_mux;  /* protects fields in this class */
+
+    int refcnt;        /* >1 if we get reused in a plfs_open */
+    struct plfs_physpathinfo pathcpy;   /* copy of path from plfs_open */
     int openflags;     /* O_RDONLY, O_WRONLY, O_RDWR, etc. */
     int reopen_mode;   /* XXX: disables im_lazy in Container_fd::getattr() */
-    pid_t pid;         /* needed to remove open record */
+    pid_t pid;         /* inital pid from open, needed to remove open record */
     mode_t mode;       /* used when reopening at restorefd time */
     /* Metadata */
-    off_t last_offset;
-    size_t total_bytes;
-    bool synced;
-
-
-    /* time_t ctime; */ /* XXXCDC: present, but unused in old code */
-
-    ContainerIndex *cof_index; /* open in a mode that matches openflags */
-    
-    pthread_mutex_t index_mux;   /* XXXCDC: check for redundant */
+    off_t last_offset; /* XXX: NEEDED? */
+    size_t total_bytes;/* XXX: NEEDED? */
+    bool synced;       /* XXX: NEEDED? */
 
     /*
-     * data_mux protects:
-     *   write side: fhs_writers, fhs, paths maps
-     *    read side: rdchunks
+     * cof_index is the index for the container.  it has its own lock.
+     * we open it in a mode that matches openflags (above).
      */
-    pthread_mutex_t data_mux;
-    
+    ContainerIndex *cof_index;
+
     /* WRITE SIDE */
     /*
      * subdir initially set to point to canonical, we may redirect to
@@ -66,19 +60,6 @@ class Container_OpenFile {
     map<pid_t, writefh> fhs;           /* may delay create until first write */
     map<pid_t, off_t> physoffsets;     /* track data dropping phys offsets */
     map<IOSHandle *, string> paths;    /* retain for restore operation */
-    /*
-     * XXXCDC: reuse index_mux above... Q: should we move the mux under
-     * the ContainerIndex abstraction?
-     */
-    /* XXXCDC: 'has_been_renamed' not used anymore (?) */
-    /*
-     * XXXCDC: move index_buffer_mbs behind ContainerIndex.. need a
-     * way to pass it in via the API?
-     *
-     * XXXCDC: move write_count behind ContainerIndex too.
-     *
-     * XXXCDC: populated note used, remove.
-     */
     double createtime;                 /* used in dropping filenames */
     size_t max_writers;                /* XXXCDC: incompletely used */
     /* END WRITE SIDE */

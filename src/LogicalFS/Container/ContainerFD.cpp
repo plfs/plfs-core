@@ -488,8 +488,7 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
     }
 
     /* XXX: pthread_mutex_init is allowed to fail, but we ignore */
-    pthread_mutex_init(&cof->index_mux, NULL);
-    pthread_mutex_init(&cof->data_mux, NULL);
+    pthread_mutex_init(&cof->cof_mux, NULL);
 
     /*
      * XXX: no need to cache?  Util::hostname() now does cache.
@@ -601,14 +600,14 @@ Container_fd::close(pid_t pid, uid_t uid, int open_flags,
          * remove state related to the write log here, before we
          * drop the main reference to the open fd.
          */
-        Util::MutexLock(&cof->data_mux, __FUNCTION__);
+        Util::MutexLock(&cof->cof_mux, __FUNCTION__);
         left = cof->fhs_writers[pid] - 1;
         cof->fhs_writers[pid] = left;
         if (left <= 0) {
             cof->fhs_writers.erase(pid);
             close_writedropping(cof, pid);
         }
-        Util::MutexUnlock(&cof->data_mux, __FUNCTION__);
+        Util::MutexUnlock(&cof->cof_mux, __FUNCTION__);
         /* XXX: should log close error after unlock */
     }
     
@@ -639,7 +638,7 @@ Container_fd::close(pid_t pid, uid_t uid, int open_flags,
         struct plfs_backend *bend;
         IOSHandle *fh;
         
-        Util::MutexLock(&cof->data_mux, __FUNCTION__);
+        Util::MutexLock(&cof->cof_mux, __FUNCTION__);
         for (cnk_itr = cof->rdchunks.begin() ;
              cnk_itr != cof->rdchunks.end() ; cnk_itr++) {
 
@@ -653,7 +652,7 @@ Container_fd::close(pid_t pid, uid_t uid, int open_flags,
             }
 
         }
-        Util::MutexUnlock(&cof->data_mux, __FUNCTION__);
+        Util::MutexUnlock(&cof->cof_mux, __FUNCTION__);
         /*
          * note: the cof destructor will free the rest of the rdchunks map
          * when we delete cof (below).
@@ -702,8 +701,7 @@ Container_fd::close(pid_t pid, uid_t uid, int open_flags,
         
     }
 
-    pthread_mutex_destroy(&cof->index_mux);
-    pthread_mutex_destroy(&cof->data_mux);
+    pthread_mutex_destroy(&cof->cof_mux);
 
     /*
      * finally, get rid of the cof and return.  note that stuff
@@ -808,7 +806,7 @@ Container_fd::sync()
     if (cof->openflags != O_RDONLY) {   /* no need to sync r/o fd */
 
         /* sync data first */
-        Util::MutexLock(&cof->data_mux, __FUNCTION__);
+        Util::MutexLock(&cof->cof_mux, __FUNCTION__);
         for (pid_itr = cof->fhs.begin(), firsterr = PLFS_SUCCESS ;
              pid_itr != cof->fhs.end() ; pid_itr++) {
 
@@ -818,7 +816,7 @@ Container_fd::sync()
                 firsterr = curerr;
             }
         }
-        Util::MutexUnlock(&cof->data_mux, __FUNCTION__);
+        Util::MutexUnlock(&cof->cof_mux, __FUNCTION__);
 
         /* now tell index to sync - index does its own locking */
         curerr = cof->cof_index->index_sync(cof);
@@ -844,12 +842,12 @@ Container_fd::sync(pid_t pid)
 
     if (cof->openflags != O_RDONLY) {   /* no need to sync r/o fd */
         /* sync data first */
-        Util::MutexLock(&cof->data_mux, __FUNCTION__);
+        Util::MutexLock(&cof->cof_mux, __FUNCTION__);
         pid_itr = cof->fhs.find(pid);
         if (pid_itr != cof->fhs.end()) {
             ret = pid_itr->second.wfh->Fsync();
         }
-        Util::MutexUnlock(&cof->data_mux, __FUNCTION__);
+        Util::MutexUnlock(&cof->cof_mux, __FUNCTION__);
 
         /* now tell index to sync - index does its own locking */
         idxret = cof->cof_index->index_sync(cof);
@@ -1316,9 +1314,9 @@ Container_fd::read_chunkfh(string bpath, struct plfs_backend *backend,
     IOSHandle *closeme;
 
     key = backend->prefix + bpath;
-    Util::MutexLock(&cof->data_mux, __FUNCTION__);
+    Util::MutexLock(&cof->cof_mux, __FUNCTION__);
     rcki = cof->rdchunks.find(key);
-    Util::MutexUnlock(&cof->data_mux, __FUNCTION__);
+    Util::MutexUnlock(&cof->cof_mux, __FUNCTION__);
     
     /* found it! */
     if (rcki != cof->rdchunks.end()) {
@@ -1344,7 +1342,7 @@ Container_fd::read_chunkfh(string bpath, struct plfs_backend *backend,
      * check to see if we won the race or not.  if we lost, discard
      * our file handle and use the winners...
      */
-    Util::MutexLock(&cof->data_mux, __FUNCTION__);
+    Util::MutexLock(&cof->cof_mux, __FUNCTION__);
     rcki = cof->rdchunks.find(key);
     if (rcki != cof->rdchunks.end()) {   /* lost race! */
         closeme = *fhp;
@@ -1356,7 +1354,7 @@ Container_fd::read_chunkfh(string bpath, struct plfs_backend *backend,
         rdc.fh = *fhp;
         cof->rdchunks[key] = rdc;
     }
-    Util::MutexUnlock(&cof->data_mux, __FUNCTION__);
+    Util::MutexUnlock(&cof->cof_mux, __FUNCTION__);
 
     if (closeme != NULL) {
         backend->store->Close(closeme);  /* close outside of lock */
