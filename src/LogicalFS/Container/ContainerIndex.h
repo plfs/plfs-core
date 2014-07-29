@@ -11,18 +11,9 @@ struct index_record {
     off_t chunk_offset;             /* offset of data in datapath file */
     size_t length;                  /* number of bytes we can read here */
     bool lastrecord;                /* true if we hit EOF (?) */
+
     /*
-     * XXX: what else needs to be returned here?
-     *
-     * - suppose we want to store additional data with the index
-     *   record (e.g. a checksum of the data).  how should we
-     *   return that here?
-     *
-     * - assume that file descriptors are managed outside of this?
-     *   (e.g. so the caller maps <datapath,databack> to an iostore
-     *    handle?).
-     *
-     * - how do we manage tracking the EOF?
+     * XXX: could put other stuff in here?  e.g. a data checksum?
      */
 };
 
