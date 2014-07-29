@@ -17,7 +17,7 @@ typedef enum {
 
 enum
 parentStatus {
-    PARENT_CREATED,PARENT_ABSENT
+    PARENT_CREATED, PARENT_ABSENT
 };
 
 /**
