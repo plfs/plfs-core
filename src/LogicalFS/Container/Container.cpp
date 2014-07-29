@@ -472,7 +472,7 @@ plfs_error_t
 Container::addMeta( off_t last_offset, size_t total_bytes,
                     const string& path, struct plfs_backend *canback,
                     const string& host, uid_t uid,
-                    double createtime, int interface, size_t max_writers)
+                    double createtime, int interface, size_t nproc)
 {
     string metafile;
     struct timeval time;
@@ -514,7 +514,7 @@ Container::addMeta( off_t last_offset, size_t total_bytes,
                 << "CT:" << Util::getTime() << "."
                 << "BW:" << bw << "."
                 << "IN:" << interface << "."
-                << "NP:" << max_writers << "."
+                << "NP:" << nproc << "."
                 << "HO:" << host << "."
                 << "UI:" << uid << "."
                 << "PA:" << path_without_slashes;

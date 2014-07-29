@@ -61,7 +61,6 @@ class Container_OpenFile {
     map<pid_t, off_t> physoffsets;     /* track data dropping phys offsets */
     map<IOSHandle *, string> paths;    /* retain for restore operation */
     double createtime;                 /* used in dropping filenames */
-    size_t max_writers;                /* XXXCDC: incompletely used */
     /* END WRITE SIDE */
 
     /* READ SIDE */

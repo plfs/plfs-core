@@ -406,7 +406,6 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
             }
 
             cof->fhs_writers[pid]++;
-            cof->max_writers++;
         }
 
         cof->refcnt++;
@@ -498,7 +497,6 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
       
     if (rwflags == O_WRONLY || rwflags == O_RDWR) {
         cof->createtime = Util::getTime();
-        cof->max_writers = 0;
 
         /*
          * set subdir to point to canonical first (already did
@@ -521,7 +519,6 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
         }
 
         cof->fhs_writers[pid]++;
-        cof->max_writers++;
 
         /*
          * we create one open record for all the pids using a file
@@ -683,16 +680,18 @@ Container_fd::close(pid_t pid, uid_t uid, int open_flags,
         }
 
         if ( drop_meta ) {
-            size_t m_maxwriters = cof->max_writers;
-            if (close_opt && close_opt->num_procs > m_maxwriters) {
-                m_maxwriters = close_opt->num_procs;
+            size_t m_nproc;
+            if (close_opt && close_opt->num_procs > 1) {
+                m_nproc = close_opt->num_procs;
+            } else {
+                m_nproc = 1;
             }
             Container::addMeta(m_lastoffset, m_totalbytes,
                                cof->pathcpy.canbpath,
                                cof->pathcpy.canback,
                                cof->hostname, uid, cof->createtime,
                                close_opt ? close_opt->pinter : -1,
-                               m_maxwriters);
+                               m_nproc);
             Container::removeOpenrecord(cof->pathcpy.canbpath,
                                         cof->pathcpy.canback,
                                         cof->hostname,
