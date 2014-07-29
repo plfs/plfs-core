@@ -470,8 +470,8 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
     cof->pid = pid;
     cof->mode = mode;
     /* old: ctime, not used? */
-    cof->last_offset = 0;
-    cof->total_bytes = 0;
+    cof->clast_offset = 0;
+    cof->ctotal_bytes = 0;
 
     /* allocate an index */
     cof->cof_index = container_index_alloc(ppip->mnt_pt);
@@ -775,9 +775,9 @@ Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
 
     if (written > 0) {
         cof->physoffsets[pid] += written;
-        cof->total_bytes += written;
-        if (offset + (off_t) written > cof->last_offset) {
-            cof->last_offset = offset + written;
+        cof->ctotal_bytes += written;
+        if (offset + (off_t) written > cof->clast_offset) {
+            cof->clast_offset = offset + written;
         }
     }
 
@@ -977,14 +977,14 @@ Container_fd::trunc(off_t offset)
     if (ret == PLFS_SUCCESS && !no_change) {
 
         /* XXXCDC: locking on cof->last_offset, cof->total_bytes  ?? */
-        lost_bytes = cof->last_offset - offset;
-        cof->last_offset = offset;
+        lost_bytes = cof->clast_offset - offset;
+        cof->clast_offset = offset;
         if (lost_bytes > 0 ) {
-            cof->total_bytes -= (size_t) lost_bytes;
+            cof->ctotal_bytes -= (size_t) lost_bytes;
         }
         if (offset == 0) {
             /* something is weird here. make sure we at least get 0 right */
-            cof->total_bytes = 0;
+            cof->ctotal_bytes = 0;
         }
 
         /*
@@ -1044,13 +1044,13 @@ Container_fd::getattr(struct stat *stbuf, int sz_only)
     
     if (ret == PLFS_SUCCESS && writing) {
         mlog(PLFS_DCOMMON, "got meta from openfile: %lu last offset, "
-             "%ld total bytes", (unsigned long)cof->last_offset,
-             (unsigned long)cof->total_bytes);
-        if (cof->last_offset > stbuf->st_size) {
-            stbuf->st_size = cof->last_offset;
+             "%ld total bytes", (unsigned long)cof->clast_offset,
+             (unsigned long)cof->ctotal_bytes);
+        if (cof->clast_offset > stbuf->st_size) {
+            stbuf->st_size = cof->clast_offset;
         }
         if (im_lazy) {
-            stbuf->st_blocks = Container::bytesToBlocks(cof->total_bytes);
+            stbuf->st_blocks = Container::bytesToBlocks(cof->ctotal_bytes);
         }
     }
     
@@ -1076,7 +1076,7 @@ Container_fd::query(size_t *writers, size_t *readers,
         *readers = (cof->openflags != O_WRONLY) ? cof->refcnt : 0;
     }
     if (bytes_written) {
-        *bytes_written = cof->total_bytes;
+        *bytes_written = cof->ctotal_bytes;
     }
     if (reopen) {
         *reopen = (cof->reopen_mode != 0);

@@ -36,8 +36,8 @@ class Container_OpenFile {
     pid_t pid;         /* inital pid from open, needed to remove open record */
     mode_t mode;       /* used when reopening at restorefd time */
     /* Metadata */
-    off_t last_offset; /* XXX: NEEDED? */
-    size_t total_bytes;/* XXX: NEEDED? */
+    off_t clast_offset; /* XXX: NEEDED? */
+    size_t ctotal_bytes;/* XXX: NEEDED? */
 
     /*
      * cof_index is the index for the container.  it has its own lock.
