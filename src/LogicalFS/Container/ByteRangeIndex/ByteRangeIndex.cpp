@@ -635,6 +635,31 @@ ByteRangeIndex::index_optimize(Container_OpenFile *cof) {
 }
 
 /**
+ * ByteRangeIndex::index_info: get index info (eof, bytes written).
+ * index should be open.
+ *
+ * @param lastoff eof info placed here
+ * @param bwritten bytes written (for this open) put here
+ * @return  PLFS_SUCCESS or error code
+ */
+plfs_error_t
+ByteRangeIndex::index_info(off_t &lastoff, off_t &bwritten) {
+    plfs_error_t ret = PLFS_SUCCESS;
+
+    Util::MutexLock(&this->bri_mutex, __FUNCTION__);
+
+    if (!this->isopen) {
+        ret = PLFS_EINVAL;
+    } else {
+        lastoff = this->eof_tracker;
+        bwritten = this->write_bytes;
+    }
+
+    Util::MutexUnlock(&this->bri_mutex, __FUNCTION__);
+    return(ret);
+}
+
+/**
  * ByteRangeIndex::index_droppings_getattrsize: the file is open and
  * we want to get the best version of the size that we can.  our index
  * may or may not be the one that is open.  we've already pull some

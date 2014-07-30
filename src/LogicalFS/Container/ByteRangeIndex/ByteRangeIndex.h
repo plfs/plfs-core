@@ -156,6 +156,7 @@ public:
     plfs_error_t index_new_wdrop(Container_OpenFile *cof,
                                  string ts, pid_t pid, const char *fn);
     plfs_error_t index_optimize(Container_OpenFile *cof);
+    plfs_error_t index_info(off_t &lastoff, off_t &bwritten);
 
     plfs_error_t index_droppings_getattrsize(struct plfs_physpathinfo *ppip,
                                              struct stat *stbuf,
