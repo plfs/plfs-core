@@ -1024,6 +1024,7 @@ Container_fd::getattr(struct stat *stbuf, int sz_only)
     plfs_error_t ret = PLFS_SUCCESS; 
     Container_OpenFile *cof;
     int writing, im_lazy;
+    off_t eofoff, wbytes;
 
     cof = this->fd;
     
@@ -1043,14 +1044,19 @@ Container_fd::getattr(struct stat *stbuf, int sz_only)
     }
     
     if (ret == PLFS_SUCCESS && writing) {
+        eofoff = wbytes = 0;
+        if (cof->cof_index &&
+            cof->cof_index->index_info(eofoff, wbytes) != PLFS_SUCCESS) {
+            mlog(CON_CRIT, "%s: index_info failed, sticking with zeros",
+                 __FUNCTION__);   /* shouldn't ever fail */
+        }
         mlog(PLFS_DCOMMON, "got meta from openfile: %lu last offset, "
-             "%ld total bytes", (unsigned long)cof->clast_offset,
-             (unsigned long)cof->ctotal_bytes);
-        if (cof->clast_offset > stbuf->st_size) {
-            stbuf->st_size = cof->clast_offset;
+             "%ld total bytes", (unsigned long)eofoff, (unsigned long)wbytes);
+        if (eofoff > stbuf->st_size) {
+            stbuf->st_size = eofoff;
         }
         if (im_lazy) {
-            stbuf->st_blocks = Container::bytesToBlocks(cof->ctotal_bytes);
+            stbuf->st_blocks = Container::bytesToBlocks(wbytes);
         }
     }
     
@@ -1066,8 +1072,16 @@ Container_fd::query(size_t *writers, size_t *readers,
                     size_t *bytes_written, bool *reopen)
 {
     Container_OpenFile *cof;
+    off_t eoftmp, wbytes;
 
     cof = this->fd;
+    eoftmp = wbytes = 0;
+    if (this->fd->cof_index) {
+        /* shouldn't ever get an error here since file is open */
+        if (this->fd->cof_index->index_info(eoftmp, wbytes) != PLFS_SUCCESS) {
+            mlog(CON_CRIT, "%s: error from index_info?", __FUNCTION__);
+        }
+    }
 
     if (writers) {
         *writers = (cof->openflags != O_RDONLY) ? cof->refcnt : 0;
@@ -1076,7 +1090,7 @@ Container_fd::query(size_t *writers, size_t *readers,
         *readers = (cof->openflags != O_WRONLY) ? cof->refcnt : 0;
     }
     if (bytes_written) {
-        *bytes_written = cof->ctotal_bytes;
+        *bytes_written = (size_t)wbytes;
     }
     if (reopen) {
         *reopen = (cof->reopen_mode != 0);
