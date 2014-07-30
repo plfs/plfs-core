@@ -469,9 +469,6 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
     cof->reopen_mode = (open_opt && open_opt->reopen) ? 1 : 0;
     cof->pid = pid;
     cof->mode = mode;
-    /* old: ctime, not used? */
-    cof->clast_offset = 0;
-    cof->ctotal_bytes = 0;
 
     /* allocate an index */
     cof->cof_index = container_index_alloc(ppip->mnt_pt);
@@ -775,10 +772,6 @@ Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
 
     if (written > 0) {
         cof->physoffsets[pid] += written;
-        cof->ctotal_bytes += written;
-        if (offset + (off_t) written > cof->clast_offset) {
-            cof->clast_offset = offset + written;
-        }
     }
 
     if (ret == PLFS_SUCCESS) {
@@ -920,7 +913,6 @@ Container_fd::trunc(off_t offset)
     Container_OpenFile *cof;
     struct stat stbuf;
     int no_change, shrunk;
-    off_t lost_bytes;
 
     cof = this->fd;
     no_change = shrunk = 0;
@@ -971,21 +963,9 @@ Container_fd::trunc(off_t offset)
     }    /* offset != 0 */
     
     /*
-     * if we updated the size, we need to update the cof metadata and
-     * restore the fds
+     * if we updated the size, we need to restore the fds
      */
     if (ret == PLFS_SUCCESS && !no_change) {
-
-        /* XXXCDC: locking on cof->last_offset, cof->total_bytes  ?? */
-        lost_bytes = cof->clast_offset - offset;
-        cof->clast_offset = offset;
-        if (lost_bytes > 0 ) {
-            cof->ctotal_bytes -= (size_t) lost_bytes;
-        }
-        if (offset == 0) {
-            /* something is weird here. make sure we at least get 0 right */
-            cof->ctotal_bytes = 0;
-        }
 
         /*
          * if we shrunk the file and we have read data droppings open,
