@@ -1063,7 +1063,8 @@ Container::getattr(struct plfs_physpathinfo *ppip, struct stat *stbuf,
         if (ci == NULL) {
             ret = PLFS_ENOMEM;
         } else {
-            ret = ci->index_getattr_size(ppip, stbuf, &openHosts, &validMeta);
+            ret = ci->index_droppings_getattrsize(ppip, stbuf,
+                                                  &openHosts, &validMeta);
         }
 
         if (!opencof && ci) {

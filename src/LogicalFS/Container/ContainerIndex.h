@@ -48,7 +48,8 @@ class ContainerIndex {
                                          const char *filename) = 0;
     virtual plfs_error_t index_optimize(Container_OpenFile *cof) = 0;
 
-    virtual plfs_error_t index_getattr_size(struct plfs_physpathinfo *ppip,
+    virtual plfs_error_t index_droppings_getattrsize(
+                                            struct plfs_physpathinfo *ppip,
                                             struct stat *stbuf,
                                             set<string> *openset,
                                             set<string> *metaset) = 0;

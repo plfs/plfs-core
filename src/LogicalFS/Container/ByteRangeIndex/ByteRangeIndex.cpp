@@ -635,10 +635,10 @@ ByteRangeIndex::index_optimize(Container_OpenFile *cof) {
 }
 
 /**
- * ByteRangeIndex::index_getattr_size: the file is open and we want to
- * get the best version of the size that we can.  our index may or may
- * not be the one that is open.  we've already pull some info out of
- * meta directory and we want to see if we can improve it.
+ * ByteRangeIndex::index_droppings_getattrsize: the file is open and
+ * we want to get the best version of the size that we can.  our index
+ * may or may not be the one that is open.  we've already pull some
+ * info out of meta directory and we want to see if we can improve it.
  *
  * @param ppip path info for the file we are getting the size of
  * @param stbuf where save the result
@@ -647,9 +647,10 @@ ByteRangeIndex::index_optimize(Container_OpenFile *cof) {
  * @return PLFS_SUCCESS or error code
  */
 plfs_error_t
-ByteRangeIndex::index_getattr_size(struct plfs_physpathinfo *ppip, 
-                                   struct stat *stbuf, set<string> *openset,
-                                   set<string> *metaset) {
+ByteRangeIndex::index_droppings_getattrsize(struct plfs_physpathinfo *ppip, 
+                                            struct stat *stbuf,
+                                            set<string> *openset,
+                                            set<string> *metaset) {
     plfs_error_t ret = PLFS_SUCCESS;
     vector<plfs_pathback> indices;
     vector<plfs_pathback>::iterator pitr;

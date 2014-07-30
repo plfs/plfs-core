@@ -157,10 +157,10 @@ public:
                                  string ts, pid_t pid, const char *fn);
     plfs_error_t index_optimize(Container_OpenFile *cof);
 
-    plfs_error_t index_getattr_size(struct plfs_physpathinfo *ppip,
-                                    struct stat *stbuf,
-                                    set<string> *openset,
-                                    set<string> *metaset);
+    plfs_error_t index_droppings_getattrsize(struct plfs_physpathinfo *ppip,
+                                             struct stat *stbuf,
+                                             set<string> *openset,
+                                             set<string> *metaset);
 
     plfs_error_t index_droppings_rename(struct plfs_physpathinfo *src,
                   struct plfs_physpathinfo *dst);
