@@ -304,6 +304,7 @@ ByteRangeIndex::index_add(Container_OpenFile *cof, size_t nbytes,
     this->writebuf.push_back(newent);
     this->write_count++;
     this->write_bytes += nbytes;
+    this->eof_tracker = max(this->eof_tracker, offset + (off_t)nbytes);
 
     /* XXX: carried over hardwired 1024 from old code */
     if ((this->write_count % 1024) == 0) {
@@ -459,8 +460,9 @@ ByteRangeIndex::index_truncate(Container_OpenFile *cof, off_t offset) {
     
     Util::MutexLock(&this->bri_mutex, __FUNCTION__);
     /*
-     * non-zeroing truncate.   first clean out any in-memory records
-     * that are now out of range.
+     * non-zeroing truncate.  called when the file is shrunk (since
+     * growing the file is treated as a zero byte write).  first we
+     * clean out any in-memory records that are now out of range.
      */
     for (itr = this->writebuf.begin() ; itr != this->writebuf.end() ; itr++) {
         HostEntry ent = *itr;
