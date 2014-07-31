@@ -204,7 +204,10 @@ ByteRangeIndex::index_open(Container_OpenFile *cof, int open_flags,
 }
 
 /**
- * ByteRangeIndex::index_close: close off an open index
+ * ByteRangeIndex::index_close: close off an open index.   lastoffp
+ * should get set to the largest offset we know about (to help track
+ * EOF).   tbytesp should get set to number of bytes written (0 if
+ * we are not writing).
  *
  * @param cof the open file we belong to
  * @param lastoffp where to put last offset for metadata dropping (NULL ok)
@@ -238,8 +241,7 @@ ByteRangeIndex::index_close(Container_OpenFile *cof, off_t *lastoffp,
         *lastoffp = this->eof_tracker;
     }
     if (tbytesp != NULL) {
-        *tbytesp = (this->brimode != O_RDONLY) ? this->write_bytes
-             : this->backing_bytes;
+        *tbytesp = this->write_bytes;   /* zero if not writing */
     }
     
     /* flush out any cached write index records and shutdown write side */
