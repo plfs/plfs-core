@@ -18,12 +18,16 @@ static plfs_error_t createMetalink(struct plfs_backend *canback,
                                    string& physical_hostdir,
                                    struct plfs_backend **physbackp,
                                    bool& use_metalink);
+
 /**
- * fetchMeta: get data from metafile name
+ * fetchMeta: get data from metafile name.  these get generated
+ * each time an open writeable fd is closed.  if you look at all
+ * the "last_offset" values in the meta dir and choose the largest
+ * you'll have the EOF (metadata is edited on truncate).
  *
  * @param metafile_name the filename to parse
- * @param last_offset returned last offset
- * @param total_bytes returned total byte count
+ * @param last_offset returned last offset used for this open
+ * @param total_bytes returned total byte count written for this open
  * @param time returned time
  * @return the hostname
  */
@@ -40,7 +44,6 @@ fetchMeta(const string& metafile_name, off_t *last_offset,
     time->tv_nsec *= 1000; /* convert from micro */
     return host;
 }
-
 
 /**
  * istype: see if a dropping is a particular type (e.g. OPENPREFIX)
@@ -464,7 +467,9 @@ Container::version(const struct plfs_pathback *pb)
 
 /**
  * Container::addMeta: this function drops a file in the metadir that
- * contains stat info so we can later satisfy stats using just readdir
+ * contains stat info so we can later satisfy stats using just readdir.
+ * note that addMeta data last_offset and total_bytes are for this
+ * open only (last_offset is the last/largest offset used).
  *
  * @return PLFS_SUCCESS or error code
  */
