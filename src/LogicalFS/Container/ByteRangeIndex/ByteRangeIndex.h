@@ -282,6 +282,16 @@ public:
     vector<ChunkFile> chunk_map;     /* filenames for idx */
     int nchunks;                     /* #chunks in chunk_map (for chunk_id) */
     /* XXX: nchunks not necessary?  use chunk_map.size() ? */
-    off_t backing_bytes;             /* includes overwrites */
+    off_t backing_bytes;             /* see below */
+    /*
+     * backing_bytes includes overwrites.  this field is only used
+     * internally (it is easy to track) -- e.g. as an arg to functions
+     * like merge_dropping/merge_idx.  the merge function needs that
+     * arg for index_droppings_getattrsize(), so it is useful to keep
+     * this around.  note that shrinking/truncating a file to a
+     * nonzero size doesn't remove any data droppings (so the
+     * backing_bytes can be larger than the actual file size due to
+     * either overwrites or truncates).
+     */
 };
 
