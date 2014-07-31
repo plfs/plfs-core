@@ -99,7 +99,6 @@ ByteRangeIndex::reader(deque<struct plfs_pathback> &idrops,
             task = idrops.front();
             idrops.pop_front();
             ret = ByteRangeIndex::merge_dropping(bri->idx, bri->chunk_map,
-                                                 bri->nchunks,
                                                  &bri->eof_tracker,
                                                  &bri->backing_bytes,
                                                  task.bpath, task.back);
@@ -182,12 +181,10 @@ ByteRangeIndex::reader_indexer_thread( void *va ) {
         /*  handle the task - subidx is private to this fn */
         map<off_t,ContainerEntry> subidx;
         vector<ChunkFile> subchunk;
-        int subnchunk;
         off_t eoft, bbyts;
 
-        subnchunk = 0;         /* not used ... */
         eoft = bbyts = 0;      /* ... recomputed in merge_idx, below */
-        ret = ByteRangeIndex::merge_dropping(subidx, subchunk, subnchunk,
+        ret = ByteRangeIndex::merge_dropping(subidx, subchunk, 
                                              &eoft, &bbyts,
                                              task.bpath, task.back);
         if (ret != PLFS_SUCCESS) {
@@ -203,7 +200,6 @@ ByteRangeIndex::reader_indexer_thread( void *va ) {
         Util::MutexLock(&(args->mux),__FUNCTION__);
 
         ret = ByteRangeIndex::merge_idx(args->bri->idx, args->bri->chunk_map,
-                                        args->bri->nchunks,
                                         &args->bri->eof_tracker,
                                         &args->bri->backing_bytes,
                                         subidx, subchunk);

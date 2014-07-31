@@ -55,11 +55,9 @@ ByteRangeIndex::scan_idropping(string dropbpath, struct plfs_backend *dropback,
     plfs_error_t ret;
     map<off_t,ContainerEntry> tmpidx;   /* discarded on return */
     vector<ChunkFile> tmpcnk;           /* discarded on return */
-    int tmpid;
 
-    tmpid = 0;
     *eofp = *bytesp = 0;
-    ret = ByteRangeIndex::merge_dropping(tmpidx, tmpcnk, tmpid,
+    ret = ByteRangeIndex::merge_dropping(tmpidx, tmpcnk, 
                                          eofp, bytesp, dropbpath, dropback);
     return(ret);
 }
@@ -112,7 +110,6 @@ ByteRangeIndex::ByteRangeIndex(PlfsMount *) {
     this->write_bytes = 0;
     this->iwritefh = NULL;
     this->iwriteback = NULL;
-    this->nchunks = 0;
     this->backing_bytes = 0;
     /* init'd by C++: writebuf, idx, chunk_map */
 }
@@ -195,7 +192,6 @@ ByteRangeIndex::index_open(Container_OpenFile *cof, int open_flags,
         if (ret == PLFS_SUCCESS && open_flags == O_RDWR) {
             this->idx.clear();
             this->chunk_map.clear();
-            this->nchunks = 0;
         }
     }
     
@@ -267,7 +263,6 @@ ByteRangeIndex::index_close(Container_OpenFile *cof, off_t *lastoffp,
     if (this->brimode != O_WRONLY) {
         this->idx.clear();
         this->chunk_map.clear();
-        this->nchunks = 0;
         this->backing_bytes = 0;
     }
 

@@ -327,12 +327,11 @@ ByteRangeIndex::trunc_edit_nz(struct plfs_physpathinfo *ppip, off_t nzo,
         /* read dropping file into a tmp index map */
         map<off_t,ContainerEntry> tmpidx;
         vector<ChunkFile> tmpcnk;
-        int tmpid;
         off_t eof, bytes;
         IOSHandle *fh;
 
         eof = bytes = 0;
-        ret = ByteRangeIndex::merge_dropping(tmpidx, tmpcnk, tmpid, &eof,
+        ret = ByteRangeIndex::merge_dropping(tmpidx, tmpcnk, &eof,
                                              &bytes, indexfile, indexback);
         
         if (ret != PLFS_SUCCESS) {

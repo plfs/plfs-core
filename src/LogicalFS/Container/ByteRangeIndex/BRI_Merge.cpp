@@ -54,9 +54,7 @@ indexpath2chunkpath(const string &ipath, pid_t pid, string &dpath) {
 
 /**
  * ByteRangeIndex::merge_dropping: merge HostEntry records from
- * dropping file into map/chunks.  this is only used here, but we
- * can't make it static because it accesses protected fields in
- * HostEntry/ContainerEntry.
+ * dropping file into map/chunks.
  *
  * XXX: if it fails, it may leave idxout/cmapout in a partially
  * modified state.  do we need better error recovery?  failure is
@@ -66,14 +64,13 @@ indexpath2chunkpath(const string &ipath, pid_t pid, string &dpath) {
  *
  * @param idxout entries are merged in here
  * @param cmapout new ChunkFiles are appended here
- * @param chunk_id next available chunk id
  * @param dropbpath bpath to index dropping file
  * @param dropback backend that dropping lives on
  * @return PLFS_SUCCESS or error code
  */
 plfs_error_t
 ByteRangeIndex::merge_dropping(map<off_t,ContainerEntry> &idxout,
-                               vector<ChunkFile> &cmapout, int &chunk_id,
+                               vector<ChunkFile> &cmapout, 
                                off_t *eof_trk, off_t *bbytes,
                                string dropbpath,
                                struct plfs_backend *dropback) {
@@ -108,6 +105,7 @@ ByteRangeIndex::merge_dropping(map<off_t,ContainerEntry> &idxout,
     map<pid_t,pid_t>::iterator known_chunks_itr;
     HostEntry *h_index = (HostEntry *)ibuf;  /* dropping file data! */
     size_t entries = len / sizeof(HostEntry); /* ignore partials (unlikely) */
+    int new_id;
 
     mlog(IDX_DCOMMON, "merge_droppings: %s has %lu entries",
          dropbpath.c_str(), entries);
@@ -127,11 +125,11 @@ ByteRangeIndex::merge_dropping(map<off_t,ContainerEntry> &idxout,
             }
             cf.backend = dropback;
             cf.fh = NULL;
+            new_id = cmapout.size();
             cmapout.push_back( cf );
-            known_chunks[h_entry.id] = chunk_id;
-            chunk_id++;
-            mlog(IDX_DCOMMON, "Inserting chunk %s (%lu)", cf.bpath.c_str(),
-                 (unsigned long)cmapout.size());
+            known_chunks[h_entry.id] = new_id;
+            mlog(IDX_DCOMMON, "Inserting chunk %s (id=%lu)", cf.bpath.c_str(),
+                 (unsigned long)new_id);
         }
 
         /* ok, setup the ContainerEntry for adding ... */
@@ -168,9 +166,7 @@ ByteRangeIndex::merge_dropping(map<off_t,ContainerEntry> &idxout,
 }
 
 /**
- * ByteRangeIndex::merge_idx: merge one index/map into another.  this
- * is only used here, but we can't make it static because it accesses
- * protected fields in HostEntry/ContainerEntry.
+ * ByteRangeIndex::merge_idx: merge one index/map into another.
  *
  * XXX: if it fails, it may leave idxout/cmapout in a partially
  * modified state.  do we need better error recovery?  failure is
@@ -180,14 +176,13 @@ ByteRangeIndex::merge_dropping(map<off_t,ContainerEntry> &idxout,
  *
  * @param idxout entries are merged in here
  * @param cmapout new ChunkFiles are appended here
- * @param chunk_id next available chunk id
  * @param idxin merge source
  * @param cmapin merge source chunk info
  * @return PLFS_SUCCESS or error code
  */
 plfs_error_t
 ByteRangeIndex::merge_idx(map<off_t,ContainerEntry> &idxout,
-                          vector<ChunkFile> &cmapout, int &chunk_id,
+                          vector<ChunkFile> &cmapout, 
                           off_t *eof_trk, off_t *bbytes,
                           map<off_t,ContainerEntry> &idxin,
                           vector<ChunkFile> &cmapin) {
@@ -199,7 +194,6 @@ ByteRangeIndex::merge_idx(map<off_t,ContainerEntry> &idxout,
     for (itr = cmapin.begin() ; itr != cmapin.end() ; itr++) {
         cmapout.push_back(*itr);
     }
-    chunk_id += cmapin.size();
     
     /*
      * now merge in all the idxin records, adjusting the chunk map

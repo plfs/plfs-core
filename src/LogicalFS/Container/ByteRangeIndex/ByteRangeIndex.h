@@ -205,12 +205,11 @@ public:
                                     bool > &insert_ret );
     static plfs_error_t merge_dropping(map<off_t,ContainerEntry> &idxout,
                                        vector<ChunkFile> &cmapout,
-                                       int &chunk_id,
                                        off_t *eof_trk, off_t *bbytes,
                                        string dropbpath,
                                        struct plfs_backend *dropback);
     static plfs_error_t merge_idx(map<off_t,ContainerEntry> &idxout,
-                                  vector<ChunkFile> &cmapout, int &chunk_id,
+                                  vector<ChunkFile> &cmapout, 
                                   off_t *eof_trk, off_t *bbytes,
                                   map<off_t,ContainerEntry> &idxin,
                                   vector<ChunkFile> &cmapin);
@@ -280,8 +279,7 @@ public:
     /* data structures for the read side */
     map<off_t,ContainerEntry> idx;   /* global index (aggregated) */
     vector<ChunkFile> chunk_map;     /* filenames for idx */
-    int nchunks;                     /* #chunks in chunk_map (for chunk_id) */
-    /* XXX: nchunks not necessary?  use chunk_map.size() ? */
+    /* note: next avail chunk_id is chunk_map.size() */
     off_t backing_bytes;             /* see below */
     /*
      * backing_bytes includes overwrites.  this field is only used

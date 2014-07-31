@@ -345,7 +345,7 @@ ByteRangeIndex::hostdir_rddir(void **index_stream, char *targets, int rank,
                                                   path, idxback);
 
         ByteRangeIndex::merge_idx(global.idx, global.chunk_map,
-                                  global.nchunks, &global.eof_tracker,
+                                  &global.eof_tracker,
                                   &global.backing_bytes,
                                   tmp.idx, tmp.chunk_map);
         count++;
@@ -510,7 +510,7 @@ ByteRangeIndex::parindexread_merge(const char *path, char *index_streams,
          * XXXCDC: old code, ignores return value
          */
         tmp.global_from_stream(istream);
-        merger.merge_idx(merger.idx, merger.chunk_map, merger.nchunks,
+        merger.merge_idx(merger.idx, merger.chunk_map, 
                          &merger.eof_tracker, &merger.backing_bytes,
                          tmp.idx, tmp.chunk_map);
     }
