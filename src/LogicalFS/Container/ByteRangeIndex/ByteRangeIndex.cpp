@@ -139,6 +139,11 @@ ByteRangeIndex::index_open(Container_OpenFile *cof, int open_flags,
     plfs_error_t ret = PLFS_SUCCESS;
     bool urestart;
     pid_t upid;
+
+    if (this->isopen) {    /* quick sanity check, shouldn't be possible */
+        mlog(IDX_CRIT, "index_open: double open?");
+        return(PLFS_EINVAL);
+    }
     
     Util::MutexLock(&this->bri_mutex, __FUNCTION__);
 
@@ -303,14 +308,20 @@ ByteRangeIndex::index_add(Container_OpenFile *cof, size_t nbytes,
     newent.id = pid;
 
     Util::MutexLock(&this->bri_mutex, __FUNCTION__);
-    this->writebuf.push_back(newent);
-    this->write_count++;
-    this->write_bytes += nbytes;
-    this->eof_tracker = max(this->eof_tracker, offset + (off_t)nbytes);
 
-    /* XXX: carried over hardwired 1024 from old code */
-    if ((this->write_count % 1024) == 0) {
-        ret = this->flush_writebuf();
+    if (!this->isopen) {  /* shouldn't be possible */
+        mlog(IDX_CRIT, "index_add: but not open?!");
+        ret = PLFS_EINVAL;
+    } else {
+        this->writebuf.push_back(newent);
+        this->write_count++;
+        this->write_bytes += nbytes;
+        this->eof_tracker = max(this->eof_tracker, offset + (off_t)nbytes);
+
+        /* XXX: carried over hardwired 1024 from old code */
+        if ((this->write_count % 1024) == 0) {
+            ret = this->flush_writebuf();
+        }
     }
     
     Util::MutexUnlock(&this->bri_mutex, __FUNCTION__);
@@ -327,13 +338,15 @@ ByteRangeIndex::index_add(Container_OpenFile *cof, size_t nbytes,
 plfs_error_t
 ByteRangeIndex::index_sync(Container_OpenFile *cof) {
 
-    plfs_error_t ret;
+    plfs_error_t ret = PLFS_SUCCESS;
 
-    Util::MutexLock(&this->bri_mutex, __FUNCTION__);
+    if (this->isopen && this->brimode != O_RDONLY) {
 
-    ret = this->flush_writebuf();
-    
-    Util::MutexUnlock(&this->bri_mutex, __FUNCTION__);
+        Util::MutexLock(&this->bri_mutex, __FUNCTION__);
+        ret = this->flush_writebuf();
+        Util::MutexUnlock(&this->bri_mutex, __FUNCTION__);
+
+    }
 
     return(ret);
 }
