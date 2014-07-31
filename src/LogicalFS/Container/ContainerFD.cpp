@@ -615,7 +615,12 @@ Container_fd::close(pid_t pid, uid_t uid, int open_flags,
     
     /*
      * we've dropped the final reference to the cof, so now we know we
-     * need to dispose of it.   first dispose of the index.
+     * need to dispose of it.  first dispose of the index.  note that
+     * m_lastoffset gets set to the largest offset discovered or
+     * written to for cof->cof_index (help to track EOF).
+     * m_totalbytes is the total number of bytes written for this
+     * cof->cof_index.
+     *
      * XXX: look at return values and log errors
      */
     cof->cof_index->index_close(cof, &m_lastoffset, &m_totalbytes, close_opt);
