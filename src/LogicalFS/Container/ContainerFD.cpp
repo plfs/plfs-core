@@ -1237,7 +1237,6 @@ Container_fd::read_taskgen(char *buf, size_t size, off_t offset,
         /* pull first one off list and update at_eof */
         ir = irecs.front();
         irecs.pop_front();
-        at_eof = ir.lastrecord;
         
         /*
          * now convert it to a task.  XXX: the input_record and the
@@ -1295,6 +1294,15 @@ Container_fd::read_taskgen(char *buf, size_t size, off_t offset,
             tasks->push_back(task);
         }
 
+        /*
+         * index can optionally tell us when we are at the last 
+         * record so we don't have to make another call to index
+         * query to find that out.
+         */
+        if (ir.lastrecord) { 
+            at_eof = true;
+            break;
+        }
     }
 
     return(ret);
