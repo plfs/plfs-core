@@ -777,6 +777,7 @@ Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
     }
     end = Util::getTime();
 
+    *bytes_written = written;
     if (written > 0) {
         cof->physoffsets[pid] += written;
     }
