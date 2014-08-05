@@ -609,6 +609,8 @@ Container_fd::close(pid_t pid, uid_t uid, int open_flags,
      * references remaining, then we can just return now.
      */
     left = --cof->refcnt;
+    if (num_ref)
+        *num_ref = left;   /* caller needs to know if this dropped to 0 */
     if (left > 0) {
         return(ret);
     }
