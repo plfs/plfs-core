@@ -54,6 +54,8 @@ Container_fd::~Container_fd()
  * writedropping.  establish will call this.  it may fail if the
  * subdir isn't present or is a metalink.
  *
+ * locking: modifies cof, assume caller locked cof
+ *
  * @param cof the open file structure
  * @param pid the PID we are opening for
  * @return PLFS_SUCCESS or an error code
@@ -72,7 +74,7 @@ static plfs_error_t try_openwritedropping(Container_OpenFile *cof,
     drop_pathstream << cof->subdir_path << "/" << DATAPREFIX <<
         ts.str() << "." << cof->hostname << "." << pid;
 
-    old_mode = umask(0);
+    old_mode = umask(0); /* XXX: umask has no effect on non-posix iostores */
     rv = cof->subdirback->store->Open(drop_pathstream.str().c_str(),
                                       O_WRONLY|O_APPEND|O_CREAT,
                                       DROPPING_MODE, &fh);
@@ -110,6 +112,8 @@ static plfs_error_t try_openwritedropping(Container_OpenFile *cof,
 
 /**
  * close_writedropping: check for and close any of a pid's write logs
+ *
+ * locking: modifies cof, assume caller locked cof
  *
  * @param cof the open file we are working with
  * @param pid the pid of the closing process
@@ -158,6 +162,8 @@ static plfs_error_t close_writedropping(Container_OpenFile *cof, pid_t pid) {
 
 /**
  * Container_fd::establish_writedroping: create a dropping for writing
+ *
+ * locking: modifies cof, assume caller locked cof
  *
  * @param pid the pid to create dropping for
  * @return PLFS_SUCCESS or error code
@@ -314,6 +320,14 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
      *
      * XXXCDC on Feb 2014.
      */
+    /*
+     * cof locking: if pfd is NULL, then we are allocating a new cof
+     * and thus will hold the only reference to it.  if pfd is not
+     * null, then we need to lock since other folks have a reference
+     * to it.  (the pfd!=NULL case typically only happens with FUSE,
+     * so the "never happens with FUSE" code below means pfd is likely
+     * null so there is nothing to lock)
+     */
     if (*pfd != NULL &&
         (flags != (*pfd)->openflags ||
          strcmp(ppip->bnode.c_str(), (*pfd)->pathcpy.bnode.c_str()) != 0 ||
@@ -372,7 +386,7 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
     /*
      * break open up into two cases: adding a reference to an already
      * open file and creating the initial reference for an open file.
-     * handle the adding a reference case here (as it is is simple) and
+     * handle the adding a reference case here (as it is simple) and
      * farm the other case out to establish_helper() function.
      *
      * adding a reference:
@@ -395,12 +409,14 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
     if (*pfd) {
         Container_OpenFile *cof = *pfd;
 
+        Util::MutexLock(&cof->cof_mux, __FUNCTION__);
         if (rwflags == O_WRONLY || rwflags == O_RDWR) { /* writing? */
             if (!get_plfs_conf()->lazy_droppings &&
                 cof->fhs.find(pid) == cof->fhs.end()) {
 
                 ret = this->establish_writedropping(pid);
                 if (ret != PLFS_SUCCESS) {
+                    Util::MutexUnlock(&cof->cof_mux, __FUNCTION__);
                     goto done;
                 }
             }
@@ -409,12 +425,14 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
         }
 
         cof->refcnt++;
+        Util::MutexUnlock(&cof->cof_mux, __FUNCTION__);
 
     } else {
 
         /*
          * create initial reference.  it is too complicated to put
-         * here, farm it out to a helper function (below).
+         * here, farm it out to a helper function (below).  helper
+         * will allocated a new cof and install in it our fd.
          */
         ret = this->establish_helper(ppip, rwflags, pid, mode, open_opt);
 
@@ -448,7 +466,9 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
 
     /*
      * at this point we know we are creating and initing a brand new
-     * Container_OpenFile.
+     * Container_OpenFile.   since we have the sole reference to it,
+     * no other process can access it until it is installed in the
+     * Container_fd.
      */
     cof = new Container_OpenFile;    /* asserts on malloc failure */
     if (cof == NULL) {
@@ -543,7 +563,7 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
      */
     if (ret == PLFS_SUCCESS) {
 
-        this->fd = cof;
+        this->fd = cof;   /* this makes cof visible to the world */
         
     } else {
 
@@ -588,20 +608,18 @@ Container_fd::close(pid_t pid, uid_t uid, int open_flags,
      * dropped.
      */
 
+    Util::MutexLock(&cof->cof_mux, __FUNCTION__);
     if (cof->openflags != O_RDONLY) {  /* writeable? */
         /*
          * remove state related to the write log here, before we
          * drop the main reference to the open fd.
          */
-        Util::MutexLock(&cof->cof_mux, __FUNCTION__);
         left = cof->fhs_writers[pid] - 1;
         cof->fhs_writers[pid] = left;
         if (left <= 0) {
             cof->fhs_writers.erase(pid);
             close_writedropping(cof, pid);
         }
-        Util::MutexUnlock(&cof->cof_mux, __FUNCTION__);
-        /* XXX: should log close error after unlock */
     }
     
     /*
@@ -612,6 +630,7 @@ Container_fd::close(pid_t pid, uid_t uid, int open_flags,
     if (num_ref)
         *num_ref = left;   /* caller needs to know if this dropped to 0 */
     if (left > 0) {
+        Util::MutexUnlock(&cof->cof_mux, __FUNCTION__);
         return(ret);
     }
     
@@ -703,6 +722,10 @@ Container_fd::close(pid_t pid, uid_t uid, int open_flags,
         
     }
 
+    this->fd = NULL;    /* now no one else can see it */
+
+    /* XXX: do we need to unlock to destroy? */
+    Util::MutexUnlock(&cof->cof_mux, __FUNCTION__);
     pthread_mutex_destroy(&cof->cof_mux);
 
     /*
@@ -711,7 +734,6 @@ Container_fd::close(pid_t pid, uid_t uid, int open_flags,
      * below...
      */
     delete cof;
-    this->fd = NULL;
     
     return(ret);
 }
