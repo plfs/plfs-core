@@ -747,7 +747,10 @@ Container_fd::read(char *buf, size_t size, off_t offset, ssize_t *bytes_read)
     if (cof->openflags == O_WRONLY) {
         ret = PLFS_EBADF;
     } else {
-        /* we'll want to use the parallel reader framework for this */
+        /*
+         * we'll want to use the parallel reader framework for this.
+         * locking for reading is handled in read_taskgen().
+         */
         ret = plfs_parallel_reader(this, buf, size, offset, bytes_read);
     }
 
@@ -775,7 +778,8 @@ Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
      * we delayed the opening to the first write operation.
      * XXXCDC: do we need to lock this to read it?  YES!
      */
-    pid_itr = cof->fhs.find(pid);  /* XXXCDC: LOCK */
+    Util::MutexLock(&cof->cof_mux, __FUNCTION__);
+    pid_itr = cof->fhs.find(pid);
 
     if (pid_itr != cof->fhs.end()) {
         wfh = pid_itr->second.wfh;
@@ -792,12 +796,14 @@ Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
 
     oldphysoff = cof->physoffsets[pid];
     
+    Util::MutexUnlock(&cof->cof_mux, __FUNCTION__);
     begin = Util::getTime();
     written = 0;
     if (size != 0) {
         ret = wfh->Write(buf, size, &written);
     }
     end = Util::getTime();
+    Util::MutexLock(&cof->cof_mux, __FUNCTION__);
 
     *bytes_written = written;
     if (written > 0) {
@@ -810,6 +816,7 @@ Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
     }
 
  done:
+    Util::MutexUnlock(&cof->cof_mux, __FUNCTION__);
     return(ret);
 }
 
@@ -886,7 +893,7 @@ Container_fd::sync(pid_t pid)
  * all the old data has been disposed of).   split out of
  * Container_fd::trunc to keep it from getting too long....
  *
- * @param cof the open file we are clearing off
+ * @param cof the open file we are clearing off (should be locked)
  * @return PLFS_SUCCESS or error code
  */
 static plfs_error_t
@@ -955,6 +962,7 @@ Container_fd::trunc(off_t offset)
     if (offset == 0) {
 
         /* zero_helper calls index_truncate on cof to handle index */
+        Util::MutexLock(&cof->cof_mux, __FUNCTION__);
         ret = containerfs_zero_helper(NULL, 1 /* open_file */, cof);
         if (ret == PLFS_SUCCESS) {
 
@@ -962,6 +970,7 @@ Container_fd::trunc(off_t offset)
             ret = truncate_helper_restorefds(cof);
         }
         shrunk = 1;
+        Util::MutexUnlock(&cof->cof_mux, __FUNCTION__);
 
     } else {
 
@@ -1008,6 +1017,7 @@ Container_fd::trunc(off_t offset)
          */
         if (shrunk) {
             map<string,struct rdchunkhand>::iterator rdck_itr;
+            Util::MutexLock(&cof->cof_mux, __FUNCTION__);
             for (rdck_itr = cof->rdchunks.begin() ;
                  rdck_itr != cof->rdchunks.end() ;
                  rdck_itr = cof->rdchunks.begin()) {
@@ -1015,6 +1025,7 @@ Container_fd::trunc(off_t offset)
                 rdck_itr->second.backend->store->Close(rdck_itr->second.fh);
                 cof->rdchunks.erase(rdck_itr->first);
             }
+            Util::MutexUnlock(&cof->cof_mux, __FUNCTION__);
         }
     }
     
@@ -1036,6 +1047,11 @@ Container_fd::getattr(struct stat *stbuf, int sz_only)
     int writing, im_lazy;
     off_t eofoff, wbytes;
 
+    /*
+     * current thinking is that locking for this is all at the index
+     * level (not much going on in the cof other than using it to 
+     * reach the index).
+     */
     cof = this->fd;
     
     /* if this is an open file, then it has to be a container */
@@ -1084,7 +1100,7 @@ Container_fd::query(size_t *writers, size_t *readers,
     Container_OpenFile *cof;
     off_t eoftmp, wbytes;
 
-    cof = this->fd;
+    cof = this->fd;  /* locking needed at index level only? */
     eoftmp = wbytes = 0;
     if (this->fd->cof_index) {
         /* shouldn't ever get an error here since file is open */
@@ -1138,7 +1154,7 @@ Container_fd::optimize_access()
     plfs_error_t ret;
     Container_OpenFile *cof;
 
-    /* the index handles this... */
+    /* the index handles this (optimize, locking, etc.)... */
     cof = this->fd;
     ret = cof->cof_index->index_optimize(cof);
 
@@ -1243,6 +1259,8 @@ Container_fd::read_taskgen(char *buf, size_t size, off_t offset,
     bool at_eof;
     
     at_eof = false;
+
+    /* doesn't lock cof... locking handled in the index */
 
     while (bytes_remaining > 0) {
 
