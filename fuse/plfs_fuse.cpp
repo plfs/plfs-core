@@ -1314,6 +1314,7 @@ int Plfs::f_rename( const char *path, const char *to )
     // this thing until it's done
     plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
     list< struct hash_element > results;
+    list< struct hash_element >::iterator resitr;
     plfs_error_t err = PLFS_SUCCESS;
     // there's something weird on Adam's centos box where it seems to allow
     // users to screw with each other's directories even if they shouldn't
@@ -1323,33 +1324,45 @@ int Plfs::f_rename( const char *path, const char *to )
     // work-around for weird-ass centos
     //err = plfs_access(path,W_OK);
     if ( err == PLFS_SUCCESS ) {
+        /*
+         * flush memory before touching files in the backend.  e.g.
+         * for container this will get all the index records on backend
+         * before we rename the index file.   XXX: note that FUSE doesn't
+         * have the locking to block out writes after the sync but before
+         * the rename completes.  currently ignoring that race.
+         */
+        findAllOpenFiles(strPath, results);
+        for (resitr = results.begin() ; resitr != results.end() ; resitr++) {
+            Plfs_fd *rfd = resitr->fd;
+            rfd->sync();
+        }
+
+        /* now do the rename on the backend */
         err = plfs_rename(strPath.c_str(),toPath.c_str());
+
         // Updated this code to search for all open files because the open
         // files are now cached based on a uid and flags
-        if ( err == PLFS_SUCCESS ) {
-            findAllOpenFiles ( strPath, results );
-            if (results.size() != 0) {
-                struct plfs_physpathinfo ppi;
-                int resrv;
-                resrv = plfs_resolvepath(toPath.c_str(), &ppi);
-                /* can resolvepath fail in this case? */
-                if (resrv == 0) {
-                    while (results.size() != 0) {
-                        struct hash_element current;
-                        current = results.front();
-                        results.pop_front();
-                        Plfs_fd *pfd;
-                        pfd = current.fd;
-                        string pathHash = getRenameHash(toPath.c_str(),
-                                                        current.path, strPath);
-                        if (ret == 0 && pfd) {
-                            pid_t pid = fuse_get_context()->pid;
-                            removeOpenFile(current.path, pid, pfd);
-                            addOpenFile(pathHash, pid, pfd);
-                            pfd->renamefd(&ppi);
-                            mlog(FUSE_DCOMMON, "Rename open file %s->%s "
-                                 "(hope this works)", path, to);
-                        }
+        if ( err == PLFS_SUCCESS && results.size() != 0) {
+            struct plfs_physpathinfo ppi;
+            int resrv;
+            resrv = plfs_resolvepath(toPath.c_str(), &ppi);
+            /* can resolvepath fail in this case? */
+            if (resrv == 0) {
+                while (results.size() != 0) {
+                    struct hash_element current;
+                    current = results.front();
+                    results.pop_front();
+                    Plfs_fd *pfd;
+                    pfd = current.fd;
+                    string pathHash = getRenameHash(toPath.c_str(),
+                                                    current.path, strPath);
+                    if (ret == 0 && pfd) {
+                        pid_t pid = fuse_get_context()->pid;
+                        removeOpenFile(current.path, pid, pfd);
+                        addOpenFile(pathHash, pid, pfd);
+                        pfd->renamefd(&ppi);
+                        mlog(FUSE_DCOMMON, "Rename open file %s->%s "
+                             "(hope this works)", path, to);
                     }
                 }
             }
