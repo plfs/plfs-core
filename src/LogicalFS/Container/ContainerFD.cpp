@@ -657,7 +657,6 @@ Container_fd::close(pid_t pid, uid_t uid, int open_flags,
         struct plfs_backend *bend;
         IOSHandle *fh;
         
-        Util::MutexLock(&cof->cof_mux, __FUNCTION__);
         for (cnk_itr = cof->rdchunks.begin() ;
              cnk_itr != cof->rdchunks.end() ; cnk_itr++) {
 
@@ -671,7 +670,6 @@ Container_fd::close(pid_t pid, uid_t uid, int open_flags,
             }
 
         }
-        Util::MutexUnlock(&cof->cof_mux, __FUNCTION__);
         /*
          * note: the cof destructor will free the rest of the rdchunks map
          * when we delete cof (below).
