@@ -1207,41 +1207,138 @@ Container_fd::setxattr(const void *value, const char *key, size_t len)
 plfs_error_t 
 Container_fd::renamefd(struct plfs_physpathinfo *ppip_to)
 {
-    plfs_error_t ret = PLFS_SUCCESS;
-    Container_OpenFile *cof = this->fd;
-
     /*
-     * XXXCDC: this needs more work.   discussion:
+     * XXXCDC: rename of open file discussion.
      *
-     * renamefd() is only called from FUSE when a file that is currently
-     * open is renamed.   the idea is that it should update all in-memory
-     * references to the old filename to point to the new filename.
+     * renamefd() is only called from FUSE.  This happens when a file
+     * that is currently open is renamed (see f_rename in the FUSE
+     * code).  the goal here is to update all the in-memory references
+     * to the open file to use the new filename instead of the old
+     * one.
+     * 
+     * there are some unresolved locking/concurrency issues here.
      *
-     * first problem is that we are changing pathcpy without locking
-     * anything.  need to think through the locking on pathcopy.  second
-     * problem is that we are not getting all the copies of the pathname.
-     * concerns: cof->cof_index (do we need an API call for this),
-     * cof->subdir_path, cof->paths, and cof->rdchunks.   third concern
-     * is for non-POSIX backends... if we rename a non-POSIX backend,
-     * could it invalidate open IOSHandles to dropping files?
+     * first, we are changing the main filename (cof->pathcpy) without
+     * locking it to prevent others from reading it while it is in the
+     * process of being changed (currently there isn't a lock that
+     * would work for this -- this was the case even prior to adding
+     * the ContainerIndex abstraction.
      *
-     * it is ok for posix, because if you have this:
+     * second, the old code was not properly purging the old pathnames
+     * from the index and other data structure.  i've attempted to
+     * address by closing the index, installing the new filename in
+     * the cof, and then reopening the index (with the new filename).
+     * i'm updating the timestamp, so for writing this will generate a
+     * new dropping file (this allows for iostores like HDFS that can
+     * only write to a file when it is created).  other areas of
+     * concern are cof->subdir_path, cof->paths, and cof->rdchunks.
+     * for those, we now close off all open droppings (flushing out
+     * their filenames and resetting the subdir path back to the init
+     * value).  Then droppings will be reopened on demand by the code.
+     *
+     * third, non-POSIX backends may have problems.  POSIX allows
+     * this to work:
+     *
      *   int fd;
      *   fd = open("/m/foo.txt", O_RDONLY);
      *   rename("/m/foo.txt", "/m/bar.txt");
      *
-     * after the rename the fd is still open and connected to the
-     * renamed file (the state for that is stored in the kernel).  for
-     * non-POSIX backends, it would depend on how the filesystem
-     * client library is put together.
+     * after the rename the "fd" is still open, valid, and connected
+     * to inode that corresponds to /m/foo.txt (now called
+     * /m/bar.txt).  not clear that library API based non-POSIX
+     * filesystems can do the same (this is another reason why I
+     * changed the code to close and reopen all the droppings).
      *
-     * the previous code (before the ContainerIndex layer was
-     * introduced) had the same kinds of issues, though is it a
-     * bit different due to some of the API changes (e.g. index
-     * lookup in the old code returned an int index number, where
-     * the new code returns a dropping filename).
+     * fourth, we now close droppings as part of the rename so we can
+     * reopen them in the new location.  but we don't really protect
+     * the filehandles... e.g. consider a renamefd() operation racing
+     * with a read operation.   the read may get a dropping Plfs_fd
+     * and try to read it (in the mean time the renamefd may close
+     * and invalidate the Plfs_fd before the read has a chance to
+     * complete).  that could generate unexpected errors on read.
+     * (could it cause memory management issues too?  e.g. if renamefd()
+     * closes something and the i/o library frees memory and then
+     * the read operation attempts to use it after it has been freed?)
+     *
+     * practically speaking, these issues currently only apply to FUSE
+     * under a concurrent load.  so maybe we are unlikely to hit them.
+     * to fully address, we'd need to beef up the locking (e.g. so a
+     * rename could wait for all I/O to finish, temporary block I/O,
+     * change the data structures, and then unblock I/O).   also, note
+     * that even with that, it does not address the rename issue
+     * in other context (e.g. MPI, plfs library API) as there is no
+     * way for independent PLFS instances to communicate with each other
+     * about changes to open files.   for example, if some external
+     * process renames a PLFS container currently open and being used
+     * by an MPI job.
      */
+    plfs_error_t ret = PLFS_SUCCESS;
+    Container_OpenFile *cof = this->fd;
+    map<string, struct rdchunkhand>::iterator ritr;
+    map<pid_t, writefh>::iterator witr;
+    double oldctime;
+    off_t lasto;
+    size_t tbytes;
+    bool drop_meta;
+
+    /*
+     * we are going to lock the cof and try and purge out all instances
+     * of the old filename from it.  (XXX: locking cof_mux doesn't
+     * prevent reading of the data structures).
+     */
+    Util::MutexLock(&cof->cof_mux, __FUNCTION__);
+    drop_meta = (cof->openflags != O_RDONLY);
+
+    /* get rid of open read droppings at old location */
+    for (ritr = cof->rdchunks.begin() ; ritr != cof->rdchunks.end(); ritr++) {
+        struct plfs_backend *bend = ritr->second.backend;
+        IOSHandle *fh = ritr->second.fh;
+        if (bend && fh) {
+            bend->store->Close(fh);  /* XXX: retval? */
+        }
+    }
+    cof->rdchunks.clear();
+
+    /* now get rid of open write droppings at old location */
+    for (witr = cof->fhs.begin() ; witr != cof->fhs.end() ; witr++) {
+        IOSHandle *fh = witr->second.wfh;
+        cof->subdirback->store->Close(fh);  /* XXX: retval? */
+    }
+    cof->fhs.clear();
+    cof->physoffsets.clear();
+    cof->paths.clear();
+    oldctime = cof->createtime;
+
+    /* reset subdir info */
+    ostringstream oss;
+    oss << ppip_to->canbpath << "/" << HOSTDIRPREFIX <<
+        Container::getHostDirId(cof->hostname);
+    cof->subdir_path = oss.str();
+    cof->subdirback = ppip_to->canback;
+
+    /*
+     * deal with the index by closing and reopening it.  for writable
+     * Plfs_fd's this will clear out the lastoffset/totalbytes info
+     * stored in the index, so make sure we save that and create a
+     * dropping for it.  this will help keep the stat() info in
+     * METADIR up to date.
+     */
+    lasto = 0;
+    tbytes = 0;
+    cof->cof_index->index_close(cof, &lasto, &tbytes, NULL); /*XXX:RET*/
     ret = plfs_copypathinfo(&cof->pathcpy, ppip_to); /*C++ does malloc/frees */
+    cof->createtime = Util::getTime();  /* get new dropping file names */
+    if (ret == PLFS_SUCCESS) 
+        ret = cof->cof_index->index_open(cof, cof->openflags, NULL);
+    
+    if (drop_meta) {
+        Container::addMeta(lasto, tbytes, cof->pathcpy.canbpath,
+                           cof->pathcpy.canback, cof->hostname,
+                           0 /* XXX:UID */, oldctime, -1, 1);
+    }
+    Util::MutexUnlock(&cof->cof_mux, __FUNCTION__);
+
+    
     return(ret);
 }
 
