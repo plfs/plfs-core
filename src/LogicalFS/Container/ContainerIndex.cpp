@@ -9,12 +9,12 @@
  * @param spec the index type to lookup
  * @return the id of the index, CT_UNKNOWN if we can't it
  */
-int container_index_id(char *spec) {
-    if (strcmp(spec, "byterange") == 0)
+int container_index_id(const char *spec) {
+    if (strcasecmp(spec, "byterange") == 0)
         return(CI_BYTERANGE);
-    if (strcmp(spec, "pattern") == 0)
+    if (strcasecmp(spec, "pattern") == 0)
         return(CI_PATTERN);
-    if (strcmp(spec, "mdhim") == 0)
+    if (strcasecmp(spec, "mdhim") == 0)
         return(CI_MDHIM);
     return(CI_UNKNOWN);
 }

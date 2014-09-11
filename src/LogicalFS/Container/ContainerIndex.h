@@ -80,6 +80,5 @@ class ContainerIndex {
 #define CI_MDHIM     3
 #endif
 
-int container_index_id(char *spec);
 class ContainerIndex *container_index_alloc(PlfsMount *pmnt);
 plfs_error_t container_index_free(ContainerIndex *ci);

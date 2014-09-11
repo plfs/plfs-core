@@ -46,6 +46,8 @@ class ContainerFileSystem : public LogicalFileSystem
 plfs_error_t containerfs_zero_helper(struct plfs_physpathinfo *ppip,
                                      int open_file, 
                                      Container_OpenFile *opencof);
+int container_index_id(const char *spec);  /* so YAML sees it */
+
 
 extern ContainerFileSystem containerfs;
 
