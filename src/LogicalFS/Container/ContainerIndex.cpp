@@ -26,16 +26,9 @@ int container_index_id(char *spec) {
  * @return the new index
  */
 class ContainerIndex *container_index_alloc(PlfsMount *pmnt) {
-    int type;
     ContainerIndex *ci;
 
-#if 0 /* notyet */
-    type = pmnt->some_index_type_function();
-#else
-    type = CI_BYTERANGE;
-#endif
-    
-    switch (type) {
+    switch (pmnt->fileindex_type) {
     case CI_BYTERANGE:
         ci = new ByteRangeIndex(pmnt);
         break;
@@ -47,7 +40,12 @@ class ContainerIndex *container_index_alloc(PlfsMount *pmnt) {
         ci = new MDHIMIndex(pmnt);
         break;
 #endif        
+    default:
+        ci = NULL;
+        mlog(CON_CRIT, "container_index_alloc: unknown type %d",
+             pmnt->fileindex_type);
     }
+
     return(ci);
 }
 

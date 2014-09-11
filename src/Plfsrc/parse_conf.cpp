@@ -14,6 +14,7 @@ set_default_mount(PlfsMount *pmnt)
     pmnt->statfs_io.prefix = NULL;
     pmnt->statfs_io.store = NULL;
     pmnt->file_type = CONTAINER;
+    pmnt->fileindex_type = CI_BYTERANGE;
     pmnt->fs_ptr = &containerfs;
     pmnt->max_writers = 4;
     pmnt->glib_buffer_mbs = 16;
