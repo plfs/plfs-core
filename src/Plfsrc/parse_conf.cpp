@@ -406,14 +406,17 @@ namespace YAML {
                    }
                    else if(temp == "file_per_proc" || temp == "n-n") {
                        pmntp.file_type = FLAT_FILE;
+                       pmntp.fileindex_type = 0;   /* default */
                        pmntp.fs_ptr = &flatfs;
                    }
                    else if(temp == "shared_file" || temp == "n-1") {
                        pmntp.file_type = CONTAINER;
+                       pmntp.fileindex_type = CI_BYTERANGE;   /* default */
                        pmntp.fs_ptr = &containerfs;
                    }
                    else if(temp == "small_file" || temp == "1-n") {
                        pmntp.file_type = SMALL_FILE;
+                       pmntp.fileindex_type = 0;   /* default */
                        pmntp.fs_ptr = new SmallFileFS(pmntp.max_smallfile_containers);
                    }
                    else {
