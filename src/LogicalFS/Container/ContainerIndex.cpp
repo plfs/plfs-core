@@ -12,10 +12,12 @@
 int container_index_id(const char *spec) {
     if (strcasecmp(spec, "byterange") == 0)
         return(CI_BYTERANGE);
-    if (strcasecmp(spec, "pattern") == 0)
-        return(CI_PATTERN);
     if (strcasecmp(spec, "mdhim") == 0)
         return(CI_MDHIM);
+#if 0   /* XXX: placeholder for pattern-based index compression */
+    if (strcasecmp(spec, "pattern") == 0)
+        return(CI_PATTERN);
+#endif
     return(CI_UNKNOWN);
 }
 
