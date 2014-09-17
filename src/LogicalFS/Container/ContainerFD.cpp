@@ -356,7 +356,7 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
          * FUSE will route O_CREAT as its own call to f_mknod first,
          * and then call open.
          */
-        ret = containerfs.create(ppip, mode, flags, pid);
+        ret = containerfs.xcreate(ppip, mode, flags, pid);
         if (ret == PLFS_SUCCESS && (flags & O_TRUNC)) {
             /*
              * NOTE: this assumes that containerfs.create does a truncate

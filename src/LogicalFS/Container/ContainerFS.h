@@ -28,8 +28,13 @@ class ContainerFileSystem : public LogicalFileSystem
                           struct plfs_physpathinfo *ppip_to);
         plfs_error_t utime(struct plfs_physpathinfo *ppip, struct utimbuf *ut);
         plfs_error_t unlink( struct plfs_physpathinfo *ppip );
-        plfs_error_t create(struct plfs_physpathinfo *ppip, mode_t, int flags,
-                            pid_t pid);
+
+        /* create: requires O_TRUNC for plfs_create, xcreate does the work */
+        plfs_error_t create(struct plfs_physpathinfo *ppip, mode_t mode,
+                            int flags, pid_t pid) {
+            return(this->xcreate(ppip, mode, flags|O_TRUNC, pid));
+        }
+
         plfs_error_t mkdir(struct plfs_physpathinfo *ppip, mode_t);
         plfs_error_t readdir(struct plfs_physpathinfo *ppip, set<string> *buf);
         plfs_error_t readlink(struct plfs_physpathinfo *ppip, char *buf, 
@@ -40,6 +45,10 @@ class ContainerFileSystem : public LogicalFileSystem
         plfs_error_t statvfs(struct plfs_physpathinfo *ppip, 
                              struct statvfs *stbuf);
         plfs_error_t resolvepath_finish(struct plfs_physpathinfo *ppip);
+
+        /* xcreate: like create, but doesn't force O_TRUNC */
+        plfs_error_t xcreate(struct plfs_physpathinfo *ppip, mode_t, int flags,
+                             pid_t pid);
 };
 
 /* zero helper function, shared with ContainerFD */

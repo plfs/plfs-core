@@ -511,36 +511,46 @@ ContainerFileSystem::open(Plfs_fd **pfd, struct plfs_physpathinfo *ppip,
 }
 
 /*
- * create
+ * xcreate: handles create for both plfs_create() and plfs_open()
+ * (when O_CREAT set in flags).
  *
- * some callers pass O_TRUNC in the flags and expect this code to do a
- * truncate.  it does, so it's all good.  But just be careful to make
- * sure that this code continues to also do a truncate (actually done
- * in Container::create)
- *
- * note: in posix the following is true:
+ * note that in posix the following is true:
  *
  *    creat(path, mode) == open(path, O_CREAT|O_TRUNC|O_WRONLY, mode)
  *
- * two things to note: posix create does not take a flag arg, and
- * both posix calls return open file descriptors.
+ * plus, this is legal (does not truncate if file is present):
+ *
+ *    open(path, O_CREAT|O_WRONLY, mode);   
+ *
+ * so when we are called from plfs_create() we want O_TRUNC to always
+ * be set to match posix.  but when we are called from plfs_open() we
+ * only want O_TRUNC to be set if the user asks for it.
+ *
+ * to handle this, we have ContainerFS.h set so that the LogicalFS
+ * create() always sets O_TRUNC and then call xcreate() where O_TRUNC
+ * is optional.   for plfs_open() with O_CREAT set, this is routed
+ * through Container_fd::open().  Container_fd::open() calls xcreate
+ * directly to create the file with the user's value of O_TRUNC
+ * passed through.
+ *
+ * also note: posix creat() doesn't take flags (but plfs_create() does)
  *
  * in logicalfs, create() has a flag arg but we ignore all the
- * provided bits except for O_EXCL and instead do what posix
- * does (CREAT|TRUNC|WRONLY).   logicalfs also does not return
- * an open file descriptor... it just creates the file.   if you
+ * provided bits except for O_EXCL|O_TRUNC.  logicalfs also does not
+ * return an open file descriptor... it just creates the file.  if you
  * want to do I/O to the file, you have to open with a second call.
  */
 plfs_error_t
-ContainerFileSystem::create(struct plfs_physpathinfo *ppip, mode_t mode,
-                            int flags, pid_t pid)
+ContainerFileSystem::xcreate(struct plfs_physpathinfo *ppip, mode_t mode,
+                             int flags, pid_t pid)
 {
     plfs_error_t ret = PLFS_SUCCESS;
-    int new_flags = O_WRONLY|O_CREAT|O_TRUNC;
-    if(flags & O_EXCL){
-        new_flags |= O_EXCL;   /* the only bit from caller we preserve */
-    }
-    flags = new_flags;
+
+    /*
+     * reset flags: always set WRONLY and CREAT.  copy the user's
+     * setting of TRUNC and EXCL through...
+     */
+    flags = (O_WRONLY|O_CREAT) | (flags & (O_TRUNC|O_EXCL));
 
     // for some reason, the ad_plfs_open that calls this passes a mode
     // that fails the S_ISREG check... change to just check for fifo
