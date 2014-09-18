@@ -217,8 +217,8 @@ ByteRangeIndex::index_open(Container_OpenFile *cof, int open_flags,
  * @return PLFS_SUCCESS or error code
  */
 plfs_error_t
-ByteRangeIndex::index_close(Container_OpenFile *cof, off_t *lastoffp,
-                            size_t *tbytesp, Plfs_close_opt *close_opt) {
+ByteRangeIndex::index_close(Container_OpenFile * /* cof */, off_t *lastoffp,
+                            size_t *tbytesp, Plfs_close_opt * /* close_opt */) {
 
     plfs_error_t ret = PLFS_SUCCESS;
     plfs_error_t rv;
@@ -288,7 +288,7 @@ ByteRangeIndex::index_close(Container_OpenFile *cof, off_t *lastoffp,
  * @return PLFS_SUCCESS or error code
  */
 plfs_error_t
-ByteRangeIndex::index_add(Container_OpenFile *cof, size_t nbytes,
+ByteRangeIndex::index_add(Container_OpenFile * /* cof */, size_t nbytes,
                           off_t offset, pid_t pid, off_t physoffset,
                           double begin, double end) {
 
@@ -331,7 +331,7 @@ ByteRangeIndex::index_add(Container_OpenFile *cof, size_t nbytes,
  * @return PLFS_SUCCESS or error code
  */
 plfs_error_t
-ByteRangeIndex::index_sync(Container_OpenFile *cof) {
+ByteRangeIndex::index_sync(Container_OpenFile * /* cof */) {
 
     plfs_error_t ret = PLFS_SUCCESS;
 
@@ -503,8 +503,9 @@ ByteRangeIndex::index_truncate(Container_OpenFile *cof, off_t offset) {
  * @return PLFS_SUCCESS or error code
  */
 plfs_error_t
-ByteRangeIndex::index_closing_wdrop(Container_OpenFile *cof, string ts,
-                                    pid_t pid, const char *filename) {
+ByteRangeIndex::index_closing_wdrop(Container_OpenFile * /* cof */, 
+                                    string /* ts */, pid_t /* pid */, 
+                                    const char * /* filename */) {
 
     /*
      * if we were doing a one-to-one mapping between a PID's data
@@ -529,7 +530,7 @@ ByteRangeIndex::index_closing_wdrop(Container_OpenFile *cof, string ts,
  */
 plfs_error_t
 ByteRangeIndex::index_new_wdrop(Container_OpenFile *cof, string ts,
-                                pid_t pid, const char *filename) {
+                                pid_t /* pid */, const char * /* filename */) {
 
     plfs_error_t ret = PLFS_SUCCESS;
     ostringstream idrop_pathstream;
@@ -769,8 +770,8 @@ ByteRangeIndex::index_droppings_getattrsize(struct plfs_physpathinfo *ppip,
  * @return PLFS_SUCCESS or PLFS_E*
  */
 plfs_error_t ByteRangeIndex::index_droppings_rename(
-                  struct plfs_physpathinfo *src,
-                  struct plfs_physpathinfo *dst) {
+                  struct plfs_physpathinfo * /* src */,
+                  struct plfs_physpathinfo * /* dst */) {
 
     /* nothing to do, since our data was moved with the container */
 
@@ -813,7 +814,7 @@ ByteRangeIndex::index_droppings_trunc(struct plfs_physpathinfo *ppip,
  * @return PLFS_SUCCESS or error code
  */
 plfs_error_t
-ByteRangeIndex::index_droppings_unlink(struct plfs_physpathinfo *ppip) {
+ByteRangeIndex::index_droppings_unlink(struct plfs_physpathinfo * /* ppip */) {
     /*
      * nothing additional to do here, as we let container unlink
      * delete all our index droppings for us.
@@ -829,7 +830,7 @@ ByteRangeIndex::index_droppings_unlink(struct plfs_physpathinfo *ppip) {
  * @return PLFS_SUCCESS or error code
  */
 plfs_error_t
-ByteRangeIndex::index_droppings_zero(struct plfs_physpathinfo *ppip) {
+ByteRangeIndex::index_droppings_zero(struct plfs_physpathinfo * /* ppip */) {
     /*
      * nothing additional to do here, as we let containerfs_zero_helper
      * delete all our index droppings for us.

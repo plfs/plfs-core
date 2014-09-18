@@ -121,7 +121,7 @@ ByteRangeIndex::query_helper(Container_OpenFile *cof, off_t input_offset,
  * @return PLFS_SUCCESS or error code
  */
 plfs_error_t
-ByteRangeIndex::query_helper_getrec(Container_OpenFile *cof, off_t ptr,
+ByteRangeIndex::query_helper_getrec(Container_OpenFile * /* cof */, off_t ptr,
                                     size_t len, index_record *irp) {
 
     map<off_t,ContainerEntry>::iterator qitr, next, prev;

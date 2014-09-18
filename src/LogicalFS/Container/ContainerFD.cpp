@@ -581,7 +581,7 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
 }
 
 plfs_error_t 
-Container_fd::close(pid_t pid, uid_t uid, int open_flags,
+Container_fd::close(pid_t pid, uid_t uid, int /* open_flags */,
                     Plfs_close_opt *close_opt, int *num_ref)
 {
     plfs_error_t ret = PLFS_SUCCESS;

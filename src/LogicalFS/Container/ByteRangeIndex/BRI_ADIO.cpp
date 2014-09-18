@@ -297,7 +297,7 @@ ByteRangeIndex::parAggregateIndices(vector<IndexFileInfo>& index_list,
  */
 plfs_error_t
 ByteRangeIndex::hostdir_rddir(void **index_stream, char *targets, int rank,
-                              char *top_level, PlfsMount *mnt,
+                              char * /* top_level */, PlfsMount *mnt,
                               struct plfs_backend *canback,
                               int *index_sz)
 {
@@ -489,7 +489,7 @@ ByteRangeIndex::parindex_read(int rank, int ranks_per_comm, void *index_files,
   * @return the number of bytes in the output stream
   */
 int
-ByteRangeIndex::parindexread_merge(const char *path, char *index_streams,
+ByteRangeIndex::parindexread_merge(const char * /* path */, char *index_streams,
                                    int *index_sizes, int procs,
                                    void **index_stream)
 {

@@ -695,7 +695,7 @@ plfs_write(Plfs_fd *fd, const char *buf, size_t size,
 
 // Should these functions be exposed to FUSE or ADIO?
 plfs_error_t
-plfs_flatten_index(Plfs_fd *fd, const char *logical)
+plfs_flatten_index(Plfs_fd *fd, const char * /* logical */)
 {
     debug_enter(__FUNCTION__,fd->backing_path());
     plfs_error_t ret = fd->optimize_access();

@@ -83,7 +83,7 @@ container_file_version(const char *logicalpath, const char **version)
  * @return PLFS_SUCCESS or an error code
  */
 plfs_error_t
-container_dump_index(FILE *fp, const char *logicalpath, int compress, 
+container_dump_index(FILE *fp, const char *logicalpath, int /* compress */, 
         int uniform_restart, pid_t uniform_restart_rank)
 {
     plfs_error_t ret = PLFS_SUCCESS;

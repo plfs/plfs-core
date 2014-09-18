@@ -36,11 +36,11 @@ indexpath2chunkpath(const string &ipath, pid_t pid, string &dpath) {
      * to "dropping.data" and change the pid to match the 2nd arg.
      */
     slash = ipath.rfind("/");                     /* final slash */
-    if (slash < 0)
+    if (slash == string::npos)
         return(PLFS_EINVAL);
     drpidx = ipath.find(INDEXPREFIX, slash+1);    /* 'dropping.index' loc */
     enddot = ipath.rfind(".");                    /* final dot, before pid */
-    if (drpidx != slash + 1 || enddot < 0 || enddot < drpidx)
+    if (drpidx != slash + 1 || enddot == string::npos || enddot < drpidx)
         return(PLFS_EINVAL);
 
     nxtpart = drpidx + sizeof(INDEXPREFIX) - 1;    /* start of timestamp */

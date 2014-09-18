@@ -48,13 +48,13 @@ class Plfs_fd
 
         // read_taskgen/read_chunkfh: optional.
         // for plfs_parallel_reader framework, override if used
-        virtual plfs_error_t read_taskgen(char *buf, size_t size, off_t offset,
-                                          list<ParallelReadTask> *tasks) {
+        virtual plfs_error_t read_taskgen(char *, size_t, off_t,
+                                          list<ParallelReadTask> *) {
             return(PLFS_ENOTSUP);
         }
-        virtual plfs_error_t read_chunkfh(string bpath, 
-                                          struct plfs_backend *backend,
-                                          IOSHandle **fhp) {
+        virtual plfs_error_t read_chunkfh(string, 
+                                          struct plfs_backend *,
+                                          IOSHandle **) {
             return(PLFS_ENOTSUP);
         }
 };
