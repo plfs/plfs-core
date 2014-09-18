@@ -266,6 +266,7 @@ static void plfsfuse_mlogargfilter(int *argc, char **argv)
 // set this up to parse command line args
 // move code from constructor in here
 // and stop using /etc config file
+// return 0 or -errno
 int Plfs::init( int *argc, char **argv )
 {
     char hostname[_POSIX_PATH_MAX];
@@ -304,13 +305,15 @@ int Plfs::init( int *argc, char **argv )
             pconf->direct_io = 1;
         }
         if ( argv[i][0] != '-' && ! mnt_pt_found ) {
+            plfs_error_t perr;
             int rv;
             char *mnt_pt;
             struct plfs_physpathinfo ppi;
             
             mnt_pt = argv[i];
             /* this check mount and also does a plfs_attach */
-            rv = plfs_resolvepath(mnt_pt, &ppi);
+            perr = plfs_resolvepath(mnt_pt, &ppi);
+            rv = -plfs_error_to_errno(perr);
             if (rv) {
                 fprintf(stderr,"FATAL mount point error: %s %s\n",
                         mnt_pt, strerror(-rv));
