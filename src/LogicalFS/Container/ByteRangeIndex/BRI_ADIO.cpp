@@ -271,12 +271,14 @@ ByteRangeIndex::parAggregateIndices(vector<IndexFileInfo>& index_list,
         idrops.push_back(idrop);
     }
     mlog(CON_DCOMMON, "Par agg indices path %s",path.c_str());
-    /* 
-     * XXXCDC: the old code ignored the return value from reader.
-     * we just copied that here, but ignoring the retval seems like
-     * a bad idea to me....
-     */
     ret = ByteRangeIndex::reader(idrops, &index, rank);
+    if (ret != PLFS_SUCCESS) {
+        /* 
+         * XXXCDC: the old code ignored the return value from reader.
+         * we just copied that here, but ignoring the retval seems like
+         * a bad idea to me....
+         */
+    }
     return index;
 }
 
