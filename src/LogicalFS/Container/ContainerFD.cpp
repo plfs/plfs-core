@@ -144,7 +144,9 @@ static plfs_error_t close_writedropping(Container_OpenFile *cof, pid_t pid) {
         /* tell index dropping is going bye-bye */
         rvidx = cof->cof_index->index_closing_wdrop(cof, ts.str(), pid,
                                         drop_pathstream.str().c_str());
-        /* XXXCDC: should log any errors, but keep going */
+        if (rvidx != PLFS_SUCCESS) {
+            /* XXXCDC: should log any errors, but keep going */
+        }
 
         /* clear out any data in paths map */
         path_itr = cof->paths.find(ofh);
