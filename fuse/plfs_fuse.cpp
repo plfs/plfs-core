@@ -333,7 +333,9 @@ int Plfs::init( int *argc, char **argv )
                    O_WRONLY | O_APPEND | O_CREAT, mode );
     char buffer[1024];
     snprintf( buffer, 1024, "PLFS started at %.2f\n", plfs_wtime() );
-    write( fd, buffer, strlen(buffer) );
+    if (write( fd, buffer, strlen(buffer) ) < 0) {
+        /*ignore it*/;
+    }
     close( fd );
     // init our mutex
     pthread_mutex_init( &(container_mutex), NULL );
