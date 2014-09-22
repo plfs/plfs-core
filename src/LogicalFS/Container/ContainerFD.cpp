@@ -269,7 +269,9 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
     plfs_error_t ret = PLFS_SUCCESS;
     Container_OpenFile **pfd = &this->fd;  /* NULL if just new'd */
     bool truncated = false;                /* to avoid double truncate */
-    int rwflags;                           /* RDONLY, WRONLY, or RDWR */
+    int my_rwarg;                          /* RDONLY, WRONLY, or RDWR */
+
+    my_rwarg = (flags & O_ACCMODE); /* limit to RD, WR, or RDWR */
 
     /*
      * XXX: the API here is wider than what is really supported by
@@ -381,7 +383,6 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
     if (ret != PLFS_SUCCESS) {     /* clear pending errors */
         goto done;
     }
-    rwflags = (flags & O_ACCMODE); /* limit to RD, WR, or RDWR */
     
     /*
      * break open up into two cases: adding a reference to an already
@@ -410,7 +411,7 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
         Container_OpenFile *cof = *pfd;
 
         Util::MutexLock(&cof->cof_mux, __FUNCTION__);
-        if (rwflags == O_WRONLY || rwflags == O_RDWR) { /* writing? */
+        if (my_rwarg == O_WRONLY || my_rwarg == O_RDWR) { /* writing? */
             if (!get_plfs_conf()->lazy_droppings &&
                 cof->fhs.find(pid) == cof->fhs.end()) {
 
@@ -434,7 +435,7 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
          * here, farm it out to a helper function (below).  helper
          * will allocated a new cof and install in it our fd.
          */
-        ret = this->establish_helper(ppip, rwflags, pid, mode, open_opt);
+        ret = this->establish_helper(ppip, my_rwarg, pid, mode, open_opt);
 
     }
     
@@ -457,7 +458,7 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
  * @return PLFS_SUCCESS or error code
  */
 plfs_error_t 
-Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
+Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int my_rwarg,
                                pid_t pid, mode_t mode, Plfs_open_opt *open_opt) 
 {
     plfs_error_t ret = PLFS_SUCCESS;
@@ -485,7 +486,7 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
         goto done;
     }
 
-    cof->openflags = rwflags;
+    cof->openflags = my_rwarg;
     cof->reopen_mode = (open_opt && open_opt->reopen) ? 1 : 0;
     cof->pid = pid;
     cof->mode = mode;
@@ -497,7 +498,7 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
         goto done;
     }
 
-    ret = cof->cof_index->index_open(cof, rwflags, open_opt);
+    ret = cof->cof_index->index_open(cof, my_rwarg, open_opt);
     if (ret != PLFS_SUCCESS) {
         goto done;
     }
@@ -511,7 +512,7 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int rwflags,
      */
     Util::hostname(&cof->hostname);
       
-    if (rwflags == O_WRONLY || rwflags == O_RDWR) {
+    if (my_rwarg == O_WRONLY || my_rwarg == O_RDWR) {
         cof->createtime = Util::getTime();
 
         /*
