@@ -65,7 +65,9 @@ main( int argc, char **argv ) {
             perror( "fopen" );
             exit( 1 );
         }
-        fread( buf, 4096, 1, cat ); 
+        if (fread( buf, 4096, 1, cat) != 4096) {
+            /*ignore it*/;
+        }
         printf( "Read %s from %s\n", buf, cattarg );
         free(cattarg);
         fclose(cat);
@@ -90,7 +92,9 @@ main( int argc, char **argv ) {
     }
 
     // now read the thing
-    fread( buf, 100, 1, fp );
+    if (fread( buf, 100, 1, fp ) != 100) {
+        /*ignore it*/;
+    }
     printf( "Read %s from %s\n", buf, ( newtarg ? newtarg : target ) );
 
     free(target);
