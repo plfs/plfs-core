@@ -265,7 +265,7 @@ Container_fd::establish_writedropping(pid_t pid) {
 }
 
 plfs_error_t 
-Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid, 
+Container_fd::open(struct plfs_physpathinfo *ppip, int openflags, pid_t pid, 
                    mode_t mode, Plfs_open_opt *open_opt) 
 {
     plfs_error_t ret = PLFS_SUCCESS;
@@ -273,7 +273,7 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
     bool truncated = false;                /* to avoid double truncate */
     int my_rwarg;                          /* RDONLY, WRONLY, or RDWR */
 
-    my_rwarg = (flags & O_ACCMODE); /* limit to RD, WR, or RDWR */
+    my_rwarg = (openflags & O_ACCMODE); /* limit to RD, WR, or RDWR */
 
     /*
      * XXX: the API here is wider than what is really supported by
@@ -333,13 +333,13 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
      * null so there is nothing to lock)
      */
     if (*pfd != NULL &&
-        (flags != (*pfd)->rwflags ||
+        (my_rwarg != (*pfd)->rwflags ||
          strcmp(ppip->bnode.c_str(), (*pfd)->pathcpy.bnode.c_str()) != 0 ||
          ppip->canback != (*pfd)->pathcpy.canback) ) {
 
         mlog(CON_CRIT, "Container_fd::open: invalid Plfs_fd sharing attempted");
-        mlog(CON_CRIT, "Container_fd::open: flag=%d/%d, path=%s/%s",
-             flags, (*pfd)->rwflags, ppip->bnode.c_str(),
+        mlog(CON_CRIT, "Container_fd::open: flag=%d:%d, path=%s:%s",
+             my_rwarg, (*pfd)->rwflags, ppip->bnode.c_str(),
              (*pfd)->pathcpy.bnode.c_str());
 
         /* XXXCDC: narrow API to make this not possible? */
@@ -351,7 +351,7 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
         mode = 0100600;  /* S_IFREG | rw------- */
     }
 
-    if (flags & O_CREAT) {
+    if (openflags & O_CREAT) {
         /*
          * XXX: no API to get parent LogicalFS from a LogicalFD,
          * so we go to containerfs object to get create call.
@@ -360,8 +360,8 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
          * FUSE will route O_CREAT as its own call to f_mknod first,
          * and then call open.
          */
-        ret = containerfs.xcreate(ppip, mode, flags, pid);
-        if (ret == PLFS_SUCCESS && (flags & O_TRUNC)) {
+        ret = containerfs.xcreate(ppip, mode, openflags, pid);
+        if (ret == PLFS_SUCCESS && (openflags & O_TRUNC)) {
             /*
              * NOTE: this assumes that containerfs.create does a truncate
              * (it currently does!).
@@ -370,7 +370,7 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
         }
     }
 
-    if ( ret == PLFS_SUCCESS && (flags & O_TRUNC) != 0 && !truncated) {
+    if ( ret == PLFS_SUCCESS && (openflags & O_TRUNC) != 0 && !truncated) {
         /*
          * XXX: note that this never happens with PLFS/FUSE, as
          * FUSE will route O_TRUNC to is own call to f_truncate
