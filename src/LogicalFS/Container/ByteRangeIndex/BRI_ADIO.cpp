@@ -549,7 +549,7 @@ ByteRangeIndex::index_stream(Container_OpenFile **pfd, char **buffer,
      * the normal PLFS api.  we are holding a reference to the pfd,
      * but are otherwise not holding any locks.
      */
-    if ((*pfd)->openflags != O_RDONLY) {
+    if ((*pfd)->rwflags != O_RDONLY) {
         mlog(INT_DCOMMON, "BRI::index_stream on non RDONLY pfd");
         return(PLFS_EINVAL);
     }

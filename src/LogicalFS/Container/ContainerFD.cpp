@@ -192,7 +192,7 @@ Container_fd::establish_writedropping(pid_t pid) {
      */
 
     /* sanity check: this should never happen */
-    if (cof->openflags == O_RDONLY ||
+    if (cof->rwflags == O_RDONLY ||
         cof == NULL || cof->cof_index == NULL) {
         return(PLFS_EINVAL);
     }
@@ -333,13 +333,13 @@ Container_fd::open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
      * null so there is nothing to lock)
      */
     if (*pfd != NULL &&
-        (flags != (*pfd)->openflags ||
+        (flags != (*pfd)->rwflags ||
          strcmp(ppip->bnode.c_str(), (*pfd)->pathcpy.bnode.c_str()) != 0 ||
          ppip->canback != (*pfd)->pathcpy.canback) ) {
 
         mlog(CON_CRIT, "Container_fd::open: invalid Plfs_fd sharing attempted");
         mlog(CON_CRIT, "Container_fd::open: flag=%d/%d, path=%s/%s",
-             flags, (*pfd)->openflags, ppip->bnode.c_str(),
+             flags, (*pfd)->rwflags, ppip->bnode.c_str(),
              (*pfd)->pathcpy.bnode.c_str());
 
         /* XXXCDC: narrow API to make this not possible? */
@@ -488,7 +488,7 @@ Container_fd::establish_helper(struct plfs_physpathinfo *ppip, int my_rwarg,
         goto done;
     }
 
-    cof->openflags = my_rwarg;
+    cof->rwflags = my_rwarg;
     cof->reopen_mode = (open_opt && open_opt->reopen) ? 1 : 0;
     cof->pid = pid;
     cof->mode = mode;
@@ -598,7 +598,7 @@ Container_fd::close(pid_t pid, uid_t uid, int /* open_flags */,
         return(PLFS_EBADF);    /* shouldn't happen, but check anyway */
     }
 
-    /* XXX: might compare open_flags arg with cof->openflags, should match */
+    /* XXX: might compare open_flags arg with cof->rwflags, should match */
 
     /*
      * it is worth noting that reading and writing are handled
@@ -612,7 +612,7 @@ Container_fd::close(pid_t pid, uid_t uid, int /* open_flags */,
      */
 
     Util::MutexLock(&cof->cof_mux, __FUNCTION__);
-    if (cof->openflags != O_RDONLY) {  /* writeable? */
+    if (cof->rwflags != O_RDONLY) {  /* writeable? */
         /*
          * remove state related to the write log here, before we
          * drop the main reference to the open fd.
@@ -655,7 +655,7 @@ Container_fd::close(pid_t pid, uid_t uid, int /* open_flags */,
      * now close any open data droppings open for reading (write
      * droppings are already taken care of above).
      */
-    if (cof->openflags != O_WRONLY) { /* readable? */
+    if (cof->rwflags != O_WRONLY) { /* readable? */
         map<string, rdchunkhand>::iterator cnk_itr;
         struct plfs_backend *bend;
         IOSHandle *fh;
@@ -685,7 +685,7 @@ Container_fd::close(pid_t pid, uid_t uid, int /* open_flags */,
      * from index_close().   if we are using MPI we may override
      * them with info we get from the MPI close operation.
      */
-    if (cof->openflags != O_RDONLY) {  /* writeable? */
+    if (cof->rwflags != O_RDONLY) {  /* writeable? */
         bool drop_meta = true;  /* only false if ADIO and !rank 0 */
 
         if (close_opt && close_opt->pinter == PLFS_MPIIO) {
@@ -745,7 +745,7 @@ Container_fd::read(char *buf, size_t size, off_t offset, ssize_t *bytes_read)
     plfs_error_t ret = PLFS_SUCCESS;
     Container_OpenFile *cof = this->fd;
 
-    if (cof->openflags == O_WRONLY) {
+    if (cof->rwflags == O_WRONLY) {
         ret = PLFS_EBADF;
     } else {
         /*
@@ -770,7 +770,7 @@ Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
     ssize_t written;
     double begin, end;
 
-    if (cof->openflags == O_RDONLY) {
+    if (cof->rwflags == O_RDONLY) {
         return(PLFS_EBADF);
     }
     
@@ -831,7 +831,7 @@ Container_fd::sync()
 
     cof = this->fd;
 
-    if (cof->openflags != O_RDONLY) {   /* no need to sync r/o fd */
+    if (cof->rwflags != O_RDONLY) {   /* no need to sync r/o fd */
 
         /* sync data first */
         Util::MutexLock(&cof->cof_mux, __FUNCTION__);
@@ -868,7 +868,7 @@ Container_fd::sync(pid_t pid)
 
     cof = this->fd;
 
-    if (cof->openflags != O_RDONLY) {   /* no need to sync r/o fd */
+    if (cof->rwflags != O_RDONLY) {   /* no need to sync r/o fd */
         /* sync data first */
         Util::MutexLock(&cof->cof_mux, __FUNCTION__);
         pid_itr = cof->fhs.find(pid);
@@ -956,7 +956,7 @@ Container_fd::trunc(off_t offset)
     no_change = shrunk = 0;
     
 
-    if (cof->openflags == O_RDONLY) {
+    if (cof->rwflags == O_RDONLY) {
         return(PLFS_EBADF);      /* can't trunc a file not open for writing */
     }
 
@@ -1056,7 +1056,7 @@ Container_fd::getattr(struct stat *stbuf, int sz_only)
     cof = this->fd;
     
     /* if this is an open file, then it has to be a container */
-    writing = (cof->openflags != O_RDONLY);
+    writing = (cof->rwflags != O_RDONLY);
 
     im_lazy = (sz_only && writing && !cof->reopen_mode);
     mlog(PLFS_DAPI, "%s on open file %s (lazy=%d)", __FUNCTION__,
@@ -1111,10 +1111,10 @@ Container_fd::query(size_t *writers, size_t *readers,
     }
 
     if (writers) {
-        *writers = (cof->openflags != O_RDONLY) ? cof->refcnt : 0;
+        *writers = (cof->rwflags != O_RDONLY) ? cof->refcnt : 0;
     }
     if (readers) {
-        *readers = (cof->openflags != O_WRONLY) ? cof->refcnt : 0;
+        *readers = (cof->rwflags != O_WRONLY) ? cof->refcnt : 0;
     }
     if (bytes_written) {
         *bytes_written = (size_t)wbytes;
@@ -1288,7 +1288,7 @@ Container_fd::renamefd(struct plfs_physpathinfo *ppip_to)
      * prevent reading of the data structures).
      */
     Util::MutexLock(&cof->cof_mux, __FUNCTION__);
-    drop_meta = (cof->openflags != O_RDONLY);
+    drop_meta = (cof->rwflags != O_RDONLY);
 
     /* get rid of open read droppings at old location */
     for (ritr = cof->rdchunks.begin() ; ritr != cof->rdchunks.end(); ritr++) {
@@ -1330,7 +1330,7 @@ Container_fd::renamefd(struct plfs_physpathinfo *ppip_to)
     ret = plfs_copypathinfo(&cof->pathcpy, ppip_to); /*C++ does malloc/frees */
     cof->createtime = Util::getTime();  /* get new dropping file names */
     if (ret == PLFS_SUCCESS) 
-        ret = cof->cof_index->index_open(cof, cof->openflags, NULL);
+        ret = cof->cof_index->index_open(cof, cof->rwflags, NULL);
     
     if (drop_meta) {
         Container::addMeta(lasto, tbytes, cof->pathcpy.canbpath,
@@ -1522,7 +1522,7 @@ Container_fd::extend(off_t offset)
 
     cof = this->fd;
 
-    if (cof->openflags == O_RDONLY) {
+    if (cof->rwflags == O_RDONLY) {
 
         ret = PLFS_EBADF;   /* not open for writing */
 

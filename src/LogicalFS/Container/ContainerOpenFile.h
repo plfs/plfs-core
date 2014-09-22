@@ -31,7 +31,7 @@ class Container_OpenFile {
 
     int refcnt;        /* >1 if we get reused in a plfs_open */
     struct plfs_physpathinfo pathcpy;   /* copy of path from plfs_open */
-    int openflags;     /* O_RDONLY, O_WRONLY, O_RDWR, etc. */
+    int rwflags;       /* O_RDONLY, O_WRONLY, O_RDWR, etc. */
     int reopen_mode;   /* XXX: disables im_lazy in Container_fd::getattr() */
     pid_t pid;         /* inital pid from open, needed to remove open record */
     mode_t mode;       /* used when reopening at restorefd time */

@@ -125,12 +125,12 @@ ByteRangeIndex::~ByteRangeIndex() {
  * ByteRangeIndex::index_open: establish an open index for open file
  *
  * @param cof state for the open file
- * @param open_flags the mode (RDONLY, WRONLY, or RDWR)
+ * @param rw_flags the mode (RDONLY, WRONLY, or RDWR)
  * @param open_opt open options (e.g. for MPI opts)
  * @return PLFS_SUCCESS or error code
  */
 plfs_error_t
-ByteRangeIndex::index_open(Container_OpenFile *cof, int open_flags, 
+ByteRangeIndex::index_open(Container_OpenFile *cof, int rw_flags, 
                            Plfs_open_opt *open_opt) {
 
     plfs_error_t ret = PLFS_SUCCESS;
@@ -156,7 +156,7 @@ ByteRangeIndex::index_open(Container_OpenFile *cof, int open_flags,
      * readable index requires us to load the droppings into memory.
      * MPI code may pass us an index on open in open_opt.
      */
-    if (open_flags != O_WRONLY) {
+    if (rw_flags != O_WRONLY) {
 
         if (open_opt && open_opt->index_stream != NULL) {
 
@@ -189,7 +189,7 @@ ByteRangeIndex::index_open(Container_OpenFile *cof, int open_flags,
          * operation.  this makes PLFS slow but more correct in the
          * RDWR case...
          */
-        if (ret == PLFS_SUCCESS && open_flags == O_RDWR) {
+        if (ret == PLFS_SUCCESS && rw_flags == O_RDWR) {
             this->idx.clear();
             this->chunk_map.clear();
         }
@@ -197,7 +197,7 @@ ByteRangeIndex::index_open(Container_OpenFile *cof, int open_flags,
     
     if (ret == PLFS_SUCCESS) {
         this->isopen = true;
-        this->brimode = open_flags;
+        this->brimode = rw_flags;
     }
 
     Util::MutexUnlock(&this->bri_mutex, __FUNCTION__);
@@ -367,7 +367,7 @@ ByteRangeIndex::index_query(Container_OpenFile *cof, off_t input_offset,
     ByteRangeIndex *target = NULL;
 
     /* these should never fire... */
-    assert(cof->openflags != O_WRONLY);
+    assert(cof->rwflags != O_WRONLY);
     assert(this->isopen);
 
     /*
@@ -375,7 +375,7 @@ ByteRangeIndex::index_query(Container_OpenFile *cof, off_t input_offset,
      * read operation (this is one reason why PLFS container RDWR
      * performance isn't very good).
      */
-    if (cof->openflags == O_RDWR) {
+    if (cof->rwflags == O_RDWR) {
 
         target = new ByteRangeIndex(cof->pathcpy.mnt_pt);
         ret = target->index_open(cof, O_RDONLY, NULL);
@@ -399,7 +399,7 @@ ByteRangeIndex::index_query(Container_OpenFile *cof, off_t input_offset,
     /*
      * discard tmp index if we created one
      */
-    if (cof->openflags == O_RDWR) {
+    if (cof->rwflags == O_RDWR) {
         /* ignore return value here */
         target->index_close(cof, NULL, NULL, NULL);
         delete target;
@@ -592,7 +592,7 @@ ByteRangeIndex::index_optimize(Container_OpenFile *cof) {
      * if we are read-only we already have the index in memory.
      * otherwise we need to load a tmp copy of the index.
      */
-    if (cof->openflags == O_RDONLY) {
+    if (cof->rwflags == O_RDONLY) {
 
         target = this;     /* use in-memory copy */
 
@@ -639,7 +639,7 @@ ByteRangeIndex::index_optimize(Container_OpenFile *cof) {
     
     Util::MutexUnlock(&target->bri_mutex, __FUNCTION__);
 
-    if (cof->openflags != O_RDONLY) {   /* dispose of temp index */
+    if (cof->rwflags != O_RDONLY) {   /* dispose of temp index */
         target->index_close(cof, NULL, NULL, NULL);
         delete target;
     }

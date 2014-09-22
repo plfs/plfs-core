@@ -139,7 +139,7 @@ public:
 
     const char *index_name(void) { return("ByteRange"); };
 
-    plfs_error_t index_open(Container_OpenFile *cof, int open_flags, 
+    plfs_error_t index_open(Container_OpenFile *cof, int rw_flags, 
                             Plfs_open_opt *open_opt);
     plfs_error_t index_close(Container_OpenFile *cof, off_t *lastoffp,
                              size_t *tbytesp, Plfs_close_opt *close_opt);
