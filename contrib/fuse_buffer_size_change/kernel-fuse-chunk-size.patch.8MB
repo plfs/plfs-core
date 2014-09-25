@@ -1,0 +1,59 @@
+diff -Naur linux-2.6.32-358.11.1.el6.orig/fs/fuse/cuse.c linux-2.6.32-358.11.1.el6/fs/fuse/cuse.c
+--- linux-2.6.32-358.11.1.el6.orig/fs/fuse/cuse.c	2014-03-05 15:31:14.894287000 -0700
++++ linux-2.6.32-358.11.1.el6/fs/fuse/cuse.c	2014-03-05 15:50:12.739654000 -0700
+@@ -317,8 +317,8 @@
+ 	}
+ 
+ 	fc->minor = arg->minor;
+-	fc->max_read = max_t(unsigned, arg->max_read, 4096);
+-	fc->max_write = max_t(unsigned, arg->max_write, 4096);
++	fc->max_read = 8388608;
++	fc->max_write = 8388608;
+ 
+ 	/* parse init reply */
+ 	cc->unrestricted_ioctl = arg->flags & CUSE_UNRESTRICTED_IOCTL;
+diff -Naur linux-2.6.32-358.11.1.el6.orig/fs/fuse/fuse_i.h linux-2.6.32-358.11.1.el6/fs/fuse/fuse_i.h
+--- linux-2.6.32-358.11.1.el6.orig/fs/fuse/fuse_i.h	2014-03-05 15:31:14.900319000 -0700
++++ linux-2.6.32-358.11.1.el6/fs/fuse/fuse_i.h	2014-03-05 15:45:07.194017000 -0700
+@@ -23,7 +23,7 @@
+ #include <linux/poll.h>
+ 
+ /** Max number of pages that can be used in a single read request */
+-#define FUSE_MAX_PAGES_PER_REQ 32
++#define FUSE_MAX_PAGES_PER_REQ 2048
+ 
+ /** Bias for fi->writectr, meaning new writepages must not be sent */
+ #define FUSE_NOWRITE INT_MIN
+diff -Naur linux-2.6.32-358.11.1.el6.orig/fs/fuse/inode.c linux-2.6.32-358.11.1.el6/fs/fuse/inode.c
+--- linux-2.6.32-358.11.1.el6.orig/fs/fuse/inode.c	2014-03-05 15:31:14.902279000 -0700
++++ linux-2.6.32-358.11.1.el6/fs/fuse/inode.c	2014-03-05 15:51:24.512368000 -0700
+@@ -854,7 +854,7 @@
+ 		fc->bdi.ra_pages = min(fc->bdi.ra_pages, ra_pages);
+ 		fc->minor = arg->minor;
+ 		fc->max_write = arg->minor < 5 ? 4096 : arg->max_write;
+-		fc->max_write = max_t(unsigned, 4096, fc->max_write);
++		fc->max_write = 8388608;
+ 		fc->conn_init = 1;
+ 	}
+ 	fc->blocked = 0;
+@@ -999,7 +999,7 @@
+ 	fc->flags = d.flags;
+ 	fc->user_id = d.user_id;
+ 	fc->group_id = d.group_id;
+-	fc->max_read = max_t(unsigned, 4096, d.max_read);
++	fc->max_read = 8388608;
+ 
+ 	/* Used by get_root_inode() */
+ 	sb->s_fs_info = fc;
+diff -Naur linux-2.6.32-358.11.1.el6.orig/include/linux/mm.h linux-2.6.32-358.11.1.el6/include/linux/mm.h
+--- linux-2.6.32-358.11.1.el6.orig/include/linux/mm.h	2014-03-05 15:31:36.614426000 -0700
++++ linux-2.6.32-358.11.1.el6/include/linux/mm.h	2014-03-05 15:45:41.387573000 -0700
+@@ -1324,7 +1324,7 @@
+ void task_dirty_inc(struct task_struct *tsk);
+ 
+ /* readahead.c */
+-#define VM_MAX_READAHEAD	128	/* kbytes */
++#define VM_MAX_READAHEAD	8192	/* kbytes */
+ #define VM_MIN_READAHEAD	16	/* kbytes (includes current page) */
+ 
+ int force_page_cache_readahead(struct address_space *mapping, struct file *filp,

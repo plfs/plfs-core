@@ -1,0 +1,11 @@
+--- fuse-2.8.3/lib/fuse_kern_chan.c.old	2014-01-09 10:22:39.961989000 -0700
++++ fuse-2.8.3/lib/fuse_kern_chan.c	2014-01-09 10:22:53.454196000 -0700
+@@ -80,7 +80,7 @@ static void fuse_kern_chan_destroy(struc
+ 	close(fuse_chan_fd(ch));
+ }
+ 
+-#define MIN_BUFSIZE 0x21000
++#define MIN_BUFSIZE 0x801000
+ 
+ struct fuse_chan *fuse_kern_chan_new(int fd)
+ {
