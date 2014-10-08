@@ -244,7 +244,7 @@ plfs_getattr(Plfs_fd *fd, const char *path, struct stat *st, int size_only)
 {
     debug_enter(__FUNCTION__,path);
     plfs_error_t ret = PLFS_SUCCESS;
-    mlog(PLFS_DCOMMON, "plfs_getattr(fd=%p)", fd);
+    mlog(PLFS_DCOMMON, "plfs_getattr(fd_provided=%d)", (fd != NULL));
     if (fd) {
         ret = plfs_sync(fd);   // sync before attr
         if (ret == PLFS_SUCCESS) {
