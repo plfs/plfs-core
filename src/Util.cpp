@@ -116,37 +116,20 @@ off_t total_ops = 0;
 #endif
 
 size_t 
-Util::hashValue( const char *str )
+Util::hashValue( const char *str0 )
 {
-/*  
-    // wonder if we need a fancy hash function or if we could just
-    // count the bits or something in the string?
-    // be pretty simple to just sum each char . . .
-    size_t sum = 0, i; 
-    for( i = 0; i < strlen( str ); i++ ) {
-        sum += (size_t)str[i];
-    }   
-    mlog(UT_DINTAPI, "%s: %s -> %lu",__FUNCTION__,str,(unsigned long)sum);
-    return sum;
-*/      
     // so the string summation is bad in terms of distribution and
     // collisions.  This should be better...
     // Actual algorithm is: hash(i) = hash(i - 1) * 65599 + str[i];
 
+    const char *str = str0;
     size_t sum = 0;
     int c;
     while ((c = *str++)) {
         sum = c + (sum << 6) + (sum << 16) - sum;
     }
-    mlog(UT_DINTAPI, "%s: %s -> %lu",__FUNCTION__,str,(unsigned long)sum);
+    mlog(UT_DINTAPI, "%s: %s -> %lu",__FUNCTION__,str0,(unsigned long)sum);
     return sum; 
-    
-    /*
-    #include <openssl/md5.h>
-    unsigned char *ret = NULL;
-    unsigned char value[MD5_DIGEST_LENGTH/sizeof(unsigned char)];
-    ret = MD5( str, strlen(str), &value );
-    */
 }    
 
 
