@@ -188,6 +188,8 @@ ByteRangeIndex::reader_indexer_thread( void *va ) {
                                              &eoft, &bbyts,
                                              task.bpath, task.back);
         if (ret != PLFS_SUCCESS) {
+            mlog(IDX_DRARE, "BRI::reader_i: merge %s failed (%s)",
+                 task.bpath.c_str(), strplfserr(ret));
             break;
         }
 
