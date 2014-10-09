@@ -60,7 +60,8 @@ ByteRangeIndex::aggregateIndices(const string& path,
     vector<plfs_pathback> files;
     deque<plfs_pathback> tasks;
 
-    mlog(IDX_DINTAPI, "In %s", __FUNCTION__);
+    mlog(IDX_DINTAPI, "BRI::%s %s (%d,%d)", __FUNCTION__, path.c_str(),
+         uniform_restart, uniform_rank);
 
     /* files = list of index droppings */
     ret = ByteRangeIndex::collectIndices(path, canback, files, true);
@@ -116,7 +117,7 @@ ByteRangeIndex::aggregateIndices(const string& path,
         }
 
         tasks.push_back(*itr);
-        mlog(IDX_DCOMMON, "Ag indices path is %s", itr->bpath.c_str());
+        mlog(IDX_DCOMMON, "BRI::%s ADD %s", __FUNCTION__, itr->bpath.c_str());
     }
     
     ret = ByteRangeIndex::reader(tasks, bri, uniform_rank);
