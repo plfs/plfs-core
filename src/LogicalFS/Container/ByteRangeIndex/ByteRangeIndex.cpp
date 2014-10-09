@@ -693,9 +693,13 @@ ByteRangeIndex::index_droppings_getattrsize(struct plfs_physpathinfo *ppip,
     vector<plfs_pathback> indices;
     vector<plfs_pathback>::iterator pitr;
 
+    mlog(IDX_DAPI, "BRI::dropget: %s", ppip->canbpath.c_str());
+
     /* generate a list of all index droppings in container */
     ret = ByteRangeIndex::collectIndices(ppip->canbpath, ppip->canback,
                                          indices, true);
+    mlog(IDX_DCOMMON, "BRI::dropget: %s collected=%d", ppip->canbpath.c_str(),
+         (int)indices.size());
 
     /* walk the list and read the ones we think are useful */
     for (pitr = indices.begin() ;
@@ -757,7 +761,8 @@ ByteRangeIndex::index_droppings_getattrsize(struct plfs_physpathinfo *ppip,
         }
     }
     
-    
+    mlog(IDX_DAPI, "BRI::dropget: %s => %s", ppip->canbpath.c_str(),
+         strplfserr(ret));
     return(ret);
 }
 
