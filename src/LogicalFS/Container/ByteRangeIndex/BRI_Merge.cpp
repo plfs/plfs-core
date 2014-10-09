@@ -89,7 +89,12 @@ ByteRangeIndex::merge_dropping(map<off_t,ContainerEntry> &idxout,
     }
     rv = xfh->Size(&len);
     if (rv == PLFS_SUCCESS) {
-        rv = xfh->GetDataBuf(&ibuf, len);
+        if (len > 0) {
+            rv = xfh->GetDataBuf(&ibuf, len);
+        } else {
+            /* zero length dropping (can happen after a ftruncate) */
+            ibuf = NULL;
+        }
     }
     if (rv != PLFS_SUCCESS) {
         mlog(IDX_DRARE, "%s WTF Size/GetDataBuf: %s", __FUNCTION__,
@@ -151,7 +156,7 @@ ByteRangeIndex::merge_dropping(map<off_t,ContainerEntry> &idxout,
     mlog(IDX_DAPI, "After %s now are %lu chunks",
          __FUNCTION__, (unsigned long)cmapout.size());
 
-    rv2 = xfh->ReleaseDataBuf(ibuf, len);
+    rv2 = (ibuf == NULL)? PLFS_SUCCESS : xfh->ReleaseDataBuf(ibuf, len);
     if (rv2 != PLFS_SUCCESS) {
         mlog(IDX_DRARE, "%s WTF ReleaseDataBuf failed: %s", __FUNCTION__,
              strplfserr(rv));
