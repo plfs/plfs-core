@@ -165,7 +165,13 @@ ByteRangeIndex::populateIndex(const string& path, struct plfs_backend *canback,
         off_t len = -1;
         ret = idx_fh->Size(&len);
 
-        if (len >= 0) {
+        if (len == 0) {
+
+            /* this is possible, but would be unusual */
+            mlog(IDX_DRARE, "BRI::populate: 0 length global index: %s",
+                 global_path.c_str());
+
+        } else if (len > 0) {
             void *addr;
             ret = idx_fh->GetDataBuf(&addr, len);
             if ( ret == PLFS_SUCCESS ) {
