@@ -860,6 +860,8 @@ setup_mlog(PlfsConf *pconf)
         pconf->mlog_msgbuf_size = temp_conf.mlog_msgbuf_size;
     if (temp_conf.mlog_syslogfac != default_conf.mlog_syslogfac)
         pconf->mlog_syslogfac = temp_conf.mlog_syslogfac;
+    if (temp_conf.mlog_setmasks != default_conf.mlog_setmasks)
+        pconf->mlog_setmasks = temp_conf.mlog_setmasks;
     /* end of part 1 of simplified high-level env var config */
     /* shutdown early mlog config so we can replace with the real one ... */
     mlog_close();
