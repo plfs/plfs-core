@@ -295,30 +295,48 @@ ByteRangeIndex::index_add(Container_OpenFile * /* cof */, size_t nbytes,
     plfs_error_t ret = PLFS_SUCCESS;
     HostEntry newent;
 
-    newent.logical_offset = offset;
-    newent.physical_offset = physoffset;
-    newent.length = nbytes;
-    newent.begin_timestamp = begin;
-    newent.end_timestamp = end;
-    newent.id = pid;
-
     Util::MutexLock(&this->bri_mutex, __FUNCTION__);
 
     if (!this->isopen) {  /* shouldn't be possible */
         mlog(IDX_CRIT, "index_add: but not open?!");
         ret = PLFS_EINVAL;
-    } else {
-        this->writebuf.push_back(newent);
-        this->write_count++;
-        this->write_bytes += nbytes;
-        this->eof_tracker = max(this->eof_tracker, offset + (off_t)nbytes);
+        goto done;
+    }
 
-        /* XXX: carried over hardwired 1024 from old code */
-        if ((this->write_count % 1024) == 0) {
-            ret = this->flush_writebuf();
-        }
+    /* attempt to extend a prev entry, if allowed */
+    if (get_plfs_conf()->compress_contiguous &&
+        !this->writebuf.empty() &&
+        this->writebuf.back().id == pid &&
+        this->writebuf.back().logical_offset + 
+        (off_t)this->writebuf.back().length == offset) {
+
+        /* extend! */
+        this->writebuf.back().end_timestamp = end;
+        this->writebuf.back().length += nbytes;
+        
+    } else {
+
+        /* add new entry! */
+        newent.logical_offset = offset;
+        newent.physical_offset = physoffset;
+        newent.length = nbytes;
+        newent.begin_timestamp = begin;
+        newent.end_timestamp = end;
+        newent.id = pid;
+        this->writebuf.push_back(newent);
+
     }
     
+    this->write_count++;
+    this->write_bytes += nbytes;
+    this->eof_tracker = max(this->eof_tracker, offset + (off_t)nbytes);
+
+    /* XXX: carried over hardwired 1024 from old code */
+    if ((this->write_count % 1024) == 0) {
+        ret = this->flush_writebuf();
+    }
+
+ done:
     Util::MutexUnlock(&this->bri_mutex, __FUNCTION__);
 
     return(ret);
