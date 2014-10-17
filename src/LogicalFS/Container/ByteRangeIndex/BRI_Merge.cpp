@@ -153,8 +153,8 @@ ByteRangeIndex::merge_dropping(map<off_t,ContainerEntry> &idxout,
         }
     }
 
-    mlog(IDX_DAPI, "After %s now are %lu chunks",
-         __FUNCTION__, (unsigned long)cmapout.size());
+    mlog(IDX_DAPI, "After %s now are %lu chunks, %lu ents",
+         __FUNCTION__, (unsigned long)cmapout.size(), idxout.size());
 
     rv2 = (ibuf == NULL)? PLFS_SUCCESS : xfh->ReleaseDataBuf(ibuf, len);
     if (rv2 != PLFS_SUCCESS) {
