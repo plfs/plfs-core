@@ -97,8 +97,8 @@ ByteRangeIndex::merge_dropping(map<off_t,ContainerEntry> &idxout,
         }
     }
     if (rv != PLFS_SUCCESS) {
-        mlog(IDX_DRARE, "%s WTF Size/GetDataBuf: %s", __FUNCTION__,
-             strplfserr(rv));
+        mlog(IDX_DRARE, "%s WTF Size/GetDataBuf(%s,%ld): %s", __FUNCTION__,
+             dropbpath.c_str(), len, strplfserr(rv));
         dropback->store->Close(xfh);
         return(rv);
     }
