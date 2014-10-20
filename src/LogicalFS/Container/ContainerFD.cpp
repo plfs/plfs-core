@@ -1356,6 +1356,8 @@ Container_fd::read_taskgen(char *buf, size_t size, off_t offset,
     ParallelReadTask task;
     bool at_eof;
     
+    mlog(CON_DAPI, "Container_fd::read_taskgen(%s @ %ld for %ld)",
+         cof->pathcpy.canbpath.c_str(), offset, size);
     at_eof = false;
 
     /* doesn't lock cof... locking handled in the index */
@@ -1446,6 +1448,9 @@ Container_fd::read_taskgen(char *buf, size_t size, off_t offset,
         }
     }
 
+    mlog(CON_DAPI, "Container_fd::read_taskgen(%s @ %ld for %ld) t/r=%ld/%ld",
+         cof->pathcpy.canbpath.c_str(), offset, size, tasks->size(),
+         bytes_remaining);
     return(ret);
 }
 
