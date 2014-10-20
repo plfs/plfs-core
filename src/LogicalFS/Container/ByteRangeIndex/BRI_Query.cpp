@@ -90,7 +90,7 @@ ByteRangeIndex::query_helper(Container_OpenFile *cof, off_t input_offset,
     resid = input_length;
 
     while (ptr < this->eof_tracker && resid > 0 &&
-           result.size() <= MAX_RESULT_RECS && ret == PLFS_SUCCESS) {
+           result.size() < MAX_RESULT_RECS && ret == PLFS_SUCCESS) {
 
         ret = this->query_helper_getrec(cof, ptr, resid, &ir);
 
