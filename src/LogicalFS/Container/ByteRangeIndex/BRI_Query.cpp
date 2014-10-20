@@ -158,18 +158,23 @@ ByteRangeIndex::query_helper_getrec(Container_OpenFile * /* cof */, off_t ptr,
 
             if (next == this->idx.end()) {
 
-                irp->length = 0;    /* our entry is an EOF marker */
+                irp->length = 0;         /* our entry is an EOF marker */
+                irp->lastrecord = true;  /* just to doc it */
 
             } else {
 
                 /* in a hole, scoot forward to next record */
                 irp->length = min((off_t)len,
                                   next->second.logical_offset - ptr);
+                irp->lastrecord = false;
 
             }
             
             irp->hole = true;
-            irp->databack = NULL;    /* just to be safe */
+            /* init the rest, just to be safe */
+            irp->datapath = "";
+            irp->databack = NULL;
+            irp->chunk_offset = 0;
 
         } else {   /* case 1b: direct hit on non-zero length entry */
 
@@ -193,7 +198,11 @@ ByteRangeIndex::query_helper_getrec(Container_OpenFile * /* cof */, off_t ptr,
 
         irp->length = min((off_t)len, qitr->second.logical_offset - ptr);
         irp->hole = true;
-        irp->databack = NULL;     /* just to be safe */
+        irp->lastrecord = false;
+        /* init the rest, just to be safe */
+        irp->datapath = "";
+        irp->databack = NULL;
+        irp->chunk_offset = 0;
         return(PLFS_SUCCESS);
     }
 
@@ -219,13 +228,18 @@ ByteRangeIndex::query_helper_getrec(Container_OpenFile * /* cof */, off_t ptr,
     if (qitr == this->idx.end()) {
 
         irp->length = 0;    /* at or past EOF */
+        irp->lastrecord = true;  /* just to doc it */
 
     } else {
 
         /* in an in-between hole */
         irp->length = min((off_t)len, qitr->second.logical_offset - ptr);
         irp->hole = true;
-        irp->databack = NULL;    /* just to be safe */
+        irp->lastrecord = false;
+        /* init the rest, just to be safe */
+        irp->datapath = "";
+        irp->databack = NULL;
+        irp->chunk_offset = 0;
 
     }
     
