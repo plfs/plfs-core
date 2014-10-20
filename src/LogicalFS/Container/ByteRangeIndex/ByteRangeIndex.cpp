@@ -388,6 +388,9 @@ ByteRangeIndex::index_query(Container_OpenFile *cof, off_t input_offset,
     assert(cof->rwflags != O_WRONLY);
     assert(this->isopen);
 
+    mlog(IDX_DAPI, "BRI::query on %p at %ld for %ld (rdwr=%d)", cof, 
+        input_offset, input_length, cof->rwflags == O_RDWR);
+
     /*
      * for RDWR we have to generate a temporary read index for the
      * read operation (this is one reason why PLFS container RDWR
@@ -423,6 +426,9 @@ ByteRangeIndex::index_query(Container_OpenFile *cof, off_t input_offset,
         delete target;
     }
         
+    mlog(IDX_DAPI, "BRI::query on %p at %ld for %ld: GOT %ld", cof, 
+        input_offset, input_length, result.size());
+
     return(ret);
 }
 
