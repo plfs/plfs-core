@@ -815,6 +815,24 @@ Container_fd::write(const char *buf, size_t size, off_t offset, pid_t pid,
     if (pid_itr != cof->fhs.end()) {
         wfh = pid_itr->second.wfh;
     } else {
+#if 0
+        /*
+         * XXX: currently we allow writes from pids we don't know
+         * about.  this code detects that condition in case we want
+         * to disallow it.
+         *
+         * XXX: FUSE does this when you fork. e.g.
+         *     (eval "gcc -v >&1") 2>conftest.err
+         *
+         * FUSE could be modified to use OpenFile's pid rather than
+         * fuse context pid to avoid this.
+         */
+        map<pid_t,int>::iterator ref_itr;
+        ref_itr = cof->fhs_writers.find(pid);
+        if (ref_itr == cof->fhs_writers.end() || ref_itr->first < 1) {
+            mlog(CON_CRIT, "UNEXPECTED WRITE FROM %d", pid);
+        }
+#endif
         ret = this->establish_writedropping(pid);
         if (ret == PLFS_SUCCESS) {
             wfh = cof->fhs[pid].wfh;
