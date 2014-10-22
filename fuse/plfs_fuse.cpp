@@ -1118,6 +1118,14 @@ int Plfs::f_write(const char *path, const char *buf, size_t size, off_t offset,
     // this is confusing, but we're issuing a read-lock here to allow 
     // write parallelism while blocking pfd->sync in SyncIfOpen with 
     // a write-lock to avoid a data race internally
+    /*
+     * XXX: we are calling plfs_write with a pid of fuse_get_context()->pid.
+     * we could call with openfile->pid instead.  (they can be different
+     * if a process with an open file forks a child.... in that case
+     * openfile->pid will be the pid of the parent (who called plfs_open())
+     * and fuse_get_context()->pid will be the pid of the child (who may
+     * have never called PLFS before).
+     */
     pthread_rwlock_rdlock( &self->write_lock );
     err = plfs_write( of, buf, size, offset, fuse_get_context()->pid, &bytes_written );
     pthread_rwlock_unlock( &self->write_lock );
