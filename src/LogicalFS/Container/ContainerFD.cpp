@@ -590,6 +590,8 @@ Container_fd::close(pid_t pid, uid_t uid, int /* open_flags */,
     plfs_error_t ret = PLFS_SUCCESS;
     Container_OpenFile *cof;
     int left;
+    size_t cnt;
+    map<pid_t,writefh>::iterator fhs_itr;
     off_t m_lastoffset;
     size_t m_totalbytes;
 
@@ -639,11 +641,39 @@ Container_fd::close(pid_t pid, uid_t uid, int /* open_flags */,
     
     /*
      * we've dropped the final reference to the cof, so now we know we
-     * need to dispose of it.  first dispose of the index.  note that
-     * m_lastoffset gets set to the largest offset discovered or
-     * written to for cof->cof_index (help to track EOF).
-     * m_totalbytes is the total number of bytes written for this
-     * cof->cof_index.
+     * need to dispose of it.
+     */
+
+    /*
+     * to be safe, ensure that there are no leftover write data
+     * dropping still open.
+     *
+     * XXX: currently this can happen with PLFS/FUSE if a process
+     * opens a file and then forks off a child to do the write.
+     * the forked proc doesn't generate an open, but it gets sent
+     * to plfs_write() and makes a dropping.  e.g.
+     *
+     *   # (eval "gcc -v >&1") 2>conftest.err
+     *
+     * even if we fix this, we should keep this code anyway just to
+     * play it safe (doesn't cost much to check).
+     */
+    cnt = cof->fhs.size();
+    if (cnt) {
+        mlog(CON_DRARE, "%s: %s: closing extra write droppings (n=%ld)",
+             __FUNCTION__, cof->pathcpy.canbpath.c_str(), cnt);
+
+        while ((fhs_itr = cof->fhs.begin()) != cof->fhs.end()) {
+            close_writedropping(cof, fhs_itr->first);
+        }
+
+    }
+    
+    /*
+     * first dispose of the index.  note that m_lastoffset gets set to
+     * the largest offset discovered or written to for cof->cof_index
+     * (help to track EOF).  m_totalbytes is the total number of bytes
+     * written for this cof->cof_index.
      *
      * XXX: look at return values and log errors
      */
