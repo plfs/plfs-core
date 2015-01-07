@@ -1,0 +1,12 @@
+diff -Naur fuse-2.8.3.orig/lib/fuse_kern_chan.c fuse-2.8.3/lib/fuse_kern_chan.c
+--- fuse-2.8.3.orig/lib/fuse_kern_chan.c	2014-03-05 15:58:21.123748000 -0700
++++ fuse-2.8.3/lib/fuse_kern_chan.c	2014-03-05 16:00:14.450056000 -0700
+@@ -80,7 +80,7 @@
+ 	close(fuse_chan_fd(ch));
+ }
+ 
+-#define MIN_BUFSIZE 0x21000
++#define MIN_BUFSIZE 0xC01000
+ 
+ struct fuse_chan *fuse_kern_chan_new(int fd)
+ {
