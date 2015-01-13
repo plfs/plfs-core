@@ -4,6 +4,7 @@
 #include "plfs_private.h"
 #include "SmallFileFS.h"
 #include "LogicalFD.h"
+#include "PLFSIndex.h"
 #include <pthread.h>
 #include <string>
 #include <tr1/memory>
@@ -28,7 +29,7 @@ class Small_fd : public Plfs_fd, public PLFSIndex
                       ssize_t *bytes_written);
         plfs_error_t sync();
         plfs_error_t sync(pid_t pid);
-        plfs_error_t trunc(off_t offset, struct plfs_physpathinfo *ppip);
+        plfs_error_t trunc(off_t offset);
         plfs_error_t getattr(struct stat *stbuf, int sz_only);
         plfs_error_t query(size_t *writers, size_t *readers, size_t *bytes_written,
                   bool *reopen);
@@ -43,10 +44,10 @@ class Small_fd : public Plfs_fd, public PLFSIndex
                                   bool *hole, pid_t *chunk_id,
                                   off_t logical);
 
-        plfs_error_t compress_metadata(const char *path);
-        int incrementOpens(int amount);
-        void setPath(string p, struct plfs_backend *b);
-        const char *getPath();
+        plfs_error_t optimize_access();
+        /* backing_path is for debugging mlog calls */
+        const char *backing_path();
+
         plfs_error_t renamefd(struct plfs_physpathinfo *ppip_to);
         plfs_error_t getxattr(void * /* val */, const char * /* key */, 
                      size_t /* len */) {return PLFS_ENOSYS;};

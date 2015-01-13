@@ -24,26 +24,21 @@ class Flat_fd : public Plfs_fd
                            ssize_t *bytes_written);
         plfs_error_t sync();
         plfs_error_t sync(pid_t pid);
-        plfs_error_t trunc(off_t offset, struct plfs_physpathinfo *ppip);
+        plfs_error_t trunc(off_t offset);
         plfs_error_t getattr(struct stat *stbuf, int sz_only);
         plfs_error_t query(size_t *writers, size_t *readers, size_t *bytes_written,
                   bool *reopen);
         bool is_good();
 
-        plfs_error_t compress_metadata(const char * /* xpath */) {
+        plfs_error_t optimize_access() {
             return PLFS_SUCCESS;
         }
-        int incrementOpens(int /* amount */) {
-            return 1;
-        }
-        void setPath( string p, struct plfs_backend *b ) {
-            /* XXXCDC: who calls this?  */
-            this->bnode = p;
-            if (b) this->back = b;
-        }
-        const char *getPath() {
+
+        /* backing_path is for debugging mlog calls */
+        const char *backing_path() {
             return bnode.c_str();
         }
+
         plfs_error_t renamefd(struct plfs_physpathinfo *ppip_to) {
             /*
              * XXXCDC: this is not good enough, as it does not handle

@@ -136,7 +136,7 @@ Flat_fd::sync(pid_t /* pid */)
 
 /* ret PLFS_SUCCESS or PLFS_E */
 plfs_error_t
-Flat_fd::trunc(off_t offset, struct plfs_physpathinfo * /* ppip */)
+Flat_fd::trunc(off_t offset)
 {
     plfs_error_t ret = this->backend_fh->Ftruncate(offset);
     return(ret);
@@ -467,7 +467,7 @@ FlatFileSystem::resolvepath_finish(struct plfs_physpathinfo *ppip)
      */
     at_root = (ppip->filename == NULL);
     
-    hash_val = Container::hashValue((at_root) ? "/" : ppip->filename);
+    hash_val = Util::hashValue((at_root) ? "/" : ppip->filename);
     hash_val = hash_val % ppip->mnt_pt->ncanback;
     ppip->canback = ppip->mnt_pt->canonical_backends[hash_val];
 

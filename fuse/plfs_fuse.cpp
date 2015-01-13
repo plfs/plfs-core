@@ -266,6 +266,7 @@ static void plfsfuse_mlogargfilter(int *argc, char **argv)
 // set this up to parse command line args
 // move code from constructor in here
 // and stop using /etc config file
+// return 0 or -errno
 int Plfs::init( int *argc, char **argv )
 {
     char hostname[_POSIX_PATH_MAX];
@@ -304,13 +305,15 @@ int Plfs::init( int *argc, char **argv )
             pconf->direct_io = 1;
         }
         if ( argv[i][0] != '-' && ! mnt_pt_found ) {
+            plfs_error_t perr;
             int rv;
             char *mnt_pt;
             struct plfs_physpathinfo ppi;
             
             mnt_pt = argv[i];
             /* this check mount and also does a plfs_attach */
-            rv = plfs_resolvepath(mnt_pt, &ppi);
+            perr = plfs_resolvepath(mnt_pt, &ppi);
+            rv = -plfs_error_to_errno(perr);
             if (rv) {
                 fprintf(stderr,"FATAL mount point error: %s %s\n",
                         mnt_pt, strerror(-rv));
@@ -330,7 +333,9 @@ int Plfs::init( int *argc, char **argv )
                    O_WRONLY | O_APPEND | O_CREAT, mode );
     char buffer[1024];
     snprintf( buffer, 1024, "PLFS started at %.2f\n", plfs_wtime() );
-    write( fd, buffer, strlen(buffer) );
+    if (write( fd, buffer, strlen(buffer) ) < 0) {
+        /*ignore it*/;
+    }
     close( fd );
     // init our mutex
     pthread_mutex_init( &(container_mutex), NULL );
@@ -558,7 +563,7 @@ int Plfs::syncIfOpen( const string &expanded ) {
         results.pop_front();
         Plfs_fd *pfd;
         pfd = current.fd;
-        mlog(FUSE_DBG,"%s syncing %s", __FUNCTION__, pfd->getPath());
+        mlog(FUSE_DBG,"%s syncing %s", __FUNCTION__, pfd->backing_path());
         pthread_rwlock_wrlock( &self->write_lock );
         pfd->sync();
         pthread_rwlock_unlock( &self->write_lock );
@@ -951,10 +956,6 @@ int Plfs::f_open(const char *path, struct fuse_file_info *fi)
             self->o_rdwrs++;
         }
     }
-    if ( err == PLFS_SUCCESS ) {
-        mlog(FUSE_DCOMMON, "%s %s has %d references", __FUNCTION__, path,
-             pfd->incrementOpens(0));
-    }
     plfs_mutex_unlock( &self->fd_mutex, __FUNCTION__ );
     // we can safely add more writers to an already open file
     // bec FUSE checks f_access before allowing an f_open
@@ -1117,6 +1118,14 @@ int Plfs::f_write(const char *path, const char *buf, size_t size, off_t offset,
     // this is confusing, but we're issuing a read-lock here to allow 
     // write parallelism while blocking pfd->sync in SyncIfOpen with 
     // a write-lock to avoid a data race internally
+    /*
+     * XXX: we are calling plfs_write with a pid of fuse_get_context()->pid.
+     * we could call with openfile->pid instead.  (they can be different
+     * if a process with an open file forks a child.... in that case
+     * openfile->pid will be the pid of the parent (who called plfs_open())
+     * and fuse_get_context()->pid will be the pid of the child (who may
+     * have never called PLFS before).
+     */
     pthread_rwlock_rdlock( &self->write_lock );
     err = plfs_write( of, buf, size, offset, fuse_get_context()->pid, &bytes_written );
     pthread_rwlock_unlock( &self->write_lock );
@@ -1235,7 +1244,7 @@ string Plfs::openFilesToString(bool verbose)
         mlog(FUSE_DCOMMON, "%s openFile %s", __FUNCTION__, itr->first.c_str());
         if ( verbose ) {
             plfs_query( itr->second, &writers, &readers, NULL, NULL );
-            oss << itr->second->getPath() << ", ";
+            oss << itr->second->backing_path() << ", ";
             oss << readers << " readers, "
                 << writers << " writers. " << endl;
         } else {
@@ -1318,6 +1327,7 @@ int Plfs::f_rename( const char *path, const char *to )
     // this thing until it's done
     plfs_mutex_lock( &self->fd_mutex, __FUNCTION__ );
     list< struct hash_element > results;
+    list< struct hash_element >::iterator resitr;
     plfs_error_t err = PLFS_SUCCESS;
     // there's something weird on Adam's centos box where it seems to allow
     // users to screw with each other's directories even if they shouldn't
@@ -1327,33 +1337,45 @@ int Plfs::f_rename( const char *path, const char *to )
     // work-around for weird-ass centos
     //err = plfs_access(path,W_OK);
     if ( err == PLFS_SUCCESS ) {
+        /*
+         * flush memory before touching files in the backend.  e.g.
+         * for container this will get all the index records on backend
+         * before we rename the index file.   XXX: note that FUSE doesn't
+         * have the locking to block out writes after the sync but before
+         * the rename completes.  currently ignoring that race.
+         */
+        findAllOpenFiles(strPath, results);
+        for (resitr = results.begin() ; resitr != results.end() ; resitr++) {
+            Plfs_fd *rfd = resitr->fd;
+            rfd->sync();
+        }
+
+        /* now do the rename on the backend */
         err = plfs_rename(strPath.c_str(),toPath.c_str());
+
         // Updated this code to search for all open files because the open
         // files are now cached based on a uid and flags
-        if ( err == PLFS_SUCCESS ) {
-            findAllOpenFiles ( strPath, results );
-            if (results.size() != 0) {
-                struct plfs_physpathinfo ppi;
-                int resrv;
-                resrv = plfs_resolvepath(toPath.c_str(), &ppi);
-                /* can resolvepath fail in this case? */
-                if (resrv == 0) {
-                    while (results.size() != 0) {
-                        struct hash_element current;
-                        current = results.front();
-                        results.pop_front();
-                        Plfs_fd *pfd;
-                        pfd = current.fd;
-                        string pathHash = getRenameHash(toPath.c_str(),
-                                                        current.path, strPath);
-                        if (ret == 0 && pfd) {
-                            pid_t pid = fuse_get_context()->pid;
-                            removeOpenFile(current.path, pid, pfd);
-                            addOpenFile(pathHash, pid, pfd);
-                            pfd->renamefd(&ppi);
-                            mlog(FUSE_DCOMMON, "Rename open file %s->%s "
-                                 "(hope this works)", path, to);
-                        }
+        if ( err == PLFS_SUCCESS && results.size() != 0) {
+            struct plfs_physpathinfo ppi;
+            int resrv;
+            resrv = plfs_resolvepath(toPath.c_str(), &ppi);
+            /* can resolvepath fail in this case? */
+            if (resrv == 0) {
+                while (results.size() != 0) {
+                    struct hash_element current;
+                    current = results.front();
+                    results.pop_front();
+                    Plfs_fd *pfd;
+                    pfd = current.fd;
+                    string pathHash = getRenameHash(toPath.c_str(),
+                                                    current.path, strPath);
+                    if (ret == 0 && pfd) {
+                        pid_t pid = fuse_get_context()->pid;
+                        removeOpenFile(current.path, pid, pfd);
+                        addOpenFile(pathHash, pid, pfd);
+                        pfd->renamefd(&ppi);
+                        mlog(FUSE_DCOMMON, "Rename open file %s->%s "
+                             "(hope this works)", path, to);
                     }
                 }
             }

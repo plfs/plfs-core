@@ -1,94 +1,64 @@
-#ifndef __CONTAINERFD_H__
-#define __CONTAINERFD_H__
+#ifndef __CONTAINERFD_H_
+#define __CONTAINERFD_H_
 
 #include "plfs.h"
+#include "LogicalFS.h"
 #include "LogicalFD.h"
-
-class Container_OpenFile : public Metadata
-{
-    public:
-        Container_OpenFile( WriteFile *, Index *, pid_t,
-                            mode_t, const char *, struct plfs_backend * );
-        WriteFile  *getWritefile();
-        Index      *getIndex();
-        void       setWriteFds( int, int, Index * );
-        void       getWriteFds( int *, int *, Index ** );
-        pid_t      getPid();
-        void       setPath( string path, struct plfs_backend *backend );
-        const char *getPath() {
-            return this->path.c_str();
-        }
-        struct plfs_backend *getCanBack() {
-            return this->canback;
-        }
-        mode_t     getMode()  {
-            return this->mode;
-        }
-        time_t     getCtime() {
-            return ctime;
-        }
-        void       setIndex( Index *i )          {
-            this->index     = i;
-        }
-        void       setWritefile( WriteFile *wf ) {
-            this->writefile = wf;
-        }
-        // when we build and destroy an index in RDWR mode, we want to lock it
-        int       lockIndex();
-        int       unlockIndex();
-        void      setReopen() {
-            reopen = true;
-        };
-        bool      isReopen() {
-            return reopen;
-        };
-
-    private:
-        WriteFile *writefile;
-        Index     *index;
-        pthread_mutex_t index_mux;
-        pid_t     pid;
-        mode_t    mode;
-        string    path;
-        struct plfs_backend *canback;
-        time_t    ctime;
-        bool      reopen;
-};
+#include "ContainerOpenFile.h"
 
 class Container_fd : public Plfs_fd
 {
-    public:
-        Container_fd();
-        ~Container_fd();
-        // These are operations operating on an open file.
-        plfs_error_t open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
-                 mode_t mode, Plfs_open_opt *open_opt);
-        plfs_error_t close(pid_t, uid_t, int flags, Plfs_close_opt *, int *);
-        plfs_error_t read(char *buf, size_t size, off_t offset, ssize_t *bytes_read);
-        plfs_error_t renamefd(struct plfs_physpathinfo *ppip_to);
-        plfs_error_t write(const char *buf, size_t size, off_t offset, pid_t pid,
-                           ssize_t *bytes_written);
-        plfs_error_t sync();
-        plfs_error_t sync(pid_t pid);
-        plfs_error_t trunc(off_t offset, struct plfs_physpathinfo *ppip);
-        plfs_error_t getattr(struct stat *stbuf, int sz_only);
-        plfs_error_t getxattr(void *value, const char *key, size_t len);
-        plfs_error_t setxattr(const void *value, const char *key, size_t len);
-        plfs_error_t query(size_t *, size_t *, size_t *, bool *reopen);
-        bool is_good();
+ public:
+    Container_fd();
+    ~Container_fd();
 
-        // Functions leaked to FUSE and ADIO:
-        int incrementOpens(int amount);
-        void setPath(string p, struct plfs_backend *b);
-        const char *getPath();
+    /* start of LogicalFD API functions ... */
+    /* These are operations operating on an open file. */
+    plfs_error_t open(struct plfs_physpathinfo *ppip, int flags, pid_t pid,
+                      mode_t mode, Plfs_open_opt *open_opt);
+    plfs_error_t close(pid_t, uid_t, int flags, Plfs_close_opt *, int *);
+    plfs_error_t read(char *buf, size_t size, off_t offset, 
+                      ssize_t *bytes_read);
+    plfs_error_t write(const char *buf, size_t size, off_t offset, 
+                       pid_t pid, ssize_t *bytes_written);
+    plfs_error_t sync();
+    plfs_error_t sync(pid_t pid);
+    plfs_error_t trunc(off_t offset);
+    plfs_error_t getattr(struct stat *stbuf, int sz_only);
+    plfs_error_t query(size_t *, size_t *, size_t *, bool *reopen);
+    bool is_good();
 
-        plfs_error_t compress_metadata(const char *path);
+    /* backing_path is for debugging mlog calls */
+    const char *backing_path();
 
-        /* this is for truncate/grow case */
-        plfs_error_t extend(off_t offset);
+    plfs_error_t optimize_access();
+    plfs_error_t getxattr(void *value, const char *key, size_t len);
+    plfs_error_t setxattr(const void *value, const char *key, size_t len);
+
+    plfs_error_t renamefd(struct plfs_physpathinfo *ppip_to);
+
+    plfs_error_t read_taskgen(char *buf, size_t size, off_t offset,
+                              list<ParallelReadTask> *tasks);
+    plfs_error_t read_chunkfh(string bpath, struct plfs_backend *backend,
+                              IOSHandle **fhp);
+    
+    /* ... end of LogicalFD API functions */
+
+    /* the rest is ContainerFS/FD specific */
+
+    /* this is for truncate/grow case */
+    plfs_error_t extend(off_t offset);
+
+    /* this is for container_dump_index (only) */
+    Container_OpenFile *get_cof() { return(this->fd); }
         
-    private:
-        Container_OpenFile *fd;
+ private:
+    plfs_error_t establish_helper(struct plfs_physpathinfo *ppip, int flags,
+                             pid_t pid, mode_t mode, Plfs_open_opt *open_opt);
+    plfs_error_t establish_writedropping(pid_t pid);
+    plfs_error_t set_writesubdir(Container_OpenFile *cof);
+    
+    Container_OpenFile *fd;
 };
 
-#endif
+#endif /* __CONTAINERFD_H_ */

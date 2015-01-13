@@ -4,10 +4,33 @@
 #include "IOStore.h"
 #include "FileOp.h"
 #include "Util.h"
-#include "Container.h"
 #include "mlogfacs.h"
 #include "plfs.h"
 #include "plfs_private.h"
+
+
+/*
+ * XXX: since FileOp is now a general resource and lives outside of
+ * LogicalFS/Container, it should not have any container-specific parts
+ * to it.  unfortunately, it inherited DT_CONTAINER from the old
+ * pre-LogicalFS version of the file and used to include Container.h.
+ * we should move and isolate the DT_CONTAINER functionality back
+ * in LogicalFS/Container and get rid of DT_CONTAINER here and
+ * the containermode() static fuction (which is a duplicate of 
+ * Container::containerMode).  the main advantage of the current setup
+ * is that the generic code can be compiled without Container mode.
+ */
+static mode_t containermode( mode_t mode )
+{   
+    if ( mode & S_IRGRP || mode & S_IWGRP ){
+        mode |= S_IXGRP;
+    }            
+    if ( mode & S_IROTH || mode & S_IWOTH ){
+        mode |= S_IXOTH;
+    }       
+    return( mode | S_IRUSR | S_IXUSR | S_IWUSR );
+}           
+
 
 /* return PLFS_SUCCESS or PLFS_E* */
 plfs_error_t
@@ -313,10 +336,10 @@ CreateOp::do_op(const char *path, unsigned char isfile, IOStore *store)
     plfs_error_t ret = PLFS_ENOSYS; // just in case we somehow don't change
     switch(isfile) {
         case DT_DIR:
-            ret = store->Mkdir(path,Container::dirMode(m));
+            ret = store->Mkdir(path,m);
             break;
         case DT_CONTAINER:
-            ret = store->Mkdir(path,Container::containerMode(m));
+            ret = store->Mkdir(path,containermode(m));
             break;
         case DT_REG:
             ret = Util::MakeFile(path,m,store);
@@ -340,10 +363,10 @@ ChmodOp::do_op(const char *path, unsigned char isfile, IOStore *store)
     mode_t this_mode;
     switch(isfile) {
         case DT_CONTAINER:
-            this_mode = Container::containerMode(m);
+            this_mode = containermode(m);
             break;
         case DT_DIR:
-            this_mode = Container::dirMode(m);
+            this_mode = m;
             break;
         default:
             this_mode = m;

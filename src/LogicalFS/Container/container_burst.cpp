@@ -18,7 +18,22 @@ using namespace std;
  * background).  they are not called by anything else in the PLFS tree
  * and would only be useful if linked with the rest of the burst
  * buffer demo code (which is not in the tree).
+ *
+ * XXXCDC: these functions were written prior to the ContainerIndex
+ * abstraction...  even though they compile, they are likely tied 
+ * to the ByteRangeIndex.  not sure what will happen if they are
+ * used with using them with other index types, so be aware!
  */
+
+/* the pid is the last bit of the filename */
+static pid_t
+getDroppingPid(const string& path)
+{
+    size_t lastdot = path.rfind('.');  /* XXX: check return value? */
+    string pidstr = path.substr(lastdot+1,path.npos);
+    return atoi(pidstr.c_str());
+}               
+            
 
 /*
  * plfs_find_my_droppings:  DESCRIBE ME HERE
@@ -41,7 +56,7 @@ plfs_find_my_droppings(const string& physical, IOStore *store,
     set<string>::iterator itr = drops.begin();
     while(itr!=drops.end()) {
         set<string>::iterator prev = itr++;
-        int dropping_pid = Container::getDroppingPid(*prev);
+        int dropping_pid = getDroppingPid(*prev);
         if (dropping_pid != getpid() && dropping_pid != pid) {
             drops.erase(prev);
         }

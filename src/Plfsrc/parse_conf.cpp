@@ -3,10 +3,9 @@
 #include "parse_conf.h"
 #include "plfs_internal.h"
 #include "mlog.h"
-#include "FlatFileFS.h"
 #include "ContainerFS.h"
+#include "FlatFileFS.h"
 #include "SmallFileFS.h"
-
 
 void
 set_default_mount(PlfsMount *pmnt)
@@ -15,6 +14,7 @@ set_default_mount(PlfsMount *pmnt)
     pmnt->statfs_io.prefix = NULL;
     pmnt->statfs_io.store = NULL;
     pmnt->file_type = CONTAINER;
+    pmnt->fileindex_type = CI_BYTERANGE;
     pmnt->fs_ptr = &containerfs;
     pmnt->max_writers = 4;
     pmnt->glib_buffer_mbs = 16;
@@ -400,26 +400,54 @@ namespace YAML {
                    }
                }
                if(node["workload"]) {
-                   string temp;
+                   string temp, temp2;
+                   size_t cloc;
                    if(!conv(node["workload"],temp)) {
                        pmntp.err_msg = new string("Illegal workload");
-                   }
-                   else if(temp == "file_per_proc" || temp == "n-n") {
-                       pmntp.file_type = FLAT_FILE;
-                       pmntp.fs_ptr = &flatfs;
-                   }
-                   else if(temp == "shared_file" || temp == "n-1") {
-                       pmntp.file_type = CONTAINER;
-                       pmntp.fs_ptr = &containerfs;
-                   }
-                   else if(temp == "small_file" || temp == "1-n") {
-                       pmntp.file_type = SMALL_FILE;
-                       pmntp.fs_ptr = new SmallFileFS(pmntp.max_smallfile_containers);
-                   }
-                   else {
-                       pmntp.err_msg = new string("Unknown workload type");
-                   }
-               }
+                   } else {
+                       cloc = temp.find(":", 0);
+                       if (cloc == string::npos) {
+                           temp2 = "";
+                       } else {
+                           temp2 = temp.substr(cloc+1, string::npos);
+                           temp = temp.substr(0, cloc);
+                       }
+                       if(temp == "file_per_proc" || temp == "n-n") {
+                           pmntp.file_type = FLAT_FILE;
+                           pmntp.fileindex_type = 0;   /* default */
+                           pmntp.fs_ptr = &flatfs;
+                           if (temp2 != "") {
+                               pmntp.err_msg = new
+                                   string("n-n index type not supported");
+                           }
+                       }
+                       else if(temp == "shared_file" || temp == "n-1") {
+                           pmntp.file_type = CONTAINER;
+                           pmntp.fileindex_type =
+                               (temp2 == "") ?
+                               CI_BYTERANGE /* default */ :
+                               container_index_id(temp2.c_str());
+                           pmntp.fs_ptr = &containerfs;
+                           if (pmntp.fileindex_type == CI_UNKNOWN) {
+                               pmntp.err_msg = new
+                                   string("Bad index type " + temp2);
+                           }
+                       }
+                       else if(temp == "small_file" || temp == "1-n") {
+                           pmntp.file_type = SMALL_FILE;
+                           pmntp.fileindex_type = 0;   /* default */
+                           pmntp.fs_ptr =
+                               new SmallFileFS(pmntp.max_smallfile_containers);
+                           if (temp2 != "") {
+                               pmntp.err_msg = new
+                                   string("1-n index type not supported");
+                           }
+                       }
+                       else {
+                           pmntp.err_msg = new string("Unknown workload type");
+                       }
+                   } /* conv to temp ok */
+               }  /* workload */
                if(node["max_writers"]) {
                    if(!conv(node["max_writers"],pmntp.max_writers) ||
                       pmntp.max_writers < 1) {
@@ -478,7 +506,7 @@ namespace YAML {
                    if (!backspec.empty()) {
                        pmntp.backspec = strdup(backspec.c_str());
                        pmntp.checksum = 
-                           (unsigned)Container::hashValue(backspec.c_str());
+                           (unsigned)Util::hashValue(backspec.c_str());
                    }
                    if (!canspec.empty())
                        pmntp.canspec = strdup(canspec.c_str());
@@ -832,6 +860,8 @@ setup_mlog(PlfsConf *pconf)
         pconf->mlog_msgbuf_size = temp_conf.mlog_msgbuf_size;
     if (temp_conf.mlog_syslogfac != default_conf.mlog_syslogfac)
         pconf->mlog_syslogfac = temp_conf.mlog_syslogfac;
+    if (temp_conf.mlog_setmasks != default_conf.mlog_setmasks)
+        pconf->mlog_setmasks = temp_conf.mlog_setmasks;
     /* end of part 1 of simplified high-level env var config */
     /* shutdown early mlog config so we can replace with the real one ... */
     mlog_close();

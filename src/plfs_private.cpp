@@ -161,6 +161,53 @@ skipPrefixPath(const char *path) {
     return(path);
 }
 
+/**
+ * plfs_copypathinfo: make a copy of pathinfo (e.g. for saving under
+ * a Plfs_fd).
+ *
+ * @param dest the copy is placed here
+ * @param src the src (setup by plfs_resolvepath) we are copying from
+ * @return PLFS_SUCCESS or PLFS_E
+ */
+plfs_error_t 
+plfs_copypathinfo(struct plfs_physpathinfo *dest,
+                  struct plfs_physpathinfo *src) {
+    plfs_error_t rv = PLFS_SUCCESS;
+    size_t len, bn_len;
+
+    dest->bnode = src->bnode; /* C++ string malloc+copy under the hood */
+    /* XXX: if malloc fails, we die with an exception */
+
+    if (src->filename == NULL) {
+        dest->filename = NULL;
+    } else {
+        /* 
+         * src->filename should point inside of src->bnode.c_str(),
+         * but should we trust that?  maybe not?
+         */ 
+        len = strlen(src->filename);
+        bn_len = src->bnode.length();
+        if (bn_len >= len) {
+            dest->filename = dest->bnode.c_str() + (bn_len - len);
+        } else {
+            /* well, this should never ever happen */
+            mlog(INT_CRIT, "plfs_copypathinfo sanity check: (%s %ld) (%s %ld)",
+                 src->bnode.c_str(), bn_len, src->filename, len);
+            dest->filename = NULL;
+            rv = PLFS_EINVAL;
+        }
+    }
+
+    if (rv == PLFS_SUCCESS) {
+        dest->mnt_pt = src->mnt_pt;
+        dest->canback = src->canback;
+        dest->canbpath = src->canbpath; /* C++ string malloc+copy */
+    }
+
+    return(rv);
+}
+
+
 /*
  * plfs_attach: attach a filesystem.  must protect pmnt iostore data
  * with a mutex.
@@ -497,7 +544,7 @@ plfs_check_dir(string type, const char *prefix, IOStore *store, string bpath,
                type.c_str(), prefix, directory);
         return(PLFS_ENOENT);
     }
-    rv = mkdir_dash_p(bpath, false, store);
+    rv = mkdir_dash_p(bpath, 0755, false, store);
     if (rv != PLFS_SUCCESS) {
         printf("Attempt to create directory %s%s failed (%s)\n",
                prefix, directory, strplfserr(rv));
@@ -731,7 +778,7 @@ plfs_stats( void *vptr )
 // returns PLFS_SUCCESS or PLFS_E*
 // if it sees EEXIST, it silently ignores it and returns PLFS_SUCCESS
 plfs_error_t
-mkdir_dash_p(const string& path, bool parent_only, IOStore *store)
+mkdir_dash_p(const string& path, mode_t mode, bool parent_only, IOStore *store)
 {
     string recover_path;
     vector<string> canonical_tokens;
@@ -744,7 +791,7 @@ mkdir_dash_p(const string& path, bool parent_only, IOStore *store)
     for(size_t i=0 ; i < last; i++) {
         recover_path += "/";
         recover_path += canonical_tokens[i];
-        plfs_error_t ret = store->Mkdir(recover_path.c_str(), CONTAINER_MODE);
+        plfs_error_t ret = store->Mkdir(recover_path.c_str(), mode);
         if ( ret != PLFS_SUCCESS && ret != PLFS_EEXIST ) { // some other error
             return(ret);
         }

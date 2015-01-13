@@ -7,6 +7,10 @@
  * container functions used by the plfs-core/mpi_adio code.
  * must provide C linkage for these fuctions, since the plfs
  * adio code is in C.
+ * 
+ * NOTE: other than container_gethostdir_id() and container_num_host_dirs()
+ * these functions are ByteRangeIndex specific and should only be called 
+ * for containers using the ByteRangeIndex.
  */
 
 #ifdef __cplusplus
@@ -136,22 +140,6 @@ extern "C" {
      */
     extern plfs_error_t container_index_stream(Plfs_fd **pfd, char **buffer,
                                                int *ret_index_sz);
-
-    /**
-     * container_merge_indexes: used during flatten_then_close by the
-     * rank 0 proc to merge all the indexes of all the ranks into one
-     * global index that can be saved (further on in the
-     * flatten_then_close code path).
-     *
-     * @param pfd the file currently in flatten_then_close processing
-     * @param index_streams the index streams from all the procs in one buf
-     * @param index_sizes the size of each proc's streams
-     * @param procs the number of procs we have
-     * @return always SUCCESS, the merged index is saved in pfd.
-     */
-    extern plfs_error_t container_merge_indexes(Plfs_fd **pfd,
-                                                char *index_streams,
-                                                int *index_sizes, int procs);
 
 #ifdef __cplusplus
 }

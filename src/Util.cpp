@@ -31,7 +31,7 @@ using namespace std;
 #include "Util.h"
 #include "LogMessage.h"
 #include "mlogfacs.h"
-#include "Container.h"
+//#include "Container.h"
 #include "mlog_oss.h"
 #include "mlog.h"
 
@@ -114,6 +114,24 @@ off_t total_ops = 0;
 #define EXIT_UTIL   end   = getTime();                          \
                         EXIT_SHARED;
 #endif
+
+size_t 
+Util::hashValue( const char *str0 )
+{
+    // so the string summation is bad in terms of distribution and
+    // collisions.  This should be better...
+    // Actual algorithm is: hash(i) = hash(i - 1) * 65599 + str[i];
+
+    const char *str = str0;
+    size_t sum = 0;
+    int c;
+    while ((c = *str++)) {
+        sum = c + (sum << 6) + (sum << 16) - sum;
+    }
+    mlog(UT_DINTAPI, "%s: %s -> %lu",__FUNCTION__,str0,(unsigned long)sum);
+    return sum; 
+}    
+
 
 /**
  * sanicopy: helper function for sanitize_path, copies what we've done
@@ -463,56 +481,6 @@ void Util::addBytes( string function, size_t size )
     } else {
         kbytes[function] += (size / 1024);
     }
-}
-
-// just reads through a directory and returns all descendants
-// useful for gathering the contents of a container
-plfs_error_t
-Util::traverseDirectoryTree(const char *path, struct plfs_backend *back,
-                            vector<plfs_pathback> &files,
-                            vector<plfs_pathback> &dirs,
-                            vector<plfs_pathback> &links)
-{
-    ENTER_PATH;
-    mlog(UT_DAPI, "%s on %s", __FUNCTION__, path);
-    struct plfs_pathback pb;
-    map<string,unsigned char> entries;
-    map<string,unsigned char>::iterator itr;
-    ReaddirOp rop(&entries,NULL,true,true);
-    string resolved;
-    ret = rop.op(path,DT_DIR, back->store);
-    if (ret==PLFS_ENOENT) {
-        return PLFS_SUCCESS;    // no shadow or canonical on this backend: np.
-    }
-    if (ret!=PLFS_SUCCESS) {
-        return ret;    // some other error is a problem
-    }
-    pb.bpath = path;
-    pb.back = back;
-    dirs.push_back(pb); // save the top dir
-    for(itr = entries.begin(); itr != entries.end() && ret==PLFS_SUCCESS; itr++) {
-        if (itr->second == DT_DIR) {
-            ret = traverseDirectoryTree(itr->first.c_str(),back,
-                                        files,dirs,links);
-        } else if (itr->second == DT_LNK) {
-            struct plfs_backend *metaback;
-            pb.bpath = itr->first;
-            pb.back = back;
-            links.push_back(pb);
-            //XXX: would be more efficient if we had mount point too
-            ret = Container::resolveMetalink(itr->first, back, NULL,
-                                             resolved, &metaback);
-            if (ret == PLFS_SUCCESS) {
-                ret = traverseDirectoryTree(resolved.c_str(), metaback,
-                                            files,dirs,links);
-            }
-        } else {
-            pb.bpath = itr->first;
-            pb.back = back;
-            files.push_back(pb);
-        }
-    }
-    EXIT_UTIL;
 }
 
 pthread_mutex_t time_mux;

@@ -67,6 +67,7 @@ class Util
         static char *Strdup(const char *s1);
 
         // other misc stuff
+        static size_t hashValue( const char *str );
         static plfs_error_t sanitize_path(const char *dirty, const char **clean,
                                  int forcecopy);
         static vector<string> &tokenize(    const string& str,
@@ -96,11 +97,6 @@ class Util
         static string openFlagsToString( int );
         static void addTime( string, double, bool );
         static plfs_error_t hostname(char **ret_name);
-        static plfs_error_t traverseDirectoryTree(const char *physical,
-                                                  struct plfs_backend *back,
-                                                  vector<plfs_pathback> &files,
-                                                  vector<plfs_pathback> &dirs,
-                                                  vector<plfs_pathback> &links);
 
     private:
         static void addBytes( string, size_t );

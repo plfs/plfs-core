@@ -163,7 +163,9 @@ static void truncatelog(int ignore) {
      */
     (void) ignore; // silence Intel compiler and Clang warning
     if (logfp) {
-        (void) ftruncate(fileno(logfp), 0);
+        if (ftruncate(fileno(logfp), 0) == -1) {
+            /*ignore it */;
+        }
     }
 }
 

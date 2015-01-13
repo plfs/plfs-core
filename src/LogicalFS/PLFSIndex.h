@@ -17,8 +17,10 @@ public:
     virtual void unlock(const char *function) = 0;
     virtual IOSHandle *getChunkFh( pid_t chunk_id ) = 0;
     virtual plfs_error_t setChunkFh( pid_t chunk_id, IOSHandle *fh ) = 0;
-    virtual plfs_error_t globalLookup( IOSHandle **fh, off_t *chunk_off, size_t *length,
-                                       string& path, struct plfs_backend **backp,
+    virtual plfs_error_t globalLookup( IOSHandle **fh, off_t *chunk_off, 
+                                       size_t *length,
+                                       string& path, 
+                                       struct plfs_backend **backp,
                                        bool *hole, pid_t *chunk_id,
                                        off_t logical ) = 0;
 };

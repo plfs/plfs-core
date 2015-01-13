@@ -4,7 +4,6 @@
 #include "yaml-cpp/yaml.h"
 #include "IOStore.h"
 #include "LogicalFS.h"
-#include "Container.h"
 #include <syslog.h>
 
 /*
@@ -40,6 +39,7 @@ typedef struct  PlfsMount {
     string *syncer_ip; // where to send commands within container_protect
     vector<string> mnt_tokens;
     plfs_filetype file_type;
+    int fileindex_type;
     LogicalFileSystem *fs_ptr;
     int max_writers;
     int glib_buffer_mbs;
