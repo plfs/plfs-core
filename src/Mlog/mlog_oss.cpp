@@ -33,7 +33,8 @@ bool mss::mlog_oss::getNoLog() {
 }
 
 void mss::mlog_oss::insert_os(const std::ostream& xin) {
-    oss << xin;
+    oss << const_cast<std::ostream&>(xin).rdbuf();
+    // oss << xin;
 }
 
 /*
